@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { loadData, saveData } from "./supabase.js";
+import { loadData, saveData, setCoachKey } from "./supabase.js";
 
 // Data functions imported from supabase.js
 
@@ -277,23 +277,115 @@ const Ic={
   Home:()=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
 };
 
+function CoachSelector({onSelect,onDismiss,canDismiss}){
+  const [adding,setAdding]=useState(false);
+  const [newName,setNewName]=useState("");
+  const save=()=>{if(!newName.trim())return;onSelect("coach_"+newName.trim().toLowerCase().replace(/[^a-z0-9]/g,"_"));};
+  return (<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:200,display:"flex",alignItems:"flex-end"}}>
+    <div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"24px 20px 48px"}}>
+      <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 20px"}}/>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,marginBottom:4}}>Who are you?</div>
+      <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Choose your name to see your teams and practices.</div>
+      {!adding&&<div>
+        <button onClick={()=>onSelect("c_jaxon1")} style={{width:"100%",padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:"var(--s1)",marginBottom:10,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <span style={{fontSize:16,fontWeight:600}}>Jaxon</span>
+          <span style={{color:"var(--green)",fontSize:20,fontWeight:700}}>&#8594;</span>
+        </button>
+        <button onClick={()=>setAdding(true)} style={{width:"100%",padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px dashed var(--gb)",background:"#fff",marginBottom:10,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:10}}>
+          <span style={{width:28,height:28,borderRadius:"50%",background:"var(--gbg)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--green)",fontSize:20,fontWeight:700,flexShrink:0}}>+</span>
+          <span style={{fontSize:16,fontWeight:600,color:"var(--green)"}}>Add New</span>
+        </button>
+        {canDismiss&&<button onClick={onDismiss} style={{width:"100%",padding:"12px",border:"none",background:"transparent",color:"var(--td)",fontSize:14,cursor:"pointer"}}>Cancel</button>}
+      </div>}
+      {adding&&<div>
+        <div className="fld mb10"><label className="lbl">Your Name</label><input className="inp" autoFocus placeholder="e.g. Coach Rivera" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}/></div>
+        <div className="brow"><button className="btn ghost bmd" onClick={()=>setAdding(false)}>Back</button><button className="btn primary bmd" onClick={save} disabled={!newName.trim()}>Start Coaching</button></div>
+      </div>}
+    </div>
+  </div>);
+}
+
+function TodayScreen({data,update,openModal,setView,setLiveId,coachId,coachName,onSwitchCoach}){
+  const now=new Date();
+  const todayStr=now.toISOString().slice(0,10);
+  const hour=now.getHours();
+  const myTeamIds=data.teams.filter(t=>t.coaches.some(c=>c.id===coachId)).map(t=>t.id);
+  const myPractices=data.practices.filter(p=>myTeamIds.includes(p.teamId));
+  const todayPractices=myPractices.filter(p=>p.date===todayStr).sort((a,b)=>a.startTime>b.startTime?1:-1);
+  const upcoming=myPractices.filter(p=>p.date>todayStr).sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:0).slice(0,3);
+  const recent=myPractices.filter(p=>p.date<todayStr).sort((a,b)=>b.date>a.date?1:-1).slice(0,3);
+  const getTeam=id=>data.teams.find(t=>t.id===id);
+  const getLoc=id=>data.locations.find(l=>l.id===id);
+  const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
+  const isSoon=p=>{if(!p.startTime||p.date!==todayStr)return false;const pts=p.startTime.split(":");const pm=parseInt(pts[0])*60+parseInt(pts[1]);const nm=now.getHours()*60+now.getMinutes();return pm-nm<=120&&pm-nm>=-30;};
+  const greeting=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
+  return (<div style={{padding:"0 0 calc(var(--tab) + 20px)"}}>
+    <div style={{padding:"20px 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,lineHeight:1}}>{greeting},</div>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,color:"var(--green)",lineHeight:1}}>{coachName}</div>
+      </div>
+      <button onClick={onSwitchCoach} style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"50%",width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </button>
+    </div>
+    <div style={{padding:"0 16px"}}>
+      {todayPractices.length===0&&<div className="card" style={{marginBottom:12,textAlign:"center",padding:"28px 20px"}}>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,marginBottom:4}}>Nothing scheduled today</div>
+        <div style={{fontSize:13,color:"var(--td)",marginBottom:16}}>Build a practice or schedule one for later.</div>
+        <button className="btn primary bmd bfull" onClick={()=>setView("builder")}>+ Build a Practice</button>
+      </div>}
+      {todayPractices.map(p=>{const team=getTeam(p.teamId);const loc=getLoc(p.locationId);const soon=isSoon(p);return (<div key={p.id} className="card" style={{marginBottom:12,borderColor:soon?"var(--green)":"var(--b)",borderWidth:soon?2:1.5}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+          {soon&&<span style={{background:"var(--green)",color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".08em",padding:"2px 8px",borderRadius:20}}>TODAY</span>}
+          <span style={{fontSize:13,color:"var(--td)",fontWeight:600}}>{timeLbl(p)}</span>
+        </div>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,lineHeight:1,marginBottom:2}}>{team?team.name:"Practice"}</div>
+        {loc&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>{loc.name}</div>}
+        <div style={{fontSize:12,color:"var(--td)",marginBottom:12}}>{(p.activities||[]).length} activities</div>
+        {soon&&<button className="btn primary bxl bfull" onClick={()=>{setLiveId(p.id);setView("command");}}>Start Practice &#8594;</button>}
+        {!soon&&<div className="brow"><button className="btn ghost bmd" style={{flex:1}} onClick={()=>setView("builder")}>Edit</button><button className="btn primary bmd" style={{flex:1}} onClick={()=>{setLiveId(p.id);setView("command");}}>Run Now</button></div>}
+      </div>);})} 
+      {upcoming.length>0&&<div>
+        <div className="sechdr" style={{marginBottom:8}}><span className="sectitle">Coming Up</span></div>
+        {upcoming.map(p=>{const team=getTeam(p.teamId);const d=new Date(p.date+"T12:00:00");const dl=d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});return (<div key={p.id} className="li" style={{marginBottom:6}}>
+          <div className="lim"><div className="lin">{team?team.name:"Practice"}</div><div className="limt">{dl}{p.startTime?" - "+timeLbl(p):""}</div></div>
+          <button className="btn ghost bxs" onClick={()=>setView("command")}>View</button>
+        </div>);})}
+      </div>}
+      {recent.length>0&&<div style={{marginTop:16}}>
+        <div className="sechdr" style={{marginBottom:8}}><span className="sectitle">Recent</span></div>
+        {recent.map(p=>{const team=getTeam(p.teamId);const d=new Date(p.date+"T12:00:00");const dl=d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});return (<div key={p.id} className="li" style={{marginBottom:6,opacity:.7}}>
+          <div className="lim"><div className="lin">{team?team.name:"Practice"}</div><div className="limt">{dl}</div></div>
+        </div>);})}
+      </div>}
+      <div style={{marginTop:20}}><button className="btn outline bmd bfull" onClick={()=>setView("builder")}>+ Build a Practice</button></div>
+    </div>
+  </div>);
+}
+
 export default function App(){
   const [data,setData]=useState(INIT);
   const [loaded,setLoaded]=useState(false);
-  const [view,setView]=useState("home");
+  const [view,setView]=useState("today");
   const [modal,setModal]=useState(null);
   const [liveId,setLiveId]=useState(null);
+  const [coachId,setCoachId]=useState(null);
+  const [showCoachSelect,setShowCoachSelect]=useState(false);
   const update=useCallback(fn=>{setData(d=>{const nx=fn(JSON.parse(JSON.stringify(d)));saveData(nx);return nx;});},[]);
-  useEffect(()=>{loadData().then(raw=>{setData(mergeDefaults(raw||INIT));setLoaded(true);});},[]);
+  useEffect(()=>{if(coachId)setCoachKey(coachId);loadData().then(d=>{setData(mergeDefaults(d||INIT));setLoaded(true);});},[]);
   const openModal=(t,p)=>setModal({type:t,payload:p||{}});
   const closeModal=()=>setModal(null);
   const launchRun=id=>{if(id)setLiveId(id);setView("command");};
   useEffect(()=>{window.__cbSetView=setView;return()=>{delete window.__cbSetView;};},[]);
   const TABS=[
-    {id:"home",label:"Home",I:Ic.Home},
-    {id:"builder",label:"Builder",I:Ic.Build},
+    {id:"today",label:"Today",I:Ic.Home},
     {id:"command",label:"Run",I:Ic.Run},
+    {id:"manage",label:"Manage",I:Ic.Build},
   ];
+  const needsCoach=loaded&&!coachId;
+  const selectCoach=(id)=>{setCoachKey(id);setCoachId(id);setShowCoachSelect(false);setLoaded(false);loadData().then(d=>{setData(mergeDefaults(d||INIT));setLoaded(true);});};
+  const coachName=coachId==="c_jaxon1"?"Jaxon":(typeof window!=="undefined"&&window.localStorage&&localStorage.getItem("rop_coach_name"))||"Coach";
   if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"#f7f8f6",color:"#2d6a4f",fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:700}}>
       <style>{CSS}</style>LOADING...
     </div>
@@ -301,7 +393,8 @@ export default function App(){
   return (<div style={{display:"contents"}}><style>{CSS}</style>
     <div className="app">
       <div className="screen">
-        {view==="home"&&<HomeScreen data={data} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun}/>}
+        {view==="today"&&<TodayScreen data={data} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSwitchCoach={()=>setShowCoachSelect(true)}/>}
+        {view==="manage"&&<HomeScreen data={data} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun}/>}
         {view==="builder"&&<BuilderScreen data={data} update={update} openModal={openModal} launchRun={launchRun}/>}
         {view==="command"&&<CommandScreen data={data} update={update} liveId={liveId} setLiveId={setLiveId}/>}
       </div>
@@ -314,6 +407,7 @@ export default function App(){
       </nav>
     </div>
     {modal&&<ModalLayer modal={modal} data={data} update={update} closeModal={closeModal}/>}
+    {(needsCoach||showCoachSelect)&&<CoachSelector onSelect={selectCoach} onDismiss={()=>setShowCoachSelect(false)} canDismiss={!!coachId}/>}
     </div>
   );
 }
