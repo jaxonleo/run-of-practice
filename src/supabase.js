@@ -7,26 +7,46 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 const KEY = 'cb_data'
 
+// Debounce saves - wait 800ms after last change before writing
+let saveTimer = null
+
 export async function loadData() {
   try {
     const { data, error } = await supabase
       .from('app_data')
       .select('value')
       .eq('key', KEY)
-      .single()
-    if (error || !data) return null
+      .maybeSingle()
+    if (error) {
+      console.error('loadData error:', JSON.stringify(error))
+      return null
+    }
+    if (!data) {
+      console.log('No data found in Supabase - using defaults')
+      return null
+    }
+    console.log('Loaded data from Supabase')
     return data.value
   } catch (e) {
+    console.error('loadData exception:', e)
     return null
   }
 }
 
-export async function saveData(d) {
-  try {
-    await supabase
-      .from('app_data')
-      .upsert({ key: KEY, value: d }, { onConflict: 'key' })
-  } catch (e) {
-    console.error('saveData error', e)
-  }
+export function saveData(d) {
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(async () => {
+    try {
+      const { error } = await supabase
+        .from('app_data')
+        .upsert({ key: KEY, value: d }, { onConflict: 'key' })
+      if (error) {
+        console.error('saveData error:', JSON.stringify(error))
+      } else {
+        console.log('Saved to Supabase')
+      }
+    } catch (e) {
+      console.error('saveData exception:', e)
+    }
+  }, 800)
 }
