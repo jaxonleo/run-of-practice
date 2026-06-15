@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { loadData, saveData, setCoachKey } from "./supabase.js";
+import { loadData, saveData, setCoachKey, getSession, subscribeToSession, createSession, updateSession, endSession } from "./supabase.js";
 
-// Data functions imported from supabase.js
+// Storage imported from supabase.js
 
 const uid=()=>Math.random().toString(36).slice(2,9);
 const fmt12=(t)=>{if(!t)return"";const[h,m]=t.split(":").map(Number);const ampm=h>=12?"PM":"AM";const h12=h%12||12;return h12+":"+(m<10?"0":"")+m+" "+ampm;};
@@ -1340,17 +1340,19 @@ function HelperView({sessionId}){
   const [tick,setTick]=useState(0);
   useEffect(()=>{const iv=setInterval(()=>setTick(t=>t+1),1000);return()=>clearInterval(iv);},[]);
   useEffect(()=>{
-    import("./supabase.js").then(({getSession,subscribeToSession})=>{
-      getSession(sessionId).then(s=>{setSession(s);setLoading(false);});
-      subRef.current=subscribeToSession(sessionId,updated=>{setSession(updated);});
-    });
+    getSession(sessionId).then(s=>{setSession(s);setLoading(false);});
+    subRef.current=subscribeToSession(sessionId,updated=>{setSession(updated);setFocusSt(f=>f);});
     return()=>{if(subRef.current)subRef.current.unsubscribe();};
   },[sessionId]);
+
   if(loading)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,background:"#0d1512"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,letterSpacing:".1em"}}>JOINING SESSION...</div></div>);
   if(!session)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,textAlign:"center"}}>Session not found</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This link may be invalid or the practice has ended.</div></div>);
   if(session.ended_at)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:48,fontWeight:900,textAlign:"center"}}>Well Done</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This practice session has ended.</div></div>);
+
   const state=session.state||{};
   const liveActs=state.liveActs||[];
+  const roster=state.roster||[];
+  const locations=state.locations||[];
   const idx=state.idx||0;
   const stIdx=state.stIdx||0;
   const inTrans=state.inTrans||false;
@@ -1359,16 +1361,91 @@ function HelperView({sessionId}){
   const savedElapsed=state.elapsed||0;
   const cur=liveActs[idx]||null;
   const isBlock=cur&&cur.type==="station_block";
+  const isCl=cur&&cur.type==="checklist";
   const blockRotate=isBlock&&cur.rotate!==false;
   const phaseSecs=isBlock?(blockRotate&&inTrans?cur.transitionDuration*60:cur.stationDuration*60):(cur?((cur.duration||0)*60):0);
   const elapsed=running&&runningAt?savedElapsed+Math.floor((Date.now()-runningAt)/1000):savedElapsed;
   const rem=phaseSecs-elapsed;
   const prog=phaseSecs>0?Math.min(1,elapsed/phaseSecs):0;
-  const urg=rem<=30&&rem>0;
+  const urg=rem<=30&&rem>0&&running;
   const n=isBlock&&cur.stations?cur.stations.length:1;
   const rotatedStations=isBlock&&cur.stations?(cur.stations.map((st,i)=>{const srcIdx=(i-stIdx%n+n)%n;return Object.assign({},cur.stations[i],{assignments:cur.stations[srcIdx].assignments});})):null;
   const phaseLabel=isBlock?(blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+n):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
-  return (<div className="ccs"><div className="cc-header"><div><div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span><span style={{marginLeft:8,fontSize:11,color:"var(--td)"}}>View only</span></div><div className="cc-act-name">{phaseLabel}</div></div><span style={{background:"var(--gbg)",border:"1.5px solid var(--gb)",borderRadius:20,padding:"4px 10px",fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:"var(--green)"}}>{(state.presentIds||[]).length} present</span></div><div className="cc-timer-row"><div className={"cc-timer"+(urg?" urg":"")}>{fmt(rem)}</div></div><div className="cc-prog"><div className={"cc-prog-bar"+(urg?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div><div className="cc-body">{isBlock&&!inTrans&&rotatedStations&&<div>{focusSt!==null&&<div><button className="btn ghost bxs" style={{marginBottom:10}} onClick={()=>setFocusSt(null)}>&#8249; All Stations</button><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:4}}>{rotatedStations[focusSt].name}</div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:32,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:8}}>{rotatedStations[focusSt].activityName||rotatedStations[focusSt].name}</div>{rotatedStations[focusSt].coachingPoints&&<div className="cc-focus"><div className="cc-focus-lbl">Coaching Focus</div><div className="cc-focus-txt">{rotatedStations[focusSt].coachingPoints}</div></div>}<div style={{marginTop:10}}><div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(rotatedStations[focusSt].assignments||[]).map(pid=>(<span key={pid} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--gb)",background:"var(--gbg)",fontSize:14,fontWeight:600,color:"var(--black)"}}>{pid}</span>))}</div></div></div>}{focusSt===null&&<div><div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+n+" - Tap a station to focus":"All Stations"}</div>{rotatedStations.map((st,i)=>(<div key={i} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:4}}>{st.name}</div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:700,color:"var(--black)",marginBottom:4}}>{st.activityName||st.name}</div><div style={{fontSize:12,color:"var(--td)"}}>{(st.assignments||[]).length} players</div></div>))}</div>}</div>}{isBlock&&inTrans&&rotatedStations&&<div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"var(--red)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Rotate Now</div>{rotatedStations.map((st,i)=>(<div key={i} className="cc-trans-card"><div style={{fontSize:12,color:"var(--td)",marginBottom:3}}>From {st.name}</div><div className="cc-trans-names">{(st.assignments||[]).join(", ")||"--"}</div><div className="cc-trans-to">to {cur.stations[(i+1)%n].name}{cur.stations[(i+1)%n].activityName?": "+cur.stations[(i+1)%n].activityName:""}</div></div>))}</div>}{!isBlock&&cur&&<div className="cc-focus">{cur.name&&<div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,marginBottom:8}}>{cur.name}</div>}{cur.coachingPoints&&<div><div className="cc-focus-lbl">Coaching Focus</div><div className="cc-focus-txt">{cur.coachingPoints}</div></div>}</div>}{liveActs.slice(idx+1,idx+3).length>0&&<div className="cc-queue"><div style={{padding:"6px 12px",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>Up Next</div>{liveActs.slice(idx+1,idx+3).map(a=>(<div key={a.id} className="cc-queue-item"><span style={{fontSize:14,color:"var(--black2)"}}>{a.type==="station_block"?"Station Block":a.name}</span></div>))}</div>}</div></div>);
+  const pname=id=>{const p=roster.find(p=>p.id===id);return p?(p.jersey?"#"+p.jersey+" "+p.firstName:p.firstName):id;};
+  const subName=id=>{const l=locations.find(l=>l.sublocations&&l.sublocations.find(s=>s.id===id));if(!l)return null;const s=l.sublocations.find(s=>s.id===id);return s?s.name:null;};
+  const coachNameH=id=>{if(!cur||!cur.stations)return null;const st=cur.stations.find(s=>s.coachId===id);return null;};
+  const pnames=ids=>(ids||[]).map(id=>pname(id)).join(", ");
+
+  return (<div className="ccs">
+    <div className="cc-header">
+      <div>
+        <div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span><span style={{marginLeft:8,fontSize:11,color:"var(--td)"}}>View only</span></div>
+        {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>STATION BLOCK</div>}
+        <div className="cc-act-name">{phaseLabel}</div>
+      </div>
+      <span style={{background:"var(--gbg)",border:"1.5px solid var(--gb)",borderRadius:20,padding:"4px 10px",fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:"var(--green)"}}>{(state.presentIds||[]).length}/{roster.length}</span>
+    </div>
+    <div className="cc-timer-row">
+      <div className={"cc-timer"+(urg?" urg":(elapsed>phaseSecs?" over":""))}>{fmt(rem)}</div>
+    </div>
+    <div className="cc-prog"><div className={"cc-prog-bar"+(elapsed>phaseSecs?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div>
+    <div className="cc-body">
+      {isCl&&cur&&<div className="cc-focus">
+        <div className="cc-focus-lbl">{cur.name}</div>
+        {(cur.items||[]).map(it=>(<div key={it.id} className="cl-item"><div className="cl-check"/><div className="cl-text">{it.text}</div></div>))}
+        {cur.notes&&<div style={{fontSize:13,color:"var(--black2)",marginTop:8,fontStyle:"italic"}}>{cur.notes}</div>}
+      </div>}
+      {!isBlock&&!isCl&&cur&&<div className="cc-focus">
+        {cur.coachingPoints&&<div><div className="cc-focus-lbl">Coaching Focus</div><div className="cc-focus-txt">{cur.coachingPoints}</div></div>}
+        {cur.notes&&<div style={{fontSize:14,color:"var(--black2)",marginTop:8,fontStyle:"italic",lineHeight:1.5}}>{cur.notes}</div>}
+      </div>}
+      {isBlock&&!inTrans&&rotatedStations&&<div>
+        {focusSt!==null&&<div>
+          <button className="btn ghost bxs" style={{marginBottom:10}} onClick={()=>setFocusSt(null)}>&#8249; All Stations</button>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:4}}>{rotatedStations[focusSt].name}</div>
+          {subName(rotatedStations[focusSt].sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:3}}>{subName(rotatedStations[focusSt].sublocationId)}</div>}
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:32,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:4}}>{rotatedStations[focusSt].activityName||rotatedStations[focusSt].name}</div>
+          {rotatedStations[focusSt].coachingPoints&&<div className="cc-focus"><div className="cc-focus-lbl">Coaching Focus</div><div className="cc-focus-txt">{rotatedStations[focusSt].coachingPoints}</div></div>}
+          <div style={{marginTop:10}}>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {(rotatedStations[focusSt].assignments||[]).map(pid=>(<span key={pid} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--gb)",background:"var(--gbg)",fontSize:14,fontWeight:600,color:"var(--black)"}}>{pname(pid)}</span>))}
+            </div>
+          </div>
+        </div>}
+        {focusSt===null&&<div>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+n+" - Tap a station to focus":"All Stations - Tap to focus"}</div>
+          {rotatedStations.map((st,i)=>(<div key={i} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>{st.name}</div>
+            </div>
+            {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:3}}>{subName(st.sublocationId)}</div>}
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:700,color:"var(--black)",marginBottom:6}}>{st.activityName||st.name}</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              {(st.assignments||[]).map(pid=>(<span key={pid} style={{background:"var(--s2)",border:"1px solid var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>{pname(pid)}</span>))}
+            </div>
+            <div style={{fontSize:10,color:"var(--td)",marginTop:5}}>Tap to focus</div>
+          </div>))}
+        </div>}
+      </div>}
+      {isBlock&&inTrans&&rotatedStations&&<div>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"var(--red)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Rotate Now</div>
+        {rotatedStations.map((st,i)=>(<div key={i} className="cc-trans-card">
+          <div style={{fontSize:12,color:"var(--td)",marginBottom:3}}>From {st.name}</div>
+          <div className="cc-trans-names">{pnames(st.assignments)||"--"}</div>
+          <div className="cc-trans-to">to {cur.stations[(i+1)%n].name}{cur.stations[(i+1)%n].activityName?": "+cur.stations[(i+1)%n].activityName:""}</div>
+          {subName(cur.stations[(i+1)%n].sublocationId)&&<div className="cc-trans-sub" style={{fontWeight:600,color:"var(--green2)"}}>{subName(cur.stations[(i+1)%n].sublocationId)}</div>}
+        </div>))}
+      </div>}
+      {liveActs.slice(idx+1,idx+3).length>0&&<div className="cc-queue">
+        <div style={{padding:"6px 12px",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>Up Next</div>
+        {liveActs.slice(idx+1,idx+3).map(a=>(<div key={a.id} className="cc-queue-item">
+          <span style={{fontSize:14,color:"var(--black2)"}}>{a.type==="station_block"?"Station Block":a.name}</span>
+          <span className="bdg bs">{a.type==="station_block"?(a.stations.length*a.stationDuration+(a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
+        </div>))}
+      </div>}
+    </div>
+  </div>);
 }
 
 function CommandScreen({data,update,liveId,setLiveId,coachId}){
@@ -1400,11 +1477,10 @@ function CommandScreen({data,update,liveId,setLiveId,coachId}){
   const iref=useRef(null);
   const spoken=useRef({});
   const sessionRef=useRef(null);
-  const writeSession=useCallback((overrides)=>{
+  const writeSession=useCallback((newState)=>{
     if(!sessionRef.current)return;
-    const state={idx,stIdx,inTrans,elapsed,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,...(overrides||{})};
-    import("./supabase.js").then(m=>m.updateSession(sessionRef.current,state));
-  },[idx,stIdx,inTrans,elapsed,running,presentIds,liveActs]);
+    import("./supabase.js").then(m=>m.updateSession(sessionRef.current,newState));
+  },[]);
   const cur=liveActs[idx]||null;
   const isBlock=cur&&cur.type==="station_block";
   const blockRotate=isBlock&&cur.rotate!==false;
@@ -1429,16 +1505,36 @@ function CommandScreen({data,update,liveId,setLiveId,coachId}){
     setPresentIds(pIds);setCoachPresentIds(cIds);
     const newActs=applyAtt(pIds,cIds,balanceMode,practice.activities);
     setLiveActs(newActs);setStage("live");setShowAtt(false);
-    setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};
-    import("./supabase.js").then(m=>{
-      m.createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,elapsed:0,running:false,runningAt:null,presentIds:[...pIds],liveActs:newActs}).then(sid=>{
+    setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(true);spoken.current={};
+    import("./supabase.js").then(({createSession})=>{
+      createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,elapsed:0,running:true,runningAt:Date.now(),presentIds:[...pIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations}).then(sid=>{
         if(sid){sessionRef.current=sid;setSessionId(sid);}
       });
     });
   },[practice,applyAtt,coachId,liveId]);
   const handleAttUpdate=useCallback(({presentIds:pIds,coachPresentIds:cIds})=>{setPresentIds(pIds);setCoachPresentIds(cIds);setLiveActs(prev=>applyAtt(pIds,cIds,"keep",prev));setShowAtt(false);},[applyAtt]);
 
-  const advance=useCallback(()=>{writeSession();if(!cur)return;if(isBlock){if(blockRotate&&!inTrans&&cur.transitionDuration>0){setInTrans(true);setElapsed(0);spoken.current={};setRunning(true);}else if(blockRotate&&stIdx<cur.stations.length-1){setStIdx(i=>i+1);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);}else if(idx<liveActs.length-1){setIdx(i=>i+1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);}else{setStage("end");setRunning(false);}}else{if(idx<liveActs.length-1){setIdx(i=>i+1);setElapsed(0);spoken.current={};setRunning(true);}else{setStage("end");setRunning(false);}}},[cur,isBlock,inTrans,stIdx,idx,liveActs.length]);
+  const advance=useCallback(()=>{
+    if(!cur)return;
+    const base={liveActs,presentIds:[...presentIds],running:true,runningAt:Date.now(),elapsed:0,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations};
+    if(isBlock){
+      if(blockRotate&&!inTrans&&cur.transitionDuration>0){
+        setInTrans(true);setElapsed(0);spoken.current={};setRunning(true);
+        writeSession({...base,idx,stIdx,inTrans:true});
+      }else if(blockRotate&&stIdx<cur.stations.length-1){
+        const ns=stIdx+1;setStIdx(ns);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
+        writeSession({...base,idx,stIdx:ns,inTrans:false});
+      }else if(idx<liveActs.length-1){
+        const ni=idx+1;setIdx(ni);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
+        writeSession({...base,idx:ni,stIdx:0,inTrans:false});
+      }else{setStage("end");setRunning(false);writeSession({...base,idx,stIdx,inTrans,running:false,runningAt:null});}
+    }else{
+      if(idx<liveActs.length-1){
+        const ni=idx+1;setIdx(ni);setElapsed(0);spoken.current={};setRunning(true);
+        writeSession({...base,idx:ni,stIdx:0,inTrans:false});
+      }else{setStage("end");setRunning(false);writeSession({...base,idx,stIdx,inTrans,running:false,runningAt:null});}
+    }
+  },[cur,isBlock,blockRotate,inTrans,stIdx,idx,liveActs,presentIds,writeSession]);
   const goBack=useCallback(()=>{if(isBlock){if(inTrans){setInTrans(false);setElapsed(0);spoken.current={};setRunning(false);}else if(stIdx>0){setStIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(false);}else if(idx>0){setIdx(i=>i-1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(false);}}else{if(idx>0){setIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(false);}}},[isBlock,inTrans,stIdx,idx]);
 
   useEffect(()=>{if(running){iref.current=setInterval(()=>{setElapsed(e=>{const ne=e+1;const r=phaseSecs-ne;if(r===120&&!spoken.current[120]){speak("Two minutes remaining.");spoken.current[120]=true;}if(r===0&&!spoken.current[0]){beep();spoken.current[0]=true;}if(r<0&&ne%30===0){beep();}return ne;});},1000);}else{clearInterval(iref.current);}return()=>clearInterval(iref.current);},[running,phaseSecs,speak,beep]);
@@ -1481,7 +1577,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId}){
             {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
               {sessionId&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowShare(true);}}>Share Live View</button>}
-              <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){import("./supabase.js").then(m=>m.endSession(sessionRef.current));sessionRef.current=null;setSessionId(null);}}}>End Practice</button>
+              <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){import("./supabase.js").then(({endSession})=>endSession(sessionRef.current));sessionRef.current=null;setSessionId(null);}}}>End Practice</button>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};setStage("attend");}}>Restart Practice</button>
             </div>}
           </div>
@@ -1496,7 +1592,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId}){
       </div>}
       <div className="cc-timer-row">
         <div className={"cc-timer"+(urg?" urg":"")+(isOver?" over":"")}>{fmt(rem)}</div>
-        <button onClick={()=>{setRunning(r=>!r);writeSession();}} style={{width:52,height:52,borderRadius:"50%",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:isOver?"var(--red)":running?"var(--s3)":"var(--green)",color:isOver?"#fff":running?"var(--black2)":"#fff",boxShadow:running?"none":"0 2px 8px rgba(45,106,79,.35)"}}>
+        <button onClick={()=>{const nr=!running;setRunning(nr);writeSession({idx,stIdx,inTrans,elapsed,running:nr,runningAt:nr?Date.now():null,presentIds:[...presentIds],liveActs});}} style={{width:52,height:52,borderRadius:"50%",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:isOver?"var(--red)":running?"var(--s3)":"var(--green)",color:isOver?"#fff":running?"var(--black2)":"#fff",boxShadow:running?"none":"0 2px 8px rgba(45,106,79,.35)"}}>
           {isOver?<Ic.Restart/>:running?<Ic.Pause/>:<Ic.Play/>}
         </button>
         <div style={{flex:1}}/>
