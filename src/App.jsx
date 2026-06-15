@@ -386,6 +386,8 @@ export default function App(){
   const needsCoach=loaded&&!coachId;
   const selectCoach=(id)=>{setCoachKey(id);setCoachId(id);setShowCoachSelect(false);setLoaded(false);loadData().then(d=>{setData(mergeDefaults(d||INIT));setLoaded(true);});};
   const coachName=coachId==="c_jaxon1"?"Jaxon":(typeof window!=="undefined"&&window.localStorage&&localStorage.getItem("rop_coach_name"))||"Coach";
+  const liveMatch=window.location.pathname.match(/^\/live\/([a-z0-9]+)$/i);
+  if(liveMatch)return (<HelperView sessionId={liveMatch[1]}/>);
   if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"#f7f8f6",color:"#2d6a4f",fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:700}}>
       <style>{CSS}</style>LOADING...
     </div>
@@ -396,7 +398,7 @@ export default function App(){
         {view==="today"&&<TodayScreen data={data} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSwitchCoach={()=>setShowCoachSelect(true)}/>}
         {view==="manage"&&<HomeScreen data={data} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun}/>}
         {view==="builder"&&<BuilderScreen data={data} update={update} openModal={openModal} launchRun={launchRun}/>}
-        {view==="command"&&<CommandScreen data={data} update={update} liveId={liveId} setLiveId={setLiveId}/>}
+        {view==="command"&&<CommandScreen data={data} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId}/>}
       </div>
       <nav className="tabbar">
         {TABS.map(({id,label,I})=>(<button key={id} className={"ti "+(view===id?"on":"")} onClick={()=>setView(id)}>
@@ -1322,7 +1324,54 @@ function PlayerChipLive({pid,team,onMove,onProfile}){
   );
 }
 
-function CommandScreen({data,update,liveId,setLiveId}){
+function ShareSheet({sessionId,onClose}){
+  const url=window.location.origin+"/live/"+sessionId;
+  const [copied,setCopied]=useState(false);
+  const copy=()=>{try{navigator.clipboard.writeText(url).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});}catch(e){}};
+  const share=()=>{if(navigator.share)navigator.share({title:"Run of Practice - Live View",url});else copy();};
+  return (<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:200,display:"flex",alignItems:"flex-end"}}><div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"24px 20px 40px"}}><div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 20px"}}/><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Share Live View</div><div style={{fontSize:13,color:"var(--td)",marginBottom:20}}>Anyone with this link can follow along in real time.</div><div style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:12,wordBreak:"break-all",fontSize:13,color:"var(--black2)",fontFamily:"DM Mono,monospace"}}>{url}</div><div className="brow"><button className="btn outline bmd" style={{flex:1}} onClick={copy}>{copied?"Copied!":"Copy Link"}</button><button className="btn primary bmd" style={{flex:1}} onClick={share}>Share</button></div><button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={onClose}>Done</button></div></div>);
+}
+
+function HelperView({sessionId}){
+  const [session,setSession]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [focusSt,setFocusSt]=useState(null);
+  const subRef=useRef(null);
+  const [tick,setTick]=useState(0);
+  useEffect(()=>{const iv=setInterval(()=>setTick(t=>t+1),1000);return()=>clearInterval(iv);},[]);
+  useEffect(()=>{
+    import("./supabase.js").then(({getSession,subscribeToSession})=>{
+      getSession(sessionId).then(s=>{setSession(s);setLoading(false);});
+      subRef.current=subscribeToSession(sessionId,updated=>{setSession(updated);});
+    });
+    return()=>{if(subRef.current)subRef.current.unsubscribe();};
+  },[sessionId]);
+  if(loading)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,background:"#0d1512"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,letterSpacing:".1em"}}>JOINING SESSION...</div></div>);
+  if(!session)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,textAlign:"center"}}>Session not found</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This link may be invalid or the practice has ended.</div></div>);
+  if(session.ended_at)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:48,fontWeight:900,textAlign:"center"}}>Well Done</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This practice session has ended.</div></div>);
+  const state=session.state||{};
+  const liveActs=state.liveActs||[];
+  const idx=state.idx||0;
+  const stIdx=state.stIdx||0;
+  const inTrans=state.inTrans||false;
+  const running=state.running||false;
+  const runningAt=state.runningAt||null;
+  const savedElapsed=state.elapsed||0;
+  const cur=liveActs[idx]||null;
+  const isBlock=cur&&cur.type==="station_block";
+  const blockRotate=isBlock&&cur.rotate!==false;
+  const phaseSecs=isBlock?(blockRotate&&inTrans?cur.transitionDuration*60:cur.stationDuration*60):(cur?((cur.duration||0)*60):0);
+  const elapsed=running&&runningAt?savedElapsed+Math.floor((Date.now()-runningAt)/1000):savedElapsed;
+  const rem=phaseSecs-elapsed;
+  const prog=phaseSecs>0?Math.min(1,elapsed/phaseSecs):0;
+  const urg=rem<=30&&rem>0;
+  const n=isBlock&&cur.stations?cur.stations.length:1;
+  const rotatedStations=isBlock&&cur.stations?(cur.stations.map((st,i)=>{const srcIdx=(i-stIdx%n+n)%n;return Object.assign({},cur.stations[i],{assignments:cur.stations[srcIdx].assignments});})):null;
+  const phaseLabel=isBlock?(blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+n):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
+  return (<div className="ccs"><div className="cc-header"><div><div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span><span style={{marginLeft:8,fontSize:11,color:"var(--td)"}}>View only</span></div><div className="cc-act-name">{phaseLabel}</div></div><span style={{background:"var(--gbg)",border:"1.5px solid var(--gb)",borderRadius:20,padding:"4px 10px",fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:"var(--green)"}}>{(state.presentIds||[]).length} present</span></div><div className="cc-timer-row"><div className={"cc-timer"+(urg?" urg":"")}>{fmt(rem)}</div></div><div className="cc-prog"><div className={"cc-prog-bar"+(urg?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div><div className="cc-body">{isBlock&&!inTrans&&rotatedStations&&<div>{focusSt!==null&&<div><button className="btn ghost bxs" style={{marginBottom:10}} onClick={()=>setFocusSt(null)}>&#8249; All Stations</button><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:4}}>{rotatedStations[focusSt].name}</div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:32,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:8}}>{rotatedStations[focusSt].activityName||rotatedStations[focusSt].name}</div>{rotatedStations[focusSt].coachingPoints&&<div className="cc-focus"><div className="cc-focus-lbl">Coaching Focus</div><div className="cc-focus-txt">{rotatedStations[focusSt].coachingPoints}</div></div>}<div style={{marginTop:10}}><div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(rotatedStations[focusSt].assignments||[]).map(pid=>(<span key={pid} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--gb)",background:"var(--gbg)",fontSize:14,fontWeight:600,color:"var(--black)"}}>{pid}</span>))}</div></div></div>}{focusSt===null&&<div><div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+n+" - Tap a station to focus":"All Stations"}</div>{rotatedStations.map((st,i)=>(<div key={i} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:4}}>{st.name}</div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:700,color:"var(--black)",marginBottom:4}}>{st.activityName||st.name}</div><div style={{fontSize:12,color:"var(--td)"}}>{(st.assignments||[]).length} players</div></div>))}</div>}</div>}{isBlock&&inTrans&&rotatedStations&&<div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"var(--red)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Rotate Now</div>{rotatedStations.map((st,i)=>(<div key={i} className="cc-trans-card"><div style={{fontSize:12,color:"var(--td)",marginBottom:3}}>From {st.name}</div><div className="cc-trans-names">{(st.assignments||[]).join(", ")||"--"}</div><div className="cc-trans-to">to {cur.stations[(i+1)%n].name}{cur.stations[(i+1)%n].activityName?": "+cur.stations[(i+1)%n].activityName:""}</div></div>))}</div>}{!isBlock&&cur&&<div className="cc-focus">{cur.name&&<div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,marginBottom:8}}>{cur.name}</div>}{cur.coachingPoints&&<div><div className="cc-focus-lbl">Coaching Focus</div><div className="cc-focus-txt">{cur.coachingPoints}</div></div>}</div>}{liveActs.slice(idx+1,idx+3).length>0&&<div className="cc-queue"><div style={{padding:"6px 12px",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>Up Next</div>{liveActs.slice(idx+1,idx+3).map(a=>(<div key={a.id} className="cc-queue-item"><span style={{fontSize:14,color:"var(--black2)"}}>{a.type==="station_block"?"Station Block":a.name}</span></div>))}</div>}</div></div>);
+}
+
+function CommandScreen({data,update,liveId,setLiveId,coachId}){
   const practice=liveId?data.practices.find(p=>p.id===liveId):null;
   const team=practice?data.teams.find(t=>t.id===practice.teamId):null;
   const loc=practice?data.locations.find(l=>l.id===practice.locationId):null;
@@ -1346,8 +1395,16 @@ function CommandScreen({data,update,liveId,setLiveId}){
   const [showEllipsis,setShowEllipsis]=useState(false);
   const [focusSt,setFocusSt]=useState(null);
   const [livePlayerProfile,setLivePlayerProfile]=useState(null);
+  const [sessionId,setSessionId]=useState(null);
+  const [showShare,setShowShare]=useState(false);
   const iref=useRef(null);
   const spoken=useRef({});
+  const sessionRef=useRef(null);
+  const writeSession=useCallback((overrides)=>{
+    if(!sessionRef.current)return;
+    const state={idx,stIdx,inTrans,elapsed,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,...(overrides||{})};
+    import("./supabase.js").then(m=>m.updateSession(sessionRef.current,state));
+  },[idx,stIdx,inTrans,elapsed,running,presentIds,liveActs]);
   const cur=liveActs[idx]||null;
   const isBlock=cur&&cur.type==="station_block";
   const blockRotate=isBlock&&cur.rotate!==false;
@@ -1368,10 +1425,20 @@ function CommandScreen({data,update,liveId,setLiveId}){
 
   const applyAtt=useCallback((pIds,cIds,mode,baseActs)=>{const allPlayers=team?team.players:[];return baseActs.map(act=>{if(act.type!=="station_block")return Object.assign({},act,{assignments:(act.assignments||[]).filter(id=>pIds.has(id))});const newSt=mode==="rebalance"?rebalanceEven(act.stations,pIds,allPlayers):rebalanceKeep(act.stations,pIds);return Object.assign({},act,{stations:newSt});});},[team]);
 
-  const handleAttConfirm=useCallback(({presentIds:pIds,coachPresentIds:cIds,balanceMode})=>{setPresentIds(pIds);setCoachPresentIds(cIds);const newActs=applyAtt(pIds,cIds,balanceMode,practice.activities);setLiveActs(newActs);setStage("live");setShowAtt(false);setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};},[practice,applyAtt]);
+  const handleAttConfirm=useCallback(({presentIds:pIds,coachPresentIds:cIds,balanceMode})=>{
+    setPresentIds(pIds);setCoachPresentIds(cIds);
+    const newActs=applyAtt(pIds,cIds,balanceMode,practice.activities);
+    setLiveActs(newActs);setStage("live");setShowAtt(false);
+    setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};
+    import("./supabase.js").then(m=>{
+      m.createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,elapsed:0,running:false,runningAt:null,presentIds:[...pIds],liveActs:newActs}).then(sid=>{
+        if(sid){sessionRef.current=sid;setSessionId(sid);}
+      });
+    });
+  },[practice,applyAtt,coachId,liveId]);
   const handleAttUpdate=useCallback(({presentIds:pIds,coachPresentIds:cIds})=>{setPresentIds(pIds);setCoachPresentIds(cIds);setLiveActs(prev=>applyAtt(pIds,cIds,"keep",prev));setShowAtt(false);},[applyAtt]);
 
-  const advance=useCallback(()=>{if(!cur)return;if(isBlock){if(blockRotate&&!inTrans&&cur.transitionDuration>0){setInTrans(true);setElapsed(0);spoken.current={};setRunning(true);}else if(blockRotate&&stIdx<cur.stations.length-1){setStIdx(i=>i+1);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);}else if(idx<liveActs.length-1){setIdx(i=>i+1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);}else{setStage("end");setRunning(false);}}else{if(idx<liveActs.length-1){setIdx(i=>i+1);setElapsed(0);spoken.current={};setRunning(true);}else{setStage("end");setRunning(false);}}},[cur,isBlock,inTrans,stIdx,idx,liveActs.length]);
+  const advance=useCallback(()=>{writeSession();if(!cur)return;if(isBlock){if(blockRotate&&!inTrans&&cur.transitionDuration>0){setInTrans(true);setElapsed(0);spoken.current={};setRunning(true);}else if(blockRotate&&stIdx<cur.stations.length-1){setStIdx(i=>i+1);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);}else if(idx<liveActs.length-1){setIdx(i=>i+1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);}else{setStage("end");setRunning(false);}}else{if(idx<liveActs.length-1){setIdx(i=>i+1);setElapsed(0);spoken.current={};setRunning(true);}else{setStage("end");setRunning(false);}}},[cur,isBlock,inTrans,stIdx,idx,liveActs.length]);
   const goBack=useCallback(()=>{if(isBlock){if(inTrans){setInTrans(false);setElapsed(0);spoken.current={};setRunning(false);}else if(stIdx>0){setStIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(false);}else if(idx>0){setIdx(i=>i-1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(false);}}else{if(idx>0){setIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(false);}}},[isBlock,inTrans,stIdx,idx]);
 
   useEffect(()=>{if(running){iref.current=setInterval(()=>{setElapsed(e=>{const ne=e+1;const r=phaseSecs-ne;if(r===120&&!spoken.current[120]){speak("Two minutes remaining.");spoken.current[120]=true;}if(r===0&&!spoken.current[0]){beep();spoken.current[0]=true;}if(r<0&&ne%30===0){beep();}return ne;});},1000);}else{clearInterval(iref.current);}return()=>clearInterval(iref.current);},[running,phaseSecs,speak,beep]);
@@ -1413,7 +1480,8 @@ function CommandScreen({data,update,liveId,setLiveId}){
             <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
             {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
-              <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);}}>End Practice</button>
+              {sessionId&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowShare(true);}}>Share Live View</button>}
+              <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){import("./supabase.js").then(m=>m.endSession(sessionRef.current));sessionRef.current=null;setSessionId(null);}}}>End Practice</button>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};setStage("attend");}}>Restart Practice</button>
             </div>}
           </div>
@@ -1428,7 +1496,7 @@ function CommandScreen({data,update,liveId,setLiveId}){
       </div>}
       <div className="cc-timer-row">
         <div className={"cc-timer"+(urg?" urg":"")+(isOver?" over":"")}>{fmt(rem)}</div>
-        <button onClick={()=>setRunning(r=>!r)} style={{width:52,height:52,borderRadius:"50%",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:isOver?"var(--red)":running?"var(--s3)":"var(--green)",color:isOver?"#fff":running?"var(--black2)":"#fff",boxShadow:running?"none":"0 2px 8px rgba(45,106,79,.35)"}}>
+        <button onClick={()=>{setRunning(r=>!r);writeSession();}} style={{width:52,height:52,borderRadius:"50%",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:isOver?"var(--red)":running?"var(--s3)":"var(--green)",color:isOver?"#fff":running?"var(--black2)":"#fff",boxShadow:running?"none":"0 2px 8px rgba(45,106,79,.35)"}}>
           {isOver?<Ic.Restart/>:running?<Ic.Pause/>:<Ic.Play/>}
         </button>
         <div style={{flex:1}}/>
@@ -1556,6 +1624,7 @@ function CommandScreen({data,update,liveId,setLiveId}){
         <input className="inp" placeholder="Quick note..." value={noteText} onChange={e=>setNoteText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNote()} style={{fontSize:14}}/>
         <button className="btn primary bsm" onClick={addNote}>Save</button>
       </div>
+      {showShare&&sessionId&&<ShareSheet sessionId={sessionId} onClose={()=>setShowShare(false)}/>}
     </div>
   );
 }
