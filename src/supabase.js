@@ -1,13 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 
 const SUPABASE_URL = 'https://bepoojcbizxhqadrytjq.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJlcG9vamNiaXp4aHFhZHJ5dGpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNjkzMzQsImV4cCI6MjA5Njk0NTMzNH0.zcOwVhgsne5-igkCONo1g8D7j6-mlRwRaLWXu28mp8Ya'
+const SUPABASE_ANON_KEY = 'sb_publishable_z0atQT9uv4_9OZSlGe_awg_d07YcC7v'
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 const KEY = 'cb_data'
 
-// Debounce saves - wait 800ms after last change before writing
 let saveTimer = null
 
 export async function loadData() {
@@ -22,10 +21,10 @@ export async function loadData() {
       return null
     }
     if (!data) {
-      console.log('No data found in Supabase - using defaults')
+      console.log('No data in Supabase - using defaults')
       return null
     }
-    console.log('Loaded data from Supabase')
+    console.log('Loaded from Supabase')
     return data.value
   } catch (e) {
     console.error('loadData exception:', e)
