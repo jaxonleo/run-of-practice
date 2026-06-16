@@ -1732,7 +1732,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
   const sessionRef=useRef(null);
   const writeSession=useCallback((newState)=>{
     if(!sessionRef.current)return;
-    updateSession(sessionRef.current,newState));
+    updateSession(sessionRef.current,newState);
   },[]);
   const cur=liveActs[idx]||null;
   const isBlock=cur&&cur.type==="station_block";
@@ -1849,7 +1849,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
             {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
               {sessionId&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowShare(true);}}>Share Live View</button>}
-              <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){endSession(sessionRef.current));sessionRef.current=null;setSessionId(null);}}}>End Practice</button>
+              <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){endSession(sessionRef.current);sessionRef.current=null;setSessionId(null);}}}>End Practice</button>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};setStage("attend");}}>Restart Practice</button>
             </div>}
           </div>
