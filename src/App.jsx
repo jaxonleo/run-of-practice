@@ -1515,7 +1515,7 @@ function TemplateWorkspace({data,update,template,mode,onRun,onSave,onBack}){
         {!isEdit&&<div style={{fontSize:12,color:"var(--td)",marginTop:4}}>Editing here only affects this run. The template stays unchanged.</div>}
       </div>
       <div className="sechdr mb8"><span className="sectitle">{acts.length} Activities</span><span className="pill">{sumMins(acts)}m</span></div>
-      {acts.map((act,i)=>(<div key={act.id})}>
+      {acts.map((act,i)=>(<div key={act.id}>
           <div className="ablk">
             <div className="abhdr" onClick={()=>setExpandedId(expandedId===act.id?null:act.id)}>
               <span className="dh"><Ic.Dots/></span>
