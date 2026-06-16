@@ -1760,8 +1760,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
     setLiveActs(newActs);setStage("live");setShowAtt(false);
     setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};setShowAudioPrompt(true);
     createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,elapsed:0,running:true,runningAt:Date.now(),presentIds:[...pIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations}).then(sid=>{
-        if(sid){sessionRef.current=sid;setSessionId(sid);}
-      });
+      if(sid){sessionRef.current=sid;setSessionId(sid);}
     });
   },[practice,applyAtt,coachId,liveId]);
   const handleAttUpdate=useCallback(({presentIds:pIds,coachPresentIds:cIds})=>{setPresentIds(pIds);setCoachPresentIds(cIds);setLiveActs(prev=>applyAtt(pIds,cIds,"keep",prev));setShowAtt(false);},[applyAtt]);
