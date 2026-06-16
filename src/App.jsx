@@ -1850,7 +1850,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
             {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
               {sessionId&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowShare(true);}}>Share Live View</button>}
-              <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){endSession(sessionRef.current);sessionRef.current=null;setSessionId(null);}}}>End Practice</button>
+              <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){endSession(sessionRef.current));sessionRef.current=null;setSessionId(null);}}}>End Practice</button>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};setStage("attend");}}>Restart Practice</button>
             </div>}
           </div>
@@ -1872,8 +1872,8 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
         {schedBadge}
       </div>
       <div style={{padding:"2px 14px 4px",display:"flex",gap:8,flexShrink:0}}>
-        <button className="btn ghost bsm" style={{flex:1}} onClick={()=>setElapsed(e=>Math.max(0,e-60))}>+1m</button>
-        <button className="btn ghost bsm" style={{flex:1}} onClick={()=>setElapsed(e=>e+60)}>-1m</button>
+        <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=Math.max(0,elapsed-60);baseElapsedRef.current=ne;if(startedAtRef.current)startedAtRef.current=Date.now();setElapsed(ne);}}>+1m</button>
+        <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=elapsed+60;baseElapsedRef.current=ne;if(startedAtRef.current)startedAtRef.current=Date.now();setElapsed(ne);}}>-1m</button>
       </div>
       <div className="cc-prog"><div className={"cc-prog-bar"+(isOver?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div>
       <div className="cc-controls">
