@@ -883,6 +883,35 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
     }
   };
   return (<div style={{paddingBottom:80}}>
+      <div style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)",padding:"8px 14px",display:"flex",gap:6}}>
+        {(!bottomMode||bottomMode==="")&&<div style={{display:"flex",gap:6,width:"100%"}}>
+          <button className="btn outline bsm" style={{flex:1}} onClick={handleSave}>{existingId?"Save":"Save"}</button>
+          <button className="btn outline bsm" style={{flex:1}} onClick={()=>setBottomMode("schedule")}>Schedule</button>
+          <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{setTplName("");setBottomMode("template");}}>Template</button>
+          <button className="btn primary bsm" style={{flex:2}} onClick={handleRun}>Run Now</button>
+        </div>}
+        {bottomMode==="schedule"&&<div style={{width:"100%"}}>
+          <div className="g2 mb6">
+            <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/></div>
+            <div className="fld"><label className="lbl">Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
+          </div>
+          <div className="brow">
+            <button className="btn ghost bsm" onClick={()=>setBottomMode(null)}>Cancel</button>
+            <button className="btn primary bsm" onClick={()=>doSchedule(schedDate,schedTime,schedDur)}>Save Schedule</button>
+          </div>
+        </div>}
+        {bottomMode==="template"&&<div style={{width:"100%"}}>
+          <div className="fld mb6"><input className="inp" autoFocus placeholder="Template name..." value={tplName} onChange={e=>setTplName(e.target.value)}/></div>
+          <div className="brow">
+            <button className="btn ghost bsm" onClick={()=>setBottomMode(null)}>Cancel</button>
+            <button className="btn primary bsm" onClick={()=>doSaveTpl(tplName)} disabled={!tplName.trim()}>Save Template</button>
+          </div>
+        </div>}
+        {bottomMode==="done_sched"&&<div style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <span style={{color:"var(--green)",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700}}>Scheduled!</span>
+          <button className="btn ghost bxs" onClick={()=>setBottomMode(null)}>Done</button>
+        </div>}
+      </div>
       <div className="card mb10">
         <div className="clbl">Practice Setup</div>
         <div className="fld"><label className="lbl">Team</label>
@@ -896,9 +925,6 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
             {data.locations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
-        <div className="g2 mb8">
-          <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/></div>
-          <div className="fld"><label className="lbl">Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
         </div>
       </div>
       {acts.length===0&&(<div style={{textAlign:"center",padding:"20px 16px",background:"var(--s2)",borderRadius:"var(--r)",marginBottom:10,border:"1.5px dashed var(--b)"}}>
@@ -910,10 +936,13 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
           <span className="pill">{totalMins}m</span>
         </div>
       )}
-      {acts.map((act,i)=>(<div key={act.id} draggable onDragStart={e=>onDS(e,i)} onDragOver={onDO} onDrop={e=>onDrop(e,i)} onDragEnd={onDE}>
+      {acts.map((act,i)=>(<div key={act.id}>
           <div className="ablk">
             <div className="abhdr" onClick={()=>setExpandedId(expandedId===act.id?null:act.id)}>
-              <span className="dh"><Ic.Dots/></span>
+              <div style={{display:"flex",flexDirection:"column",gap:2,marginRight:6,flexShrink:0}}>
+                <button onClick={e=>{e.stopPropagation();if(i>0)setActs(p=>{const a=[...p];[a[i-1],a[i]]=[a[i],a[i-1]];return a;});}} disabled={i===0} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===0?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8593;</button>
+                <button onClick={e=>{e.stopPropagation();if(i<acts.length-1)setActs(p=>{const a=[...p];[a[i],a[i+1]]=[a[i+1],a[i]];return a;});}} disabled={i===acts.length-1} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===acts.length-1?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8595;</button>
+              </div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                   {act.type==="station_block"?"Station Block":act.name}
@@ -922,6 +951,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
               </div>
               <div className="row">
                 {act.type!=="station_block"&&<span className="bdg bp">{act.duration}m</span>}
+                {act.type==="station_block"&&<span className="bdg bp">{act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*act.transitionDuration:0)}m</span>}
                 <button className="btn danger bxs" onClick={e=>{e.stopPropagation();remAct(act.id);}}>x</button>
               </div>
             </div>
@@ -952,36 +982,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
         ))}
       </div>
 
-    {acts.length>0&&(<div className="builder-bar">
-        {bottomMode==="schedule"&&<div style={{width:"100%"}}>
-            <div className="g2 mb8">
-              <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/></div>
-              <div className="fld"><label className="lbl">Start Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
-            </div>
-            <div className="fld mb8"><label className="lbl">Duration (min)</label><DurStepper value={schedDur} min={5} step={5} onChange={v=>setSchedDur(v)}/></div>
-            <div className="brow">
-              <button className="btn ghost bmd" onClick={()=>setBottomMode(null)}>Cancel</button>
-              <button className="btn primary bmd" onClick={()=>doSchedule(schedDate,schedTime,schedDur)}>Save</button>
-            </div>
-          </div>}
-        {bottomMode==="template"&&<div style={{width:"100%"}}>
-            <div className="fld mb8"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder={"My "+teamSport+" Practice"} value={tplName} onChange={e=>setTplName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doSaveTpl(tplName)}/></div>
-            <div className="brow">
-              <button className="btn ghost bmd" onClick={()=>setBottomMode(null)}>Cancel</button>
-              <button className="btn primary bmd" onClick={()=>doSaveTpl(tplName)} disabled={!tplName.trim()}>Save</button>
-            </div>
-          </div>}
-        {bottomMode==="done_sched"&&<div style={{width:"100%",textAlign:"center"}}>
-            <span style={{color:"var(--green)",fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700}}>Scheduled for {schedDate}!</span>
-            <button className="btn ghost bxs" style={{marginLeft:10}} onClick={()=>setBottomMode(null)}>Done</button>
-          </div>}
-        {(!bottomMode||bottomMode==="")&&<div style={{display:"flex",gap:8,width:"100%"}}>
-            <button className="btn outline blg" style={{flex:1}} onClick={handleSave}>{existingId?"Save":"Save"}</button><button className="btn primary bxl" style={{flex:2}} onClick={handleRun}>Run Now</button>
-            <button className="btn outline bmd" style={{flex:1}} onClick={()=>setBottomMode("schedule")}>Schedule</button>
-            <button className="btn ghost bmd" style={{flex:1}} onClick={()=>{setTplName("");setBottomMode("template");}}>Template</button>
-          </div>}
-      </div>
-    )}
+
     </div>
   );
 }
@@ -1056,7 +1057,7 @@ function RandGroupPlayer({id,team}){
 function StationConfig({act,team,loc,onChange,onSt,onDone}){
   const [exSt,setExSt]=useState(null);
   const [randGroups,setRandGroups]=useState(null);
-  const addSt=()=>onChange({stations:[...act.stations,{id:uid(),name:"Station "+(act.stations.length+1),activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:""}]});
+  const addSt=()=>onChange({stations:[...act.stations,{id:uid(),name:"Station "+(act.stations.length+1),activityName:"",coachId:"",sublocationId:"",assignments:[],equipment:"",coachingPoints:""}]});
   const remSt=id=>onChange({stations:act.stations.filter(s=>s.id!==id)});
   const togSt=(sid,pid)=>{const st=act.stations.find(s=>s.id===sid);const cur=st.assignments||[];onSt(sid,{assignments:cur.includes(pid)?cur.filter(x=>x!==pid):[...cur,pid]});};
   const genRand=()=>{if(team){const g=mkGroups(team.players.map(p=>p.id),act.stations.length);setRandGroups(g);}};
@@ -1074,7 +1075,7 @@ function StationConfig({act,team,loc,onChange,onSt,onDone}){
       <div className={rotate?"g3 mb8":"g2 mb8"}>
         <div className="fld"><label className="lbl">Station (min)</label><DurStepper value={act.stationDuration} min={1} onChange={v=>onChange({stationDuration:v})}/></div>
         {rotate&&<div className="fld"><label className="lbl">Transition (min)</label><DurStepper value={act.transitionDuration} min={0} onChange={v=>onChange({transitionDuration:v})}/></div>}
-        <div className="fld"><label className="lbl">Total</label><div style={{padding:"10px 0",fontSize:14,fontFamily:"DM Mono,monospace",fontWeight:600}}>{blockMins}m</div></div>
+        <div className="fld"><label className="lbl">Total</label><div style={{padding:"10px 0"}}><span className="bdg bp">{blockMins}m</span></div></div>
       </div>
       <div className="row mb8"><button className="btn ghost bxs" onClick={addSt}>+ Station</button>{team&&act.stations.length>0&&<button className="btn outline bxs" onClick={genRand}>Random Groups</button>}</div>
       {act.stations.map(st=>(<div key={st.id} style={{border:"1px solid var(--b)",borderRadius:"var(--rs)",marginBottom:8,overflow:"hidden"}}>
@@ -1099,6 +1100,7 @@ function StationConfig({act,team,loc,onChange,onSt,onDone}){
                   {loc&&loc.sublocations.map(sl=><option key={sl.id} value={sl.id}>{sl.name}</option>)}
                 </select>
               </div>
+              <div className="fld"><label className="lbl">Equipment</label><input className="inp" placeholder="e.g. 6 cones" value={st.equipment||""} onChange={e=>onSt(st.id,{equipment:e.target.value})}/></div>
               <div className="fld mb8"><label className="lbl">Coaching Points</label><input className="inp" placeholder="Key cue..." value={st.coachingPoints||""} onChange={e=>onSt(st.id,{coachingPoints:e.target.value})}/></div>
               {team&&(<div>
                   <label className="lbl">Players ({st.assignments?st.assignments.length:0})</label>
@@ -1514,7 +1516,7 @@ function TemplateWorkspace({data,update,template,mode,onRun,onSave,onBack}){
         {!isEdit&&<div style={{fontSize:12,color:"var(--td)",marginTop:4}}>Editing here only affects this run. The template stays unchanged.</div>}
       </div>
       <div className="sechdr mb8"><span className="sectitle">{acts.length} Activities</span><span className="pill">{sumMins(acts)}m</span></div>
-      {acts.map((act,i)=>(<div key={act.id} draggable onDragStart={e=>onDS(e,i)} onDragOver={onDO} onDrop={e=>onDrop(e,i)}>
+      {acts.map((act,i)=>(<div key={act.id})}>
           <div className="ablk">
             <div className="abhdr" onClick={()=>setExpandedId(expandedId===act.id?null:act.id)}>
               <span className="dh"><Ic.Dots/></span>
@@ -1655,6 +1657,7 @@ function HelperView({sessionId}){
           {subName(rotatedStations[focusSt].sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:3}}>{subName(rotatedStations[focusSt].sublocationId)}</div>}
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:32,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:4}}>{rotatedStations[focusSt].activityName||rotatedStations[focusSt].name}</div>
           {rotatedStations[focusSt].coachingPoints&&<div className="cc-focus"><div className="cc-focus-lbl">Coaching Focus</div><div className="cc-focus-txt">{rotatedStations[focusSt].coachingPoints}</div></div>}
+          {rotatedStations[focusSt].equipment&&<div style={{marginTop:8,padding:"8px 10px",background:"var(--ambg)",border:"1px solid var(--ambb)",borderRadius:"var(--rs)",fontSize:13,color:"var(--amber)",fontWeight:600}}>Needs: {rotatedStations[focusSt].equipment}</div>}
           <div style={{marginTop:10}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -1673,6 +1676,7 @@ function HelperView({sessionId}){
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
               {(st.assignments||[]).map(pid=>(<span key={pid} style={{background:"var(--s2)",border:"1px solid var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>{pname(pid)}</span>))}
             </div>
+            {st.equipment&&<div style={{fontSize:11,color:"var(--amber)",marginTop:4,fontWeight:600}}>Needs: {st.equipment}</div>}
             <div style={{fontSize:10,color:"var(--td)",marginTop:5}}>Tap to focus</div>
           </div>))}
         </div>}
@@ -1713,7 +1717,8 @@ function CommandScreen({data,update,liveId,setLiveId,coachId}){
   const [inTrans,setInTrans]=useState(false);
   const [elapsed,setElapsed]=useState(0);
   const [running,setRunning]=useState(false);
-  const [audioOn,setAudioOn]=useState(true);
+  const [audioOn,setAudioOn]=useState(false);
+  const [showAudioPrompt,setShowAudioPrompt]=useState(false);
   const [noteText,setNoteText]=useState("");
   const [showROS,setShowROS]=useState(false);
   const [clState,setClState]=useState({});
@@ -1754,7 +1759,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId}){
     setPresentIds(pIds);setCoachPresentIds(cIds);
     const newActs=applyAtt(pIds,cIds,balanceMode,practice.activities);
     setLiveActs(newActs);setStage("live");setShowAtt(false);
-    setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(true);spoken.current={};
+    setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};setShowAudioPrompt(true);
     import("./supabase.js").then(({createSession})=>{
       createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,elapsed:0,running:true,runningAt:Date.now(),presentIds:[...pIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations}).then(sid=>{
         if(sid){sessionRef.current=sid;setSessionId(sid);}
@@ -1767,7 +1772,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId}){
     if(!cur)return;
     const base={liveActs,presentIds:[...presentIds],running:true,runningAt:Date.now(),elapsed:0,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations};
     if(isBlock){
-      if(blockRotate&&!inTrans&&cur.transitionDuration>0){
+      if(blockRotate&&!inTrans&&cur.transitionDuration>0&&stIdx<cur.stations.length-1){
         baseElapsedRef.current=0;startedAtRef.current=Date.now();setInTrans(true);setElapsed(0);spoken.current={};setRunning(true);
         writeSession({...base,idx,stIdx,inTrans:true});
       }else if(blockRotate&&stIdx<cur.stations.length-1){
@@ -1988,6 +1993,17 @@ function CommandScreen({data,update,liveId,setLiveId,coachId}){
         <input className="inp" placeholder="Quick note..." value={noteText} onChange={e=>setNoteText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNote()} style={{fontSize:14}}/>
         <button className="btn primary bsm" onClick={addNote}>Save</button>
       </div>
+      {showAudioPrompt&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:200,display:"flex",alignItems:"flex-end"}}>
+        <div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"28px 20px 40px"}}>
+          <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 20px"}}/>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:6}}>Enable Audio Cues?</div>
+          <div style={{fontSize:14,color:"var(--td)",marginBottom:24,lineHeight:1.5}}>Get a beep when time runs out and a voice reminder at 2 minutes remaining.</div>
+          <div className="brow">
+            <button className="btn ghost bmd" style={{flex:1}} onClick={()=>{setAudioOn(false);setShowAudioPrompt(false);setRunning(true);}}>Skip</button>
+            <button className="btn primary bmd" style={{flex:1}} onClick={()=>{try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();o.connect(ctx.destination);o.start();o.stop(ctx.currentTime+0.001);}catch(e){}setAudioOn(true);setShowAudioPrompt(false);setRunning(true);}}>Enable Audio</button>
+          </div>
+        </div>
+      </div>}
       {showShare&&sessionId&&<ShareSheet sessionId={sessionId} onClose={()=>setShowShare(false)}/>}
     </div>
   );
