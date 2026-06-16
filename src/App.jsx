@@ -29,7 +29,7 @@ const DEFAULT_TEAMS=[
     {id:"p_tew",firstName:"Lyndi",lastName:"Tew",jersey:"",notes:""},
   ]},
   {id:"team_boys910",name:"Peoria Boys 9-10",sport:"Basketball",
-   coaches:[{id:"c_jaxon2",name:"Coach Jaxon",role:"Head Coach",notes:""},{id:"c_mike1",name:"Coach Mike",role:"Assistant",notes:""}],
+   coaches:[{id:"c_jaxon1",name:"Coach Jaxon",role:"Head Coach",notes:""},{id:"c_mike1",name:"Coach Mike",role:"Assistant",notes:""}],
    players:[
     {id:"p_bartels",firstName:"Wesley",lastName:"Bartels",jersey:"",notes:""},
     {id:"p_gonzalez",firstName:"Eli",lastName:"Gonzalez",jersey:"",notes:""},
@@ -107,7 +107,7 @@ function mergeDefaults(saved){
   DEFAULT_LIB.forEach(a=>{if(!lbids.has(a.id))d.activityLibrary.push(a);});
   if(!d.notes)d.notes=[];
   if(!d.templates)d.templates=[];
-  d.teams.forEach(t=>{t.players.forEach(p=>{if(!p.focusAreas)p.focusAreas=[];});});
+  d.teams.forEach(t=>{t.players.forEach(p=>{if(!p.focusAreas)p.focusAreas=[];});t.coaches.forEach(c=>{if(c.id==="c_jaxon2")c.id="c_jaxon1";});});
   d.practices.forEach(p=>{(p.activities||[]).forEach(a=>{if(a.type==="station_block"&&a.rotate===undefined)a.rotate=true;});});
   d.templates.forEach(t=>{(t.activities||[]).forEach(a=>{if(a.type==="station_block"&&a.rotate===undefined)a.rotate=true;});});
   if(!d.templates.some(t=>t.id==="tpl_demo_bball")){
@@ -294,8 +294,7 @@ function PracticeDetail({practice,data,update,setView,setLiveId,setEditPracticeI
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2}}>{team?team.name:"Practice"}</div>
       <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>{timeLbl(practice)}{loc?" - "+loc.name:""} - {totalMins}min</div>
       <div className="brow" style={{marginBottom:16}}>
-        <button className="btn ghost bmd" style={{flex:1}} onClick={()=>{setEditPracticeId(practice.id);setView("builder");}}>Edit</button>
-        <button className="btn primary bmd" style={{flex:2}} onClick={()=>{setLiveId(practice.id);setView("command");}}>Start Practice</button>
+        <button className="btn primary bmd bfull" onClick={()=>{const now=new Date();const newId=uid();const copy=JSON.parse(JSON.stringify(practice));copy.id=newId;copy.date=now.toISOString().slice(0,10);copy.startTime=now.toTimeString().slice(0,5);update(d=>{d.practices.push(copy);return d;});setEditPracticeId(newId);setView("builder");}}>Run Again</button>
       </div>
       {equipmentNeeded.length>0&&<div className="card" style={{marginBottom:12,background:"var(--ambg)",border:"1.5px solid var(--ambb)"}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--amber)",marginBottom:6}}>Equipment Needed</div>
@@ -353,10 +352,29 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
         {teamTab==="roster"&&<div><RostersTab data={data} update={update} openModal={openModal} fixedTeamId={selectedTeam}/></div>}
         {teamTab==="history"&&<div>
           {past.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No practice history yet.</div>}
-          {past.map(p=>(<div key={p.id} className="li" style={{marginBottom:6,cursor:"pointer"}} onClick={()=>setSelectedPractice(p)}>
-            <div className="lim"><div className="lin">{new Date(p.date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div><div className="limt">{(p.activities||[]).length} activities</div></div>
-            <span style={{color:"var(--td)",fontSize:18}}>›</span>
-          </div>))}
+          {past.map(p=>{
+            const actLabel=a=>{if(a.type==="station_block")return "Station Block - "+a.stations.length+" stations";if(a.type==="checklist")return "Checklist: "+a.name;return a.name;};
+            const actMins=a=>{if(a.type==="station_block")return a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*a.transitionDuration;return a.duration||0;};
+            const practiceNotes=(data.notes||[]).filter(n=>n.practiceId===p.id);
+            return (<div key={p.id} style={{marginBottom:16,borderBottom:"1px solid var(--b)",paddingBottom:16}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                <div>
+                  <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900}}>{new Date(p.date+"T12:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}</div>
+                  <div style={{fontSize:12,color:"var(--td)"}}>{(p.activities||[]).length} activities - {(p.activities||[]).reduce((s,a)=>s+actMins(a),0)}min</div>
+                </div>
+                <button className="btn ghost bxs" onClick={()=>{const now=new Date();const newId=uid();const copy=JSON.parse(JSON.stringify(p));copy.id=newId;copy.date=now.toISOString().slice(0,10);copy.startTime=now.toTimeString().slice(0,5);update(d=>{d.practices.push(copy);return d;});setSelectedPractice(null);}}>Run Again</button>
+              </div>
+              {(p.activities||[]).map((a,i)=>(<div key={a.id||i} style={{display:"flex",gap:8,padding:"4px 0",borderBottom:"1px solid var(--s2)"}}>
+                <span style={{width:20,fontSize:11,color:"var(--td)",flexShrink:0,paddingTop:1}}>{i+1}.</span>
+                <span style={{fontSize:13,flex:1,color:"var(--black)"}}>{actLabel(a)}</span>
+                <span style={{fontSize:11,fontFamily:"DM Mono,monospace",color:"var(--td)",flexShrink:0}}>{actMins(a)}m</span>
+              </div>))}
+              {practiceNotes.length>0&&<div style={{marginTop:10}}>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:6}}>Notes</div>
+                {practiceNotes.map(n=>(<div key={n.id} style={{padding:"8px 10px",background:"var(--s2)",borderRadius:"var(--rs)",marginBottom:4,fontSize:13,color:"var(--black2)",lineHeight:1.5}}>{n.context&&<span style={{fontWeight:600,color:"var(--td)",marginRight:4}}>{n.context}:</span>}{n.text}</div>))}
+              </div>}
+            </div>);
+          })}
         </div>}
       </div>
     </div>);
@@ -379,7 +397,7 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
 }
 
 function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,setEditPracticeId}){
-  const [libTab,setLibTab]=useState("activities");
+  const [libTab,setLibTab]=useState("drills");
   const [openMenu,setOpenMenu]=useState(null);
   const [editingTpl,setEditingTpl]=useState(null);
   const [confirmDel,setConfirmDel]=useState(null);
@@ -387,34 +405,37 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
   const toggle=sport=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}));
   const sports=[...new Set(data.activityLibrary.map(a=>a.sport))].sort();
   const templates=data.templates||[];
-  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} mode="edit" onSave={tpl=>{update(d=>{const idx=d.templates.findIndex(t=>t.id===tpl.id);if(idx>=0)d.templates[idx]=tpl;else d.templates.push(tpl);return d;});setEditingTpl(null);}} onBack={()=>setEditingTpl(null)}/></div>);
-  const LTABS=["activities","templates"];
+  const LTABS=["drills","templates","locations","equipment"];
+  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} mode="edit" onSave={tpl=>{update(d=>{const i=d.templates.findIndex(t=>t.id===tpl.id);if(i>=0)d.templates[i]=tpl;else d.templates.push(tpl);return d;});setEditingTpl(null);}} onBack={()=>setEditingTpl(null)}/></div>);
   return (<div style={{paddingBottom:80}}>
-    <div style={{padding:"20px 16px 12px"}}>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,marginBottom:12}}>Library</div>
-      <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:16}}>
-        {LTABS.map(t=>(<button key={t} onClick={()=>setLibTab(t)} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:libTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",color:libTab===t?"var(--black)":"var(--td)"}}>{t}</button>))}
+    <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>Library</div>
+      <button className="btn primary bsm" onClick={()=>{if(setEditPracticeId)setEditPracticeId(null);setView("builder");}}>+ Build Practice</button>
+    </div>
+    <div style={{padding:"0 16px 12px"}}>
+      <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:0}}>
+        {LTABS.map(t=>(<button key={t} onClick={()=>setLibTab(t)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:libTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:libTab===t?"var(--black)":"var(--td)"}}>{t}</button>))}
       </div>
     </div>
-    {libTab==="activities"&&<div style={{padding:"0 16px"}}>
+    {libTab==="drills"&&<div style={{padding:"0 16px"}}>
       <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn primary bsm" onClick={()=>openModal("addActivity")}>+ Add Drill</button></div>
+      {data.activityLibrary.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No drills yet. Tap + Add Drill.</div>}
       {sports.map(sport=>(<div key={sport} style={{marginBottom:8}}>
         <button onClick={()=>toggle(sport)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
           <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700}}>{sport}</span>
-          <span style={{fontSize:12,color:"var(--td)"}}>{data.activityLibrary.filter(a=>a.sport===sport).length} drills {collapsed[sport]?"›":"v"}</span>
+          <span style={{fontSize:12,color:"var(--td)"}}>{data.activityLibrary.filter(a=>a.sport===sport).length} drills {collapsed[sport]?"":"v"}</span>
         </button>
         {!collapsed[sport]&&data.activityLibrary.filter(a=>a.sport===sport).map(act=>(<div key={act.id} style={{padding:"10px 12px",borderLeft:"3px solid var(--gb)",marginLeft:8,marginBottom:4,background:"#fff"}}>
           <div style={{fontWeight:600,fontSize:14,marginBottom:2}}>{act.name}</div>
           {act.description&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.description}</div>}
-          {act.coachingPoints&&<div style={{fontSize:12,color:"var(--green2)",fontStyle:"italic"}}>{act.coachingPoints}</div>}
+          {act.coachingPoints&&<div style={{fontSize:12,color:"var(--green2)",fontStyle:"italic",marginBottom:2}}>{act.coachingPoints}</div>}
           {act.equipment&&<div style={{fontSize:11,color:"var(--amber)",marginTop:2}}>Needs: {act.equipment}</div>}
         </div>))}
       </div>))}
-      {data.activityLibrary.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No drills yet.</div>}
     </div>}
     {libTab==="templates"&&<div style={{padding:"0 16px"}}>
       <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn primary bsm" onClick={()=>setEditingTpl({id:uid(),name:"New Template",activities:[],durMin:0})}>+ New Template</button></div>
-      {templates.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No templates yet.</div>}
+      {templates.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No templates yet.<br/>Build a practice and save it as a template.</div>}
       {templates.map(tpl=>(<div key={tpl.id} className="card" style={{marginBottom:10}}>
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:6}}>
           <div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,lineHeight:1}}>{tpl.name}</div><div style={{fontSize:12,color:"var(--td)",marginTop:2}}>{(tpl.activities||[]).length} activities - {tpl.durMin||0}min</div></div>
@@ -432,6 +453,42 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
         </div>
       </div>))}
       {confirmDel&&<div className="movly" onClick={()=>setConfirmDel(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="mtitle">Delete template?</div><div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This cannot be undone.</div><div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDel(null)}>Cancel</button><button className="btn primary bmd" onClick={()=>{update(d=>{d.templates=d.templates.filter(t=>t.id!==confirmDel);return d;});setConfirmDel(null);}}>Delete</button></div></div></div>}
+    </div>}
+    {libTab==="locations"&&<div style={{padding:"0 16px"}} onClick={()=>setOpenMenu(null)}>
+      <div className="sechdr mb10"><span className="sectitle">{data.locations.length} Locations</span><button className="btn primary bsm" onClick={()=>openModal("addLocation")}>+ Add</button></div>
+      {data.locations.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No locations yet.</div>}
+      {data.locations.map(loc=>(<div key={loc.id} className="card" style={{position:"relative",marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{loc.name}</span>
+          <div className="row">
+            <button className="btn ghost bxs" onClick={()=>openModal("addSublocation",{locationId:loc.id})}>+ Area</button>
+            <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===loc.id?null:loc.id);}}><span/><span/><span/></button>
+          </div>
+        </div>
+        {openMenu===loc.id&&<div className="mini-menu" style={{right:8,top:44}}>
+          <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editLocation",{location:loc});}}>Edit</button>
+          <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);update(d=>{d.locations=d.locations.filter(l=>l.id!==loc.id);return d;});}}>Delete</button>
+        </div>}
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {loc.sublocations.map(sl=>(<span key={sl.id} className="bdg bs">{sl.name}</span>))}
+          {!loc.sublocations.length&&<span style={{fontSize:12,color:"var(--td)"}}>No areas yet</span>}
+        </div>
+      </div>))}
+    </div>}
+    {libTab==="equipment"&&<div style={{padding:"0 16px"}} onClick={()=>setOpenMenu(null)}>
+      <div className="sechdr mb10"><span className="sectitle">{data.assets.length} Items</span><button className="btn primary bsm" onClick={()=>openModal("addAsset")}>+ Add</button></div>
+      {data.assets.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No equipment yet.</div>}
+      {data.assets.map(a=>(<div key={a.id} className="li" style={{position:"relative",marginBottom:6}}>
+        <div className="lim">
+          <div className="lin">{a.name}</div>
+          {a.locationTags&&a.locationTags.length>0&&<div className="limt">{a.locationTags.map(lid=>{const l=data.locations.find(l=>l.id===lid);return l?l.name:null;}).filter(Boolean).join(", ")}</div>}
+        </div>
+        <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
+        {openMenu===a.id&&<div className="mini-menu">
+          <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editAsset",{asset:a});}}>Edit</button>
+          <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);update(d=>{d.assets=d.assets.filter(x=>x.id!==a.id);return d;});}}>Delete</button>
+        </div>}
+      </div>))}
     </div>}
   </div>);
 }
@@ -746,8 +803,8 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const [expandedId,setExpandedId]=useState(null);
   const [savedTpl,setSavedTpl]=useState(false);
   const [bottomMode,setBottomMode]=useState(null);
-  const [schedDate,setSchedDate]=useState(new Date().toISOString().slice(0,10));
-  const [schedTime,setSchedTime]=useState("16:00");
+  const [schedDate,setSchedDate]=useState(editP?(editP.date||new Date().toISOString().slice(0,10)):new Date().toISOString().slice(0,10));
+  const [schedTime,setSchedTime]=useState(editP?(editP.startTime||"16:00"):"16:00");
   const [schedDur,setSchedDur]=useState(60);
   const [tplName,setTplName]=useState("");
   const dragIdx=useRef(null);
@@ -806,11 +863,11 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   };
   const handleSave=()=>{
     if(existingId){
-      update(d=>{const p=d.practices.find(p=>p.id===existingId);if(p){p.teamId=teamId;p.locationId=locId;p.activities=acts;p.durMin=totalMins;if(practiceDate)p.date=practiceDate;if(practiceTime)p.startTime=practiceTime;}return d;});
+      update(d=>{const p=d.practices.find(p=>p.id===existingId);if(p){p.teamId=teamId;p.locationId=locId;p.activities=acts;p.durMin=totalMins;if(schedDate)p.date=schedDate;if(schedTime)p.startTime=schedTime;}return d;});
       if(setEditPracticeId)setEditPracticeId(null);
     }else{
       const now=new Date();const newId=uid();
-      update(d=>{d.practices.push({id:newId,teamId,locationId:locId,date:practiceDate||now.toISOString().slice(0,10),startTime:practiceTime||now.toTimeString().slice(0,5),durMin:totalMins,activities:acts});return d;});
+      update(d=>{d.practices.push({id:newId,teamId,locationId:locId,date:schedDate||now.toISOString().slice(0,10),startTime:schedTime||now.toTimeString().slice(0,5),durMin:totalMins,activities:acts});return d;});
     }
   };
   const handleRun=()=>{
@@ -819,7 +876,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
       launchRun(existingId);
     }else{
       const now=new Date();const newId=uid();
-      update(d=>{d.practices.push({id:newId,teamId,locationId:locId,date:practiceDate||now.toISOString().slice(0,10),startTime:practiceTime||now.toTimeString().slice(0,5),durMin:totalMins,activities:acts});return d;});
+      update(d=>{d.practices.push({id:newId,teamId,locationId:locId,date:schedDate||now.toISOString().slice(0,10),startTime:schedTime||now.toTimeString().slice(0,5),durMin:totalMins,activities:acts});return d;});
       launchRun(newId);
     }
   };
@@ -838,8 +895,8 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
           </select>
         </div>
         <div className="g2 mb8">
-          <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={practiceDate} onChange={e=>setPracticeDate(e.target.value)}/></div>
-          <div className="fld"><label className="lbl">Time</label><input className="inp" type="time" value={practiceTime} onChange={e=>setPracticeTime(e.target.value)}/></div>
+          <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/></div>
+          <div className="fld"><label className="lbl">Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
         </div>
       </div>
       {acts.length===0&&(<div style={{textAlign:"center",padding:"20px 16px",background:"var(--s2)",borderRadius:"var(--r)",marginBottom:10,border:"1.5px dashed var(--b)"}}>
