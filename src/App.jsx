@@ -925,7 +925,6 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
             {data.locations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
-        </div>
       </div>
       {acts.length===0&&(<div style={{textAlign:"center",padding:"20px 16px",background:"var(--s2)",borderRadius:"var(--r)",marginBottom:10,border:"1.5px dashed var(--b)"}}>
           <div style={{fontSize:13,color:"var(--td)",lineHeight:1.7}}>Nothing added yet.<br/>Select activities below to begin building your practice.</div>
