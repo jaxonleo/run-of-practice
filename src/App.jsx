@@ -305,19 +305,27 @@ function CoachSelector({onSelect,onDismiss,canDismiss}){
   </div>);
 }
 
-function TodayScreen({data,update,openModal,setView,setLiveId,coachId,coachName,onSwitchCoach}){
+function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSwitchCoach,setEditPracticeId}){
   const now=new Date();
   const todayStr=now.toISOString().slice(0,10);
   const hour=now.getHours();
   const myTeamIds=data.teams.filter(t=>t.coaches.some(c=>c.id===coachId)).map(t=>t.id);
   const myPractices=data.practices.filter(p=>myTeamIds.includes(p.teamId));
-  const todayPractices=myPractices.filter(p=>p.date===todayStr).sort((a,b)=>a.startTime>b.startTime?1:-1);
+  const todayPractices=myPractices.filter(p=>{
+    if(p.date!==todayStr)return false;
+    if(!p.startTime)return true;
+    const pts=p.startTime.split(":");
+    const pm=parseInt(pts[0])*60+parseInt(pts[1]);
+    const nm=now.getHours()*60+now.getMinutes();
+    return pm-nm<=240&&pm-nm>=-90;
+  }).sort((a,b)=>a.startTime>b.startTime?1:-1);
+  const myTemplates=data.templates||[];
   const upcoming=myPractices.filter(p=>p.date>todayStr).sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:0).slice(0,3);
   const recent=myPractices.filter(p=>p.date<todayStr).sort((a,b)=>b.date>a.date?1:-1).slice(0,3);
   const getTeam=id=>data.teams.find(t=>t.id===id);
   const getLoc=id=>data.locations.find(l=>l.id===id);
   const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
-  const isSoon=p=>{if(!p.startTime||p.date!==todayStr)return false;const pts=p.startTime.split(":");const pm=parseInt(pts[0])*60+parseInt(pts[1]);const nm=now.getHours()*60+now.getMinutes();return pm-nm<=120&&pm-nm>=-30;};
+  const isSoon=p=>{if(!p.startTime||p.date!==todayStr)return false;const pts=p.startTime.split(":");const pm=parseInt(pts[0])*60+parseInt(pts[1]);const nm=now.getHours()*60+now.getMinutes();return pm-nm<=120&&pm-nm>=-90;};
   const greeting=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
   return (<div style={{padding:"0 0 calc(var(--tab) + 20px)"}}>
     <div style={{padding:"20px 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -344,7 +352,7 @@ function TodayScreen({data,update,openModal,setView,setLiveId,coachId,coachName,
         {loc&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>{loc.name}</div>}
         <div style={{fontSize:12,color:"var(--td)",marginBottom:12}}>{(p.activities||[]).length} activities</div>
         {soon&&<button className="btn primary bxl bfull" onClick={()=>{setLiveId(p.id);setView("command");}}>Start Practice &#8594;</button>}
-        {!soon&&<div className="brow"><button className="btn ghost bmd" style={{flex:1}} onClick={()=>setView("builder")}>Edit</button><button className="btn primary bmd" style={{flex:1}} onClick={()=>{setLiveId(p.id);setView("command");}}>Run Now</button></div>}
+        {!soon&&<div className="brow"><button className="btn ghost bmd" style={{flex:1}} onClick={()=>{if(setEditPracticeId)setEditPracticeId(p.id);setView("builder");}}>Edit</button><button className="btn primary bmd" style={{flex:1}} onClick={()=>{setLiveId(p.id);setView("command");}}>Run Now</button></div>}
       </div>);})} 
       {upcoming.length>0&&<div>
         <div className="sechdr" style={{marginBottom:8}}><span className="sectitle">Coming Up</span></div>
@@ -359,7 +367,10 @@ function TodayScreen({data,update,openModal,setView,setLiveId,coachId,coachName,
           <div className="lim"><div className="lin">{team?team.name:"Practice"}</div><div className="limt">{dl}</div></div>
         </div>);})}
       </div>}
-      <div style={{marginTop:20}}><button className="btn outline bmd bfull" onClick={()=>setView("builder")}>+ Build a Practice</button></div>
+      <div style={{marginTop:20,display:"flex",gap:8}}>
+        <button className="btn outline bmd" style={{flex:1}} onClick={()=>{if(setEditPracticeId)setEditPracticeId(null);setView("builder");}}>+ Build Practice</button>
+        <button className="btn ghost bmd" style={{flex:1}} onClick={()=>setView("library")}>Use Template</button>
+      </div>
     </div>
   </div>);
 }
@@ -370,6 +381,7 @@ export default function App(){
   const [view,setView]=useState("today");
   const [modal,setModal]=useState(null);
   const [liveId,setLiveId]=useState(null);
+  const [editPracticeId,setEditPracticeId]=useState(null);
   const [coachId,setCoachId]=useState(null);
   const [showCoachSelect,setShowCoachSelect]=useState(false);
   const update=useCallback(fn=>{setData(d=>{const nx=fn(JSON.parse(JSON.stringify(d)));saveData(nx);return nx;});},[]);
@@ -380,8 +392,8 @@ export default function App(){
   useEffect(()=>{window.__cbSetView=setView;return()=>{delete window.__cbSetView;};},[]);
   const TABS=[
     {id:"today",label:"Today",I:Ic.Home},
-    {id:"command",label:"Run",I:Ic.Run},
-    {id:"manage",label:"Manage",I:Ic.Build},
+    {id:"teams",label:"Teams",I:Ic.Build},
+    {id:"library",label:"Library",I:Ic.Run},
   ];
   const needsCoach=loaded&&!coachId;
   const selectCoach=(id)=>{setCoachKey(id);setCoachId(id);setShowCoachSelect(false);setLoaded(false);loadData().then(d=>{setData(mergeDefaults(d||INIT));setLoaded(true);});};
@@ -395,18 +407,19 @@ export default function App(){
   return (<div style={{display:"contents"}}><style>{CSS}</style>
     <div className="app">
       <div className="screen">
-        {view==="today"&&<TodayScreen data={data} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSwitchCoach={()=>setShowCoachSelect(true)}/>}
-        {view==="manage"&&<HomeScreen data={data} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun}/>}
-        {view==="builder"&&<BuilderScreen data={data} update={update} openModal={openModal} launchRun={launchRun}/>}
-        {view==="command"&&<CommandScreen data={data} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId}/>}
+        {view==="today"&&<TodayScreen data={data} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSwitchCoach={()=>setShowCoachSelect(true)} setEditPracticeId={setEditPracticeId}/>}
+        {view==="teams"&&<TeamsScreen data={data} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal}/>}
+        {view==="library"&&<NewLibraryScreen data={data} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun}/>}
+        {view==="builder"&&<BuilderScreen data={data} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId}/>}
+                {view==="command"&&<CommandScreen data={data} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId}/>}
       </div>
-      <nav className="tabbar">
+      {view!=="command"&&<nav className="tabbar">
         {TABS.map(({id,label,I})=>(<button key={id} className={"ti "+(view===id?"on":"")} onClick={()=>setView(id)}>
             {id==="command"&&liveId&&<span className="live" style={{position:"absolute",top:6,right:"calc(50% - 14px)",width:6,height:6}}/>}
             <I/>{label}
           </button>
         ))}
-      </nav>
+      </nav>}
     </div>
     {modal&&<ModalLayer modal={modal} data={data} update={update} closeModal={closeModal}/>}
     {(needsCoach||showCoachSelect)&&<CoachSelector onSelect={selectCoach} onDismiss={()=>setShowCoachSelect(false)} canDismiss={!!coachId}/>}
@@ -630,14 +643,24 @@ function BuilderScreen({data,update,openModal,launchRun}){
     setBottomMode("done_tpl");
     setTimeout(()=>setBottomMode(null),2000);
   };
+  const handleSave=()=>{
+    if(existingId){
+      update(d=>{const p=d.practices.find(p=>p.id===existingId);if(p){p.teamId=teamId;p.locationId=locId;p.activities=acts;p.durMin=totalMins;if(practiceDate)p.date=practiceDate;if(practiceTime)p.startTime=practiceTime;}return d;});
+      if(setEditPracticeId)setEditPracticeId(null);
+    }else{
+      const now=new Date();const newId=uid();
+      update(d=>{d.practices.push({id:newId,teamId,locationId:locId,date:practiceDate||now.toISOString().slice(0,10),startTime:practiceTime||now.toTimeString().slice(0,5),durMin:totalMins,activities:acts});return d;});
+    }
+  };
   const handleRun=()=>{
-    const now=new Date();
-    const newId=uid();
-    update(d=>{
-      d.practices.push({id:newId,teamId,date:now.toISOString().slice(0,10),locationId:locId,startTime:now.toTimeString().slice(0,5),durMin:totalMins,activities:acts});
-      return d;
-    });
-    launchRun(newId);
+    if(existingId){
+      update(d=>{const p=d.practices.find(p=>p.id===existingId);if(p){p.teamId=teamId;p.locationId=locId;p.activities=acts;p.durMin=totalMins;}return d;});
+      launchRun(existingId);
+    }else{
+      const now=new Date();const newId=uid();
+      update(d=>{d.practices.push({id:newId,teamId,locationId:locId,date:practiceDate||now.toISOString().slice(0,10),startTime:practiceTime||now.toTimeString().slice(0,5),durMin:totalMins,activities:acts});return d;});
+      launchRun(newId);
+    }
   };
   return (<div style={{paddingBottom:80}}>
       <div className="card mb10">
@@ -652,6 +675,10 @@ function BuilderScreen({data,update,openModal,launchRun}){
           <select className="sel" value={locId} onChange={e=>setLocId(e.target.value)}>
             {data.locations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
+        </div>
+        <div className="g2 mb8">
+          <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={practiceDate} onChange={e=>setPracticeDate(e.target.value)}/></div>
+          <div className="fld"><label className="lbl">Time</label><input className="inp" type="time" value={practiceTime} onChange={e=>setPracticeTime(e.target.value)}/></div>
         </div>
       </div>
       {acts.length===0&&(<div style={{textAlign:"center",padding:"20px 16px",background:"var(--s2)",borderRadius:"var(--r)",marginBottom:10,border:"1.5px dashed var(--b)"}}>
@@ -729,7 +756,7 @@ function BuilderScreen({data,update,openModal,launchRun}){
             <button className="btn ghost bxs" style={{marginLeft:10}} onClick={()=>setBottomMode(null)}>Done</button>
           </div>}
         {(!bottomMode||bottomMode==="")&&<div style={{display:"flex",gap:8,width:"100%"}}>
-            <button className="btn primary bxl" style={{flex:2}} onClick={handleRun}>Run Now</button>
+            <button className="btn outline blg" style={{flex:1}} onClick={handleSave}>{existingId?"Save":"Save"}</button><button className="btn primary bxl" style={{flex:2}} onClick={handleRun}>Run Now</button>
             <button className="btn outline bmd" style={{flex:1}} onClick={()=>setBottomMode("schedule")}>Schedule</button>
             <button className="btn ghost bmd" style={{flex:1}} onClick={()=>{setTplName("");setBottomMode("template");}}>Template</button>
           </div>}
@@ -758,6 +785,7 @@ function ActConfig({act,team,loc,onChange,onDone}){
           {loc&&loc.sublocations.map(sl=><option key={sl.id} value={sl.id}>{sl.name}</option>)}
         </select>
       </div>
+      <div className="fld mb8"><label className="lbl">Equipment</label><input className="inp" placeholder="e.g. 6 cones, 2 ball racks" value={act.equipment||""} onChange={e=>onChange({equipment:e.target.value})}/></div>
       <div className="fld mb8"><label className="lbl">Notes</label><textarea className="ta" style={{minHeight:44}} value={act.notes||""} placeholder="Notes for this activity..." onChange={e=>onChange({notes:e.target.value})}/></div>
       {team&&(<div className="mb8">
           <label className="lbl">Players ({act.assignments?act.assignments.length:0}/{team.players.length})</label>
@@ -1538,7 +1566,26 @@ function CommandScreen({data,update,liveId,setLiveId,coachId}){
   },[cur,isBlock,blockRotate,inTrans,stIdx,idx,liveActs,presentIds,writeSession]);
   const goBack=useCallback(()=>{if(isBlock){if(inTrans){setInTrans(false);setElapsed(0);spoken.current={};setRunning(false);}else if(stIdx>0){setStIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(false);}else if(idx>0){setIdx(i=>i-1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(false);}}else{if(idx>0){setIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(false);}}},[isBlock,inTrans,stIdx,idx]);
 
-  useEffect(()=>{if(running){iref.current=setInterval(()=>{setElapsed(e=>{const ne=e+1;const r=phaseSecs-ne;if(r===120&&!spoken.current[120]){speak("Two minutes remaining.");spoken.current[120]=true;}if(r===0&&!spoken.current[0]){beep();spoken.current[0]=true;}if(r<0&&ne%30===0){beep();}return ne;});},1000);}else{clearInterval(iref.current);}return()=>clearInterval(iref.current);},[running,phaseSecs,speak,beep]);
+  const startedAtRef=useRef(null);
+  const baseElapsedRef=useRef(0);
+  useEffect(()=>{
+    if(running){
+      startedAtRef.current=Date.now();
+      baseElapsedRef.current=elapsed;
+      iref.current=setInterval(()=>{
+        const wallElapsed=baseElapsedRef.current+Math.floor((Date.now()-startedAtRef.current)/1000);
+        setElapsed(wallElapsed);
+        const r=phaseSecs-wallElapsed;
+        if(r===120&&!spoken.current[120]){speak("Two minutes remaining.");spoken.current[120]=true;}
+        if(r===0&&!spoken.current[0]){beep();spoken.current[0]=true;}
+        if(r<0&&wallElapsed%30===0){beep();}
+      },500);
+    }else{
+      clearInterval(iref.current);
+      startedAtRef.current=null;
+    }
+    return()=>clearInterval(iref.current);
+  },[running,phaseSecs,speak,beep]);
 
   const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
   const subName=id=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:null;};
