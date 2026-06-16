@@ -628,7 +628,7 @@ export default function App(){
         {view==="teams"&&<TeamsScreen data={data} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId}/>}
         {view==="library"&&<NewLibraryScreen data={data} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun} setEditPracticeId={setEditPracticeId}/>}
         {view==="builder"&&<BuilderScreen data={data} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId}/>}
-        {view==="command"&&<CommandScreen data={data} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId}/>}
+        {view==="command"&&<CommandScreen data={data} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} setView={setView}/>}
       </div>
       {view!=="command"&&<nav className="tabbar">
         {TABS.map(({id,label,I})=>(<button key={id} className={"ti "+(view===id?"on":"")} onClick={()=>setView(id)}>
@@ -1701,7 +1701,7 @@ function HelperView({sessionId}){
   </div>);
 }
 
-function CommandScreen({data,update,liveId,setLiveId,coachId}){
+function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
   const practice=liveId?data.practices.find(p=>p.id===liveId):null;
   const team=practice?data.teams.find(t=>t.id===practice.teamId):null;
   const loc=practice?data.locations.find(l=>l.id===practice.locationId):null;
@@ -1733,7 +1733,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId}){
   const sessionRef=useRef(null);
   const writeSession=useCallback((newState)=>{
     if(!sessionRef.current)return;
-    import("./supabase.js").then(m=>m.updateSession(sessionRef.current,newState));
+    updateSession(sessionRef.current,newState));
   },[]);
   const cur=liveActs[idx]||null;
   const isBlock=cur&&cur.type==="station_block";
@@ -1760,8 +1760,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId}){
     const newActs=applyAtt(pIds,cIds,balanceMode,practice.activities);
     setLiveActs(newActs);setStage("live");setShowAtt(false);
     setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};setShowAudioPrompt(true);
-    import("./supabase.js").then(({createSession})=>{
-      createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,elapsed:0,running:true,runningAt:Date.now(),presentIds:[...pIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations}).then(sid=>{
+    createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,elapsed:0,running:true,runningAt:Date.now(),presentIds:[...pIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations}).then(sid=>{
         if(sid){sessionRef.current=sid;setSessionId(sid);}
       });
     });
@@ -1825,9 +1824,10 @@ function CommandScreen({data,update,liveId,setLiveId,coachId}){
 
   if(histPractice)return (<div className="screen" style={{padding:"14px 14px calc(var(--tab) + 40px)"}}><HistoryViewer data={data} update={update} practice={histPractice} onRunAgain={()=>{const now=new Date();const newP={id:uid(),teamId:histPractice.teamId,locationId:histPractice.locationId,date:now.toISOString().slice(0,10),startTime:now.toTimeString().slice(0,5),durMin:sumMins(histPractice.activities),activities:JSON.parse(JSON.stringify(histPractice.activities)),rerunOf:histPractice.id};update(d=>{d.practices.push(newP);return d;});setLivePracticeOverride(newP);setLiveId(newP.id);setHistPractice(null);setStage("attend");}} onBack={()=>setHistPractice(null)}/></div>);
   if(tplPractice)return (<div className="screen" style={{padding:"14px 14px calc(var(--tab) + 40px)"}}><TemplateWorkspace data={data} template={tplPractice} mode="run" onRun={handleTplRun} onBack={()=>setTplPractice(null)}/></div>);
-  if(stage==="pick")return (<div className="screen" style={{padding:"14px 14px calc(var(--tab) + 40px)"}}><PracticePicker data={data} update={update} onSelect={id=>{setLiveId(id);setLivePracticeOverride(null);setStage("attend");}} onSelectTemplate={tpl=>setTplPractice(tpl)} onViewHistory={p=>setHistPractice(p)}/></div>);
+    if(stage==="pick"){setView("today");return null;}
+
   if(stage==="attend"||showAtt){const attendPractice=livePracticeOverride||(liveId?data.practices.find(p=>p.id===liveId):null);const attendTeam=attendPractice?data.teams.find(t=>t.id===attendPractice.teamId):null;const attBack=()=>{if(showAtt)setShowAtt(false);else{setLiveId(null);setLivePracticeOverride(null);setStage("pick");}};return (<AttendanceScreen key={showAtt?"upd":"init"} practice={attendPractice} team={attendTeam} isUpdate={showAtt} initialPresent={showAtt?[...presentIds]:null} initialCoachPresent={showAtt?[...coachPresentIds]:null} onConfirm={showAtt?handleAttUpdate:handleAttConfirm} onBack={attBack}/>);}
-  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:48,fontWeight:900,color:"var(--green)",marginBottom:8}}>Well Done!</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{team&&team.name} practice complete.</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>setNoteText(e.target.value)}/><button className="btn primary bsm bfull mt6" onClick={()=>{if(noteText.trim()){update(d=>{d.notes.push({id:uid(),text:noteText,context:"End of Practice",date:new Date().toISOString(),practiceId:liveId});return d;});setNoteText("");}}} >Save Note</button></div><button className="btn ghost bmd bfull" onClick={()=>{setLiveId(null);setStage("pick");}}>Back to Practices</button></div></div>);
+  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:48,fontWeight:900,color:"var(--green)",marginBottom:8}}>Well Done!</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{team&&team.name} practice complete.</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>setNoteText(e.target.value)}/><button className="btn primary bsm bfull mt6" onClick={()=>{if(noteText.trim()){update(d=>{d.notes.push({id:uid(),text:noteText,context:"End of Practice",date:new Date().toISOString(),practiceId:liveId});return d;});setNoteText("");}}} >Save Note</button></div><button className="btn primary bmd bfull" onClick={()=>{setLiveId(null);setStage("pick");setView("today");}}>Done</button></div></div>);
 
   const phaseLabel=isBlock?(blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+cur.stations.length):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
   const blockCount=liveActs.slice(0,idx).filter(a=>a.type==="station_block").length;
@@ -1850,7 +1850,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId}){
             {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
               {sessionId&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowShare(true);}}>Share Live View</button>}
-              <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){import("./supabase.js").then(({endSession})=>endSession(sessionRef.current));sessionRef.current=null;setSessionId(null);}}}>End Practice</button>
+              <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){endSession(sessionRef.current);sessionRef.current=null;setSessionId(null);}}}>End Practice</button>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};setStage("attend");}}>Restart Practice</button>
             </div>}
           </div>
