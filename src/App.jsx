@@ -398,6 +398,7 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
 
 function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,setEditPracticeId}){
   const [libTab,setLibTab]=useState("drills");
+  useEffect(()=>{window.__ropLibTab=setLibTab;return()=>{delete window.__ropLibTab;};},[]);
   const [openMenu,setOpenMenu]=useState(null);
   const [editingTpl,setEditingTpl]=useState(null);
   const [confirmDel,setConfirmDel]=useState(null);
@@ -585,7 +586,7 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSwitchCo
       </div>}
       <div style={{marginTop:20,display:"flex",gap:8}}>
         <button className="btn outline bmd" style={{flex:1}} onClick={()=>{if(setEditPracticeId)setEditPracticeId(null);setView("builder");}}>+ Build Practice</button>
-        <button className="btn ghost bmd" style={{flex:1}} onClick={()=>setView("library")}>Use Template</button>
+        <button className="btn ghost bmd" style={{flex:1}} onClick={()=>{setView("library");setTimeout(()=>{window.__ropLibTab&&window.__ropLibTab("templates");},50);}}>Use Template</button>
       </div>
     </div>
   </div>);
@@ -798,7 +799,8 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const editP=editPracticeId?data.practices.find(p=>p.id===editPracticeId):null;
   const [existingId]=useState(editP?editP.id:null);
   const [teamId,setTeamId]=useState(editP?editP.teamId:(data.teams[0]?data.teams[0].id:""));
-  const [locId,setLocId]=useState(editP?editP.locationId:(data.locations[0]?data.locations[0].id:""));
+  const lastLocForTeam=(tid)=>{const tps=data.practices.filter(p=>p.teamId===tid&&p.locationId).sort((a,b)=>b.date>a.date?1:-1);return tps.length?tps[0].locationId:(data.locations[0]?data.locations[0].id:"");};
+  const [locId,setLocId]=useState(editP?editP.locationId:lastLocForTeam(editP?editP.teamId:(data.teams[0]?data.teams[0].id:"")));
   const [acts,setActs]=useState(editP?JSON.parse(JSON.stringify(editP.activities)):[]);
   const [expandedId,setExpandedId]=useState(null);
   const [savedTpl,setSavedTpl]=useState(false);
@@ -884,7 +886,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
       <div className="card mb10">
         <div className="clbl">Practice Setup</div>
         <div className="fld"><label className="lbl">Team</label>
-          <select className="sel" value={teamId} onChange={e=>setTeamId(e.target.value)}>
+          <select className="sel" value={teamId} onChange={e=>{const tid=e.target.value;setTeamId(tid);setLocId(lastLocForTeam(tid));}}>
             {!data.teams.length&&<option value="">-- Add a team first --</option>}
             {data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
@@ -933,7 +935,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
         </div>
       ))}
       <div style={{borderTop:"1px solid var(--b)",paddingTop:14}}>
-        <div className="sechdr mb8"><span className="sectitle">Add to Practice</span><div className="row"><button className="btn ghost bxs" onClick={()=>openModal("addActivity")}>+ New Activity</button></div></div>
+        <div className="sechdr mb8"><span className="sectitle">Add Drills</span><div className="row"><button className="btn ghost bxs" onClick={()=>openModal("addActivity")}>+ New Activity</button></div></div>
         <div className="g2" style={{marginBottom:6}}>
           <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(false)}><div className="lim"><div className="lin">Intro</div><div className="limt">Checklist</div></div><span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span></div>
           <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(true)}><div className="lim"><div className="lin">Closer</div><div className="limt">Checklist</div></div><span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span></div>
@@ -1083,7 +1085,7 @@ function StationConfig({act,team,loc,onChange,onSt,onDone}){
           </div>
           {exSt===st.id&&(<div style={{padding:"10px 11px",background:"var(--s2)",borderTop:"1px solid var(--b)"}}>
               <div className="g2 mb8">
-                <div className="fld"><label className="lbl">Activity</label><input className="inp" placeholder="e.g. Shooting" value={st.activityName||""} onChange={e=>onSt(st.id,{activityName:e.target.value})}/></div>
+                <div className="fld"><label className="lbl">Name</label><input className="inp" placeholder="e.g. Shooting" value={st.activityName||""} onChange={e=>onSt(st.id,{activityName:e.target.value})}/></div>
                 <div className="fld"><label className="lbl">Coach</label>
                   <select className="sel" value={st.coachId||""} onChange={e=>onSt(st.id,{coachId:e.target.value})}>
                     <option value="">None</option>
@@ -1766,23 +1768,23 @@ function CommandScreen({data,update,liveId,setLiveId,coachId}){
     const base={liveActs,presentIds:[...presentIds],running:true,runningAt:Date.now(),elapsed:0,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations};
     if(isBlock){
       if(blockRotate&&!inTrans&&cur.transitionDuration>0){
-        setInTrans(true);setElapsed(0);spoken.current={};setRunning(true);
+        baseElapsedRef.current=0;startedAtRef.current=Date.now();setInTrans(true);setElapsed(0);spoken.current={};setRunning(true);
         writeSession({...base,idx,stIdx,inTrans:true});
       }else if(blockRotate&&stIdx<cur.stations.length-1){
-        const ns=stIdx+1;setStIdx(ns);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
+        const ns=stIdx+1;setStIdx(ns);setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
         writeSession({...base,idx,stIdx:ns,inTrans:false});
       }else if(idx<liveActs.length-1){
-        const ni=idx+1;setIdx(ni);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
+        const ni=idx+1;setIdx(ni);setStIdx(0);setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
         writeSession({...base,idx:ni,stIdx:0,inTrans:false});
       }else{setStage("end");setRunning(false);writeSession({...base,idx,stIdx,inTrans,running:false,runningAt:null});}
     }else{
       if(idx<liveActs.length-1){
-        const ni=idx+1;setIdx(ni);setElapsed(0);spoken.current={};setRunning(true);
+        const ni=idx+1;setIdx(ni);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);
         writeSession({...base,idx:ni,stIdx:0,inTrans:false});
       }else{setStage("end");setRunning(false);writeSession({...base,idx,stIdx,inTrans,running:false,runningAt:null});}
     }
   },[cur,isBlock,blockRotate,inTrans,stIdx,idx,liveActs,presentIds,writeSession]);
-  const goBack=useCallback(()=>{if(isBlock){if(inTrans){setInTrans(false);setElapsed(0);spoken.current={};setRunning(false);}else if(stIdx>0){setStIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(false);}else if(idx>0){setIdx(i=>i-1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(false);}}else{if(idx>0){setIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(false);}}},[isBlock,inTrans,stIdx,idx]);
+  const goBack=useCallback(()=>{if(isBlock){if(inTrans){setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(false);}else if(stIdx>0){setStIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(false);}else if(idx>0){setIdx(i=>i-1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(false);}}else{if(idx>0){setIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(false);}}},[isBlock,inTrans,stIdx,idx]);
 
   const startedAtRef=useRef(null);
   const baseElapsedRef=useRef(0);
@@ -2391,13 +2393,13 @@ function ModalLayer({modal,data,update,closeModal}){
     if(t==="addSublocation"){if(!f.name)return;update(d=>{const l=d.locations.find(l=>l.id===p.locationId);if(l)l.sublocations.push({id:uid(),name:f.name});return d;});}
     if(t==="addAsset"){if(!f.name)return;update(d=>{d.assets.push({id:uid(),name:f.name,locationTags:f.locationTags||[]});return d;});}
     if(t==="editAsset"){if(!f.name)return;update(d=>{const a=d.assets.find(a=>a.id===p.asset.id);if(a){a.name=f.name;a.locationTags=f.locationTags||[];}return d;});}
-    if(t==="addActivity"){if(!f.name)return;update(d=>{d.activityLibrary.push({id:uid(),name:f.name,sport:f.sport||"General",description:f.description||"",duration:+(f.duration||10),coachingPoints:f.coachingPoints||"",equipment:[]});return d;});}
+    if(t==="addActivity"){if(!f.name)return;update(d=>{d.activityLibrary.push({id:uid(),name:f.name,sport:f.sport||"General",description:f.description||"",duration:+(f.duration||10),coachingPoints:f.coachingPoints||"",equipment:f.equipment||""});return d;});}
     if(t==="editActivity"){if(!f.name)return;update(d=>{const a=d.activityLibrary.find(a=>a.id===p.activity.id);if(a){a.name=f.name;a.sport=f.sport||"General";a.duration=+(f.duration||10);a.description=f.description||"";a.coachingPoints=f.coachingPoints||"";}return d;});}
     if(t==="editTemplate"){if(!f.name)return;update(d=>{const tpl=d.templates.find(t=>t.id===p.template.id);if(tpl){tpl.name=f.name;tpl.sport=f.sport||"General";}return d;});}
     if(t==="editTeam"){if(!f.name)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.team.id);if(tm){tm.name=f.name;tm.sport=f.sport||"Basketball";}return d;});}
     closeModal();
   };
-  const TITLES={addTemplate:"New Template",editTemplate:"Edit Template",addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",editPlayer:"Edit Player",addCoach:"Add Coach",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Activity",editActivity:"Edit Activity"};
+  const TITLES={addTemplate:"New Template",editTemplate:"Edit Template",addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",editPlayer:"Edit Player",addCoach:"Add Coach",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
   return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget)closeModal();}}>
       <div className="modal">
         <div className="mhandle"/>
@@ -2443,6 +2445,7 @@ function ModalLayer({modal,data,update,closeModal}){
             <div className="g2"><div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||"General"} onChange={e=>set("sport",e.target.value)}>{SPORTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div><div className="fld"><label className="lbl">Duration (min)</label><DurStepper value={f.duration||10} min={1} onChange={v=>set("duration",v)}/></div></div>
             <div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:50}} value={f.description||""} onChange={e=>set("description",e.target.value)}/></div>
             <div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" style={{minHeight:50}} value={f.coachingPoints||""} onChange={e=>set("coachingPoints",e.target.value)}/></div>
+            <div className="fld"><label className="lbl">Equipment Needed</label><input className="inp" placeholder="e.g. 6 cones, 2 ball racks" value={f.equipment||""} onChange={e=>setF(x=>Object.assign({},x,{equipment:e.target.value}))}/></div>
           </div>
         )}
         <div className="mfooter"><button className="btn ghost bmd" onClick={closeModal}>Cancel</button><button className="btn primary bmd" onClick={save}>Save</button></div>
