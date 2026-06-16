@@ -567,10 +567,10 @@ export default function App(){
     <div className="app">
       <div className="screen">
         {view==="today"&&<TodayScreen data={data} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSwitchCoach={()=>setShowCoachSelect(true)} setEditPracticeId={setEditPracticeId}/>}
-        {view==="teams"&&<TeamsScreen data={data} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal}/>}
-        {view==="library"&&<NewLibraryScreen data={data} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun}/>}
+        {view==="teams"&&<TeamsScreen data={data} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId}/>}
+        {view==="library"&&<NewLibraryScreen data={data} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun} setEditPracticeId={setEditPracticeId}/>}
         {view==="builder"&&<BuilderScreen data={data} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId}/>}
-                {view==="command"&&<CommandScreen data={data} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId}/>}
+        {view==="command"&&<CommandScreen data={data} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId}/>}
       </div>
       {view!=="command"&&<nav className="tabbar">
         {TABS.map(({id,label,I})=>(<button key={id} className={"ti "+(view===id?"on":"")} onClick={()=>setView(id)}>
@@ -737,10 +737,12 @@ function DurStepper({value,min,onChange,step}){
   );
 }
 
-function BuilderScreen({data,update,openModal,launchRun}){
-  const [teamId,setTeamId]=useState(data.teams[0]?data.teams[0].id:"");
-  const [locId,setLocId]=useState(data.locations[0]?data.locations[0].id:"");
-  const [acts,setActs]=useState([]);
+function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPracticeId}){
+  const editP=editPracticeId?data.practices.find(p=>p.id===editPracticeId):null;
+  const [existingId]=useState(editP?editP.id:null);
+  const [teamId,setTeamId]=useState(editP?editP.teamId:(data.teams[0]?data.teams[0].id:""));
+  const [locId,setLocId]=useState(editP?editP.locationId:(data.locations[0]?data.locations[0].id:""));
+  const [acts,setActs]=useState(editP?JSON.parse(JSON.stringify(editP.activities)):[]);
   const [expandedId,setExpandedId]=useState(null);
   const [savedTpl,setSavedTpl]=useState(false);
   const [bottomMode,setBottomMode]=useState(null);
