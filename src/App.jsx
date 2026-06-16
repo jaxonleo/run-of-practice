@@ -315,6 +315,8 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
   const [teamTab,setTeamTab]=useState("practices");
   const [selectedPractice,setSelectedPractice]=useState(null);
   const myTeams=data.teams.filter(t=>t.coaches.some(c=>c.id===coachId));
+  const [practiceMenuId,setPracticeMenuId]=useState(null);
+  const delPractice=id=>update(d=>{d.practices=d.practices.filter(p=>p.id!==id);return d;});
   const now=new Date();
   const todayStr=now.toISOString().slice(0,10);
   const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
@@ -337,18 +339,20 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
         {teamTab==="practices"&&<div>
           <div className="sechdr" style={{marginBottom:8}}><span className="sectitle">{upcoming.length>0?"Upcoming":"Practices"}</span><button className="btn primary bxs" onClick={()=>{setEditPracticeId(null);setView("builder");}}>+ Build</button></div>
           {upcoming.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No upcoming practices. Tap + Build.</div>}
-          {upcoming.map(p=>(<div key={p.id} className="li" style={{marginBottom:6,cursor:"pointer"}} onClick={()=>setSelectedPractice(p)}>
+          {upcoming.map(p=>(<div key={p.id} className="li" style={{marginBottom:6,cursor:"pointer",position:"relative"}} onClick={()=>setSelectedPractice(p)}>
             <div className="lim"><div className="lin">{new Date(p.date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}{p.startTime?" - "+timeLbl(p):""}</div><div className="limt">{(p.activities||[]).length} activities</div></div>
-            <span style={{color:"var(--green)",fontSize:18}}>›</span>
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <span style={{color:"var(--green)",fontSize:18}}>&#8250;</span>
+              <div style={{position:"relative"}}>
+                <button className="ell-btn" onClick={e=>{e.stopPropagation();setPracticeMenuId(practiceMenuId===p.id?null:p.id);}}><span/><span/><span/></button>
+                {practiceMenuId===p.id&&<div className="mini-menu" style={{right:0,minWidth:140}}>
+                  <button className="mm-item" onClick={e=>{e.stopPropagation();setPracticeMenuId(null);setEditPracticeId(p.id);setView("builder");}}>Edit</button>
+                  <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();delPractice(p.id);setPracticeMenuId(null);}}>Delete</button>
+                </div>}
+              </div>
+            </div>
           </div>))}
-          {past.length>0&&<div style={{marginTop:16}}>
-            <div className="sechdr" style={{marginBottom:8}}><span className="sectitle">Recent</span></div>
-            {past.slice(0,5).map(p=>(<div key={p.id} className="li" style={{marginBottom:6,opacity:.7,cursor:"pointer"}} onClick={()=>setSelectedPractice(p)}>
-              <div className="lim"><div className="lin">{new Date(p.date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div><div className="limt">{(p.activities||[]).length} activities</div></div>
-              <span style={{color:"var(--td)",fontSize:18}}>›</span>
-            </div>))}
-          </div>}
-        </div>}
+          </div>}       </div>}
         {teamTab==="roster"&&<div><RostersTab data={data} update={update} openModal={openModal} fixedTeamId={selectedTeam}/></div>}
         {teamTab==="history"&&<div>
           {past.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No practice history yet.</div>}
@@ -544,6 +548,8 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSwitchCo
   const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
   const isSoon=p=>{if(!p.startTime||p.date!==todayStr)return false;const pts=p.startTime.split(":");const pm=parseInt(pts[0])*60+parseInt(pts[1]);const nm=now.getHours()*60+now.getMinutes();return pm-nm<=120&&pm-nm>=-90;};
   const greeting=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
+  const [practiceMenuId,setPracticeMenuId]=useState(null);
+  const delPractice=id=>update(d=>{d.practices=d.practices.filter(p=>p.id!==id);return d;});
   return (<div style={{padding:"0 0 calc(var(--tab) + 20px)"}}>
     <div style={{padding:"20px 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div>
@@ -561,9 +567,18 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSwitchCo
         <button className="btn primary bmd bfull" onClick={()=>setView("builder")}>+ Build a Practice</button>
       </div>}
       {todayPractices.map(p=>{const team=getTeam(p.teamId);const loc=getLoc(p.locationId);const soon=isSoon(p);return (<div key={p.id} className="card" style={{marginBottom:12,borderColor:soon?"var(--green)":"var(--b)",borderWidth:soon?2:1.5}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
-          {soon&&<span style={{background:"var(--green)",color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".08em",padding:"2px 8px",borderRadius:20}}>TODAY</span>}
-          <span style={{fontSize:13,color:"var(--td)",fontWeight:600}}>{timeLbl(p)}</span>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            {soon&&<span style={{background:"var(--green)",color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".08em",padding:"2px 8px",borderRadius:20}}>TODAY</span>}
+            <span style={{fontSize:13,color:"var(--td)",fontWeight:600}}>{timeLbl(p)}</span>
+          </div>
+          <div style={{position:"relative"}}>
+            <button className="ell-btn" onClick={e=>{e.stopPropagation();setPracticeMenuId(practiceMenuId===p.id?null:p.id);}}><span/><span/><span/></button>
+            {practiceMenuId===p.id&&<div className="mini-menu" style={{right:0,minWidth:140}}>
+              <button className="mm-item" onClick={()=>{setPracticeMenuId(null);if(setEditPracticeId)setEditPracticeId(p.id);setView("builder");}}>Edit</button>
+              <button className="mm-item mm-danger" onClick={()=>{delPractice(p.id);setPracticeMenuId(null);}}>Delete</button>
+            </div>}
+          </div>
         </div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,lineHeight:1,marginBottom:2}}>{team?team.name:"Practice"}</div>
         {loc&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>{loc.name}</div>}
@@ -1795,6 +1810,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
       startedAtRef.current=Date.now();
       baseElapsedRef.current=elapsed;
       iref.current=setInterval(()=>{
+        if(!startedAtRef.current)return;
         const wallElapsed=baseElapsedRef.current+Math.floor((Date.now()-startedAtRef.current)/1000);
         setElapsed(wallElapsed);
         const r=phaseSecs-wallElapsed;
@@ -1824,7 +1840,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
   if(tplPractice)return (<div className="screen" style={{padding:"14px 14px calc(var(--tab) + 40px)"}}><TemplateWorkspace data={data} template={tplPractice} mode="run" onRun={handleTplRun} onBack={()=>setTplPractice(null)}/></div>);
   
   if(stage==="attend"||showAtt){const attendPractice=livePracticeOverride||(liveId?data.practices.find(p=>p.id===liveId):null);const attendTeam=attendPractice?data.teams.find(t=>t.id===attendPractice.teamId):null;const attBack=()=>{if(showAtt)setShowAtt(false);else{setLiveId(null);setLivePracticeOverride(null);setStage("pick");}};return (<AttendanceScreen key={showAtt?"upd":"init"} practice={attendPractice} team={attendTeam} isUpdate={showAtt} initialPresent={showAtt?[...presentIds]:null} initialCoachPresent={showAtt?[...coachPresentIds]:null} onConfirm={showAtt?handleAttUpdate:handleAttConfirm} onBack={attBack}/>);}
-  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:48,fontWeight:900,color:"var(--green)",marginBottom:8}}>Well Done!</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{team&&team.name} practice complete.</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>setNoteText(e.target.value)}/><button className="btn primary bsm bfull mt6" onClick={()=>{if(noteText.trim()){update(d=>{d.notes.push({id:uid(),text:noteText,context:"End of Practice",date:new Date().toISOString(),practiceId:liveId});return d;});setNoteText("");}}} >Save Note</button></div><button className="btn primary bmd bfull" onClick={()=>{setLiveId(null);setStage("pick");setView("today");}}>Done</button></div></div>);
+  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--green)",marginBottom:4}}>Practice Complete</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{team&&team.name} practice complete.</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>setNoteText(e.target.value)}/><button className="btn primary bsm bfull mt6" onClick={()=>{if(noteText.trim()){update(d=>{d.notes.push({id:uid(),text:noteText,context:"End of Practice",date:new Date().toISOString(),practiceId:liveId});return d;});setNoteText("");}}} >Save Note</button></div><button className="btn primary bmd bfull" onClick={()=>{setLiveId(null);setStage("pick");setView("today");}}>Done</button></div></div>);
 
   const phaseLabel=isBlock?(blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+cur.stations.length):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
   const blockCount=liveActs.slice(0,idx).filter(a=>a.type==="station_block").length;
@@ -1869,8 +1885,8 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
         {schedBadge}
       </div>
       <div style={{padding:"2px 14px 4px",display:"flex",gap:8,flexShrink:0}}>
-        <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=Math.max(0,elapsed-60);baseElapsedRef.current=ne;if(startedAtRef.current)startedAtRef.current=Date.now();setElapsed(ne);}}>+1m</button>
-        <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=elapsed+60;baseElapsedRef.current=ne;if(startedAtRef.current)startedAtRef.current=Date.now();setElapsed(ne);}}>-1m</button>
+        <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=Math.max(0,elapsed-60);baseElapsedRef.current=ne;startedAtRef.current=running?Date.now():null;setElapsed(ne);}}>+1m</button>
+        <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=elapsed+60;baseElapsedRef.current=ne;startedAtRef.current=running?Date.now():null;setElapsed(ne);}}>-1m</button>
       </div>
       <div className="cc-prog"><div className={"cc-prog-bar"+(isOver?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div>
       <div className="cc-controls">
