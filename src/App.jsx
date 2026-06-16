@@ -352,7 +352,7 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
               </div>
             </div>
           </div>))}
-          </div>}       </div>}
+          </div>}
         {teamTab==="roster"&&<div><RostersTab data={data} update={update} openModal={openModal} fixedTeamId={selectedTeam}/></div>}
         {teamTab==="history"&&<div>
           {past.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No practice history yet.</div>}
