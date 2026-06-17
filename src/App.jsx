@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { loadData, saveData, flushSave, setCoachKey, getSession, subscribeToSession, createSession, updateSession, endSession } from "./supabase.js";
 
-let _coachKey="cb_data";
-function setCoachKey(id){_coachKey="coach_"+id;}
-async function loadData(){try{const r=await window.storage.get(_coachKey);if(r&&r.value)return migrateData(JSON.parse(r.value));}catch(e){}return migrateData(INIT);}
-async function saveData(d){try{await window.storage.set(_coachKey,JSON.stringify(d));}catch(e){}}
+// Storage imported from supabase.js
 
 const uid=()=>Math.random().toString(36).slice(2,9);
 const fmt12=(t)=>{if(!t)return"";const[h,m]=t.split(":").map(Number);const ampm=h>=12?"PM":"AM";const h12=h%12||12;return h12+":"+(m<10?"0":"")+m+" "+ampm;};
