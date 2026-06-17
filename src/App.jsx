@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { loadData, saveData, flushSave, setCoachKey, getSession, subscribeToSession, createSession, updateSession, endSession } from "./supabase.js";
+<datalist id="sports-list">{SPORTS.map(s=><option key={s} value={s}/>)}</datalist>import React, { useState, useEffect, useRef, useCallback } from "react";
+import { loadData, saveData, flushSave, setCoachKey, getCoaches, registerCoach, getSession, subscribeToSession, createSession, updateSession, endSession } from "./supabase.js";
 
 // Storage imported from supabase.js
 
@@ -13,73 +13,82 @@ function mkGroups(ids,n){const s=shuffle(ids),g=Array.from({length:n},()=>[]);s.
 function rebalanceKeep(stations,presentIds){return stations.map(st=>Object.assign({},st,{assignments:(st.assignments||[]).filter(id=>presentIds.has(id))}));}
 function rebalanceEven(stations,presentIds,allPlayers){const present=allPlayers.filter(p=>presentIds.has(p.id));const n=stations.length;const s=shuffle(present);const g=Array.from({length:n},()=>[]);s.forEach((p,i)=>g[i%n].push(p.id));return stations.map((st,i)=>Object.assign({},st,{assignments:g[i]||[]}));}
 
-const DEFAULT_TEAMS=[
-  {id:"team_coed78",name:"Peoria Coed 7-8",sport:"Basketball",
-   coaches:[{id:"c_jaxon1",name:"Coach Jaxon",role:"Head Coach",notes:""},{id:"c_steven1",name:"Coach Steven",role:"Assistant",notes:""}],
-   players:[
-    {id:"p_curtis",firstName:"Elijah",lastName:"Curtis",jersey:"",notes:""},
-    {id:"p_dietrich",firstName:"Dominic",lastName:"Dietrich",jersey:"",notes:""},
-    {id:"p_figueroa",firstName:"Milo",lastName:"Figueroa",jersey:"",notes:""},
-    {id:"p_jones",firstName:"Jordan",lastName:"Jones",jersey:"",notes:""},
-    {id:"p_leo_t",firstName:"Teagan",lastName:"Leo",jersey:"",notes:""},
-    {id:"p_lonsberry_el",firstName:"Eliana",lastName:"Lonsberry",jersey:"",notes:""},
-    {id:"p_lonsberry_ev",firstName:"Everett",lastName:"Lonsberry",jersey:"",notes:""},
-    {id:"p_markel",firstName:"Elliot",lastName:"Markel",jersey:"",notes:""},
-    {id:"p_neal",firstName:"Oliver",lastName:"Neal",jersey:"",notes:""},
-    {id:"p_tew",firstName:"Lyndi",lastName:"Tew",jersey:"",notes:""},
-  ]},
-  {id:"team_boys910",name:"Peoria Boys 9-10",sport:"Basketball",
-   coaches:[{id:"c_jaxon1",name:"Coach Jaxon",role:"Head Coach",notes:""},{id:"c_mike1",name:"Coach Mike",role:"Assistant",notes:""}],
-   players:[
-    {id:"p_bartels",firstName:"Wesley",lastName:"Bartels",jersey:"",notes:""},
-    {id:"p_gonzalez",firstName:"Eli",lastName:"Gonzalez",jersey:"",notes:""},
-    {id:"p_harrier",firstName:"Gus",lastName:"Harrier",jersey:"",notes:""},
-    {id:"p_irrgang",firstName:"Enzo",lastName:"Irrgang",jersey:"",notes:""},
-    {id:"p_kinkade",firstName:"Samuel",lastName:"Kinkade",jersey:"",notes:""},
-    {id:"p_leo_w",firstName:"Weston",lastName:"Leo",jersey:"",notes:""},
-    {id:"p_morris",firstName:"Jeshua",lastName:"Morris",jersey:"",notes:""},
-    {id:"p_perez",firstName:"Santi",lastName:"Perez",jersey:"",notes:""},
-    {id:"p_rackstein",firstName:"Brayden",lastName:"Rackstein",jersey:"",notes:""},
-    {id:"p_zack",firstName:"Kane",lastName:"Zack",jersey:"",notes:""},
-  ]},
-];
+const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming"];
 
-const DEFAULT_LOCS=[
-  {id:"l1",name:"Baseball Field",sublocations:[{id:"sl1",name:"Batting Cage"},{id:"sl2",name:"Infield"},{id:"sl3",name:"Outfield"},{id:"sl4",name:"Bullpen"},{id:"sl5",name:"Portable Mound"},{id:"sl6",name:"Dugout"}]},
-  {id:"l2",name:"Indoor Facility",sublocations:[{id:"sl7",name:"Station A"},{id:"sl8",name:"Station B"},{id:"sl9",name:"Station C"},{id:"sl10",name:"Pitching Lane"}]},
-  {id:"l3",name:"Basketball Gym",sublocations:[{id:"sl11",name:"Hoop 1"},{id:"sl12",name:"Hoop 2"},{id:"sl13",name:"Half Court A"},{id:"sl14",name:"Half Court B"},{id:"sl15",name:"Free Throw Line"}]},
-];
+// Blank INIT — every new coach starts with a clean slate
+const INIT={
+  teams:[],
+  locations:[],
+  assets:[],
+  activityLibrary:[],
+  practices:[],
+  templates:[],
+  notes:[],
+};
 
-const DEFAULT_ASSETS=[
-  {id:"a1",name:"L Screen",locationTags:[]},{id:"a2",name:"Ball Bucket",locationTags:[]},
-  {id:"a3",name:"Cones",locationTags:[]},{id:"a4",name:"Flyball Machine",locationTags:["l1"]},
-  {id:"a5",name:"Bases",locationTags:["l1"]},{id:"a6",name:"Batting Tee",locationTags:["l1","l2"]},
-  {id:"a7",name:"Portable Mound",locationTags:["l1","l2"]},{id:"a8",name:"Helmets",locationTags:[]},
-  {id:"a9",name:"Basketballs",locationTags:["l3"]},{id:"a10",name:"Pinnies",locationTags:[]},
-];
-
-const DEFAULT_LIB=[
-  {id:"al1",name:"Warmup",sport:"Baseball",description:"Dynamic stretching",duration:10,coachingPoints:"Energy high, get loose. Arm circles, leg swings.",equipment:[]},
-  {id:"al2",name:"Hitting",sport:"Baseball",description:"Batting practice",duration:15,coachingPoints:"Short stride, stay back, hands inside the ball.",equipment:[]},
-  {id:"al3",name:"Fielding",sport:"Baseball",description:"Ground and fly balls",duration:15,coachingPoints:"Field through the ball, two hands.",equipment:[]},
-  {id:"al4",name:"Baserunning",sport:"Baseball",description:"Reads and reactions",duration:10,coachingPoints:"Secondary leads, first step on contact.",equipment:[]},
-  {id:"al5",name:"Pitching",sport:"Baseball",description:"Bullpen mechanics",duration:15,coachingPoints:"Balance point, drive down the mound.",equipment:[]},
-  {id:"al6",name:"Infield",sport:"Baseball",description:"Ground balls and double plays",duration:15,coachingPoints:"Ready position, creep on pitch.",equipment:[]},
-  {id:"al7",name:"Outfield",sport:"Baseball",description:"Fly balls and routes",duration:15,coachingPoints:"First step back, read spin.",equipment:[]},
-  {id:"al8",name:"Live BP",sport:"Baseball",description:"Live batting practice",duration:20,coachingPoints:"Game speed focus.",equipment:[]},
-  {id:"al9",name:"Scrimmage",sport:"Baseball",description:"Live game situations",duration:25,coachingPoints:"Play like it counts.",equipment:[]},
-  {id:"al10",name:"Warmup",sport:"Basketball",description:"Dynamic warmup",duration:10,coachingPoints:"Eyes up, stay low, get loose.",equipment:[]},
-  {id:"al11",name:"Ball Handling",sport:"Basketball",description:"Dribbling drills",duration:12,coachingPoints:"Fingertips not palms. Eyes up.",equipment:[]},
-  {id:"al12",name:"Passing",sport:"Basketball",description:"Chest, bounce, overhead passes",duration:10,coachingPoints:"Step into pass, follow through.",equipment:[]},
-  {id:"al13",name:"Shooting",sport:"Basketball",description:"Form shooting and layups",duration:15,coachingPoints:"BEEF: Balance, Eyes, Elbow, Follow through.",equipment:[]},
-  {id:"al14",name:"Defense",sport:"Basketball",description:"Defensive stance",duration:12,coachingPoints:"Low stance, hands active.",equipment:[]},
-  {id:"al15",name:"Scrimmage",sport:"Basketball",description:"Live game play",duration:20,coachingPoints:"Play hard, communicate, have fun.",equipment:[]},
-  {id:"al16",name:"Water Break",sport:"General",description:"",duration:5,coachingPoints:"",equipment:[]},
-  {id:"al17",name:"Closer",sport:"General",description:"Team huddle",duration:5,coachingPoints:"End on energy.",equipment:[]},
-  {id:"al18",name:"Stretching",sport:"General",description:"Static stretching",duration:8,coachingPoints:"Hold 20-30 seconds.",equipment:[]},
-];
-
-const INIT={teams:DEFAULT_TEAMS,locations:DEFAULT_LOCS,assets:DEFAULT_ASSETS,activityLibrary:DEFAULT_LIB,practices:[],templates:[],notes:[]};
+// Demo seed data — only used for the "demo" coach
+const DEMO_INIT={
+  teams:[{
+    id:"team_demo1",name:"Demo Team",sport:"Basketball",
+    coaches:[{id:"coach_demo",name:"Coach Demo",role:"Head Coach",notes:""}],
+    players:[
+      {id:"dp1",firstName:"Alex",lastName:"Smith",jersey:"1",notes:"",focusAreas:[]},
+      {id:"dp2",firstName:"Jordan",lastName:"Lee",jersey:"2",notes:"",focusAreas:[]},
+      {id:"dp3",firstName:"Casey",lastName:"Brown",jersey:"3",notes:"",focusAreas:[]},
+      {id:"dp4",firstName:"Morgan",lastName:"Davis",jersey:"4",notes:"",focusAreas:[]},
+      {id:"dp5",firstName:"Riley",lastName:"Wilson",jersey:"5",notes:"",focusAreas:[]},
+      {id:"dp6",firstName:"Taylor",lastName:"Moore",jersey:"6",notes:"",focusAreas:[]},
+      {id:"dp7",firstName:"Drew",lastName:"Taylor",jersey:"7",notes:"",focusAreas:[]},
+      {id:"dp8",firstName:"Quinn",lastName:"Johnson",jersey:"8",notes:"",focusAreas:[]},
+    ]
+  }],
+  locations:[{id:"loc_demo1",name:"Main Gym",sublocations:[
+    {id:"sl1",name:"Court A"},{id:"sl2",name:"Court B"},{id:"sl3",name:"Auxiliary Gym"}
+  ]}],
+  assets:[
+    {id:"a1",name:"Basketballs",locationTags:["loc_demo1"]},
+    {id:"a2",name:"Cones",locationTags:["loc_demo1"]},
+    {id:"a3",name:"Ball Racks",locationTags:["loc_demo1"]},
+  ],
+  activityLibrary:[
+    {id:"dl1",name:"Ball Handling",sport:"Basketball",description:"Dribbling fundamentals",coachingPoints:"Eyes up, stay low",duration:10,equipment:"1 ball per player"},
+    {id:"dl2",name:"Passing",sport:"Basketball",description:"Chest pass and bounce pass technique",coachingPoints:"Step into the pass",duration:10,equipment:"1 ball per 2 players"},
+    {id:"dl3",name:"Shooting Form",sport:"Basketball",description:"Form shooting from close range",coachingPoints:"BEEF - Balance, Eyes, Elbow, Follow through",duration:12,equipment:"Basketballs"},
+    {id:"dl4",name:"Defensive Slides",sport:"Basketball",description:"Lateral defensive movement",coachingPoints:"Low stance, never cross feet",duration:8,equipment:"Cones"},
+    {id:"dl5",name:"Layups",sport:"Basketball",description:"Right and left hand layups",coachingPoints:"Use the backboard",duration:10,equipment:"Basketballs"},
+  ],
+  practices:[{
+    id:"demo_p1",teamId:"team_demo1",locationId:"loc_demo1",
+    date:new Date().toISOString().slice(0,10),
+    startTime:"16:00",durMin:60,
+    activities:[
+      {id:"da1",type:"activity",name:"Warm Up",duration:5,coachingPoints:"Light jog and dynamic stretching",equipment:""},
+      {id:"da2",type:"station_block",name:"Station Block",rotate:true,stationDuration:10,transitionDuration:2,
+        stations:[
+          {id:"ds1",activityId:"dl1",activityName:"Ball Handling",coachId:"coach_demo",coachName:"Coach Demo",sublocationId:"sl1",equipment:"1 ball per player",coachingPoints:"Eyes up",assignments:[]},
+          {id:"ds2",activityId:"dl3",activityName:"Shooting Form",coachId:"",coachName:"",sublocationId:"sl2",equipment:"Basketballs",coachingPoints:"BEEF",assignments:[]},
+          {id:"ds3",activityId:"dl4",activityName:"Defensive Slides",coachId:"",coachName:"",sublocationId:"sl3",equipment:"Cones",coachingPoints:"Low stance",assignments:[]},
+        ]
+      },
+      {id:"da3",type:"activity",name:"Scrimmage",duration:15,coachingPoints:"Apply what we practiced",equipment:"Basketballs"},
+      {id:"da4",type:"activity",name:"Cool Down",duration:5,coachingPoints:"Static stretching",equipment:""},
+    ]
+  }],
+  templates:[{
+    id:"tpl_demo1",name:"Standard Practice",durMin:60,
+    activities:[
+      {id:"ta1",type:"activity",name:"Warm Up",duration:5,coachingPoints:"",equipment:""},
+      {id:"ta2",type:"station_block",name:"Station Block",rotate:true,stationDuration:10,transitionDuration:2,
+        stations:[
+          {id:"ts1",activityId:"",activityName:"Drill 1",coachId:"",coachName:"",sublocationId:"",equipment:"",coachingPoints:"",assignments:[]},
+          {id:"ts2",activityId:"",activityName:"Drill 2",coachId:"",coachName:"",sublocationId:"",equipment:"",coachingPoints:"",assignments:[]},
+        ]
+      },
+      {id:"ta3",type:"activity",name:"Cool Down",duration:5,coachingPoints:"",equipment:""},
+    ]
+  }],
+  notes:[],
+};
 
 function migrateData(d){
   // Schema-only migration — never adds or removes records
@@ -486,29 +495,41 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
   </div>);
 }
 
-function CoachSelector({onSelect,onDismiss,canDismiss}){
-  const [adding,setAdding]=useState(false);
+function CoachSelector({onSelect,onDismiss,canDismiss,coaches}){
+  const [adding,setAdding]=useState(coaches.length===0);
   const [newName,setNewName]=useState("");
-  const save=()=>{if(!newName.trim())return;onSelect("coach_"+newName.trim().toLowerCase().replace(/[^a-z0-9]/g,"_"));};
+  const save=()=>{
+    if(!newName.trim())return;
+    const nm=newName.trim();
+    const cid="coach_"+nm.toLowerCase().replace(/[^a-z0-9]/g,"")+"_"+Math.random().toString(36).slice(2,6);
+    onSelect(cid,nm);
+  };
   return (<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:200,display:"flex",alignItems:"flex-end"}}>
     <div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"24px 20px 48px"}}>
       <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 20px"}}/>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,marginBottom:4}}>Who are you?</div>
-      <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Choose your name to see your teams and practices.</div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,marginBottom:4}}>
+        {adding?"Welcome to Run of Practice":"Who's coaching today?"}
+      </div>
+      <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>
+        {adding?"Enter your name to get started.":"Select your name or add a new coach."}
+      </div>
       {!adding&&<div>
-        <button onClick={()=>onSelect("c_jaxon1","Jaxon")} style={{width:"100%",padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:"var(--s1)",marginBottom:10,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <span style={{fontSize:16,fontWeight:600}}>Jaxon</span>
+        {coaches.map(c=>(<button key={c.id} onClick={()=>onSelect(c.id,c.name)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:"var(--s1)",cursor:"pointer",marginBottom:8}}>
+          <span style={{fontSize:16,fontWeight:600}}>{c.name}</span>
           <span style={{color:"var(--green)",fontSize:20,fontWeight:700}}>&#8594;</span>
-        </button>
-        <button onClick={()=>setAdding(true)} style={{width:"100%",padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px dashed var(--gb)",background:"#fff",marginBottom:10,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:10}}>
+        </button>))}
+        <button onClick={()=>setAdding(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px dashed var(--b)",background:"transparent",cursor:"pointer",marginBottom:8}}>
           <span style={{width:28,height:28,borderRadius:"50%",background:"var(--gbg)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--green)",fontSize:20,fontWeight:700,flexShrink:0}}>+</span>
-          <span style={{fontSize:16,fontWeight:600,color:"var(--green)"}}>Add New</span>
+          <span style={{fontSize:16,fontWeight:600,color:"var(--green)"}}>New Coach</span>
         </button>
         {canDismiss&&<button onClick={onDismiss} style={{width:"100%",padding:"12px",border:"none",background:"transparent",color:"var(--td)",fontSize:14,cursor:"pointer"}}>Cancel</button>}
       </div>}
       {adding&&<div>
-        <div className="fld mb10"><label className="lbl">Your Name</label><input className="inp" autoFocus placeholder="e.g. Coach Rivera" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}/></div>
-        <div className="brow"><button className="btn ghost bmd" onClick={()=>setAdding(false)}>Back</button><button className="btn primary bmd" onClick={save} disabled={!newName.trim()}>Start Coaching</button></div>
+        <div className="fld mb10"><label className="lbl">Your Name</label><input className="inp" autoFocus placeholder="e.g. Coach Johnson" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}/></div>
+        <div className="brow">
+          {coaches.length>0&&<button className="btn ghost bmd" onClick={()=>setAdding(false)}>Back</button>}
+          <button className="btn primary bmd" style={{flex:1}} onClick={save} disabled={!newName.trim()}>Get Started</button>
+        </div>
       </div>}
     </div>
   </div>);
@@ -611,7 +632,9 @@ export default function App(){
   const [modal,setModal]=useState(null);
   const [liveId,setLiveId]=useState(null);
   const [editPracticeId,setEditPracticeId]=useState(null);
-  const [coachId,setCoachId]=useState(typeof window!=="undefined"&&window.localStorage?localStorage.getItem("rop_coach_id"):null);
+  const [coachId,setCoachId]=useState(null);
+  const [coaches,setCoaches]=useState([]);
+  const [coachesLoaded,setCoachesLoaded]=useState(false);
   const [showCoachSelect,setShowCoachSelect]=useState(false);
   const update=useCallback(fn=>{setData(d=>{const nx=fn(JSON.parse(JSON.stringify(d)));saveData(nx);return nx;});},[]);
   useEffect(()=>{if(coachId)setCoachKey(coachId);loadData().then(d=>{setData(migrateData(d||INIT));setLoaded(true);});},[]);
@@ -624,8 +647,8 @@ export default function App(){
     {id:"teams",label:"Teams",I:Ic.Build},
     {id:"library",label:"Library",I:Ic.Run},
   ];
-  const needsCoach=loaded&&!coachId;
-  const selectCoach=(id,name)=>{if(name&&typeof window!=="undefined"&&window.localStorage)localStorage.setItem("rop_coach_name",name);if(typeof window!=="undefined"&&window.localStorage)localStorage.setItem("rop_coach_id",id);setCoachKey(id);setCoachId(id);setShowCoachSelect(false);setLoaded(false);loadData().then(d=>{setData(migrateData(d||INIT));setLoaded(true);});};
+  const needsCoach=coachesLoaded&&!coachId;
+  const selectCoach=(id,name)=>{if(name)registerCoach(id,name);setCoachKey(id);setCoachId(id);setShowCoachSelect(false);setLoaded(false);loadData().then(d=>{setData(migrateData(d||INIT));setLoaded(true);});};
   const coachName=coachId==="c_jaxon1"?"Jaxon":(typeof window!=="undefined"&&window.localStorage&&localStorage.getItem("rop_coach_name"))||"Coach";
   const liveMatch=window.location.pathname.match(/^\/live\/([a-z0-9]+)$/i);
   if(liveMatch)return (<HelperView sessionId={liveMatch[1]}/>);
@@ -651,7 +674,7 @@ export default function App(){
       </nav>}
     </div>
     {modal&&<ModalLayer modal={modal} data={data} update={update} closeModal={closeModal}/>}
-    {(needsCoach||showCoachSelect)&&<CoachSelector onSelect={selectCoach} onDismiss={()=>setShowCoachSelect(false)} canDismiss={!!coachId}/>}
+    {(needsCoach||showCoachSelect)&&<CoachSelector onSelect={selectCoach} coaches={coaches} onDismiss={()=>setShowCoachSelect(false)} canDismiss={!!coachId}/>}
     </div>
   );
 }

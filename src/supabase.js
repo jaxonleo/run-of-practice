@@ -5,12 +5,33 @@ const SUPABASE_ANON_KEY = 'sb_publishable_z0atQT9uv4_9OZSlGe_awg_d07YcC7v'
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-// ── Per-coach data key ────────────────────────────────────────────────────────
 let _coachKey = null
 export function setCoachKey(id) { _coachKey = 'coach_' + id }
 
 let saveTimer = null
 
+// ── Coach registry (global, device-agnostic) ─────────────────────────────────
+export async function getCoaches() {
+  try {
+    const { data, error } = await supabase
+      .from('coaches')
+      .select('id, name')
+      .order('name', { ascending: true })
+    if (error) { console.error('getCoaches error:', error); return [] }
+    return data || []
+  } catch (e) { console.error('getCoaches exception:', e); return [] }
+}
+
+export async function registerCoach(id, name) {
+  try {
+    const { error } = await supabase
+      .from('coaches')
+      .upsert({ id, name }, { onConflict: 'id' })
+    if (error) console.error('registerCoach error:', error)
+  } catch (e) { console.error('registerCoach exception:', e) }
+}
+
+// ── Per-coach app data ────────────────────────────────────────────────────────
 export async function loadData() {
   if (!_coachKey) return null
   try {
@@ -21,24 +42,7 @@ export async function loadData() {
       .maybeSingle()
     if (error) { console.error('loadData error:', error); return null }
     return data ? data.value : null
-  } catch (e) {
-    console.error('loadData exception:', e)
-    return null
-  }
-}
-
-export async function deleteData() {
-  if (!_coachKey) return
-  try {
-    const { error } = await supabase
-      .from('app_data')
-      .delete()
-      .eq('key', _coachKey)
-    if (error) console.error('deleteData error:', error)
-    else console.log('Deleted:', _coachKey)
-  } catch (e) {
-    console.error('deleteData exception:', e)
-  }
+  } catch (e) { console.error('loadData exception:', e); return null }
 }
 
 export function saveData(d) {
@@ -50,10 +54,7 @@ export function saveData(d) {
         .from('app_data')
         .upsert({ key: _coachKey, value: d }, { onConflict: 'key' })
       if (error) console.error('saveData error:', error)
-      else console.log('Saved:', _coachKey)
-    } catch (e) {
-      console.error('saveData exception:', e)
-    }
+    } catch (e) { console.error('saveData exception:', e) }
   }, 1500)
 }
 
@@ -66,9 +67,7 @@ export function flushSave(d) {
 }
 
 // ── Live session functions ────────────────────────────────────────────────────
-function genSessionId() {
-  return Math.random().toString(36).slice(2, 10)
-}
+function genSessionId() { return Math.random().toString(36).slice(2, 10) }
 
 export async function createSession(coachId, practiceId, state) {
   const sessionId = genSessionId()
