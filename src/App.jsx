@@ -88,9 +88,8 @@ function mergeDefaults(saved){
     if(!tids.has(t.id)){d.teams.push(t);}
     else{
       const existing=d.teams.find(et=>et.id===t.id);
-      if(existing){
-        const cids=new Set(existing.coaches.map(c=>c.id));
-        t.coaches.forEach(c=>{if(!cids.has(c.id))existing.coaches.push(c);});
+      if(existing&&existing.coaches.length===0){
+        t.coaches.forEach(c=>existing.coaches.push(c));
       }
     }
   });
@@ -294,7 +293,7 @@ function PracticeDetail({practice,data,update,setView,setLiveId,setEditPracticeI
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2}}>{team?team.name:"Practice"}</div>
       <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>{timeLbl(practice)}{loc?" - "+loc.name:""} - {totalMins}min</div>
       <div className="brow" style={{marginBottom:16}}>
-        <button className="btn primary bmd bfull" onClick={()=>{const now=new Date();const newId=uid();const copy=JSON.parse(JSON.stringify(practice));copy.id=newId;copy.date=now.toISOString().slice(0,10);copy.startTime=now.toTimeString().slice(0,5);update(d=>{d.practices.push(copy);return d;});setEditPracticeId(newId);setView("builder");}}>Run Again</button>
+        <button className="btn primary bmd bfull" onClick={()=>{const now=new Date();const newId=uid();const copy=JSON.parse(JSON.stringify(practice));copy.id=newId;copy.date=now.toISOString().slice(0,10);copy.startTime=now.toTimeString().slice(0,5);update(d=>{d.practices.push(copy);return d;});setEditPracticeId(newId);setView("builder");}}>{practice.date>=new Date().toISOString().slice(0,10)?"Run Now":"Run Again"}</button>
       </div>
       {equipmentNeeded.length>0&&<div className="card" style={{marginBottom:12,background:"var(--ambg)",border:"1.5px solid var(--ambb)"}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--amber)",marginBottom:6}}>Equipment Needed</div>
@@ -2224,8 +2223,8 @@ function RostersTab({data,update,openModal,fixedTeamId}){
               <div className="sechdr mb8"><span className="sectitle">{team.coaches.length} Coaches</span><button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addCoach",{teamId});}}>+ Add</button></div>
               {team.coaches.map(c=>(<div key={c.id} className="li" style={{position:"relative"}}>
                   <div className="lim"><div className="lin">{c.name}</div><div className="limt">{c.role}</div></div>
-                  <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===c.id?null:c.id);}}><span/><span/><span/></button>
-                  {openMenu===c.id&&<div className="mini-menu"><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delC(c.id);}}>Remove</button></div>}
+                  <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="coach_"+c.id?null:"coach_"+c.id);}}><span/><span/><span/></button>
+                  {openMenu==="coach_"+c.id&&<div className="mini-menu"><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delC(c.id);}}>Remove</button></div>}
                 </div>
               ))}
             </div>

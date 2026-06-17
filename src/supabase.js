@@ -28,6 +28,13 @@ export async function loadData() {
   }
 }
 
+export function flushSave() {
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+}
+
 export function saveData(d) {
   clearTimeout(saveTimer)
   saveTimer = setTimeout(async () => {
@@ -40,7 +47,7 @@ export function saveData(d) {
     } catch (e) {
       console.error('saveData exception:', e)
     }
-  }, 800)
+  }, 1500)
 }
 
 // ── Live session functions ────────────────────────────────────────────────────
