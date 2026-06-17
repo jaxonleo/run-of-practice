@@ -316,7 +316,7 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
   const [selectedPractice,setSelectedPractice]=useState(null);
   const myTeams=data.teams.filter(t=>t.coaches.some(c=>c.id===coachId));
   const [practiceMenuId,setPracticeMenuId]=useState(null);
-  const delPractice=id=>update(d=>{d.practices=d.practices.filter(p=>p.id!==id);return d;});
+  const delPractice=id=>{update(d=>{d.practices=d.practices.filter(p=>p.id!==id);return d;});if(selectedPractice&&selectedPractice.id===id)setSelectedPractice(null);};
   const now=new Date();
   const todayStr=now.toISOString().slice(0,10);
   const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
@@ -549,7 +549,9 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSwitchCo
   const isSoon=p=>{if(!p.startTime||p.date!==todayStr)return false;const pts=p.startTime.split(":");const pm=parseInt(pts[0])*60+parseInt(pts[1]);const nm=now.getHours()*60+now.getMinutes();return pm-nm<=120&&pm-nm>=-90;};
   const greeting=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
   const [practiceMenuId,setPracticeMenuId]=useState(null);
-  const delPractice=id=>update(d=>{d.practices=d.practices.filter(p=>p.id!==id);return d;});
+  const [viewPractice,setViewPractice]=useState(null);
+  const delPractice=id=>{update(d=>{d.practices=d.practices.filter(p=>p.id!==id);return d;});if(viewPractice&&viewPractice.id===id)setViewPractice(null);};
+  if(viewPractice)return (<div style={{padding:"0 0 calc(var(--tab) + 20px)"}}><PracticeDetail practice={viewPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} onBack={()=>setViewPractice(null)}/></div>);
   return (<div style={{padding:"0 0 calc(var(--tab) + 20px)"}}>
     <div style={{padding:"20px 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div>
@@ -590,13 +592,20 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSwitchCo
         <div className="sechdr" style={{marginBottom:8}}><span className="sectitle">Coming Up</span></div>
         {upcoming.map(p=>{const team=getTeam(p.teamId);const d=new Date(p.date+"T12:00:00");const dl=d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});return (<div key={p.id} className="li" style={{marginBottom:6}}>
           <div className="lim"><div className="lin">{team?team.name:"Practice"}</div><div className="limt">{dl}{p.startTime?" - "+timeLbl(p):""}</div></div>
-          <button className="btn ghost bxs" onClick={()=>setView("command")}>View</button>
+          <button className="btn ghost bxs" onClick={()=>setViewPractice(p)}>View</button>
         </div>);})}
       </div>}
       {recent.length>0&&<div style={{marginTop:16}}>
         <div className="sechdr" style={{marginBottom:8}}><span className="sectitle">Recent</span></div>
-        {recent.map(p=>{const team=getTeam(p.teamId);const d=new Date(p.date+"T12:00:00");const dl=d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});return (<div key={p.id} className="li" style={{marginBottom:6,opacity:.7}}>
-          <div className="lim"><div className="lin">{team?team.name:"Practice"}</div><div className="limt">{dl}</div></div>
+        {recent.map(p=>{const team=getTeam(p.teamId);const d=new Date(p.date+"T12:00:00");const dl=d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});return (<div key={p.id} className="li" style={{marginBottom:6,position:"relative"}}>
+          <div className="lim"><div className="lin">{team?team.name:"Practice"}</div><div className="limt">{dl} - {(p.activities||[]).length} activities</div></div>
+          <div style={{position:"relative"}}>
+            <button className="ell-btn" onClick={e=>{e.stopPropagation();setPracticeMenuId(practiceMenuId===p.id?null:p.id);}}><span/><span/><span/></button>
+            {practiceMenuId===p.id&&<div className="mini-menu" style={{right:0,minWidth:160}}>
+              <button className="mm-item" onClick={()=>{setPracticeMenuId(null);const now=new Date();const newId=uid();const copy=JSON.parse(JSON.stringify(p));copy.id=newId;copy.date=now.toISOString().slice(0,10);copy.startTime=now.toTimeString().slice(0,5);update(d=>{d.practices.push(copy);return d;});if(setEditPracticeId)setEditPracticeId(newId);setView("builder");}}>Run Again</button>
+              <button className="mm-item mm-danger" onClick={()=>{delPractice(p.id);setPracticeMenuId(null);}}>Delete</button>
+            </div>}
+          </div>
         </div>);})}
       </div>}
       <div style={{marginTop:20,display:"flex",gap:8}}>
@@ -1611,7 +1620,7 @@ function HelperView({sessionId}){
 
   if(loading)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,background:"#0d1512"}}><style>{CSS}</style><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,letterSpacing:".1em"}}>JOINING SESSION...</div></div>);
   if(!session)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,textAlign:"center"}}>Session not found</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This link may be invalid or the practice has ended.</div></div>);
-  if(session.ended_at)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:48,fontWeight:900,textAlign:"center"}}>Well Done</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This practice session has ended.</div></div>);
+  if(session.ended_at||(session.state&&session.state.ended))return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:48,fontWeight:900,textAlign:"center"}}>Well Done</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This practice session has ended.</div></div>);
 
   const state=session.state||{};
   const liveActs=state.liveActs||[];
@@ -1863,14 +1872,14 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
             {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
               {sessionId&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowShare(true);}}>Share Live View</button>}
-              <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){endSession(sessionRef.current);sessionRef.current=null;setSessionId(null);}}}>End Practice</button>
+              <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){writeSession({idx,stIdx,inTrans,elapsed,running:false,runningAt:null,presentIds:[...presentIds],liveActs,ended:true,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});setTimeout(()=>{endSession(sessionRef.current);sessionRef.current=null;setSessionId(null);},500);}}}>End Practice</button>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};setStage("attend");}}>Restart Practice</button>
             </div>}
           </div>
         </div>
       </div>
       {showROS&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",maxHeight:200,overflowY:"auto",flexShrink:0}}>
-        {liveActs.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--b)",background:i===idx?"var(--gbg)":"#fff",cursor:"pointer",opacity:i<idx?0.5:1}} onClick={()=>{setIdx(i);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(false);setShowROS(false);}}>
+        {liveActs.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--b)",background:i===idx?"var(--gbg)":"#fff",cursor:"pointer",opacity:i<idx?0.5:1}} onClick={()=>{const ni=i;baseElapsedRef.current=0;startedAtRef.current=Date.now();setIdx(ni);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);setShowROS(false);const base2={liveActs,presentIds:[...presentIds],running:true,runningAt:Date.now(),elapsed:0,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations};writeSession({...base2,idx:ni,stIdx:0,inTrans:false});}}>
           <div style={{flex:1,fontSize:14,color:i===idx?"var(--green)":i<idx?"var(--td)":"var(--black)",textDecoration:i<idx?"line-through":"none"}}>{i===idx?">> ":""}{a.type==="station_block"?"Station Block":a.name}</div>
           <span className="bs bdg" style={{fontSize:11}}>{a.type==="station_block"?(a.stations.length*a.stationDuration+(a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
         </div>))}
@@ -1885,8 +1894,8 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
         {schedBadge}
       </div>
       <div style={{padding:"2px 14px 4px",display:"flex",gap:8,flexShrink:0}}>
-        <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=Math.max(0,elapsed-60);baseElapsedRef.current=ne;startedAtRef.current=running?Date.now():null;setElapsed(ne);}}>+1m</button>
-        <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=elapsed+60;baseElapsedRef.current=ne;startedAtRef.current=running?Date.now():null;setElapsed(ne);}}>-1m</button>
+        <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=Math.max(0,elapsed-60);baseElapsedRef.current=ne;startedAtRef.current=running?Date.now():null;setElapsed(ne);writeSession({idx,stIdx,inTrans,elapsed:ne,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});}}>+1m</button>
+        <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=elapsed+60;baseElapsedRef.current=ne;startedAtRef.current=running?Date.now():null;setElapsed(ne);writeSession({idx,stIdx,inTrans,elapsed:ne,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});}}>-1m</button>
       </div>
       <div className="cc-prog"><div className={"cc-prog-bar"+(isOver?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div>
       <div className="cc-controls">
@@ -2013,7 +2022,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
           <div style={{fontSize:14,color:"var(--td)",marginBottom:24,lineHeight:1.5}}>Get a beep when time runs out and a voice reminder at 2 minutes remaining.</div>
           <div className="brow">
             <button className="btn ghost bmd" style={{flex:1}} onClick={()=>{setAudioOn(false);setShowAudioPrompt(false);setRunning(true);}}>Skip</button>
-            <button className="btn primary bmd" style={{flex:1}} onClick={()=>{try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();o.connect(ctx.destination);o.start();o.stop(ctx.currentTime+0.001);}catch(e){}setAudioOn(true);setShowAudioPrompt(false);setRunning(true);}}>Enable Audio</button>
+            <button className="btn primary bmd" style={{flex:1}} onClick={()=>{try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();o.connect(ctx.destination);o.start();o.stop(ctx.currentTime+0.001);}catch(e){}spoken.current={};setAudioOn(true);setShowAudioPrompt(false);setRunning(true);}}>Enable Audio</button>
           </div>
         </div>
       </div>}
