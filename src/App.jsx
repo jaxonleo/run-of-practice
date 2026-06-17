@@ -1,4 +1,4 @@
-<datalist id="sports-list">{SPORTS.map(s=><option key={s} value={s}/>)}</datalist>import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { loadData, saveData, flushSave, setCoachKey, getCoaches, registerCoach, getSession, subscribeToSession, createSession, updateSession, endSession } from "./supabase.js";
 
 // Storage imported from supabase.js
