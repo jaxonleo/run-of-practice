@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+<datalist id="sports-list">{SPORTS.map(s=><option key={s} value={s}/>)}</datalist>import React, { useState, useEffect, useRef, useCallback } from "react";
 import { loadData, saveData, flushSave, setCoachKey, getCoaches, registerCoach, getSession, subscribeToSession, createSession, updateSession, endSession } from "./supabase.js";
 
 // Storage imported from supabase.js
@@ -495,8 +495,8 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
   </div>);
 }
 
-function CoachSelector({onSelect,onDismiss,canDismiss,coaches}){
-  const [adding,setAdding]=useState(coaches.length===0);
+function SplashScreen({onSelect,coaches}){
+  const [adding,setAdding]=useState(false);
   const [newName,setNewName]=useState("");
   const save=()=>{
     if(!newName.trim())return;
@@ -504,28 +504,44 @@ function CoachSelector({onSelect,onDismiss,canDismiss,coaches}){
     const cid="coach_"+nm.toLowerCase().replace(/[^a-z0-9]/g,"")+"_"+Math.random().toString(36).slice(2,6);
     onSelect(cid,nm);
   };
-  return (<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:200,display:"flex",alignItems:"flex-end"}}>
-    <div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"24px 20px 48px"}}>
-      <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 20px"}}/>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,marginBottom:4}}>
-        {adding?"Welcome to Run of Practice":"Who's coaching today?"}
+  return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
+    <style>{CSS}</style>
+    {/* Branded header */}
+    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
+      <div style={{width:96,height:96,borderRadius:22,overflow:"hidden",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
+        <img src="/apple-touch-icon.png" style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Run of Practice"/>
       </div>
-      <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>
-        {adding?"Enter your name to get started.":"Select your name or add a new coach."}
-      </div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:38,fontWeight:900,color:"#fff",letterSpacing:"-.01em",lineHeight:1,marginBottom:6,textAlign:"center"}}>Run of Practice</div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:600,letterSpacing:".12em",textTransform:"uppercase",color:"var(--green)",marginBottom:0,textAlign:"center"}}>Organize. Execute. Elevate.</div>
+    </div>
+    {/* Coach selection */}
+    <div style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
+      <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
       {!adding&&<div>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>
+          {coaches.length>0?"Who's coaching today?":"Welcome, Coach"}
+        </div>
+        <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>
+          {coaches.length>0?"Select your name to continue.":"Get started by entering your name."}
+        </div>
         {coaches.map(c=>(<button key={c.id} onClick={()=>onSelect(c.id,c.name)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:"var(--s1)",cursor:"pointer",marginBottom:8}}>
           <span style={{fontSize:16,fontWeight:600}}>{c.name}</span>
           <span style={{color:"var(--green)",fontSize:20,fontWeight:700}}>&#8594;</span>
         </button>))}
-        <button onClick={()=>setAdding(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px dashed var(--b)",background:"transparent",cursor:"pointer",marginBottom:8}}>
+        <button onClick={()=>setAdding(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px dashed var(--gb)",background:"transparent",cursor:"pointer",marginBottom:8}}>
           <span style={{width:28,height:28,borderRadius:"50%",background:"var(--gbg)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--green)",fontSize:20,fontWeight:700,flexShrink:0}}>+</span>
-          <span style={{fontSize:16,fontWeight:600,color:"var(--green)"}}>New Coach</span>
+          <span style={{fontSize:16,fontWeight:600,color:"var(--green)"}}>{coaches.length>0?"New Coach":"Get Started"}</span>
         </button>
-        {canDismiss&&<button onClick={onDismiss} style={{width:"100%",padding:"12px",border:"none",background:"transparent",color:"var(--td)",fontSize:14,cursor:"pointer"}}>Cancel</button>}
       </div>}
       {adding&&<div>
-        <div className="fld mb10"><label className="lbl">Your Name</label><input className="inp" autoFocus placeholder="e.g. Coach Johnson" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}/></div>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Welcome, Coach</div>
+        <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Enter your name to get started. You can always switch coaches later.</div>
+        <div className="fld mb10">
+          <label className="lbl">Your Name</label>
+          <input className="inp" autoFocus placeholder="e.g. Coach Johnson" value={newName}
+            onChange={e=>setNewName(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&save()}/>
+        </div>
         <div className="brow">
           {coaches.length>0&&<button className="btn ghost bmd" onClick={()=>setAdding(false)}>Back</button>}
           <button className="btn primary bmd" style={{flex:1}} onClick={save} disabled={!newName.trim()}>Get Started</button>
@@ -647,15 +663,18 @@ export default function App(){
     {id:"teams",label:"Teams",I:Ic.Build},
     {id:"library",label:"Library",I:Ic.Run},
   ];
-  const needsCoach=coachesLoaded&&!coachId;
+  // needsCoach handled by full-screen SplashScreen route above
   const selectCoach=(id,name)=>{if(name)registerCoach(id,name);setCoachKey(id);setCoachId(id);setShowCoachSelect(false);setLoaded(false);loadData().then(d=>{setData(migrateData(d||INIT));setLoaded(true);});};
-  const coachName=(coaches.find(c=>c.id===coachId)||{}).name||"Coach";
+  const coachName=coachId==="c_jaxon1"?"Jaxon":(typeof window!=="undefined"&&window.localStorage&&localStorage.getItem("rop_coach_name"))||"Coach";
   const liveMatch=window.location.pathname.match(/^\/live\/([a-z0-9]+)$/i);
   if(liveMatch)return (<HelperView sessionId={liveMatch[1]}/>);
-  if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"#f7f8f6",color:"#2d6a4f",fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:700}}>
-      <style>{CSS}</style>LOADING...
-    </div>
-  );
+  // Show splash until coaches are loaded
+  if(!coachesLoaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><style>{CSS}</style><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
+  // Show splash if no coach selected
+  if(!coachId)return (<SplashScreen coaches={coaches} onSelect={selectCoach}/>);
+  // Show data loading spinner after coach selected but data not loaded yet
+  if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><style>{CSS}</style><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div></div>);
+
   return (<div style={{display:"contents"}}><style>{CSS}</style>
     <div className="app">
       <div className="screen">
@@ -674,8 +693,7 @@ export default function App(){
       </nav>}
     </div>
     {modal&&<ModalLayer modal={modal} data={data} update={update} closeModal={closeModal}/>}
-    {(needsCoach||showCoachSelect)&&<CoachSelector onSelect={selectCoach} coaches={coaches} onDismiss={()=>setShowCoachSelect(false)} canDismiss={!!coachId}/>}
-    </div>
+    {showCoachSelect&&<SplashScreen coaches={coaches} onSelect={selectCoach}/>}>
   );
 }
 
