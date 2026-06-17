@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { loadData, saveData, setCoachKey, getSession, subscribeToSession, createSession, updateSession, endSession } from "./supabase.js";
+import { loadData, saveData, flushSave, setCoachKey, getSession, subscribeToSession, createSession, updateSession, endSession } from "./supabase.js";
 
-// Storage imported from supabase.js
+let _coachKey="cb_data";
+function setCoachKey(id){_coachKey="coach_"+id;}
+async function loadData(){try{const r=await window.storage.get(_coachKey);if(r&&r.value)return migrateData(JSON.parse(r.value));}catch(e){}return migrateData(INIT);}
+async function saveData(d){try{await window.storage.set(_coachKey,JSON.stringify(d));}catch(e){}}
 
 const uid=()=>Math.random().toString(36).slice(2,9);
 const fmt12=(t)=>{if(!t)return"";const[h,m]=t.split(":").map(Number);const ampm=h>=12?"PM":"AM";const h12=h%12||12;return h12+":"+(m<10?"0":"")+m+" "+ampm;};
@@ -81,46 +84,34 @@ const DEFAULT_LIB=[
 
 const INIT={teams:DEFAULT_TEAMS,locations:DEFAULT_LOCS,assets:DEFAULT_ASSETS,activityLibrary:DEFAULT_LIB,practices:[],templates:[],notes:[]};
 
-function mergeDefaults(saved){
-  const d=JSON.parse(JSON.stringify(saved));
-  const tids=new Set(d.teams.map(t=>t.id));
-  DEFAULT_TEAMS.forEach(t=>{
-    if(!tids.has(t.id)){d.teams.push(t);}
-    else{
-      const existing=d.teams.find(et=>et.id===t.id);
-      if(existing&&existing.coaches.length===0){
-        t.coaches.forEach(c=>existing.coaches.push(c));
-      }
-    }
-  });
-  const lids=new Set(d.locations.map(l=>l.id));
-  DEFAULT_LOCS.forEach(l=>{if(!lids.has(l.id))d.locations.push(l);});
-  d.locations.forEach(loc=>{
-    const def=DEFAULT_LOCS.find(dl=>dl.id===loc.id);
-    if(def){const slids=new Set(loc.sublocations.map(s=>s.id));def.sublocations.forEach(sl=>{if(!slids.has(sl.id))loc.sublocations.push(sl);});}
-  });
-  const aids=new Set(d.assets.map(a=>a.id));
-  DEFAULT_ASSETS.forEach(a=>{if(!aids.has(a.id))d.assets.push(Object.assign({},a,{locationTags:a.locationTags||[]}));});
-  d.assets=d.assets.map(a=>Object.assign({},a,{locationTags:a.locationTags||[]}));
-  const lbids=new Set(d.activityLibrary.map(a=>a.id));
-  DEFAULT_LIB.forEach(a=>{if(!lbids.has(a.id))d.activityLibrary.push(a);});
+function migrateData(d){
+  // Schema-only migration — never adds or removes records
+  // Only patches missing fields on existing records
   if(!d.notes)d.notes=[];
   if(!d.templates)d.templates=[];
-  d.teams.forEach(t=>{t.players.forEach(p=>{if(!p.focusAreas)p.focusAreas=[];});t.coaches.forEach(c=>{if(c.id==="c_jaxon2")c.id="c_jaxon1";});});
-  d.practices.forEach(p=>{(p.activities||[]).forEach(a=>{if(a.type==="station_block"&&a.rotate===undefined)a.rotate=true;});});
-  d.templates.forEach(t=>{(t.activities||[]).forEach(a=>{if(a.type==="station_block"&&a.rotate===undefined)a.rotate=true;});});
-  if(!d.templates.some(t=>t.id==="tpl_demo_bball")){
-    d.templates.push({id:"tpl_demo_bball",name:"Demo Day - Basketball",sport:"Basketball",teamId:"team_coed78",activities:[
-      {id:"tdemo_a1",type:"activity",name:"Warmup",duration:10,assignments:[],coachId:"c_jaxon1",sublocationId:"",notes:"Get loose, energy high",coachingPoints:"Eyes up, stay low, get loose."},
-      {id:"tdemo_b1",type:"station_block",stationDuration:8,transitionDuration:2,stations:[
-        {id:"tdemo_s1",name:"Station 1",activityName:"Ball Handling",coachId:"c_jaxon1",sublocationId:"",assignments:[],coachingPoints:"Fingertips not palms."},
-        {id:"tdemo_s2",name:"Station 2",activityName:"Shooting",coachId:"",sublocationId:"",assignments:[],coachingPoints:"BEEF: Balance, Eyes, Elbow, Follow through."},
-        {id:"tdemo_s3",name:"Station 3",activityName:"Defense",coachId:"",sublocationId:"",assignments:[],coachingPoints:"Low stance, hands active."},
-      ]},
-      {id:"tdemo_a2",type:"activity",name:"Scrimmage",duration:15,assignments:[],coachId:"c_jaxon1",sublocationId:"",notes:"",coachingPoints:"Play hard, communicate, have fun."},
-      {id:"tdemo_cl",type:"checklist",name:"Closer",duration:5,assignments:[],coachId:"c_jaxon1",items:[{id:"tdemo_i1",text:"Great effort today!",done:false},{id:"tdemo_i2",text:"Next practice date",done:false},{id:"tdemo_i3",text:"Collect any equipment",done:false}],notes:"End on a high note."},
-    ]});
-  }
+  if(!d.assets)d.assets=[];
+  if(!d.locations)d.locations=[];
+  if(!d.activityLibrary)d.activityLibrary=[];
+  if(!d.practices)d.practices=[];
+  if(!d.teams)d.teams=[];
+  d.teams.forEach(t=>{
+    if(!t.players)t.players=[];
+    if(!t.coaches)t.coaches=[];
+    t.players.forEach(p=>{if(!p.focusAreas)p.focusAreas=[];});
+    // Fix known coach ID bug: c_jaxon2 -> c_jaxon1
+    t.coaches.forEach(c=>{if(c.id==="c_jaxon2")c.id="c_jaxon1";});
+  });
+  d.practices.forEach(p=>{
+    (p.activities||[]).forEach(a=>{
+      if(a.type==="station_block"&&a.rotate===undefined)a.rotate=true;
+      if(a.type==="station_block")(a.stations||[]).forEach(s=>{if(!s.equipment)s.equipment="";});
+    });
+  });
+  d.templates.forEach(t=>{
+    (t.activities||[]).forEach(a=>{
+      if(a.type==="station_block"&&a.rotate===undefined)a.rotate=true;
+    });
+  });
   return d;
 }
 
@@ -313,7 +304,8 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
   const [selectedTeam,setSelectedTeam]=useState(null);
   const [teamTab,setTeamTab]=useState("practices");
   const [selectedPractice,setSelectedPractice]=useState(null);
-  const myTeams=data.teams.filter(t=>t.coaches.some(c=>c.id===coachId));
+  const coachTeams=data.teams.filter(t=>t.coaches.some(c=>c.id===coachId));
+  const myTeams=coachTeams.length>0?coachTeams:data.teams;
   const [practiceMenuId,setPracticeMenuId]=useState(null);
   const delPractice=id=>{update(d=>{d.practices=d.practices.filter(p=>p.id!==id);return d;});if(selectedPractice&&selectedPractice.id===id)setSelectedPractice(null);};
   const now=new Date();
@@ -507,7 +499,7 @@ function CoachSelector({onSelect,onDismiss,canDismiss}){
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,marginBottom:4}}>Who are you?</div>
       <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Choose your name to see your teams and practices.</div>
       {!adding&&<div>
-        <button onClick={()=>onSelect("c_jaxon1")} style={{width:"100%",padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:"var(--s1)",marginBottom:10,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <button onClick={()=>onSelect("c_jaxon1","Jaxon")} style={{width:"100%",padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:"var(--s1)",marginBottom:10,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <span style={{fontSize:16,fontWeight:600}}>Jaxon</span>
           <span style={{color:"var(--green)",fontSize:20,fontWeight:700}}>&#8594;</span>
         </button>
@@ -622,10 +614,10 @@ export default function App(){
   const [modal,setModal]=useState(null);
   const [liveId,setLiveId]=useState(null);
   const [editPracticeId,setEditPracticeId]=useState(null);
-  const [coachId,setCoachId]=useState(null);
+  const [coachId,setCoachId]=useState(typeof window!=="undefined"&&window.localStorage?localStorage.getItem("rop_coach_id"):null);
   const [showCoachSelect,setShowCoachSelect]=useState(false);
   const update=useCallback(fn=>{setData(d=>{const nx=fn(JSON.parse(JSON.stringify(d)));saveData(nx);return nx;});},[]);
-  useEffect(()=>{if(coachId)setCoachKey(coachId);loadData().then(d=>{setData(mergeDefaults(d||INIT));setLoaded(true);});},[]);
+  useEffect(()=>{if(coachId)setCoachKey(coachId);loadData().then(d=>{setData(migrateData(d||INIT));setLoaded(true);});},[]);
   const openModal=(t,p)=>setModal({type:t,payload:p||{}});
   const closeModal=()=>setModal(null);
   const launchRun=id=>{if(id)setLiveId(id);setView("command");};
@@ -636,7 +628,7 @@ export default function App(){
     {id:"library",label:"Library",I:Ic.Run},
   ];
   const needsCoach=loaded&&!coachId;
-  const selectCoach=(id)=>{setCoachKey(id);setCoachId(id);setShowCoachSelect(false);setLoaded(false);loadData().then(d=>{setData(mergeDefaults(d||INIT));setLoaded(true);});};
+  const selectCoach=(id,name)=>{if(name&&typeof window!=="undefined"&&window.localStorage)localStorage.setItem("rop_coach_name",name);if(typeof window!=="undefined"&&window.localStorage)localStorage.setItem("rop_coach_id",id);setCoachKey(id);setCoachId(id);setShowCoachSelect(false);setLoaded(false);loadData().then(d=>{setData(migrateData(d||INIT));setLoaded(true);});};
   const coachName=coachId==="c_jaxon1"?"Jaxon":(typeof window!=="undefined"&&window.localStorage&&localStorage.getItem("rop_coach_name"))||"Coach";
   const liveMatch=window.location.pathname.match(/^\/live\/([a-z0-9]+)$/i);
   if(liveMatch)return (<HelperView sessionId={liveMatch[1]}/>);

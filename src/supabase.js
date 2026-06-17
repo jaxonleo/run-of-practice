@@ -6,12 +6,13 @@ const SUPABASE_ANON_KEY = 'sb_publishable_z0atQT9uv4_9OZSlGe_awg_d07YcC7v'
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 // ── Per-coach data key ────────────────────────────────────────────────────────
-let _coachKey = 'cb_data'
+let _coachKey = null
 export function setCoachKey(id) { _coachKey = 'coach_' + id }
 
 let saveTimer = null
 
 export async function loadData() {
+  if (!_coachKey) return null
   try {
     const { data, error } = await supabase
       .from('app_data')
@@ -19,25 +20,31 @@ export async function loadData() {
       .eq('key', _coachKey)
       .maybeSingle()
     if (error) { console.error('loadData error:', error); return null }
-    if (!data) { console.log('No data for', _coachKey); return null }
-    console.log('Loaded:', _coachKey)
-    return data.value
+    return data ? data.value : null
   } catch (e) {
     console.error('loadData exception:', e)
     return null
   }
 }
 
-export function flushSave() {
-  if (saveTimer) {
-    clearTimeout(saveTimer)
-    saveTimer = null
+export async function deleteData() {
+  if (!_coachKey) return
+  try {
+    const { error } = await supabase
+      .from('app_data')
+      .delete()
+      .eq('key', _coachKey)
+    if (error) console.error('deleteData error:', error)
+    else console.log('Deleted:', _coachKey)
+  } catch (e) {
+    console.error('deleteData exception:', e)
   }
 }
 
 export function saveData(d) {
   clearTimeout(saveTimer)
   saveTimer = setTimeout(async () => {
+    if (!_coachKey) return
     try {
       const { error } = await supabase
         .from('app_data')
@@ -48,6 +55,14 @@ export function saveData(d) {
       console.error('saveData exception:', e)
     }
   }, 1500)
+}
+
+export function flushSave(d) {
+  clearTimeout(saveTimer)
+  if (!_coachKey || !d) return
+  supabase.from('app_data')
+    .upsert({ key: _coachKey, value: d }, { onConflict: 'key' })
+    .then(({ error }) => { if (error) console.error('flushSave error:', error) })
 }
 
 // ── Live session functions ────────────────────────────────────────────────────
@@ -61,7 +76,6 @@ export async function createSession(coachId, practiceId, state) {
     .from('live_sessions')
     .insert({ session_id: sessionId, coach_id: coachId, practice_id: practiceId, state })
   if (error) { console.error('createSession error:', error); return null }
-  console.log('Session created:', sessionId)
   return sessionId
 }
 
@@ -99,8 +113,6 @@ export function subscribeToSession(sessionId, onUpdate) {
       schema: 'public',
       table: 'live_sessions',
       filter: 'session_id=eq.' + sessionId
-    }, payload => {
-      onUpdate(payload.new)
-    })
+    }, payload => { onUpdate(payload.new) })
     .subscribe()
 }
