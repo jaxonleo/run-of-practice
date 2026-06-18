@@ -658,7 +658,7 @@ export default function App(){
   ];
   // needsCoach handled by full-screen SplashScreen route above
   const selectCoach=(id,name)=>{if(name)registerCoach(id,name);setCoachKey(id);setCoachId(id);setShowCoachSelect(false);setLoaded(false);loadData().then(d=>{setData(migrateData(d||INIT));setLoaded(true);});};
-  const coachName=coachId==="c_jaxon1"?"Jaxon":(typeof window!=="undefined"&&window.localStorage&&localStorage.getItem("rop_coach_name"))||"Coach";
+  const coachName=(coaches.find(c=>c.id===coachId)||{}).name||"Coach";
   const liveMatch=window.location.pathname.match(/^\/live\/([a-z0-9]+)$/i);
   if(liveMatch)return (<HelperView sessionId={liveMatch[1]}/>);
   // Show splash until coaches are loaded
