@@ -505,7 +505,7 @@ function SplashScreen({onSelect,coaches}){
     onSelect(cid,nm);
   };
   return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
-    <style dangerouslySetInnerHTML={{__html:CSS}}/>
+    
     <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
       <div style={{width:96,height:96,borderRadius:22,overflow:"hidden",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
         <img src="/apple-touch-icon.png" style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Run of Practice"/>
@@ -636,6 +636,7 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSwitchCo
 
 export default function App(){
   const [data,setData]=useState(INIT);
+  useEffect(()=>{let el=document.getElementById('rop-css');if(!el){el=document.createElement('style');el.id='rop-css';document.head.appendChild(el);}el.textContent=CSS;},[]);
   const [loaded,setLoaded]=useState(false);
   const [view,setView]=useState("today");
   const [modal,setModal]=useState(null);
@@ -662,13 +663,13 @@ export default function App(){
   const liveMatch=window.location.pathname.match(/^\/live\/([a-z0-9]+)$/i);
   if(liveMatch)return (<HelperView sessionId={liveMatch[1]}/>);
   // Show splash until coaches are loaded
-  if(!coachesLoaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><style dangerouslySetInnerHTML={{__html:CSS}}/><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
+  if(!coachesLoaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
   // Show splash if no coach selected
   if(!coachId)return (<SplashScreen coaches={coaches} onSelect={selectCoach}/>);
   // Show data loading spinner after coach selected but data not loaded yet
-  if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><style dangerouslySetInnerHTML={{__html:CSS}}/><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div></div>);
+  if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div></div>);
 
-  return (<div style={{display:"contents"}}><style dangerouslySetInnerHTML={{__html:CSS}}/>
+  return (<div style={{display:"contents"}}>
     <div className="app">
       <div className="screen">
         {view==="today"&&<TodayScreen data={data} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSwitchCoach={()=>setShowCoachSelect(true)} setEditPracticeId={setEditPracticeId}/>}
@@ -1546,7 +1547,7 @@ function HelperView({sessionId}){
     return()=>{if(subRef.current)subRef.current.unsubscribe();};
   },[sessionId]);
 
-  if(loading)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,background:"#0d1512"}}><style dangerouslySetInnerHTML={{__html:CSS}}/><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,letterSpacing:".1em"}}>JOINING SESSION...</div></div>);
+  if(loading)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,background:"#0d1512"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,letterSpacing:".1em"}}>JOINING SESSION...</div></div>);
   if(!session)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,textAlign:"center"}}>Session not found</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This link may be invalid or the practice has ended.</div></div>);
   if(session.ended_at||(session.state&&session.state.ended))return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:48,fontWeight:900,textAlign:"center"}}>Well Done</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This practice session has ended.</div></div>);
 
@@ -1578,7 +1579,7 @@ function HelperView({sessionId}){
   const pnames=ids=>(ids||[]).map(id=>pname(id)).join(", ");
 
   return (<div className="ccs">
-    <style dangerouslySetInnerHTML={{__html:CSS}}/>
+    
     <div className="cc-header">
       <div>
         <div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span><span style={{marginLeft:8,fontSize:11,color:"var(--td)"}}>View only</span></div>
