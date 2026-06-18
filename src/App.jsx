@@ -647,7 +647,11 @@ export default function App(){
   const [coachesLoaded,setCoachesLoaded]=useState(false);
   const [showCoachSelect,setShowCoachSelect]=useState(false);
   const update=useCallback(fn=>{setData(d=>{const nx=fn(JSON.parse(JSON.stringify(d)));saveData(nx);return nx;});},[]);
-  useEffect(()=>{if(coachId)setCoachKey(coachId);loadData().then(d=>{setData(migrateData(d||INIT));setLoaded(true);});},[]);
+  useEffect(()=>{
+    if(typeof window!=="undefined"&&window.localStorage){localStorage.removeItem("rop_coach_id");localStorage.removeItem("rop_coach_name");}
+    getCoaches().then(list=>{setCoaches(list);setCoachesLoaded(true);});
+  },[]);
+  useEffect(()=>{if(!coachId)return;setCoachKey(coachId);loadData().then(raw=>{if(raw===null){const template=coachId==="coach_demo"?DEMO_INIT:INIT;const seeded=migrateData(JSON.parse(JSON.stringify(template)));setData(seeded);flushSave(seeded);}else{setData(migrateData(raw));}setLoaded(true);});},[coachId]);
   const openModal=(t,p)=>setModal({type:t,payload:p||{}});
   const closeModal=()=>setModal(null);
   const launchRun=id=>{if(id)setLiveId(id);setView("command");};
