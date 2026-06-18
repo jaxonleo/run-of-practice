@@ -506,28 +506,24 @@ function SplashScreen({onSelect,coaches}){
   };
   return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
     <style>{CSS}</style>
-    {/* Branded header */}
     <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
       <div style={{width:96,height:96,borderRadius:22,overflow:"hidden",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
         <img src="/apple-touch-icon.png" style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Run of Practice"/>
       </div>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:38,fontWeight:900,color:"#fff",letterSpacing:"-.01em",lineHeight:1,marginBottom:6,textAlign:"center"}}>Run of Practice</div>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:600,letterSpacing:".12em",textTransform:"uppercase",color:"var(--green)",marginBottom:0,textAlign:"center"}}>Organize. Execute. Elevate.</div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:600,letterSpacing:".12em",textTransform:"uppercase",color:"var(--green)",textAlign:"center"}}>Organize. Execute. Elevate.</div>
     </div>
-    {/* Coach selection */}
     <div style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
       <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
       {!adding&&<div>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>
-          {coaches.length>0?"Who's coaching today?":"Welcome, Coach"}
-        </div>
-        <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>
-          {coaches.length>0?"Select your name to continue.":"Get started by entering your name."}
-        </div>
-        {coaches.map(c=>(<button key={c.id} onClick={()=>onSelect(c.id,c.name)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:"var(--s1)",cursor:"pointer",marginBottom:8}}>
-          <span style={{fontSize:16,fontWeight:600}}>{c.name}</span>
-          <span style={{color:"var(--green)",fontSize:20,fontWeight:700}}>&#8594;</span>
-        </button>))}
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>{coaches.length>0?"Who's coaching today?":"Welcome, Coach"}</div>
+        <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>{coaches.length>0?"Select your name to continue.":"Get started by entering your name."}</div>
+        {coaches.map(c=>(
+          <button key={c.id} onClick={()=>onSelect(c.id,c.name)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:"var(--s1)",cursor:"pointer",marginBottom:8}}>
+            <span style={{fontSize:16,fontWeight:600}}>{c.name}</span>
+            <span style={{color:"var(--green)",fontSize:20,fontWeight:700}}>&#8594;</span>
+          </button>
+        ))}
         <button onClick={()=>setAdding(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px dashed var(--gb)",background:"transparent",cursor:"pointer",marginBottom:8}}>
           <span style={{width:28,height:28,borderRadius:"50%",background:"var(--gbg)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--green)",fontSize:20,fontWeight:700,flexShrink:0}}>+</span>
           <span style={{fontSize:16,fontWeight:600,color:"var(--green)"}}>{coaches.length>0?"New Coach":"Get Started"}</span>
@@ -535,10 +531,10 @@ function SplashScreen({onSelect,coaches}){
       </div>}
       {adding&&<div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Welcome, Coach</div>
-        <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Enter your name to get started. You can always switch coaches later.</div>
+        <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Enter your name to get started.</div>
         <div className="fld mb10">
           <label className="lbl">Your Name</label>
-          <input className="inp" autoFocus placeholder="e.g. Coach Johnson" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}/>
+          <input className="inp" autoFocus placeholder="e.g. Coach Johnson" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")save();}}/>
         </div>
         <div className="brow">
           {coaches.length>0&&<button className="btn ghost bmd" onClick={()=>setAdding(false)}>Back</button>}
@@ -548,7 +544,6 @@ function SplashScreen({onSelect,coaches}){
     </div>
   </div>);
 }
-
 function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSwitchCoach,setEditPracticeId}){
   const now=new Date();
   const todayStr=now.toISOString().slice(0,10);
