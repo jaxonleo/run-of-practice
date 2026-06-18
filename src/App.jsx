@@ -538,9 +538,7 @@ function SplashScreen({onSelect,coaches}){
         <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Enter your name to get started. You can always switch coaches later.</div>
         <div className="fld mb10">
           <label className="lbl">Your Name</label>
-          <input className="inp" autoFocus placeholder="e.g. Coach Johnson" value={newName}
-            onChange={e=>setNewName(e.target.value)}
-            onKeyDown={e=>e.key==="Enter"&&save()}/>
+          <input className="inp" autoFocus placeholder="e.g. Coach Johnson" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}/>
         </div>
         <div className="brow">
           {coaches.length>0&&<button className="btn ghost bmd" onClick={()=>setAdding(false)}>Back</button>}
