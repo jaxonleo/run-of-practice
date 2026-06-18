@@ -692,7 +692,7 @@ export default function App(){
     </div>
     {modal&&<ModalLayer modal={modal} data={data} update={update} closeModal={closeModal}/>}
     {showCoachSelect&&<SplashScreen coaches={coaches} onSelect={selectCoach}/>}
-  );
+  </div>);
 }
 
 function PracticeLog({data,update,launchRun}){
