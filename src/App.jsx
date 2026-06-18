@@ -662,7 +662,7 @@ export default function App(){
     {id:"library",label:"Library",I:Ic.Run},
   ];
   // needsCoach handled by full-screen SplashScreen route above
-  const selectCoach=(id,name)=>{if(name)registerCoach(id,name);setCoachKey(id);setCoachId(id);setShowCoachSelect(false);setLoaded(false);loadData().then(d=>{setData(migrateData(d||INIT));setLoaded(true);});};
+  const selectCoach=(id,name)=>{setCoachKey(id);setCoachId(id);setShowCoachSelect(false);if(name){registerCoach(id,name).then(()=>getCoaches().then(list=>setCoaches(list)));}setLoaded(false);loadData().then(raw=>{if(raw===null){const template=coachId==="coach_demo"?DEMO_INIT:INIT;const seeded=migrateData(JSON.parse(JSON.stringify(template)));setData(seeded);flushSave(seeded);}else{setData(migrateData(raw));}setLoaded(true);});};
   const coachName=(coaches.find(c=>c.id===coachId)||{}).name||"Coach";
   const liveMatch=window.location.pathname.match(/^\/live\/([a-z0-9]+)$/i);
   if(liveMatch)return (<HelperView sessionId={liveMatch[1]}/>);
@@ -2352,7 +2352,7 @@ function ModalLayer({modal,data,update,closeModal}){
   });
   const set=(k,v)=>setF(p=>Object.assign({},p,{[k]:v}));
   const togTag=lid=>setF(p=>Object.assign({},p,{locationTags:p.locationTags&&p.locationTags.includes(lid)?p.locationTags.filter(x=>x!==lid):[...(p.locationTags||[]),lid]}));
-  const SPORTS=["General","Baseball","Basketball","Football","Soccer","Softball","Volleyball","Other"];
+  const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
   const save=()=>{
     const t=modal.type,p=modal.payload;
     if(t==="addTeam"){if(!f.name)return;update(d=>{d.teams.push({id:uid(),name:f.name,sport:f.sport||"Basketball",players:[],coaches:[]});return d;});}

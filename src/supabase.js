@@ -23,12 +23,19 @@ export async function getCoaches() {
 }
 
 export async function registerCoach(id, name) {
+  if (!id || !name) return
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('coaches')
-      .upsert({ id, name }, { onConflict: 'id' })
-    if (error) console.error('registerCoach error:', error)
-  } catch (e) { console.error('registerCoach exception:', e) }
+      .upsert([{ id: id, name: name }], { onConflict: 'id' })
+    if (error) {
+      console.error('registerCoach error:', JSON.stringify(error))
+    } else {
+      console.log('registerCoach success:', id, name)
+    }
+  } catch (e) {
+    console.error('registerCoach exception:', e.message)
+  }
 }
 
 // ── Per-coach app data ────────────────────────────────────────────────────────
