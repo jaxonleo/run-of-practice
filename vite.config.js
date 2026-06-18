@@ -1,3 +1,4 @@
+// build: 20260617225802
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
