@@ -1,4 +1,3 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
 import { loadData, saveData, flushSave, setCoachKey, getCoaches, registerCoach, getSession, subscribeToSession, createSession, updateSession, endSession } from "./supabase.js";
 
 // Storage imported from supabase.js
@@ -226,7 +225,7 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .att-circle.on{background:var(--green);}
 .ccs{display:flex;flex-direction:column;height:100%;overflow:hidden;padding-bottom:0;}
 .cc-header{padding:8px 14px;background:var(--s1);border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-.cc-act-name{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;line-height:1;}
+.cc-act-name{font-family:'Barlow Condensed',sans-serif;font-size:clamp(20px,6vw,32px);font-weight:900;line-height:1;letter-spacing:-.01em;color:var(--black);}
 .cc-timer-row{padding:4px 14px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
 .cc-timer{font-family:'DM Mono',monospace;font-size:64px;font-weight:500;line-height:1;color:var(--green);}
 .cc-timer.urg{color:var(--red);}.cc-timer.over{color:var(--red);animation:pulse .8s infinite;}
@@ -694,7 +693,7 @@ export default function App(){
       </nav>}
     </div>
     {modal&&<ModalLayer modal={modal} data={data} update={update} closeModal={closeModal}/>}
-    {showCoachSelect&&<SplashScreen coaches={coaches} onSelect={selectCoach}/>}
+    {showCoachSelect&&<div style={{position:"fixed",inset:0,zIndex:300}}><SplashScreen coaches={coaches} onSelect={(id,name)=>{selectCoach(id,name);setShowCoachSelect(false);}}/></div>}
   </div>);
 }
 
@@ -1677,6 +1676,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
   const [elapsed,setElapsed]=useState(0);
   const [running,setRunning]=useState(false);
   const [audioOn,setAudioOn]=useState(false);
+  const audioCtxRef=useRef(null);
   const [noteText,setNoteText]=useState("");
   const [showROS,setShowROS]=useState(false);
   const [clState,setClState]=useState({});
@@ -1802,10 +1802,10 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
             <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
           </button>
           <button className="btn ghost bxs" onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}</button>
+          <button onClick={()=>{if(!audioOn){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();audioCtxRef.current=ctx;const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);g.gain.value=0.01;o.start();o.stop(ctx.currentTime+0.01);}catch(e){}}spoken.current={};setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊 On":"🔇 Off"}</button>
           <div style={{position:"relative"}}>
             <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
             {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
-              <button className="mm-item" onClick={()=>{setShowEllipsis(false);setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
               {sessionId&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowShare(true);}}>Share Live View</button>}
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){writeSession({idx,stIdx,inTrans,elapsed,running:false,runningAt:null,presentIds:[...presentIds],liveActs,ended:true,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});setTimeout(()=>{endSession(sessionRef.current);sessionRef.current=null;setSessionId(null);},500);}}}>End Practice</button>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};setStage("attend");}}>Restart Practice</button>
@@ -2327,6 +2327,7 @@ function NotesTab({data,update}){
 }
 
 function ModalLayer({modal,data,update,closeModal}){
+  const lastSportRef=useRef("Basketball");
   const player=modal.type==="editPlayer"?modal.payload.player:null;
   const activity=modal.type==="editActivity"?modal.payload.activity:null;
   const location=modal.type==="editLocation"?modal.payload.location:null;
