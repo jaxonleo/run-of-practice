@@ -518,12 +518,7 @@ function SplashScreen({onSelect,coaches}){
       {!adding&&<div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>{coaches.length>0?"Who's coaching today?":"Welcome, Coach"}</div>
         <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>{coaches.length>0?"Select your name to continue.":"Get started by entering your name."}</div>
-        {coaches.map(c=>(
-          <button key={c.id} onClick={()=>onSelect(c.id,c.name)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:"var(--s1)",cursor:"pointer",marginBottom:8}}>
-            <span style={{fontSize:16,fontWeight:600}}>{c.name}</span>
-            <span style={{color:"var(--green)",fontSize:20,fontWeight:700}}>&#8594;</span>
-          </button>
-        ))}
+        {coaches.map(c=>(<button key={c.id} onClick={()=>onSelect(c.id,c.name)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:"var(--s1)",cursor:"pointer",marginBottom:8}}><span style={{fontSize:16,fontWeight:600}}>{c.name}</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700}}>&#8594;</span></button>))}
         <button onClick={()=>setAdding(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px dashed var(--gb)",background:"transparent",cursor:"pointer",marginBottom:8}}>
           <span style={{width:28,height:28,borderRadius:"50%",background:"var(--gbg)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--green)",fontSize:20,fontWeight:700,flexShrink:0}}>+</span>
           <span style={{fontSize:16,fontWeight:600,color:"var(--green)"}}>{coaches.length>0?"New Coach":"Get Started"}</span>
@@ -576,7 +571,7 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSwitchCo
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,lineHeight:1}}>{greeting},</div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,color:"var(--green)",lineHeight:1}}>{coachName}</div>
       </div>
-      <button onClick={onSwitchCoach} style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"50%",width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+      <button onClick={()=>{if(onSwitchCoach)onSwitchCoach();}} style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"50%",width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       </button>
     </div>
@@ -647,11 +642,7 @@ export default function App(){
   const [coachesLoaded,setCoachesLoaded]=useState(false);
   const [showCoachSelect,setShowCoachSelect]=useState(false);
   const update=useCallback(fn=>{setData(d=>{const nx=fn(JSON.parse(JSON.stringify(d)));saveData(nx);return nx;});},[]);
-  useEffect(()=>{
-    if(typeof window!=="undefined"&&window.localStorage){localStorage.removeItem("rop_coach_id");localStorage.removeItem("rop_coach_name");}
-    getCoaches().then(list=>{setCoaches(list);setCoachesLoaded(true);});
-  },[]);
-  useEffect(()=>{if(!coachId)return;setCoachKey(coachId);loadData().then(raw=>{if(raw===null){const template=coachId==="coach_demo"?DEMO_INIT:INIT;const seeded=migrateData(JSON.parse(JSON.stringify(template)));setData(seeded);flushSave(seeded);}else{setData(migrateData(raw));}setLoaded(true);});},[coachId]);
+  useEffect(()=>{if(coachId)setCoachKey(coachId);loadData().then(d=>{setData(migrateData(d||INIT));setLoaded(true);});},[]);
   const openModal=(t,p)=>setModal({type:t,payload:p||{}});
   const closeModal=()=>setModal(null);
   const launchRun=id=>{if(id)setLiveId(id);setView("command");};
@@ -1674,7 +1665,6 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
   const [elapsed,setElapsed]=useState(0);
   const [running,setRunning]=useState(false);
   const [audioOn,setAudioOn]=useState(false);
-  const [showAudioPrompt,setShowAudioPrompt]=useState(false);
   const [noteText,setNoteText]=useState("");
   const [showROS,setShowROS]=useState(false);
   const [clState,setClState]=useState({});
@@ -1715,7 +1705,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
     setPresentIds(pIds);setCoachPresentIds(cIds);
     const newActs=applyAtt(pIds,cIds,balanceMode,practice.activities);
     setLiveActs(newActs);setStage("live");setShowAtt(false);
-    setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};setShowAudioPrompt(true);
+    setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(true);spoken.current={};
     createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,elapsed:0,running:true,runningAt:Date.now(),presentIds:[...pIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations}).then(sid=>{
       if(sid){sessionRef.current=sid;setSessionId(sid);}
     });
@@ -1948,17 +1938,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
         <input className="inp" placeholder="Quick note..." value={noteText} onChange={e=>setNoteText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNote()} style={{fontSize:14}}/>
         <button className="btn primary bsm" onClick={addNote}>Save</button>
       </div>
-      {showAudioPrompt&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:200,display:"flex",alignItems:"flex-end"}}>
-        <div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"28px 20px 40px"}}>
-          <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 20px"}}/>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:6}}>Enable Audio Cues?</div>
-          <div style={{fontSize:14,color:"var(--td)",marginBottom:24,lineHeight:1.5}}>Get a beep when time runs out and a voice reminder at 2 minutes remaining.</div>
-          <div className="brow">
-            <button className="btn ghost bmd" style={{flex:1}} onClick={()=>{setAudioOn(false);setShowAudioPrompt(false);setRunning(true);}}>Skip</button>
-            <button className="btn primary bmd" style={{flex:1}} onClick={()=>{try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();o.connect(ctx.destination);o.start();o.stop(ctx.currentTime+0.001);}catch(e){}spoken.current={};setAudioOn(true);setShowAudioPrompt(false);setRunning(true);}}>Enable Audio</button>
-          </div>
-        </div>
-      </div>}
+
       {showShare&&sessionId&&<ShareSheet sessionId={sessionId} onClose={()=>setShowShare(false)}/>}
     </div>
   );
@@ -2343,12 +2323,12 @@ function ModalLayer({modal,data,update,closeModal}){
   const template=modal.type==="editTemplate"?modal.payload.template:null;
   const [f,setF]=useState(()=>{
     if(player)return{firstName:player.firstName,lastName:player.lastName,jersey:player.jersey,notes:player.notes||""};
-    if(activity)return{name:activity.name,sport:activity.sport||"General",duration:activity.duration,description:activity.description||"",coachingPoints:activity.coachingPoints||""};
+    if(activity)return{name:activity.name,sport:activity.sport||lastSportRef.current||"Basketball",duration:activity.duration,description:activity.description||"",coachingPoints:activity.coachingPoints||""};
     if(location)return{name:location.name};
     if(asset)return{name:asset.name,locationTags:asset.locationTags||[]};
     if(template)return{name:template.name,sport:template.sport||"General"};
     if(editTeamData)return{name:editTeamData.name,sport:editTeamData.sport||"Basketball"};
-    return{};
+    return{sport:lastSportRef.current||"Basketball"};
   });
   const set=(k,v)=>setF(p=>Object.assign({},p,{[k]:v}));
   const togTag=lid=>setF(p=>Object.assign({},p,{locationTags:p.locationTags&&p.locationTags.includes(lid)?p.locationTags.filter(x=>x!==lid):[...(p.locationTags||[]),lid]}));
@@ -2364,7 +2344,7 @@ function ModalLayer({modal,data,update,closeModal}){
     if(t==="addSublocation"){if(!f.name)return;update(d=>{const l=d.locations.find(l=>l.id===p.locationId);if(l)l.sublocations.push({id:uid(),name:f.name});return d;});}
     if(t==="addAsset"){if(!f.name)return;update(d=>{d.assets.push({id:uid(),name:f.name,locationTags:f.locationTags||[]});return d;});}
     if(t==="editAsset"){if(!f.name)return;update(d=>{const a=d.assets.find(a=>a.id===p.asset.id);if(a){a.name=f.name;a.locationTags=f.locationTags||[];}return d;});}
-    if(t==="addActivity"){if(!f.name)return;update(d=>{d.activityLibrary.push({id:uid(),name:f.name,sport:f.sport||"General",description:f.description||"",duration:+(f.duration||10),coachingPoints:f.coachingPoints||"",equipment:f.equipment||""});return d;});}
+    if(t==="addActivity"){if(!f.name)return;update(d=>{d.activityLibrary.push({id:uid(),name:f.name,sport:f.sport||"General",description:f.description||"",duration:+(f.duration||10),coachingPoints:f.coachingPoints||"",equipment:f.equipment||[],playerGear:f.playerGear||"",grouping:f.grouping||"none",groupSize:f.groupSize||2});return d;});}
     if(t==="editActivity"){if(!f.name)return;update(d=>{const a=d.activityLibrary.find(a=>a.id===p.activity.id);if(a){a.name=f.name;a.sport=f.sport||"General";a.duration=+(f.duration||10);a.description=f.description||"";a.coachingPoints=f.coachingPoints||"";}return d;});}
     if(t==="editTemplate"){if(!f.name)return;update(d=>{const tpl=d.templates.find(t=>t.id===p.template.id);if(tpl){tpl.name=f.name;tpl.sport=f.sport||"General";}return d;});}
     if(t==="editTeam"){if(!f.name)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.team.id);if(tm){tm.name=f.name;tm.sport=f.sport||"Basketball";}return d;});}
@@ -2376,7 +2356,7 @@ function ModalLayer({modal,data,update,closeModal}){
         <div className="mhandle"/>
         <div className="mtitle">{TITLES[modal.type]||"Add"}</div>
         {modal.type==="addTeam"&&(<div><div className="fld"><label className="lbl">Team Name</label><input className="inp" autoFocus placeholder="e.g. Peoria Eagles 10U" onChange={e=>set("name",e.target.value)}/></div>
-          <div className="fld"><label className="lbl">Sport</label><select className="sel" onChange={e=>set("sport",e.target.value)}>{SPORTS.map(s=><option key={s}>{s}</option>)}</select></div></div>
+          <div className="fld"><label className="lbl">Sport</label><select className="sel" onChange={e=>{set("sport",e.target.value);lastSportRef.current=e.target.value;}}>{SPORTS.map(s=><option key={s}>{s}</option>)}</select></div></div>
         )}
         {(modal.type==="addPlayer"||modal.type==="editPlayer")&&(<div>
             <div className="g2"><div className="fld"><label className="lbl">First Name</label><input className="inp" autoFocus value={f.firstName||""} onChange={e=>set("firstName",e.target.value)}/></div><div className="fld"><label className="lbl">Last Name</label><input className="inp" value={f.lastName||""} onChange={e=>set("lastName",e.target.value)}/></div></div>
@@ -2415,8 +2395,24 @@ function ModalLayer({modal,data,update,closeModal}){
             <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
             <div className="g2"><div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||"General"} onChange={e=>set("sport",e.target.value)}>{SPORTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div><div className="fld"><label className="lbl">Duration (min)</label><DurStepper value={f.duration||10} min={1} onChange={v=>set("duration",v)}/></div></div>
             <div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:50}} value={f.description||""} onChange={e=>set("description",e.target.value)}/></div>
+            <div className="fld"><label className="lbl">Player Grouping</label>
+              <div style={{display:"flex",gap:6}}>
+                {["none","partners","groups"].map(g=>(<button key={g} type="button" onClick={()=>set("grouping",g)} style={{flex:1,padding:"8px 0",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:f.grouping===g?"var(--green)":"var(--s1)",color:f.grouping===g?"#fff":"var(--black)",fontSize:13,cursor:"pointer",textTransform:"capitalize"}}>{g==="none"?"No Grouping":g==="partners"?"Partners":"Groups"}</button>))}
+              </div>
+              {f.grouping==="groups"&&<input className="inp" type="number" min="2" max="6" placeholder="Group size (e.g. 3)" value={f.groupSize||""} onChange={e=>set("groupSize",parseInt(e.target.value))} style={{marginTop:6}}/>}
+            </div>
             <div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" style={{minHeight:50}} value={f.coachingPoints||""} onChange={e=>set("coachingPoints",e.target.value)}/></div>
-            <div className="fld"><label className="lbl">Equipment Needed</label><input className="inp" placeholder="e.g. 6 cones, 2 ball racks" value={f.equipment||""} onChange={e=>setF(x=>Object.assign({},x,{equipment:e.target.value}))}/></div>
+            <div className="fld"><label className="lbl">Team Equipment</label>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
+                {data.assets.map(a=>(<button key={a.id} type="button" onClick={()=>{const cur=(f.equipment||[]);const has=cur.includes(a.id);set("equipment",has?cur.filter(x=>x!==a.id):[...cur,a.id]);}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:(f.equipment||[]).includes(a.id)?"var(--green)":"var(--s1)",color:(f.equipment||[]).includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
+                {data.assets.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No equipment in library yet</span>}
+              </div>
+              <div style={{display:"flex",gap:6}}>
+                <input className="inp" placeholder="Add new equipment..." id="new-equip-inp" style={{flex:1}}/>
+                <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-equip-inp");if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();update(d=>{d.assets.push({id:newId,name:nm,locationTags:[]});return d;});set("equipment",[...(f.equipment||[]),newId]);el.value="";}}>Add</button>
+              </div>
+            </div>
+            <div className="fld"><label className="lbl">Player Gear Needed</label><input className="inp" placeholder="e.g. Batting helmet, glove" value={f.playerGear||""} onChange={e=>set("playerGear",e.target.value)}/></div>
           </div>
         )}
         <div className="mfooter"><button className="btn ghost bmd" onClick={closeModal}>Cancel</button><button className="btn primary bmd" onClick={save}>Save</button></div>
