@@ -2346,6 +2346,8 @@ function NotesTab({data,update}){
 }
 
 function ModalLayer({modal,data,update,closeModal}){
+  const defaultSport=()=>{const lib=data.activityLibrary||[];if(lib.length>0)return lib[lib.length-1].sport||"Basketball";const sports=[...new Set((data.teams||[]).map(t=>t.sport).filter(Boolean))];if(sports.length===1)return sports[0];return "Basketball";};
+  const lastSportRef=useRef(defaultSport());
   const player=modal.type==="editPlayer"?modal.payload.player:null;
   const activity=modal.type==="editActivity"?modal.payload.activity:null;
   const location=modal.type==="editLocation"?modal.payload.location:null;
