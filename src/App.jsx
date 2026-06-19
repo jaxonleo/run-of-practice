@@ -226,7 +226,7 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .att-circle.on{background:var(--green);}
 .ccs{display:flex;flex-direction:column;height:100%;overflow:hidden;padding-bottom:0;}
 .cc-header{padding:8px 14px;background:var(--s1);border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-.cc-act-name{font-family:'Barlow Condensed',sans-serif;font-size:clamp(20px,6vw,32px);font-weight:900;line-height:1;letter-spacing:-.01em;color:var(--black);}
+.cc-act-name{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;line-height:1;}
 .cc-timer-row{padding:4px 14px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
 .cc-timer{font-family:'DM Mono',monospace;font-size:64px;font-weight:500;line-height:1;color:var(--green);}
 .cc-timer.urg{color:var(--red);}.cc-timer.over{color:var(--red);animation:pulse .8s infinite;}
@@ -427,12 +427,29 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
           <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700}}>{sport}</span>
           <span style={{fontSize:12,color:"var(--td)"}}>{data.activityLibrary.filter(a=>a.sport===sport).length} drills {collapsed[sport]?"":"v"}</span>
         </button>
-        {!collapsed[sport]&&data.activityLibrary.filter(a=>a.sport===sport).map(act=>(<div key={act.id} style={{padding:"10px 12px",borderLeft:"3px solid var(--gb)",marginLeft:8,marginBottom:4,background:"#fff"}}>
-          <div style={{fontWeight:600,fontSize:14,marginBottom:2}}>{act.name}</div>
-          {act.description&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.description}</div>}
-          {act.coachingPoints&&<div style={{fontSize:12,color:"var(--green2)",fontStyle:"italic",marginBottom:2}}>{act.coachingPoints}</div>}
-          {act.equipment&&<div style={{fontSize:11,color:"var(--amber)",marginTop:2}}>Needs: {act.equipment}</div>}
-        </div>))}
+        {!collapsed[sport]&&(()=>{
+          const sportDrills=data.activityLibrary.filter(a=>a.sport===sport);
+          const cats=["General",...[...new Set(sportDrills.map(a=>a.category).filter(Boolean))].sort()];
+          const [collapsedCat,setCollapsedCat]=useState({});
+          return cats.map(cat=>{
+            const catDrills=cat==="General"?sportDrills.filter(a=>!a.category):sportDrills.filter(a=>a.category===cat);
+            if(catDrills.length===0)return null;
+            return (<div key={cat} style={{marginBottom:4}}>
+              <button onClick={()=>setCollapsedCat(c=>Object.assign({},c,{[cat]:!c[cat]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 12px 7px 20px",background:"var(--s2)",border:"none",cursor:"pointer",borderRadius:"var(--rs)"}}>
+                <span style={{fontSize:12,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em"}}>{cat}</span>
+                <span style={{fontSize:11,color:"var(--td)"}}>{catDrills.length} {collapsedCat[cat]?"":"▾"}</span>
+              </button>
+              {!collapsedCat[cat]&&catDrills.map(act=>(<div key={act.id} style={{padding:"10px 12px",borderLeft:"3px solid var(--gb)",marginLeft:12,marginBottom:3,background:"#fff"}}>
+                <div style={{fontWeight:600,fontSize:14,marginBottom:2}}>{act.name}</div>
+                {act.description&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.description}</div>}
+                {act.coachingPoints&&<div style={{fontSize:12,color:"var(--green2)",fontStyle:"italic",marginBottom:2}}>{act.coachingPoints}</div>}
+                {act.playerGear&&<div style={{fontSize:11,color:"#fbbf24",marginTop:2}}>Player gear: {act.playerGear}</div>}
+                {act.equipment&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--amber)",marginTop:2}}>Needs: {Array.isArray(act.equipment)?act.equipment.map(id=>{const a=data.assets.find(x=>x.id===id);return a?a.name:id;}).join(", "):act.equipment}</div>}
+                {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>{act.grouping==="partners"?"Partners":""+act.numGroups+" groups"}</div>}
+              </div>))}
+            </div>);
+          });
+        })()}
       </div>))}
     </div>}
     {libTab==="templates"&&<div style={{padding:"0 16px"}}>
@@ -642,19 +659,7 @@ export default function App(){
   const [coachesLoaded,setCoachesLoaded]=useState(false);
   const [showCoachSelect,setShowCoachSelect]=useState(false);
   const update=useCallback(fn=>{setData(d=>{const nx=fn(JSON.parse(JSON.stringify(d)));saveData(nx);return nx;});},[]);
-  useEffect(()=>{
-    if(typeof window!=="undefined"&&window.localStorage){localStorage.removeItem("rop_coach_id");localStorage.removeItem("rop_coach_name");}
-    getCoaches().then(list=>{setCoaches(list);setCoachesLoaded(true);});
-  },[]);
-  useEffect(()=>{
-    if(!coachId)return;
-    setCoachKey(coachId);
-    loadData().then(raw=>{
-      if(raw===null){const template=coachId==="coach_demo"?DEMO_INIT:INIT;const seeded=migrateData(JSON.parse(JSON.stringify(template)));setData(seeded);flushSave(seeded);}
-      else{setData(migrateData(raw));}
-      setLoaded(true);
-    });
-  },[coachId]);
+  useEffect(()=>{if(coachId)setCoachKey(coachId);loadData().then(d=>{setData(migrateData(d||INIT));setLoaded(true);});},[]);
   const openModal=(t,p)=>setModal({type:t,payload:p||{}});
   const closeModal=()=>setModal(null);
   const launchRun=id=>{if(id)setLiveId(id);setView("command");};
@@ -694,7 +699,7 @@ export default function App(){
       </nav>}
     </div>
     {modal&&<ModalLayer modal={modal} data={data} update={update} closeModal={closeModal}/>}
-    {showCoachSelect&&<div style={{position:"fixed",inset:0,zIndex:300}}><SplashScreen coaches={coaches} onSelect={(id,name)=>{selectCoach(id,name);setShowCoachSelect(false);}}/></div>}
+    {showCoachSelect&&<SplashScreen coaches={coaches} onSelect={selectCoach}/>}
   </div>);
 }
 
@@ -1677,7 +1682,6 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
   const [elapsed,setElapsed]=useState(0);
   const [running,setRunning]=useState(false);
   const [audioOn,setAudioOn]=useState(false);
-  const audioCtxRef=useRef(null);
   const [noteText,setNoteText]=useState("");
   const [showROS,setShowROS]=useState(false);
   const [clState,setClState]=useState({});
@@ -1803,10 +1807,10 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
             <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
           </button>
           <button className="btn ghost bxs" onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}</button>
-          <button onClick={()=>{if(!audioOn){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();audioCtxRef.current=ctx;const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);g.gain.value=0.01;o.start();o.stop(ctx.currentTime+0.01);}catch(e){}}spoken.current={};setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊 On":"🔇 Off"}</button>
           <div style={{position:"relative"}}>
             <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
             {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
+              <button className="mm-item" onClick={()=>{setShowEllipsis(false);setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
               {sessionId&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowShare(true);}}>Share Live View</button>}
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){writeSession({idx,stIdx,inTrans,elapsed,running:false,runningAt:null,presentIds:[...presentIds],liveActs,ended:true,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});setTimeout(()=>{endSession(sessionRef.current);sessionRef.current=null;setSessionId(null);},500);}}}>End Practice</button>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};setStage("attend");}}>Restart Practice</button>
@@ -2328,7 +2332,6 @@ function NotesTab({data,update}){
 }
 
 function ModalLayer({modal,data,update,closeModal}){
-  const lastSportRef=useRef("Basketball");
   const player=modal.type==="editPlayer"?modal.payload.player:null;
   const activity=modal.type==="editActivity"?modal.payload.activity:null;
   const location=modal.type==="editLocation"?modal.payload.location:null;
@@ -2358,7 +2361,7 @@ function ModalLayer({modal,data,update,closeModal}){
     if(t==="addSublocation"){if(!f.name)return;update(d=>{const l=d.locations.find(l=>l.id===p.locationId);if(l)l.sublocations.push({id:uid(),name:f.name});return d;});}
     if(t==="addAsset"){if(!f.name)return;update(d=>{d.assets.push({id:uid(),name:f.name,locationTags:f.locationTags||[]});return d;});}
     if(t==="editAsset"){if(!f.name)return;update(d=>{const a=d.assets.find(a=>a.id===p.asset.id);if(a){a.name=f.name;a.locationTags=f.locationTags||[];}return d;});}
-    if(t==="addActivity"){if(!f.name)return;update(d=>{d.activityLibrary.push({id:uid(),name:f.name,sport:f.sport||"General",description:f.description||"",duration:+(f.duration||10),coachingPoints:f.coachingPoints||"",equipment:f.equipment||[],playerGear:f.playerGear||"",grouping:f.grouping||"none",groupSize:f.groupSize||2});return d;});}
+    if(t==="addActivity"){if(!f.name)return;update(d=>{d.activityLibrary.push({id:uid(),name:f.name,sport:f.sport||"General",category:f.category||"",description:f.description||"",duration:+(f.duration||10),coachingPoints:f.coachingPoints||"",equipment:f.equipment||[],playerGear:f.playerGear||"",grouping:f.grouping||"whole",numGroups:f.numGroups||2});return d;});}
     if(t==="editActivity"){if(!f.name)return;update(d=>{const a=d.activityLibrary.find(a=>a.id===p.activity.id);if(a){a.name=f.name;a.sport=f.sport||"General";a.duration=+(f.duration||10);a.description=f.description||"";a.coachingPoints=f.coachingPoints||"";}return d;});}
     if(t==="editTemplate"){if(!f.name)return;update(d=>{const tpl=d.templates.find(t=>t.id===p.template.id);if(tpl){tpl.name=f.name;tpl.sport=f.sport||"General";}return d;});}
     if(t==="editTeam"){if(!f.name)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.team.id);if(tm){tm.name=f.name;tm.sport=f.sport||"Basketball";}return d;});}
@@ -2384,6 +2387,7 @@ function ModalLayer({modal,data,update,closeModal}){
         )}
         {(modal.type==="addAsset"||modal.type==="editAsset")&&(<div>
             <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
+            <div className="fld"><label className="lbl">Category</label><div style={{display:"flex",gap:6}}><select className="sel" style={{flex:1}} value={f.category||""} onChange={e=>{if(e.target.value==="__new__")return;set("category",e.target.value);}}><option value="">General</option>{[...new Set((data.activityLibrary||[]).filter(a=>a.sport===(f.sport||"Basketball")).map(a=>a.category).filter(Boolean))].map(c=><option key={c} value={c}>{c}</option>)}<option value="__new__">+ Add new...</option></select></div>{(f.category==="__new__"||f._addingCat)&&<div style={{display:"flex",gap:6,marginTop:6}}><input className="inp" style={{flex:1}} autoFocus placeholder="New category name..." value={f._newCat||""} onChange={e=>set("_newCat",e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&f._newCat?.trim()){set("category",f._newCat.trim());set("_newCat","");set("_addingCat",false);}}}/><button type="button" className="btn ghost bxs" onClick={()=>{if(f._newCat?.trim()){set("category",f._newCat.trim());set("_newCat","");set("_addingCat",false);}else{set("category","");set("_addingCat",false);}}}>{f._newCat?.trim()?"Save":"Cancel"}</button></div>}</div>
             <div className="fld"><label className="lbl">Tag Locations (leave empty for all)</label>
               {data.locations.map(l=>(<div key={l.id} className="row" style={{marginBottom:8}}>
                   <div onClick={()=>togTag(l.id)} style={{width:22,height:22,borderRadius:4,border:"1.5px solid",borderColor:f.locationTags&&f.locationTags.includes(l.id)?"var(--green)":"var(--b)",background:f.locationTags&&f.locationTags.includes(l.id)?"var(--green)":"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
@@ -2411,9 +2415,17 @@ function ModalLayer({modal,data,update,closeModal}){
             <div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:50}} value={f.description||""} onChange={e=>set("description",e.target.value)}/></div>
             <div className="fld"><label className="lbl">Player Grouping</label>
               <div style={{display:"flex",gap:6}}>
-                {["none","partners","groups"].map(g=>(<button key={g} type="button" onClick={()=>set("grouping",g)} style={{flex:1,padding:"8px 0",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:f.grouping===g?"var(--green)":"var(--s1)",color:f.grouping===g?"#fff":"var(--black)",fontSize:13,cursor:"pointer",textTransform:"capitalize"}}>{g==="none"?"No Grouping":g==="partners"?"Partners":"Groups"}</button>))}
+                {[{v:"whole",l:"Whole Team",sub:"All players together"},{v:"partners",l:"Partners",sub:"Paired in groups of 2"},{v:"groups",l:"Groups",sub:"Split into groups"}].map(({v,l,sub})=>(<button key={v} type="button" onClick={()=>set("grouping",v)} style={{flex:1,padding:"8px 4px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(f.grouping||"whole")===v?"var(--green)":"var(--s1)",color:(f.grouping||"whole")===v?"#fff":"var(--black)",fontSize:13,cursor:"pointer",lineHeight:1.3}}>
+                  <div style={{fontWeight:700}}>{l}</div>
+                  {(f.grouping||"whole")===v&&<div style={{fontSize:10,opacity:.8,marginTop:2}}>{sub}</div>}
+                </button>))}
               </div>
-              {f.grouping==="groups"&&<input className="inp" type="number" min="2" max="6" placeholder="Group size (e.g. 3)" value={f.groupSize||""} onChange={e=>set("groupSize",parseInt(e.target.value))} style={{marginTop:6}}/>}
+              {(f.grouping||"whole")==="groups"&&<div style={{marginTop:8}}>
+                <div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>How many groups?</div>
+                <div style={{display:"flex",gap:6}}>
+                  {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>set("numGroups",n)} style={{flex:1,padding:"8px 0",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:f.numGroups===n?"var(--green)":"var(--s1)",color:f.numGroups===n?"#fff":"var(--black)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
+                </div>
+              </div>}
             </div>
             <div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" style={{minHeight:50}} value={f.coachingPoints||""} onChange={e=>set("coachingPoints",e.target.value)}/></div>
             <div className="fld"><label className="lbl">Team Equipment</label>
