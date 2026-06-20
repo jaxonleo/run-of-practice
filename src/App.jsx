@@ -1911,20 +1911,16 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
             <div style={{background:"#eff6ff",padding:"10px 12px",fontSize:14,color:"#1e40af",fontWeight:600}}>{subName(cur.sublocationId)}</div>
           </div>}
           {liveGroups&&<div style={{borderRadius:"var(--r)",overflow:"hidden"}}>
-            <div style={{background:"var(--green)",padding:"6px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <span style={{fontSize:14}}>👥</span>
-                <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:900,letterSpacing:".1em",textTransform:"uppercase",color:"#fff"}}>{cur.grouping==="partners"?"Partners":"Groups"}</span>
+            <div style={{background:"var(--green)",padding:"6px 10px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",flex:1,minWidth:0}}>
+                <span style={{fontSize:13}}>👥</span>
+                <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:900,letterSpacing:".1em",textTransform:"uppercase",color:"rgba(255,255,255,.8)",flexShrink:0}}>{cur.grouping==="partners"?"Partners":"Groups"}</span>
+                {liveGroups.map((grp,gi)=>(<span key={gi} style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(255,255,255,.15)",borderRadius:20,padding:"2px 8px"}}>
+                  <span style={{fontSize:10,fontWeight:900,color:"rgba(255,255,255,.7)",marginRight:2}}>{cur.grouping==="partners"?"P"+(gi+1):"G"+(gi+1)}</span>
+                  {grp.map((p,pi)=>(<span key={p.id} style={{fontSize:12,fontWeight:700,color:"#fff"}}>{pi>0?" · ":""}{p.jersey?"#"+p.jersey+" ":""}{p.firstName}</span>))}
+                </span>))}
               </div>
-              <button onClick={()=>{const present=[...presentIds];const players=(team?team.players:[]).filter(p=>present.includes(p.id));setLiveGroups(assignGroups(players,cur.grouping,cur.numGroups||2));}} style={{fontSize:11,background:"rgba(255,255,255,.2)",border:"1px solid rgba(255,255,255,.4)",borderRadius:20,padding:"2px 10px",cursor:"pointer",color:"#fff",fontWeight:700}}>Reshuffle</button>
-            </div>
-            <div style={{background:"var(--gbg)",padding:"10px 12px"}}>
-              {liveGroups.map((grp,gi)=>(<div key={gi} style={{marginBottom:gi<liveGroups.length-1?10:0}}>
-                <div style={{fontSize:11,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>{cur.grouping==="partners"?"Pair "+(gi+1):"Group "+(gi+1)}</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                  {grp.map(p=>(<span key={p.id} style={{padding:"4px 10px",borderRadius:20,background:"#fff",border:"1.5px solid var(--gb)",fontSize:13,fontWeight:700,color:"var(--black)"}}>#{p.jersey||"?"} {p.firstName}</span>))}
-                </div>
-              </div>))}
+              <button onClick={()=>{const present=[...presentIds];const players=(team?team.players:[]).filter(p=>present.includes(p.id));setLiveGroups(assignGroups(players,cur.grouping,cur.numGroups||2));}} style={{fontSize:11,background:"rgba(255,255,255,.2)",border:"1px solid rgba(255,255,255,.4)",borderRadius:20,padding:"2px 8px",cursor:"pointer",color:"#fff",fontWeight:700,flexShrink:0,marginLeft:6}}>↺</button>
             </div>
           </div>}
           {cur.coachingPoints&&<div style={{borderRadius:"var(--r)",overflow:"hidden"}}>
