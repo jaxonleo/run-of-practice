@@ -2483,7 +2483,11 @@ function ModalLayer({modal,data,update,closeModal}){
             <div className="fld"><label className="lbl">Category</label>
               <div style={{position:"relative"}}>
                 <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4,scrollbarWidth:"none",msOverflowStyle:"none",WebkitOverflowScrolling:"touch"}}>
-                  {(()=>{const sportCats=[...new Set((data.activityLibrary||[]).filter(a=>a.sport===(f.sport||"General")).map(a=>a.category).filter(Boolean))];return["General",...sportCats].map(c=>(<button key={c} type="button" onClick={()=>setF(p=>({...p,category:c==="General"?"":c,_addingCat:false}))} style={{flexShrink:0,padding:"5px 14px",borderRadius:20,border:"1.5px solid "+((f.category||"")===(c==="General"?"":c)?"var(--green)":"var(--b)"),background:(f.category||"")===(c==="General"?"":c)?"var(--green)":"var(--s1)",color:(f.category||"")===(c==="General"?"":c)?"#fff":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>{c}</button>));})()}
+                  {(()=>{
+  const savedCats=[...new Set((data.activityLibrary||[]).filter(a=>a.sport===(f.sport||"General")).map(a=>a.category).filter(Boolean))];
+  const allCats=["General",...savedCats,...((f.category&&!savedCats.includes(f.category))?[f.category]:[])];
+  return allCats.map(c=>(<button key={c} type="button" onClick={()=>setF(p=>({...p,category:c==="General"?"":c,_addingCat:false}))} style={{flexShrink:0,padding:"5px 14px",borderRadius:20,border:"1.5px solid "+((f.category||"")===(c==="General"?"":c)?"var(--green)":"var(--b)"),background:(f.category||"")===(c==="General"?"":c)?"var(--green)":"var(--s1)",color:(f.category||"")===(c==="General"?"":c)?"#fff":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>{c}</button>));
+})()}
                   <button type="button" onClick={()=>setF(p=>({...p,_addingCat:true,_newCat:""}))} style={{flexShrink:0,padding:"5px 14px",borderRadius:20,border:"1.5px dashed var(--gb)",background:"transparent",color:"var(--green)",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>+ New</button>
                 </div>
                 <div style={{position:"absolute",right:0,top:0,bottom:4,width:24,background:"linear-gradient(to right,transparent,#fff)",pointerEvents:"none"}}/>
