@@ -1896,39 +1896,41 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
           {cur.notes&&<div style={{fontSize:13,color:"var(--black2)",marginTop:8,fontStyle:"italic"}}>{cur.notes}</div>}
         </div>}
         {!isBlock&&!isCl&&cur&&<div style={{padding:"0 14px 14px",display:"flex",flexDirection:"column",gap:12}}>
-          {cur.playerGear&&<div style={{borderRadius:"var(--r)",overflow:"hidden"}}>
-            <div style={{background:"#92400e",padding:"6px 12px",display:"flex",alignItems:"center",gap:6}}>
-              <span style={{fontSize:14}}>🎒</span>
-              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:900,letterSpacing:".1em",textTransform:"uppercase",color:"#fff"}}>Player Gear</span>
+          {cur.playerGear&&<div style={{borderRadius:"var(--r)",border:"1px solid #fcd34d",overflow:"hidden"}}>
+            <div style={{background:"#fef9c3",padding:"5px 10px",display:"flex",alignItems:"center",gap:5}}>
+              <span style={{fontSize:12}}>🎒</span>
+              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",color:"#92400e"}}>Player Gear</span>
+              <span style={{fontSize:13,color:"#78350f",fontWeight:600,marginLeft:4}}>{cur.playerGear}</span>
             </div>
-            <div style={{background:"#fef3c7",padding:"10px 12px",fontSize:14,color:"#92400e",fontWeight:600,lineHeight:1.4}}>{cur.playerGear}</div>
           </div>}
-          {subName(cur.sublocationId)&&<div style={{borderRadius:"var(--r)",overflow:"hidden"}}>
-            <div style={{background:"#1e40af",padding:"6px 12px",display:"flex",alignItems:"center",gap:6}}>
-              <span style={{fontSize:14}}>📍</span>
-              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:900,letterSpacing:".1em",textTransform:"uppercase",color:"#fff"}}>Location</span>
-            </div>
-            <div style={{background:"#eff6ff",padding:"10px 12px",fontSize:14,color:"#1e40af",fontWeight:600}}>{subName(cur.sublocationId)}</div>
+          {subName(cur.sublocationId)&&<div style={{borderRadius:"var(--r)",border:"1px solid #bfdbfe",background:"#eff6ff",padding:"5px 10px",display:"flex",alignItems:"center",gap:5}}>
+            <span style={{fontSize:12}}>📍</span>
+            <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",color:"#1e40af"}}>Location</span>
+            <span style={{fontSize:13,color:"#1e3a8a",fontWeight:600,marginLeft:4}}>{subName(cur.sublocationId)}</span>
           </div>}
-          {liveGroups&&<div style={{borderRadius:"var(--r)",overflow:"hidden"}}>
-            <div style={{background:"var(--green)",padding:"6px 10px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",flex:1,minWidth:0}}>
-                <span style={{fontSize:13}}>👥</span>
-                <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:900,letterSpacing:".1em",textTransform:"uppercase",color:"rgba(255,255,255,.8)",flexShrink:0}}>{cur.grouping==="partners"?"Partners":"Groups"}</span>
-                {liveGroups.map((grp,gi)=>(<span key={gi} style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(255,255,255,.15)",borderRadius:20,padding:"2px 8px"}}>
-                  <span style={{fontSize:10,fontWeight:900,color:"rgba(255,255,255,.7)",marginRight:2}}>{cur.grouping==="partners"?"P"+(gi+1):"G"+(gi+1)}</span>
-                  {grp.map((p,pi)=>(<span key={p.id} style={{fontSize:12,fontWeight:700,color:"#fff"}}>{pi>0?" · ":""}{p.jersey?"#"+p.jersey+" ":""}{p.firstName}</span>))}
-                </span>))}
+          {liveGroups&&<div style={{borderRadius:"var(--r)",border:"1px solid var(--gb)",overflow:"hidden"}}>
+            <div style={{background:"var(--green)",padding:"4px 10px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{display:"flex",alignItems:"center",gap:5}}>
+                <span style={{fontSize:12}}>👥</span>
+                <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",color:"#fff"}}>{cur.grouping==="partners"?"Partners":"Groups"}</span>
               </div>
-              <button onClick={()=>{const present=[...presentIds];const players=(team?team.players:[]).filter(p=>present.includes(p.id));setLiveGroups(assignGroups(players,cur.grouping,cur.numGroups||2));}} style={{fontSize:11,background:"rgba(255,255,255,.2)",border:"1px solid rgba(255,255,255,.4)",borderRadius:20,padding:"2px 8px",cursor:"pointer",color:"#fff",fontWeight:700,flexShrink:0,marginLeft:6}}>↺</button>
+              <button onClick={()=>{const present=[...presentIds];const players=(team?team.players:[]).filter(p=>present.includes(p.id));setLiveGroups(assignGroups(players,cur.grouping,cur.numGroups||2));}} style={{fontSize:11,background:"rgba(255,255,255,.2)",border:"1px solid rgba(255,255,255,.4)",borderRadius:20,padding:"1px 8px",cursor:"pointer",color:"#fff",fontWeight:700}}>↺ Reshuffle</button>
+            </div>
+            <div style={{background:"var(--gbg)",padding:"8px 10px",display:"flex",flexDirection:"column",gap:6}}>
+              {liveGroups.map((grp,gi)=>(<div key={gi} style={{display:"flex",alignItems:"center",gap:6}}>
+                <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:900,color:"var(--green)",minWidth:24,textTransform:"uppercase"}}>{cur.grouping==="partners"?"P"+(gi+1):"G"+(gi+1)}</span>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                  {grp.map(p=>(<span key={p.id} style={{padding:"2px 8px",borderRadius:20,background:"#fff",border:"1px solid var(--gb)",fontSize:12,fontWeight:700,color:"var(--black)"}}>{"#"+(p.jersey||"?")+" "+p.firstName}</span>))}
+                </div>
+              </div>))}
             </div>
           </div>}
-          {cur.coachingPoints&&<div style={{borderRadius:"var(--r)",overflow:"hidden"}}>
-            <div style={{background:"#4f46e5",padding:"6px 12px",display:"flex",alignItems:"center",gap:6}}>
-              <span style={{fontSize:14}}>💡</span>
-              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:900,letterSpacing:".1em",textTransform:"uppercase",color:"#fff"}}>Coaching Focus</span>
+          {cur.coachingPoints&&<div style={{borderRadius:"var(--r)",border:"1px solid #c7d2fe",overflow:"hidden"}}>
+            <div style={{background:"#eef2ff",padding:"4px 10px",display:"flex",alignItems:"center",gap:5}}>
+              <span style={{fontSize:12}}>💡</span>
+              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",color:"#4338ca"}}>Coaching Focus</span>
             </div>
-            <div style={{background:"#eef2ff",padding:"10px 12px",fontSize:14,color:"#312e81",lineHeight:1.5}}>{cur.coachingPoints}</div>
+            <div style={{background:"#fff",padding:"8px 10px",fontSize:13,color:"#1e1b4b",lineHeight:1.5}}>{cur.coachingPoints}</div>
           </div>}
           {cur.notes&&<div style={{fontSize:13,color:"var(--td)",fontStyle:"italic",padding:"2px 4px"}}>{cur.notes}</div>}
           <div style={{fontSize:12,color:"var(--td)",padding:"2px 4px"}}>
@@ -2497,6 +2499,19 @@ function ModalLayer({modal,data,update,closeModal}){
         )}
         {(modal.type==="addActivity"||modal.type==="editActivity")&&(<div>
             <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
+            <div className="fld"><label className="lbl">Category</label>
+              <div style={{display:"flex",gap:6}}>
+                <select className="sel" style={{flex:1}} value={f.category||""} onChange={e=>{if(e.target.value!=="__new__")set("category",e.target.value);else set("_addingCat",true);}}>
+                  <option value="">General (no category)</option>
+                  {[...new Set((data.activityLibrary||[]).filter(a=>a.sport===(f.sport||"Basketball")).map(a=>a.category).filter(Boolean))].map(c=>(<option key={c} value={c}>{c}</option>))}
+                  <option value="__new__">+ Add new category...</option>
+                </select>
+              </div>
+              {f._addingCat&&<div style={{display:"flex",gap:6,marginTop:6}}>
+                <input className="inp" style={{flex:1}} autoFocus placeholder="Category name..." value={f._newCat||""} onChange={e=>set("_newCat",e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&(f._newCat||"").trim()){set("category",(f._newCat||"").trim());set("_newCat","");set("_addingCat",false);}}}/>
+                <button type="button" className="btn primary bxs" onClick={()=>{if((f._newCat||"").trim()){set("category",(f._newCat||"").trim());set("_newCat","");set("_addingCat",false);}}}>{(f._newCat||"").trim()?"Save":"✕"}</button>
+              </div>}
+            </div>
             <div className="g2"><div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||"General"} onChange={e=>set("sport",e.target.value)}>{SPORTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div><div className="fld"><label className="lbl">Duration (min)</label><DurStepper value={f.duration||10} min={1} onChange={v=>set("duration",v)}/></div></div>
             <div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:50}} value={f.description||""} onChange={e=>set("description",e.target.value)}/></div>
             <div className="fld"><label className="lbl">Player Grouping</label>
