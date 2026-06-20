@@ -1950,7 +1950,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
         </div>}
         {isBlock&&!inTrans&&rotatedStations&&<div>
           {focusSt!==null&&<div>
-            <div style={{padding:"0 0 12px",borderBottom:"1px solid var(--b)",marginBottom:14,display:"flex",alignItems:"center",gap:10}}><button onClick={()=>setFocusSt(null)} style={{display:"flex",alignItems:"center",gap:6,background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:20,padding:"6px 14px",fontSize:13,fontWeight:700,cursor:"pointer",color:"var(--black)"}}><span style={{fontSize:16}}>&#8592;</span>All Stations</button></div
+            <div style={{padding:"0 0 12px",borderBottom:"1px solid var(--b)",marginBottom:14,display:"flex",alignItems:"center",gap:10}}><button onClick={()=>setFocusSt(null)} style={{display:"flex",alignItems:"center",gap:6,background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:20,padding:"6px 14px",fontSize:13,fontWeight:700,cursor:"pointer",color:"var(--black)"}}><span style={{fontSize:16}}>&#8592;</span>All Stations</button></div>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:4}}>{rotatedStations[focusSt].name}</div>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:32,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:4}}>{rotatedStations[focusSt].activityName||rotatedStations[focusSt].name}</div>
             {(coachName(rotatedStations[focusSt].coachId)||subName(rotatedStations[focusSt].sublocationId))&&<div style={{fontSize:14,fontWeight:600,color:"var(--green2)",marginBottom:8}}>
