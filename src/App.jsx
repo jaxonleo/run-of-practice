@@ -2475,44 +2475,15 @@ function ModalLayer({modal,data,update,closeModal}){
         )}
         {(modal.type==="addAsset"||modal.type==="editAsset")&&(<div>
             <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
-            <div className="fld"><label className="lbl">Category</label><div style={{display:"flex",gap:6}}><select className="sel" style={{flex:1}} value={f.category||""} onChange={e=>{if(e.target.value==="__new__")return;set("category",e.target.value);}}><option value="">General</option>{[...new Set((data.activityLibrary||[]).filter(a=>a.sport===(f.sport||"Basketball")).map(a=>a.category).filter(Boolean))].map(c=><option key={c} value={c}>{c}</option>)}<option value="__new__">+ Add new...</option></select></div>{(f.category==="__new__"||f._addingCat)&&<div style={{display:"flex",gap:6,marginTop:6}}><input className="inp" style={{flex:1}} autoFocus placeholder="New category name..." value={f._newCat||""} onChange={e=>set("_newCat",e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&f._newCat?.trim()){set("category",f._newCat.trim());set("_newCat","");set("_addingCat",false);}}}/><button type="button" className="btn ghost bxs" onClick={()=>{if(f._newCat?.trim()){set("category",f._newCat.trim());set("_newCat","");set("_addingCat",false);}else{set("category","");set("_addingCat",false);}}}>{f._newCat?.trim()?"Save":"Cancel"}</button></div>}</div>
-            <div className="fld"><label className="lbl">Tag Locations (leave empty for all)</label>
-              {data.locations.map(l=>(<div key={l.id} className="row" style={{marginBottom:8}}>
-                  <div onClick={()=>togTag(l.id)} style={{width:22,height:22,borderRadius:4,border:"1.5px solid",borderColor:f.locationTags&&f.locationTags.includes(l.id)?"var(--green)":"var(--b)",background:f.locationTags&&f.locationTags.includes(l.id)?"var(--green)":"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
-                    {f.locationTags&&f.locationTags.includes(l.id)&&<Ic.Check/>}
-                  </div>
-                  <span style={{fontSize:14}}>{l.name}</span>
+            <div className="fld"><label className="lbl">Category</label>
+              <div style={{position:"relative"}}>
+                <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4,scrollbarWidth:"none",msOverflowStyle:"none",WebkitOverflowScrolling:"touch"}}>
+                  {(()=>{const sportCats=[...new Set((data.activityLibrary||[]).filter(a=>a.sport===(f.sport||"General")).map(a=>a.category).filter(Boolean))];return["General",...sportCats].map(c=>(<button key={c} type="button" onClick={()=>setF(p=>({...p,category:c==="General"?"":c,_addingCat:false}))} style={{flexShrink:0,padding:"5px 14px",borderRadius:20,border:"1.5px solid "+(( f.category||"")===(c==="General"?"":c)?"var(--green)":"var(--b)"),background:(f.category||"")===(c==="General"?"":c)?"var(--green)":"var(--s1)",color:(f.category||"")===(c==="General"?"":c)?"#fff":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>{c}</button>));})()}
+                  <button type="button" onClick={()=>setF(p=>({...p,_addingCat:true,_newCat:""}))} style={{flexShrink:0,padding:"5px 14px",borderRadius:20,border:"1.5px dashed var(--gb)",background:"transparent",color:"var(--green)",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>+ New</button>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {(modal.type==="editTeam")&&(<div>
-            <div className="fld"><label className="lbl">Team Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
-            <div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||"Basketball"} onChange={e=>set("sport",e.target.value)}>{["General","Baseball","Basketball","Football","Soccer","Softball","Volleyball","Other"].map(s=><option key={s} value={s}>{s}</option>)}</select></div>
-          </div>
-        )}
-        {(modal.type==="editTemplate")&&(<div>
-            <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
-            <div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||"General"} onChange={e=>set("sport",e.target.value)}>{["General","Baseball","Basketball","Football","Soccer","Softball","Volleyball","Other"].map(s=><option key={s} value={s}>{s}</option>)}</select></div>
-          </div>
-        )}
-        {(modal.type==="addActivity"||modal.type==="editActivity")&&(<div>
-            <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
-<div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||"General"} onChange={e=>set("sport",e.target.value)}>{SPORTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
-<div className="fld"><label className="lbl">Duration (min)</label><DurStepper value={f.duration||10} min={1} onChange={v=>set("duration",v)}/></div>
-<div className="fld"><label className="lbl">Category</label>
-              <select className="sel" value={f._addingCat?"__new__":(f.category||"")} onChange={e=>{if(e.target.value==="__new__")setF(p=>({...p,_addingCat:true,_newCat:""}));else setF(p=>({...p,category:e.target.value,_addingCat:false}));}}>
-                <option value="">General (no category)</option>
-                {[...new Set((data.activityLibrary||[]).filter(a=>a.sport===(f.sport||"Basketball")).map(a=>a.category).filter(Boolean))].map(c=>(<option key={c} value={c}>{c}</option>))}
-                <option value="__new__">+ Add new category...</option>
-              </select>
-              {f._addingCat&&<div style={{display:"flex",gap:6,marginTop:6}}>
-                <input className="inp" style={{flex:1}} autoFocus placeholder="e.g. Individual Defense" value={f._newCat||""} onChange={e=>setF(p=>({...p,_newCat:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"){const nm=(f._newCat||"").trim();if(nm)setF(p=>({...p,category:nm,_addingCat:false,_newCat:""}));}}}/>
-                <button type="button" className="btn primary bxs" onClick={()=>{const nm=(f._newCat||"").trim();if(nm)setF(p=>({...p,category:nm,_addingCat:false,_newCat:""}));else setF(p=>({...p,_addingCat:false,_newCat:""}));}}>Save</button>
-                <button type="button" className="btn ghost bxs" onClick={()=>setF(p=>({...p,_addingCat:false,_newCat:""}))}>Cancel</button>
-              </div>}
-              {!f._addingCat&&f.category&&<div style={{fontSize:12,color:"var(--green)",marginTop:4,fontWeight:600}}>Category: {f.category}</div>}
+                <div style={{position:"absolute",right:0,top:0,bottom:4,width:24,background:"linear-gradient(to right,transparent,#fff)",pointerEvents:"none"}}/>
+              </div>
+              {f._addingCat&&<div style={{display:"flex",gap:6,marginTop:6}}><input className="inp" style={{flex:1}} autoFocus placeholder="e.g. Individual Defense" value={f._newCat||""} onChange={e=>setF(p=>({...p,_newCat:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"){const nm=(f._newCat||"").trim();if(nm)setF(p=>({...p,category:nm,_addingCat:false,_newCat:""}));}}}/><button type="button" className="btn primary bxs" onClick={()=>{const nm=(f._newCat||"").trim();if(nm)setF(p=>({...p,category:nm,_addingCat:false,_newCat:""}));else setF(p=>({...p,_addingCat:false}));}}>Save</button></div>}
             </div>
 <div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:50}} value={f.description||""} onChange={e=>set("description",e.target.value)}/></div>
 <div className="fld"><label className="lbl">Player Grouping</label>
