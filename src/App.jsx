@@ -811,7 +811,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const allPlayerIds=team?team.players.map(p=>p.id):[];
   const totalMins=sumMins(acts);
   const addAct=lib=>{
-    setActs(p=>[...p,{id:uid(),type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:allPlayerIds,coachId:headCoachId,sublocationId:"",notes:"",coachingPoints:lib.coachingPoints||""}]);
+    setActs(p=>[...p,{id:uid(),type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:(lib.grouping&&lib.grouping!=="whole")?[]:allPlayerIds,coachId:headCoachId,sublocationId:"",notes:"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",coachingPoints:lib.coachingPoints||""}]);
   };
   const addChecklist=isClose=>{
     const a={id:uid(),type:"checklist",name:isClose?"Closer":"Intro",duration:5,assignments:allPlayerIds,coachId:headCoachId,items:[],notes:""};
@@ -998,25 +998,13 @@ function ActConfig({act,team,loc,onChange,onDone}){
         </select>
       </div>
       <div className="fld mb8"><label className="lbl">Equipment</label><input className="inp" placeholder="e.g. 6 cones, 2 ball racks" value={act.equipment||""} onChange={e=>onChange({equipment:e.target.value})}/></div>
-      {act.grouping&&act.grouping!=="whole"&&<div className="fld mb8">
-        <div style={{fontSize:12,color:"var(--td)",marginBottom:4}}>Grouping from drill settings:</div>
-        <span className="bdg bs" style={{fontSize:12}}>{act.grouping==="partners"?"Partners":act.numGroups+" Groups"}</span>
-      </div>}
+      <div className="fld mb8"><label className="lbl">Grouping</label>
+        {(!act.grouping||act.grouping==="whole")&&<span className="bdg bs" style={{fontSize:12}}>Whole Team</span>}
+        {act.grouping==="partners"&&<span className="bdg bp" style={{fontSize:12}}>Partners — auto-assigned at run time</span>}
+        {act.grouping==="groups"&&<span className="bdg bp" style={{fontSize:12}}>{act.numGroups||2} Groups — auto-assigned at run time</span>}
+      </div>
       <div className="fld mb8"><label className="lbl">Notes</label><textarea className="ta" style={{minHeight:44}} value={act.notes||""} placeholder="Notes for this activity..." onChange={e=>onChange({notes:e.target.value})}/></div>
-      {team&&(<div className="mb8">
-          <label className="lbl">Players ({act.assignments?act.assignments.length:0}/{team.players.length})</label>
-          <div className="cgrid">
-            {team.players.map(p=>(<div key={p.id} className={"chip "+(act.assignments&&act.assignments.includes(p.id)?"on":"")} onClick={()=>tog(p.id)}>
-                <div className="cn">{p.jersey?"#"+p.jersey:p.firstName.slice(0,2)}</div>
-                <div className="cf">{p.firstName}</div>
-              </div>
-            ))}
-          </div>
-          <div className="row mt6">
-            <button className="btn ghost bxs" onClick={()=>onChange({assignments:team.players.map(p=>p.id)})}>All</button>
-            <button className="btn ghost bxs" onClick={()=>onChange({assignments:[]})}>None</button>
-          </div>
-        </div>
+      
       )}
       <button className="btn primary bsm bfull mt6" onClick={onDone}>Done</button>
     </div>
