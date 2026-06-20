@@ -2474,50 +2474,38 @@ function ModalLayer({modal,data,update,closeModal}){
         {(modal.type==="addLocation"||modal.type==="editLocation"||modal.type==="addSublocation")&&(<div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
         )}
         {(modal.type==="addAsset"||modal.type==="editAsset")&&(<div>
+            <div className="fld"><label className="lbl">Equipment Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
+          </div>
+        )}
+        {(modal.type==="addActivity"||modal.type==="editActivity")&&(<div>
             <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
+            <div className="brow" style={{gap:10,alignItems:"flex-end"}}><div className="fld" style={{flex:2}}><label className="lbl">Sport</label><select className="sel" value={f.sport||"General"} onChange={e=>{set("sport",e.target.value);lastSportRef.current=e.target.value;}}>{SPORTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div><div className="fld" style={{flex:1}}><label className="lbl">Duration (min)</label><DurStepper value={f.duration||10} min={1} onChange={v=>set("duration",v)}/></div></div>
             <div className="fld"><label className="lbl">Category</label>
               <div style={{position:"relative"}}>
                 <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4,scrollbarWidth:"none",msOverflowStyle:"none",WebkitOverflowScrolling:"touch"}}>
-                  {(()=>{const sportCats=[...new Set((data.activityLibrary||[]).filter(a=>a.sport===(f.sport||"General")).map(a=>a.category).filter(Boolean))];return["General",...sportCats].map(c=>(<button key={c} type="button" onClick={()=>setF(p=>({...p,category:c==="General"?"":c,_addingCat:false}))} style={{flexShrink:0,padding:"5px 14px",borderRadius:20,border:"1.5px solid "+(( f.category||"")===(c==="General"?"":c)?"var(--green)":"var(--b)"),background:(f.category||"")===(c==="General"?"":c)?"var(--green)":"var(--s1)",color:(f.category||"")===(c==="General"?"":c)?"#fff":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>{c}</button>));})()}
+                  {(()=>{const sportCats=[...new Set((data.activityLibrary||[]).filter(a=>a.sport===(f.sport||"General")).map(a=>a.category).filter(Boolean))];return["General",...sportCats].map(c=>(<button key={c} type="button" onClick={()=>setF(p=>({...p,category:c==="General"?"":c,_addingCat:false}))} style={{flexShrink:0,padding:"5px 14px",borderRadius:20,border:"1.5px solid "+((f.category||"")===(c==="General"?"":c)?"var(--green)":"var(--b)"),background:(f.category||"")===(c==="General"?"":c)?"var(--green)":"var(--s1)",color:(f.category||"")===(c==="General"?"":c)?"#fff":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>{c}</button>));})()}
                   <button type="button" onClick={()=>setF(p=>({...p,_addingCat:true,_newCat:""}))} style={{flexShrink:0,padding:"5px 14px",borderRadius:20,border:"1.5px dashed var(--gb)",background:"transparent",color:"var(--green)",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>+ New</button>
                 </div>
                 <div style={{position:"absolute",right:0,top:0,bottom:4,width:24,background:"linear-gradient(to right,transparent,#fff)",pointerEvents:"none"}}/>
               </div>
               {f._addingCat&&<div style={{display:"flex",gap:6,marginTop:6}}><input className="inp" style={{flex:1}} autoFocus placeholder="e.g. Individual Defense" value={f._newCat||""} onChange={e=>setF(p=>({...p,_newCat:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"){const nm=(f._newCat||"").trim();if(nm)setF(p=>({...p,category:nm,_addingCat:false,_newCat:""}));}}}/><button type="button" className="btn primary bxs" onClick={()=>{const nm=(f._newCat||"").trim();if(nm)setF(p=>({...p,category:nm,_addingCat:false,_newCat:""}));else setF(p=>({...p,_addingCat:false}));}}>Save</button></div>}
             </div>
-<div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:50}} value={f.description||""} onChange={e=>set("description",e.target.value)}/></div>
-<div className="fld"><label className="lbl">Player Grouping</label>
+            <div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:50}} value={f.description||""} onChange={e=>set("description",e.target.value)} placeholder="What does this drill do?"/></div>
+            <div className="fld"><label className="lbl">Player Grouping</label>
               <div style={{display:"flex",gap:6}}>
-                {[{v:"whole",l:"Whole Team",sub:"All players together"},{v:"partners",l:"Partners",sub:"Paired in groups of 2"},{v:"groups",l:"Groups",sub:"Split into groups"}].map(({v,l,sub})=>(<button key={v} type="button" onClick={()=>set("grouping",v)} style={{flex:1,padding:"8px 4px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(f.grouping||"whole")===v?"var(--green)":"var(--s1)",color:(f.grouping||"whole")===v?"#fff":"var(--black)",fontSize:13,cursor:"pointer",lineHeight:1.3}}>
-                  <div style={{fontWeight:700}}>{l}</div>
-                  {(f.grouping||"whole")===v&&<div style={{fontSize:10,opacity:.8,marginTop:2}}>{sub}</div>}
-                </button>))}
+                {[{v:"whole",l:"Whole Team",sub:"All players together"},{v:"partners",l:"Partners",sub:"Paired in groups of 2"},{v:"groups",l:"Groups",sub:"Split into groups"}].map(({v,l,sub})=>(<button key={v} type="button" onClick={()=>set("grouping",v)} style={{flex:1,padding:"8px 4px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(f.grouping||"whole")===v?"var(--green)":"var(--s1)",color:(f.grouping||"whole")===v?"#fff":"var(--black)",fontSize:13,cursor:"pointer",lineHeight:1.3}}><div style={{fontWeight:700}}>{l}</div>{(f.grouping||"whole")===v&&<div style={{fontSize:10,opacity:.8,marginTop:2}}>{sub}</div>}</button>))}
               </div>
-              {(f.grouping||"whole")==="groups"&&<div style={{marginTop:8}}>
-                <div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>How many groups?</div>
-                <div style={{display:"flex",gap:6}}>
-                  {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>set("numGroups",n)} style={{flex:1,padding:"8px 0",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:f.numGroups===n?"var(--green)":"var(--s1)",color:f.numGroups===n?"#fff":"var(--black)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
-                </div>
-              </div>}
+              {(f.grouping||"whole")==="groups"&&<div style={{marginTop:8}}><div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>How many groups?</div><div style={{display:"flex",gap:6}}>{[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>set("numGroups",n)} style={{flex:1,padding:"8px 0",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:f.numGroups===n?"var(--green)":"var(--s1)",color:f.numGroups===n?"#fff":"var(--black)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}</div></div>}
             </div>
-<div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" style={{minHeight:50}} value={f.coachingPoints||""} onChange={e=>set("coachingPoints",e.target.value)}/></div>
-<div className="fld"><label className="lbl">Team Equipment</label>
+            <div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" style={{minHeight:50}} value={f.coachingPoints||""} onChange={e=>set("coachingPoints",e.target.value)} placeholder="Key cues for players"/></div>
+            <div className="fld"><label className="lbl">Team Equipment</label>
               <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
                 {data.assets.map(a=>(<button key={a.id} type="button" onClick={()=>{const cur=(f.equipment||[]);const has=cur.includes(a.id);set("equipment",has?cur.filter(x=>x!==a.id):[...cur,a.id]);}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:(f.equipment||[]).includes(a.id)?"var(--green)":"var(--s1)",color:(f.equipment||[]).includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
                 {data.assets.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No equipment in library yet</span>}
               </div>
-              <div style={{display:"flex",gap:6}}>
-                <input className="inp" placeholder="Add new equipment..." id="new-equip-inp" style={{flex:1}}/>
-                <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-equip-inp");if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();update(d=>{d.assets.push({id:newId,name:nm,locationTags:[]});return d;});set("equipment",[...(f.equipment||[]),newId]);el.value="";}}>Add</button>
-              </div>
+              <div style={{display:"flex",gap:6}}><input className="inp" placeholder="Add new equipment..." id="new-equip-inp" style={{flex:1}}/><button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-equip-inp");if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();update(d=>{d.assets.push({id:newId,name:nm,locationTags:[]});return d;});set("equipment",[...(f.equipment||[]),newId]);el.value="";}}>Add</button></div>
             </div>
-<div className="fld"><label className="lbl">Player Gear Needed</label><input className="inp" placeholder="e.g. Batting helmet, glove" value={f.playerGear||""} onChange={e=>set("playerGear",e.target.value)}/></div>
-<div className="g2"></div>
-            
-            
-            
-            
-            
+            <div className="fld"><label className="lbl">Player Gear Needed</label><input className="inp" placeholder="e.g. Batting helmet, glove" value={f.playerGear||""} onChange={e=>set("playerGear",e.target.value)}/></div>
           </div>
         )}
         <div className="mfooter"><button className="btn ghost bmd" onClick={closeModal}>Cancel</button><button className="btn primary bmd" onClick={save}>Save</button></div>
