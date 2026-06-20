@@ -1755,7 +1755,8 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
   const schedDelta=(practiceStart&&practice&&practice.startTime&&practice.durMin)?(Math.floor((Date.now()-practiceStart)/60000)-completedMins-Math.floor(elapsed/60)):null;
   const rotatedStations=isBlock&&cur.stations?(()=>{const n=cur.stations.length;return cur.stations.map((st,i)=>{const srcIdx=(i-stIdx%n+n)%n;return Object.assign({},cur.stations[i],{assignments:cur.stations[srcIdx].assignments});});})():null;
 
-  const beep=useCallback(()=>{try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type="sine";o.frequency.value=880;g.gain.setValueAtTime(0.6,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.6);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.6);}catch(e){}},[]);
+  const unlockAudio=async()=>{try{if(!audioCtxRef.current){audioCtxRef.current=new(window.AudioContext||window.webkitAudioContext)();}const ctx=audioCtxRef.current;if(ctx.state!=='running'){await ctx.resume();}return ctx;}catch(e){return null;}};
+  const beep=useCallback(async()=>{if(!audioOn)return;const ctx=await unlockAudio();if(!ctx)return;try{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(0.4,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.3);}catch(e){}},[ audioOn]);
   const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
 
   const applyAtt=useCallback((pIds,cIds,mode,baseActs)=>{const allPlayers=team?team.players:[];return baseActs.map(act=>{if(act.type!=="station_block")return Object.assign({},act,{assignments:(act.assignments||[]).filter(id=>pIds.has(id))});const newSt=mode==="rebalance"?rebalanceEven(act.stations,pIds,allPlayers):rebalanceKeep(act.stations,pIds);return Object.assign({},act,{stations:newSt});});},[team]);
@@ -1849,7 +1850,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
             <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
           </button>
           <button className="btn ghost bxs" onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}</button>
-          <button onClick={()=>{if(!audioOn){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();audioCtxRef.current=ctx;const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);g.gain.value=0.01;o.start();o.stop(ctx.currentTime+0.01);}catch(e){}}spoken.current={};setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊 On":"🔇 Off"}</button>
+          <button onClick={async()=>{if(!audioOn){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();audioCtxRef.current=ctx;await ctx.resume();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=440;g.gain.setValueAtTime(0.1,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.2);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.2);}catch(e){console.error('audio unlock:',e);}};spoken.current={};setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊 On":"🔇 Off"}</button>
           <div style={{position:"relative"}}>
             <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
             {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
@@ -1894,20 +1895,51 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
           </div>))}
           {cur.notes&&<div style={{fontSize:13,color:"var(--black2)",marginTop:8,fontStyle:"italic"}}>{cur.notes}</div>}
         </div>}
-        {!isBlock&&!isCl&&cur&&<div className="cc-focus">
-          {cur.playerGear&&<div style={{padding:"8px 10px",background:"var(--ambg)",border:"1px solid var(--ambb)",borderRadius:"var(--rs)",marginBottom:8,fontSize:13,color:"var(--amber)",fontWeight:600}}>Player gear: {cur.playerGear}</div>}
-          {liveGroups&&<div style={{marginBottom:10}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-              <div className="cc-focus-lbl">{cur.grouping==="partners"?"PARTNERS":"GROUPS"}</div>
-              <button onClick={()=>{const present=[...presentIds];const players=(team?team.players:[]).filter(p=>present.includes(p.id));setLiveGroups(assignGroups(players,cur.grouping,cur.numGroups||2));}} style={{fontSize:11,background:"var(--s2)",border:"1px solid var(--b)",borderRadius:"var(--rs)",padding:"2px 8px",cursor:"pointer",color:"var(--td)"}}>Reshuffle</button>
+        {!isBlock&&!isCl&&cur&&<div style={{padding:"0 14px 14px",display:"flex",flexDirection:"column",gap:12}}>
+          {cur.playerGear&&<div style={{borderRadius:"var(--r)",overflow:"hidden"}}>
+            <div style={{background:"#92400e",padding:"6px 12px",display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:14}}>🎒</span>
+              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:900,letterSpacing:".1em",textTransform:"uppercase",color:"#fff"}}>Player Gear</span>
             </div>
-            {liveGroups.map((grp,gi)=>(<div key={gi} style={{marginBottom:6}}>
-              <div style={{fontSize:10,fontWeight:700,color:"var(--td)",marginBottom:3}}>{cur.grouping==="partners"?"Pair "+(gi+1):"Group "+(gi+1)}</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                {grp.map(p=>(<span key={p.id} style={{padding:"3px 8px",borderRadius:20,background:"var(--gbg)",border:"1px solid var(--gb)",fontSize:12,fontWeight:600,color:"var(--green)"}}>#{p.jersey||"?"} {p.firstName}</span>))}
-              </div>
-            </div>))}
+            <div style={{background:"#fef3c7",padding:"10px 12px",fontSize:14,color:"#92400e",fontWeight:600,lineHeight:1.4}}>{cur.playerGear}</div>
           </div>}
+          {subName(cur.sublocationId)&&<div style={{borderRadius:"var(--r)",overflow:"hidden"}}>
+            <div style={{background:"#1e40af",padding:"6px 12px",display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:14}}>📍</span>
+              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:900,letterSpacing:".1em",textTransform:"uppercase",color:"#fff"}}>Location</span>
+            </div>
+            <div style={{background:"#eff6ff",padding:"10px 12px",fontSize:14,color:"#1e40af",fontWeight:600}}>{subName(cur.sublocationId)}</div>
+          </div>}
+          {liveGroups&&<div style={{borderRadius:"var(--r)",overflow:"hidden"}}>
+            <div style={{background:"var(--green)",padding:"6px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <span style={{fontSize:14}}>👥</span>
+                <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:900,letterSpacing:".1em",textTransform:"uppercase",color:"#fff"}}>{cur.grouping==="partners"?"Partners":"Groups"}</span>
+              </div>
+              <button onClick={()=>{const present=[...presentIds];const players=(team?team.players:[]).filter(p=>present.includes(p.id));setLiveGroups(assignGroups(players,cur.grouping,cur.numGroups||2));}} style={{fontSize:11,background:"rgba(255,255,255,.2)",border:"1px solid rgba(255,255,255,.4)",borderRadius:20,padding:"2px 10px",cursor:"pointer",color:"#fff",fontWeight:700}}>Reshuffle</button>
+            </div>
+            <div style={{background:"var(--gbg)",padding:"10px 12px"}}>
+              {liveGroups.map((grp,gi)=>(<div key={gi} style={{marginBottom:gi<liveGroups.length-1?10:0}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>{cur.grouping==="partners"?"Pair "+(gi+1):"Group "+(gi+1)}</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                  {grp.map(p=>(<span key={p.id} style={{padding:"4px 10px",borderRadius:20,background:"#fff",border:"1.5px solid var(--gb)",fontSize:13,fontWeight:700,color:"var(--black)"}}>#{p.jersey||"?"} {p.firstName}</span>))}
+                </div>
+              </div>))}
+            </div>
+          </div>}
+          {cur.coachingPoints&&<div style={{borderRadius:"var(--r)",overflow:"hidden"}}>
+            <div style={{background:"#4f46e5",padding:"6px 12px",display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:14}}>💡</span>
+              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:900,letterSpacing:".1em",textTransform:"uppercase",color:"#fff"}}>Coaching Focus</span>
+            </div>
+            <div style={{background:"#eef2ff",padding:"10px 12px",fontSize:14,color:"#312e81",lineHeight:1.5}}>{cur.coachingPoints}</div>
+          </div>}
+          {cur.notes&&<div style={{fontSize:13,color:"var(--td)",fontStyle:"italic",padding:"2px 4px"}}>{cur.notes}</div>}
+          <div style={{fontSize:12,color:"var(--td)",padding:"2px 4px"}}>
+            {coachName(cur.coachId)&&<div>Coach: {coachName(cur.coachId)}</div>}
+          </div>
+        </div>}
+        {!isBlock&&!isCl&&cur&&false&&<div className="cc-focus">
           {cur.coachingPoints&&<div><div className="cc-focus-lbl">Coaching Focus</div><div className="cc-focus-txt">{cur.coachingPoints}</div></div>}
           {cur.notes&&<div style={{fontSize:14,color:"var(--black2)",marginTop:8,fontStyle:"italic",lineHeight:1.5}}>{cur.notes}</div>}
           <div style={{marginTop:10,fontSize:13,color:"var(--tm)"}}>
@@ -1918,7 +1950,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
         </div>}
         {isBlock&&!inTrans&&rotatedStations&&<div>
           {focusSt!==null&&<div>
-            <button className="btn ghost bxs" style={{marginBottom:10}} onClick={()=>setFocusSt(null)}>&#8249; All Stations</button>
+            <div style={{padding:"0 0 12px",borderBottom:"1px solid var(--b)",marginBottom:14,display:"flex",alignItems:"center",gap:10}}><button onClick={()=>setFocusSt(null)} style={{display:"flex",alignItems:"center",gap:6,background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:20,padding:"6px 14px",fontSize:13,fontWeight:700,cursor:"pointer",color:"var(--black)"}}><span style={{fontSize:16}}>&#8592;</span>All Stations</button></div
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:4}}>{rotatedStations[focusSt].name}</div>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:32,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:4}}>{rotatedStations[focusSt].activityName||rotatedStations[focusSt].name}</div>
             {(coachName(rotatedStations[focusSt].coachId)||subName(rotatedStations[focusSt].sublocationId))&&<div style={{fontSize:14,fontWeight:600,color:"var(--green2)",marginBottom:8}}>
@@ -1957,7 +1989,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
               <div className="mhandle"/>
               <div className="mtitle">Move {(team&&team.players.find(p=>p.id===movePlayer)&&team.players.find(p=>p.id===movePlayer).firstName)||"Player"}</div>
               <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>Move to which station?</div>
-              {cur.stations.map((st,si)=>(<button key={st.id} className={"btn bmd bfull "+(si===stIdx?"ghost":"outline")} style={{marginBottom:8,opacity:si===stIdx?0.5:1}} disabled={si===stIdx} onClick={()=>{setLiveActs(prev=>prev.map(a=>{if(a.id!==cur.id)return a;const newSts=a.stations.map((s,i)=>{if(i===stIdx)return Object.assign({},s,{assignments:(s.assignments||[]).filter(id=>id!==movePlayer)});if(i===si)return Object.assign({},s,{assignments:[...(s.assignments||[]),movePlayer]});return s;});return Object.assign({},a,{stations:newSts});}));setMovePlayer(null);}}>
+              {cur.stations.map((st,si)=>(<button key={st.id} className={"btn bmd bfull "+((()=>{const playerStation=cur.stations.findIndex(s=>(s.assignments||[]).includes(movePlayer));return si===playerStation?"ghost":"outline";})())} style={{marginBottom:8,opacity:si===stIdx?0.5:1}} disabled={si===stIdx} onClick={()=>{setLiveActs(p=>p.map(a=>a.id===cur.id?{...a,stations:a.stations.map((s,si2)=>({...s,assignments:si2===si?[...new Set([...(s.assignments||[]).filter(id=>id!==movePlayer),movePlayer])]:(s.assignments||[]).filter(id=>id!==movePlayer)}))}:a));setMovePlayer(null);}}}>
                 {st.name}{st.activityName?": "+st.activityName:""}{si===stIdx?" (current)":""}
               </button>))}
               <button className="btn ghost bmd bfull" style={{marginTop:4}} onClick={()=>setMovePlayer(null)}>Cancel</button>
