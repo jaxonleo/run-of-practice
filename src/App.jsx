@@ -6,7 +6,7 @@ import { loadData, saveData, flushSave, setCoachKey, getCoaches, registerCoach, 
 const uid=()=>Math.random().toString(36).slice(2,9);
 const fmt12=(t)=>{if(!t)return"";const[h,m]=t.split(":").map(Number);const ampm=h>=12?"PM":"AM";const h12=h%12||12;return h12+":"+(m<10?"0":"")+m+" "+ampm;};
 const fmt=(s)=>{const neg=s<0;const abs=Math.abs(s);const m=Math.floor(abs/60),sec=abs%60;return(neg?"-":"")+String(m).padStart(2,"0")+":"+String(sec).padStart(2,"0");};
-const actSecs=(a)=>{if(a.type==="station_block"){const n=(a.stations?a.stations.length:0);return(n*(a.stationDuration||0)+Math.max(0,n-1)*(a.transitionDuration||0))*60;}return(a.duration||0)*60;};
+const actSecs=(a)=>{if(a.type==="station_block"){const n=(a.rotate!==false?(a.stations?a.stations.length:0):1);return(n*(a.stationDuration||0)+Math.max(0,n-1)*(a.transitionDuration||0))*60;}return(a.duration||0)*60;};
 const sumMins=(acts)=>Math.round(acts.reduce((s,a)=>s+actSecs(a),0)/60);
 const shuffle=(arr)=>[...arr].sort(()=>Math.random()-.5);
 function mkGroups(ids,n){const s=shuffle(ids),g=Array.from({length:n},()=>[]);s.forEach((id,i)=>g[i%n].push(id));return g;}
@@ -280,7 +280,7 @@ function PracticeDetail({practice,data,update,setView,setLiveId,setEditPracticeI
   const todayStr=now.toISOString().slice(0,10);
   const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
   const actLabel=a=>{if(a.type==="station_block")return "Station Block - "+a.stations.length+" stations";if(a.type==="checklist")return "Checklist";return a.name;};
-  const actMins=a=>{if(a.type==="station_block")return a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*a.transitionDuration;return a.duration||0;};
+  const actMins=a=>{if(a.type==="station_block"){const n=a.rotate!==false?a.stations.length:1;return n*a.stationDuration+Math.max(0,(a.rotate!==false?a.stations.length-1:0))*a.transitionDuration;}return a.duration||0;};
   const totalMins=(practice.activities||[]).reduce((s,a)=>s+actMins(a),0);
   const equipmentNeeded=[...new Set((practice.activities||[]).filter(a=>a.equipment).map(a=>a.equipment))];
   return (<div style={{paddingBottom:80}}>
@@ -404,7 +404,11 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
   const [editingTpl,setEditingTpl]=useState(null);
   const [confirmDel,setConfirmDel]=useState(null);
   const [collapsed,setCollapsed]=useState({});
+  const [collapsedCat,setCollapsedCat]=useState({});
+  const [drillMenu,setDrillMenu]=useState(null);
+  const [editingDrill,setEditingDrill]=useState(null);
   const toggle=sport=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}));
+  const toggleCat=key=>setCollapsedCat(c=>Object.assign({},c,{[key]:!c[key]}));
   const sports=[...new Set(data.activityLibrary.map(a=>a.sport))].sort();
   const templates=data.templates||[];
   const LTABS=["drills","templates","locations","equipment"];
@@ -430,22 +434,33 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
         {!collapsed[sport]&&(()=>{
           const sportDrills=data.activityLibrary.filter(a=>a.sport===sport);
           const cats=["General",...[...new Set(sportDrills.map(a=>a.category).filter(Boolean))].sort()];
-          const [collapsedCat,setCollapsedCat]=useState({});
           return cats.map(cat=>{
             const catDrills=cat==="General"?sportDrills.filter(a=>!a.category):sportDrills.filter(a=>a.category===cat);
             if(catDrills.length===0)return null;
+            const catKey=sport+"_"+cat;
             return (<div key={cat} style={{marginBottom:4}}>
-              <button onClick={()=>setCollapsedCat(c=>Object.assign({},c,{[cat]:!c[cat]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 12px 7px 20px",background:"var(--s2)",border:"none",cursor:"pointer",borderRadius:"var(--rs)"}}>
+              <button onClick={()=>toggleCat(catKey)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 12px 7px 20px",background:"var(--s2)",border:"none",cursor:"pointer",borderRadius:"var(--rs)"}}>
                 <span style={{fontSize:12,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em"}}>{cat}</span>
-                <span style={{fontSize:11,color:"var(--td)"}}>{catDrills.length} {collapsedCat[cat]?"":"▾"}</span>
+                <span style={{fontSize:11,color:"var(--td)"}}>{catDrills.length} {collapsedCat[catKey]?"›":"▾"}</span>
               </button>
-              {!collapsedCat[cat]&&catDrills.map(act=>(<div key={act.id} style={{padding:"10px 12px",borderLeft:"3px solid var(--gb)",marginLeft:12,marginBottom:3,background:"#fff"}}>
-                <div style={{fontWeight:600,fontSize:14,marginBottom:2}}>{act.name}</div>
-                {act.description&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.description}</div>}
-                {act.coachingPoints&&<div style={{fontSize:12,color:"var(--green2)",fontStyle:"italic",marginBottom:2}}>{act.coachingPoints}</div>}
-                {act.playerGear&&<div style={{fontSize:11,color:"#fbbf24",marginTop:2}}>Player gear: {act.playerGear}</div>}
-                {act.equipment&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--amber)",marginTop:2}}>Needs: {Array.isArray(act.equipment)?act.equipment.map(id=>{const a=data.assets.find(x=>x.id===id);return a?a.name:id;}).join(", "):act.equipment}</div>}
-                {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>{act.grouping==="partners"?"Partners":""+act.numGroups+" groups"}</div>}
+              {!collapsedCat[catKey]&&catDrills.map(act=>(<div key={act.id} style={{padding:"10px 12px",borderLeft:"3px solid var(--gb)",marginLeft:12,marginBottom:3,background:"#fff",position:"relative"}}>
+                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:14,marginBottom:2}}>{act.name}</div>
+                    {act.description&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.description}</div>}
+                    {act.coachingPoints&&<div style={{fontSize:12,color:"var(--green2)",fontStyle:"italic",marginBottom:2}}>{act.coachingPoints}</div>}
+                    {act.playerGear&&<div style={{fontSize:11,color:"#fbbf24",marginTop:2}}>Player gear: {act.playerGear}</div>}
+                    {act.equipment&&Array.isArray(act.equipment)&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--amber)",marginTop:2}}>Needs: {act.equipment.map(id=>{const a=data.assets.find(x=>x.id===id);return a?a.name:id;}).join(", ")}</div>}
+                    {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>{act.grouping==="partners"?"Partners":act.numGroups+" groups"}</div>}
+                  </div>
+                  <div style={{position:"relative",flexShrink:0,marginLeft:8}}>
+                    <button className="ell-btn" onClick={e=>{e.stopPropagation();setDrillMenu(drillMenu===act.id?null:act.id);}}><span/><span/><span/></button>
+                    {drillMenu===act.id&&<div className="mini-menu" style={{right:0,minWidth:120}}>
+                      <button className="mm-item" onClick={()=>{setDrillMenu(null);openModal("editActivity",{activity:act});}}>Edit</button>
+                      <button className="mm-item mm-danger" onClick={()=>{setDrillMenu(null);update(d=>{d.activityLibrary=d.activityLibrary.filter(a=>a.id!==act.id);return d;});}}>Delete</button>
+                    </div>}
+                  </div>
+                </div>
               </div>))}
             </div>);
           });
@@ -927,7 +942,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
               </div>
               <div className="row">
                 {act.type!=="station_block"&&<span className="bdg bp">{act.duration}m</span>}
-                {act.type==="station_block"&&<span className="bdg bp">{act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*act.transitionDuration:0)}m</span>}
+                {act.type==="station_block"&&<span className="bdg bp">{(act.rotate!==false?act.stations.length:1)*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*act.transitionDuration:0)}m</span>}
                 <button className="btn danger bxs" onClick={e=>{e.stopPropagation();remAct(act.id);}}>x</button>
               </div>
             </div>
@@ -983,6 +998,10 @@ function ActConfig({act,team,loc,onChange,onDone}){
         </select>
       </div>
       <div className="fld mb8"><label className="lbl">Equipment</label><input className="inp" placeholder="e.g. 6 cones, 2 ball racks" value={act.equipment||""} onChange={e=>onChange({equipment:e.target.value})}/></div>
+      {act.grouping&&act.grouping!=="whole"&&<div className="fld mb8">
+        <div style={{fontSize:12,color:"var(--td)",marginBottom:4}}>Grouping from drill settings:</div>
+        <span className="bdg bs" style={{fontSize:12}}>{act.grouping==="partners"?"Partners":act.numGroups+" Groups"}</span>
+      </div>}
       <div className="fld mb8"><label className="lbl">Notes</label><textarea className="ta" style={{minHeight:44}} value={act.notes||""} placeholder="Notes for this activity..." onChange={e=>onChange({notes:e.target.value})}/></div>
       {team&&(<div className="mb8">
           <label className="lbl">Players ({act.assignments?act.assignments.length:0}/{team.players.length})</label>
@@ -1677,6 +1696,19 @@ function HelperView({sessionId}){
   </div>);
 }
 
+function assignGroups(players, grouping, numGroups){
+  const arr=[...players].sort(()=>Math.random()-0.5);
+  if(grouping==="partners"){
+    const g=[];for(let i=0;i<arr.length;i+=2)g.push(arr.slice(i,i+2));
+    return g;
+  }
+  if(grouping==="groups"){
+    const n=numGroups||2;const g=Array.from({length:n},()=>[]);
+    arr.forEach((p,i)=>g[i%n].push(p));
+    return g.filter(x=>x.length>0);
+  }
+  return [arr];
+}
 function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
   const practice=liveId?data.practices.find(p=>p.id===liveId):null;
   const team=practice?data.teams.find(t=>t.id===practice.teamId):null;
@@ -1695,6 +1727,15 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
   const [running,setRunning]=useState(false);
   const [audioOn,setAudioOn]=useState(false);
   const audioCtxRef=useRef(null);
+  const [liveGroups,setLiveGroups]=useState(null);
+  useEffect(()=>{
+    if(!cur||cur.type==="station_block"||cur.type==="checklist")return;
+    const g=cur.grouping||"whole";
+    if(g==="whole"){setLiveGroups(null);return;}
+    const present=[...presentIds];
+    const players=(team?team.players:[]).filter(p=>present.includes(p.id));
+    setLiveGroups(assignGroups(players,g,cur.numGroups||2));
+  },[idx]);
   const [noteText,setNoteText]=useState("");
   const [showROS,setShowROS]=useState(false);
   const [clState,setClState]=useState({});
@@ -1866,6 +1907,19 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
           {cur.notes&&<div style={{fontSize:13,color:"var(--black2)",marginTop:8,fontStyle:"italic"}}>{cur.notes}</div>}
         </div>}
         {!isBlock&&!isCl&&cur&&<div className="cc-focus">
+          {cur.playerGear&&<div style={{padding:"8px 10px",background:"var(--ambg)",border:"1px solid var(--ambb)",borderRadius:"var(--rs)",marginBottom:8,fontSize:13,color:"var(--amber)",fontWeight:600}}>Player gear: {cur.playerGear}</div>}
+          {liveGroups&&<div style={{marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+              <div className="cc-focus-lbl">{cur.grouping==="partners"?"PARTNERS":"GROUPS"}</div>
+              <button onClick={()=>{const present=[...presentIds];const players=(team?team.players:[]).filter(p=>present.includes(p.id));setLiveGroups(assignGroups(players,cur.grouping,cur.numGroups||2));}} style={{fontSize:11,background:"var(--s2)",border:"1px solid var(--b)",borderRadius:"var(--rs)",padding:"2px 8px",cursor:"pointer",color:"var(--td)"}}>Reshuffle</button>
+            </div>
+            {liveGroups.map((grp,gi)=>(<div key={gi} style={{marginBottom:6}}>
+              <div style={{fontSize:10,fontWeight:700,color:"var(--td)",marginBottom:3}}>{cur.grouping==="partners"?"Pair "+(gi+1):"Group "+(gi+1)}</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                {grp.map(p=>(<span key={p.id} style={{padding:"3px 8px",borderRadius:20,background:"var(--gbg)",border:"1px solid var(--gb)",fontSize:12,fontWeight:600,color:"var(--green)"}}>#{p.jersey||"?"} {p.firstName}</span>))}
+              </div>
+            </div>))}
+          </div>}
           {cur.coachingPoints&&<div><div className="cc-focus-lbl">Coaching Focus</div><div className="cc-focus-txt">{cur.coachingPoints}</div></div>}
           {cur.notes&&<div style={{fontSize:14,color:"var(--black2)",marginTop:8,fontStyle:"italic",lineHeight:1.5}}>{cur.notes}</div>}
           <div style={{marginTop:10,fontSize:13,color:"var(--tm)"}}>
