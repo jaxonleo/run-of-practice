@@ -2499,22 +2499,23 @@ function ModalLayer({modal,data,update,closeModal}){
         )}
         {(modal.type==="addActivity"||modal.type==="editActivity")&&(<div>
             <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
-            <div className="fld"><label className="lbl">Category</label>
-              <div style={{display:"flex",gap:6}}>
-                <select className="sel" style={{flex:1}} value={f.category||""} onChange={e=>{if(e.target.value!=="__new__")set("category",e.target.value);else set("_addingCat",true);}}>
-                  <option value="">General (no category)</option>
-                  {[...new Set((data.activityLibrary||[]).filter(a=>a.sport===(f.sport||"Basketball")).map(a=>a.category).filter(Boolean))].map(c=>(<option key={c} value={c}>{c}</option>))}
-                  <option value="__new__">+ Add new category...</option>
-                </select>
-              </div>
+<div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||"General"} onChange={e=>set("sport",e.target.value)}>{SPORTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+<div className="fld"><label className="lbl">Duration (min)</label><DurStepper value={f.duration||10} min={1} onChange={v=>set("duration",v)}/></div>
+<div className="fld"><label className="lbl">Category</label>
+              <select className="sel" value={f._addingCat?"__new__":(f.category||"")} onChange={e=>{if(e.target.value==="__new__")setF(p=>({...p,_addingCat:true,_newCat:""}));else setF(p=>({...p,category:e.target.value,_addingCat:false}));}}>
+                <option value="">General (no category)</option>
+                {[...new Set((data.activityLibrary||[]).filter(a=>a.sport===(f.sport||"Basketball")).map(a=>a.category).filter(Boolean))].map(c=>(<option key={c} value={c}>{c}</option>))}
+                <option value="__new__">+ Add new category...</option>
+              </select>
               {f._addingCat&&<div style={{display:"flex",gap:6,marginTop:6}}>
-                <input className="inp" style={{flex:1}} autoFocus placeholder="Category name..." value={f._newCat||""} onChange={e=>set("_newCat",e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&(f._newCat||"").trim()){set("category",(f._newCat||"").trim());set("_newCat","");set("_addingCat",false);}}}/>
-                <button type="button" className="btn primary bxs" onClick={()=>{if((f._newCat||"").trim()){set("category",(f._newCat||"").trim());set("_newCat","");set("_addingCat",false);}}}>{(f._newCat||"").trim()?"Save":"✕"}</button>
+                <input className="inp" style={{flex:1}} autoFocus placeholder="e.g. Individual Defense" value={f._newCat||""} onChange={e=>setF(p=>({...p,_newCat:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"){const nm=(f._newCat||"").trim();if(nm)setF(p=>({...p,category:nm,_addingCat:false,_newCat:""}));}}}/>
+                <button type="button" className="btn primary bxs" onClick={()=>{const nm=(f._newCat||"").trim();if(nm)setF(p=>({...p,category:nm,_addingCat:false,_newCat:""}));else setF(p=>({...p,_addingCat:false,_newCat:""}));}}>Save</button>
+                <button type="button" className="btn ghost bxs" onClick={()=>setF(p=>({...p,_addingCat:false,_newCat:""}))}>Cancel</button>
               </div>}
+              {!f._addingCat&&f.category&&<div style={{fontSize:12,color:"var(--green)",marginTop:4,fontWeight:600}}>Category: {f.category}</div>}
             </div>
-            <div className="g2"><div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||"General"} onChange={e=>set("sport",e.target.value)}>{SPORTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div><div className="fld"><label className="lbl">Duration (min)</label><DurStepper value={f.duration||10} min={1} onChange={v=>set("duration",v)}/></div></div>
-            <div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:50}} value={f.description||""} onChange={e=>set("description",e.target.value)}/></div>
-            <div className="fld"><label className="lbl">Player Grouping</label>
+<div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:50}} value={f.description||""} onChange={e=>set("description",e.target.value)}/></div>
+<div className="fld"><label className="lbl">Player Grouping</label>
               <div style={{display:"flex",gap:6}}>
                 {[{v:"whole",l:"Whole Team",sub:"All players together"},{v:"partners",l:"Partners",sub:"Paired in groups of 2"},{v:"groups",l:"Groups",sub:"Split into groups"}].map(({v,l,sub})=>(<button key={v} type="button" onClick={()=>set("grouping",v)} style={{flex:1,padding:"8px 4px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(f.grouping||"whole")===v?"var(--green)":"var(--s1)",color:(f.grouping||"whole")===v?"#fff":"var(--black)",fontSize:13,cursor:"pointer",lineHeight:1.3}}>
                   <div style={{fontWeight:700}}>{l}</div>
@@ -2528,8 +2529,8 @@ function ModalLayer({modal,data,update,closeModal}){
                 </div>
               </div>}
             </div>
-            <div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" style={{minHeight:50}} value={f.coachingPoints||""} onChange={e=>set("coachingPoints",e.target.value)}/></div>
-            <div className="fld"><label className="lbl">Team Equipment</label>
+<div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" style={{minHeight:50}} value={f.coachingPoints||""} onChange={e=>set("coachingPoints",e.target.value)}/></div>
+<div className="fld"><label className="lbl">Team Equipment</label>
               <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
                 {data.assets.map(a=>(<button key={a.id} type="button" onClick={()=>{const cur=(f.equipment||[]);const has=cur.includes(a.id);set("equipment",has?cur.filter(x=>x!==a.id):[...cur,a.id]);}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:(f.equipment||[]).includes(a.id)?"var(--green)":"var(--s1)",color:(f.equipment||[]).includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
                 {data.assets.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No equipment in library yet</span>}
@@ -2539,11 +2540,16 @@ function ModalLayer({modal,data,update,closeModal}){
                 <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-equip-inp");if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();update(d=>{d.assets.push({id:newId,name:nm,locationTags:[]});return d;});set("equipment",[...(f.equipment||[]),newId]);el.value="";}}>Add</button>
               </div>
             </div>
-            <div className="fld"><label className="lbl">Player Gear Needed</label><input className="inp" placeholder="e.g. Batting helmet, glove" value={f.playerGear||""} onChange={e=>set("playerGear",e.target.value)}/></div>
+<div className="fld"><label className="lbl">Player Gear Needed</label><input className="inp" placeholder="e.g. Batting helmet, glove" value={f.playerGear||""} onChange={e=>set("playerGear",e.target.value)}/></div>
+<div className="g2"></div>
+            
+            
+            
+            
+            
           </div>
         )}
         <div className="mfooter"><button className="btn ghost bmd" onClick={closeModal}>Cancel</button><button className="btn primary bmd" onClick={save}>Save</button></div>
       </div>
     </div>
-  );
-}
+  );}
