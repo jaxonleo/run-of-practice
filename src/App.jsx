@@ -1991,7 +1991,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
               <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>Move to which station?</div>
               {(()=>{const _pSt=cur.stations.findIndex(s=>(s.assignments||[]).includes(movePlayer));return cur.stations.map((st,si)=>(<button key={st.id} className={"btn bmd bfull "+(_pSt===si?"ghost":"outline")} style={{marginBottom:8}} onClick={()=>{setLiveActs(p=>p.map(a=>a.id===cur.id?{...a,stations:a.stations.map((s,si2)=>({...s,assignments:si2===si?[...(s.assignments||[]).filter(id=>id!==movePlayer),movePlayer]:(s.assignments||[]).filter(id=>id!==movePlayer)}))}:a));setMovePlayer(null);}}>
                   {st.activityName||st.name}{_pSt===si?" ✓ current":""}
-                </button>));})()
+                </button>));})()} 
               <button className="btn ghost bmd bfull" style={{marginTop:4}} onClick={()=>setMovePlayer(null)}>Cancel</button>
             </div>
           </div>}
