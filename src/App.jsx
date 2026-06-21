@@ -448,8 +448,8 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
                   <div style={{flex:1}}>
                     <div style={{fontWeight:600,fontSize:14,marginBottom:2}}>{act.name}</div>
                     {act.description&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.description}</div>}
-                    {act.coachingPoints&&<div style={{fontSize:12,color:"var(--green2)",fontStyle:"italic",marginBottom:2}}>{act.coachingPoints}</div>}
-                    {act.playerGear&&<div style={{fontSize:11,color:"#fbbf24",marginTop:2}}>Player gear: {act.playerGear}</div>}
+                    {act.coachingPoints&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.coachingPoints}</div>}
+                    {act.playerGear&&<div style={{fontSize:11,color:"#92400e",marginTop:2}}>Player gear: {act.playerGear}</div>}
                     {act.equipment&&Array.isArray(act.equipment)&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--amber)",marginTop:2}}>Needs: {act.equipment.map(id=>{const a=data.assets.find(x=>x.id===id);return a?a.name:id;}).join(", ")}</div>}
                     {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>{act.grouping==="partners"?"Partners":act.numGroups+" groups"}</div>}
                   </div>
@@ -2428,7 +2428,7 @@ function ModalLayer({modal,data,update,closeModal}){
   const template=modal.type==="editTemplate"?modal.payload.template:null;
   const [f,setF]=useState(()=>{
     if(player)return{firstName:player.firstName,lastName:player.lastName,jersey:player.jersey,notes:player.notes||""};
-    if(activity)return{name:activity.name,sport:activity.sport||lastSportRef.current||"Basketball",duration:activity.duration,description:activity.description||"",coachingPoints:activity.coachingPoints||""};
+    if(activity){lastSportRef.current=activity.sport||"Basketball";return{name:activity.name,sport:activity.sport||"Basketball",category:activity.category||"",duration:activity.duration,description:activity.description||"",coachingPoints:activity.coachingPoints||""};}
     if(location)return{name:location.name};
     if(asset)return{name:asset.name,locationTags:asset.locationTags||[]};
     if(template)return{name:template.name,sport:template.sport||"General"};
@@ -2450,7 +2450,7 @@ function ModalLayer({modal,data,update,closeModal}){
     if(t==="addAsset"){if(!f.name)return;update(d=>{d.assets.push({id:uid(),name:f.name,locationTags:f.locationTags||[]});return d;});}
     if(t==="editAsset"){if(!f.name)return;update(d=>{const a=d.assets.find(a=>a.id===p.asset.id);if(a){a.name=f.name;a.locationTags=f.locationTags||[];}return d;});}
     if(t==="addActivity"){if(!f.name)return;update(d=>{d.activityLibrary.push({id:uid(),name:f.name,sport:f.sport||"General",category:f.category||"",description:f.description||"",duration:+(f.duration||10),coachingPoints:f.coachingPoints||"",equipment:f.equipment||[],playerGear:f.playerGear||"",grouping:f.grouping||"whole",numGroups:f.numGroups||2});return d;});}
-    if(t==="editActivity"){if(!f.name)return;update(d=>{const a=d.activityLibrary.find(a=>a.id===p.activity.id);if(a){a.name=f.name;a.sport=f.sport||"General";a.duration=+(f.duration||10);a.description=f.description||"";a.coachingPoints=f.coachingPoints||"";}return d;});}
+    if(t==="editActivity"){if(!f.name)return;update(d=>{const a=d.activityLibrary.find(a=>a.id===p.activity.id);if(a){a.name=f.name;a.sport=f.sport||"General";a.category=f.category||"";a.duration=+(f.duration||10);a.description=f.description||"";a.coachingPoints=f.coachingPoints||"";a.equipment=f.equipment||[];a.playerGear=f.playerGear||"";a.grouping=f.grouping||"whole";a.numGroups=f.numGroups||2;}return d;});}
     if(t==="editTemplate"){if(!f.name)return;update(d=>{const tpl=d.templates.find(t=>t.id===p.template.id);if(tpl){tpl.name=f.name;tpl.sport=f.sport||"General";}return d;});}
     if(t==="editTeam"){if(!f.name)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.team.id);if(tm){tm.name=f.name;tm.sport=f.sport||"Basketball";}return d;});}
     closeModal();
