@@ -936,7 +936,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
               </div>
             </div>
             {expandedId===act.id&&(<div className="abbody">
-                {act.type==="activity"&&<ActConfig act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
+                {act.type==="activity"&&<ActConfig assets={data.assets} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
                 {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
                 {act.type==="station_block"&&<StationConfig act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)}/>}
               </div>
@@ -967,7 +967,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   );
 }
 
-function ActConfig({act,team,loc,onChange,onDone}){
+function ActConfig({act,team,loc,onChange,onDone,assets}){
   const tog=pid=>onChange({assignments:act.assignments&&act.assignments.includes(pid)?act.assignments.filter(x=>x!==pid):[...(act.assignments||[]),pid]});
   return (<div>
       {act.coachingPoints&&<div style={{background:"var(--gbg)",border:"1px solid var(--gb)",borderRadius:6,padding:"8px 10px",marginBottom:10,fontSize:13,color:"var(--green2)"}}>{act.coachingPoints}</div>}
@@ -986,7 +986,7 @@ function ActConfig({act,team,loc,onChange,onDone}){
           {loc&&loc.sublocations.map(sl=><option key={sl.id} value={sl.id}>{sl.name}</option>)}
         </select>
       </div>
-      <div className="fld mb8"><label className="lbl">Team Equipment</label><div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>{(data.assets||[]).map(a=>{const sel=Array.isArray(act.equipment)&&act.equipment.includes(a.id);return(<button key={a.id} type="button" onClick={()=>{const cur=Array.isArray(act.equipment)?act.equipment:[];onChange({equipment:sel?cur.filter(x=>x!==a.id):[...cur,a.id]});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:sel?"var(--green)":"var(--s1)",color:sel?"#fff":"var(--black)",fontSize:12,cursor:"pointer"}}>{a.name}</button>);})} {(data.assets||[]).length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No equipment in library yet</span>}</div></div>
+      <div className="fld mb8"><label className="lbl">Team Equipment</label><div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>{(assets||[]).map(a=>{const sel=Array.isArray(act.equipment)&&act.equipment.includes(a.id);return(<button key={a.id} type="button" onClick={()=>{const cur=Array.isArray(act.equipment)?act.equipment:[];onChange({equipment:sel?cur.filter(x=>x!==a.id):[...cur,a.id]});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:sel?"var(--green)":"var(--s1)",color:sel?"#fff":"var(--black)",fontSize:12,cursor:"pointer"}}>{a.name}</button>);})} {(assets||[]).length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No equipment in library yet</span>}</div></div>
       <div className="fld mb8"><label className="lbl">Grouping</label>
         {(!act.grouping||act.grouping==="whole")&&<span className="bdg bs" style={{fontSize:12}}>Whole Team</span>}
         {act.grouping==="partners"&&<span className="bdg bp" style={{fontSize:12}}>Partners — auto-assigned at run time</span>}
@@ -1274,7 +1274,7 @@ function ScheduledPracticeEditor({data,update,practice,onDone}){
             </div>
           </div>
           {showActEditor&&expandedId===act.id&&(<div className="abbody">
-              {act.type==="activity"&&<ActConfig act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
+              {act.type==="activity"&&<ActConfig assets={data.assets} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
               {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
               {act.type==="station_block"&&<StationConfig act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)}/>}
             </div>
@@ -1501,7 +1501,7 @@ function TemplateWorkspace({data,update,template,mode,onRun,onSave,onBack}){
               </div>
             </div>
             {expandedId===act.id&&(<div className="abbody">
-                {act.type==="activity"&&<ActConfig act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
+                {act.type==="activity"&&<ActConfig assets={data.assets} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
                 {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
                 {act.type==="station_block"&&<StationConfig act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)}/>}
               </div>
