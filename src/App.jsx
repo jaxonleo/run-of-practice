@@ -1049,7 +1049,7 @@ function StationConfig({act,team,loc,onChange,onSt,onDone}){
         {rotate&&<div className="fld"><label className="lbl">Transition (min)</label><DurStepper value={act.transitionDuration} min={0} onChange={v=>onChange({transitionDuration:v})}/></div>}
         <div className="fld"><label className="lbl">Total</label><div style={{padding:"10px 0"}}><span className="bdg bp">{blockMins}m</span></div></div>
       </div>
-      <div className="row mb8"><button className="btn ghost bxs" onClick={addSt}>+ Station</button>{team&&act.stations.length>0&&<button className="btn outline bxs" onClick={genRand}>Random Groups</button>}</div>
+      <div className="row mb8">{team&&act.stations.length>0&&<button className="btn outline bxs" onClick={genRand}>Random Groups</button>}</div>
       {act.stations.map(st=>(<div key={st.id} style={{border:"1px solid var(--b)",borderRadius:"var(--rs)",marginBottom:8,overflow:"hidden"}}>
           <div style={{display:"flex",alignItems:"center",padding:"9px 11px",background:"var(--bg)",cursor:"pointer",gap:8}} onClick={()=>setExSt(exSt===st.id?null:st.id)}>
             <span style={{font:"700 13px Barlow Condensed,sans-serif",flex:1}}>{st.name}{st.activityName?": "+st.activityName:""}</span>
@@ -1072,23 +1072,22 @@ function StationConfig({act,team,loc,onChange,onSt,onDone}){
                   {loc&&loc.sublocations.map(sl=><option key={sl.id} value={sl.id}>{sl.name}</option>)}
                 </select>
               </div>
-              <div className="fld"><label className="lbl">Equipment</label><input className="inp" placeholder="e.g. 6 cones" value={st.equipment||""} onChange={e=>onSt(st.id,{equipment:e.target.value})}/></div>
+              <div className="fld"><label className="lbl">Equipment</label><div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>{(data.assets||[]).map(a=>{const sel=Array.isArray(st.equipment)&&st.equipment.includes(a.id);return(<button key={a.id} type="button" onClick={()=>{const cur=Array.isArray(st.equipment)?st.equipment:[];onSt(st.id,{equipment:sel?cur.filter(x=>x!==a.id):[...cur,a.id]});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:sel?"var(--green)":"var(--s1)",color:sel?"#fff":"var(--black)",fontSize:12,cursor:"pointer"}}>{a.name}</button>);})} {(data.assets||[]).length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No equipment yet</span>}</div></div><div className="fld"><label className="lbl">Player Gear</label><input className="inp" placeholder="e.g. Batting helmet" value={st.playerGear||""} onChange={e=>onSt(st.id,{playerGear:e.target.value})}/></div>
               <div className="fld mb8"><label className="lbl">Coaching Points</label><input className="inp" placeholder="Key cue..." value={st.coachingPoints||""} onChange={e=>onSt(st.id,{coachingPoints:e.target.value})}/></div>
               {team&&(<div>
-                  <label className="lbl">Players ({st.assignments?st.assignments.length:0})</label>
+                  <label className="lbl">Players</label>
                   <div className="cgrid">
-                    {team.players.map(p=>(<div key={p.id} className={"chip "+(st.assignments&&st.assignments.includes(p.id)?"on":"")} onClick={()=>togSt(st.id,p.id)}>
-                        <div className="cn">{p.jersey?"#"+p.jersey:p.firstName.slice(0,2)}</div><div className="cf">{p.firstName}</div>
-                      </div>
-                    ))}
+                    {team.players.map(p=>{const inThis=(st.assignments||[]).includes(p.id);const otherSt=act.stations.find(s=>s.id!==st.id&&(s.assignments||[]).includes(p.id));const handleClick=()=>{if(inThis){togSt(st.id,p.id);}else if(otherSt){onSt(otherSt.id,{assignments:(otherSt.assignments||[]).filter(id=>id!==p.id)});onSt(st.id,{assignments:[...(st.assignments||[]),p.id]});}else{togSt(st.id,p.id);}};return(<div key={p.id} className={"chip "+(inThis?"on":"")+" cp"} onClick={handleClick} style={{opacity:otherSt&&!inThis?0.4:1}}><div className="cn">{p.jersey?"#"+p.jersey:p.firstName.slice(0,2)}</div><div className="cf">{inThis?p.firstName:otherSt?"S"+(act.stations.findIndex(s=>s.id===otherSt.id)+1):p.firstName}</div></div>);})}
                   </div>
+                  <div style={{display:"flex",gap:8,marginTop:6,fontSize:11,color:"var(--td)",alignItems:"center"}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--green)",display:"inline-block"}}/><span>This station</span><span style={{width:8,height:8,borderRadius:"50%",background:"var(--b)",display:"inline-block",marginLeft:6,opacity:.5}}/><span>Other (tap to move)</span></div>
                 </div>
               )}
             </div>
           )}
         </div>
       ))}
-      <button className="btn primary bsm bfull mt8" onClick={onDone}>Done</button>
+      <div style={{display:"flex",gap:6,marginTop:8,marginBottom:8}}><button className="btn ghost bxs" style={{flex:1}} onClick={addSt}>+ Add Station</button><button className="btn ghost bxs" onClick={()=>onChange({stations:act.stations.map(s=>({...s,assignments:[]}))})}>Clear Groups</button></div>
+      <button className="btn primary bsm bfull" onClick={onDone}>Done</button>
       {randGroups&&(<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setRandGroups(null);}}>
           <div className="modal"><div className="mhandle"/><div className="mtitle">Random Groups</div>
             <div className="gpreview">
@@ -2009,7 +2008,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
         {isBlock&&inTrans&&rotatedStations&&<div>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"var(--red)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Rotate Now</div>
           {rotatedStations.map((st,i)=>(<div key={st.id} className="cc-trans-card">
-            <div style={{fontSize:12,color:"var(--td)",marginBottom:3}}>From {st.name}</div>
+            <div style={{fontSize:12,color:"var(--td)",marginBottom:3,lineHeight:1.6}}><span style={{fontWeight:700}}>From {st.name}</span>{st.activityName&&<span>: {st.activityName}</span>}{coachName(st.coachId)&&<span style={{color:"var(--green)"}}> · {coachName(st.coachId)}</span>}</div>
             <div className="cc-trans-names">{pnames(st.assignments)||"--"}</div>
             <div className="cc-trans-to">to {cur.stations[(i+1)%cur.stations.length].name}{cur.stations[(i+1)%cur.stations.length].activityName?": "+cur.stations[(i+1)%cur.stations.length].activityName:""}</div>
             <div className="cc-trans-sub">
