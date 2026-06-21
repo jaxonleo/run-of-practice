@@ -411,6 +411,7 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
   const [editingTpl,setEditingTpl]=useState(null);
   const [confirmDel,setConfirmDel]=useState(null);
   const [collapsed,setCollapsed]=useState({});
+  const [drillMenu,setDrillMenu]=useState(null);
   const toggle=sport=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}));
   const sports=[...new Set(data.activityLibrary.map(a=>a.sport||"General").filter(Boolean))].sort();
   const templates=data.templates||[];
