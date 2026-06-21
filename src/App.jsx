@@ -404,11 +404,8 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
   const [editingTpl,setEditingTpl]=useState(null);
   const [confirmDel,setConfirmDel]=useState(null);
   const [collapsed,setCollapsed]=useState({});
-  const [collapsedCat,setCollapsedCat]=useState({});
   const [drillMenu,setDrillMenu]=useState(null);
-  const [editingDrill,setEditingDrill]=useState(null);
   const toggle=sport=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}));
-  const toggleCat=key=>setCollapsedCat(c=>Object.assign({},c,{[key]:!c[key]}));
   const sports=[...new Set(data.activityLibrary.map(a=>a.sport))].sort();
   const templates=data.templates||[];
   const LTABS=["drills","templates","locations","equipment"];
@@ -432,38 +429,30 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
           <span style={{fontSize:12,color:"var(--td)"}}>{data.activityLibrary.filter(a=>a.sport===sport).length} drills {collapsed[sport]?"":"v"}</span>
         </button>
         {!collapsed[sport]&&(()=>{
-          const sportDrills=data.activityLibrary.filter(a=>a.sport===sport);
-          const cats=["General",...[...new Set(sportDrills.map(a=>a.category).filter(Boolean))].sort()];
-          return cats.map(cat=>{
-            const catDrills=cat==="General"?sportDrills.filter(a=>!a.category):sportDrills.filter(a=>a.category===cat);
-            if(catDrills.length===0)return null;
-            const catKey=sport+"_"+cat;
-            return (<div key={cat} style={{marginBottom:4}}>
-              <button onClick={()=>toggleCat(catKey)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 12px 7px 20px",background:"var(--s2)",border:"none",cursor:"pointer",borderRadius:"var(--rs)"}}>
-                <span style={{fontSize:12,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em"}}>{cat}</span>
-                <span style={{fontSize:11,color:"var(--td)"}}>{catDrills.length} {collapsedCat[catKey]?"›":"▾"}</span>
-              </button>
-              {!collapsedCat[catKey]&&catDrills.map(act=>(<div key={act.id} style={{padding:"10px 12px",borderLeft:"3px solid var(--gb)",marginLeft:12,marginBottom:3,background:"#fff",position:"relative"}}>
-                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:600,fontSize:14,marginBottom:2}}>{act.name}</div>
-                    {act.description&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.description}</div>}
-                    {act.coachingPoints&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.coachingPoints}</div>}
-                    {act.playerGear&&<div style={{fontSize:11,color:"#92400e",marginTop:2}}>Player gear: {act.playerGear}</div>}
-                    {act.equipment&&Array.isArray(act.equipment)&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--amber)",marginTop:2}}>Needs: {act.equipment.map(id=>{const a=data.assets.find(x=>x.id===id);return a?a.name:id;}).join(", ")}</div>}
-                    {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>{act.grouping==="partners"?"Partners":act.numGroups+" groups"}</div>}
-                  </div>
-                  <div style={{position:"relative",flexShrink:0,marginLeft:8}}>
-                    <button className="ell-btn" onClick={e=>{e.stopPropagation();setDrillMenu(drillMenu===act.id?null:act.id);}}><span/><span/><span/></button>
-                    {drillMenu===act.id&&<div className="mini-menu" style={{right:0,minWidth:120}}>
-                      <button className="mm-item" onClick={()=>{setDrillMenu(null);openModal("editActivity",{activity:act});}}>Edit</button>
-                      <button className="mm-item mm-danger" onClick={()=>{setDrillMenu(null);update(d=>{d.activityLibrary=d.activityLibrary.filter(a=>a.id!==act.id);return d;});}}>Delete</button>
-                    </div>}
-                  </div>
-                </div>
-              </div>))}
-            </div>);
-          });
+          const sportDrills=data.activityLibrary.map((a,gi)=>({...a,_gi:gi})).filter(a=>a.sport===sport);
+          const moveUp=act=>{const si=sportDrills.findIndex(a=>a.id===act.id);if(si===0)return;const pi=sportDrills[si-1]._gi;const ci=act._gi;update(d=>{const tmp=d.activityLibrary[ci];d.activityLibrary[ci]=d.activityLibrary[pi];d.activityLibrary[pi]=tmp;return d;});};
+          const moveDown=act=>{const si=sportDrills.findIndex(a=>a.id===act.id);if(si===sportDrills.length-1)return;const ni=sportDrills[si+1]._gi;const ci=act._gi;update(d=>{const tmp=d.activityLibrary[ci];d.activityLibrary[ci]=d.activityLibrary[ni];d.activityLibrary[ni]=tmp;return d;});};
+          return sportDrills.map((act,si)=>(<div key={act.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderBottom:"1px solid var(--b)",background:"#fff"}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",paddingTop:2,gap:1,flexShrink:0,width:20}}>
+              {si>0&&<button onClick={()=>moveUp(act)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"var(--td)",padding:0,lineHeight:1}}>▲</button>}
+              {si<sportDrills.length-1&&<button onClick={()=>moveDown(act)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"var(--td)",padding:0,lineHeight:1}}>▼</button>}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:700,fontSize:14,marginBottom:2}}>{act.name}</div>
+              {act.description&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2,lineHeight:1.4}}>{act.description}</div>}
+              {act.coachingPoints&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.coachingPoints}</div>}
+              {act.playerGear&&<div style={{fontSize:11,color:"#92400e",marginTop:2}}>Player gear: {act.playerGear}</div>}
+              {act.equipment&&Array.isArray(act.equipment)&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>Needs: {act.equipment.map(id=>{const a=data.assets.find(x=>x.id===id);return a?a.name:id;}).join(", ")}</div>}
+              {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>{act.grouping==="partners"?"Partners":act.numGroups+" groups"}</div>}
+            </div>
+            <div style={{position:"relative",flexShrink:0}}>
+              <button className="ell-btn" onClick={e=>{e.stopPropagation();setDrillMenu(drillMenu===act.id?null:act.id);}}><span/><span/><span/></button>
+              {drillMenu===act.id&&<div className="mini-menu" style={{right:0,minWidth:120}}>
+                <button className="mm-item" onClick={()=>{setDrillMenu(null);openModal("editActivity",{activity:act});}}>Edit</button>
+                <button className="mm-item mm-danger" onClick={()=>{setDrillMenu(null);update(d=>{d.activityLibrary=d.activityLibrary.filter(a=>a.id!==act.id);return d;});}}>Delete</button>
+              </div>}
+            </div>
+          </div>));
         })()}
       </div>))}
     </div>}
@@ -2480,20 +2469,7 @@ function ModalLayer({modal,data,update,closeModal}){
         {(modal.type==="addActivity"||modal.type==="editActivity")&&(<div>
             <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
             <div className="brow" style={{gap:10,alignItems:"flex-end"}}><div className="fld" style={{flex:2}}><label className="lbl">Sport</label><select className="sel" value={f.sport||"General"} onChange={e=>{set("sport",e.target.value);lastSportRef.current=e.target.value;}}>{SPORTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div><div className="fld" style={{flex:1}}><label className="lbl">Duration (min)</label><DurStepper value={f.duration||10} min={1} onChange={v=>set("duration",v)}/></div></div>
-            <div className="fld"><label className="lbl">Category</label>
-              <div style={{position:"relative"}}>
-                <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4,scrollbarWidth:"none",msOverflowStyle:"none",WebkitOverflowScrolling:"touch"}}>
-                  {(()=>{
-  const savedCats=[...new Set((data.activityLibrary||[]).filter(a=>a.sport===(f.sport||"General")).map(a=>a.category).filter(Boolean))];
-  const allCats=["General",...savedCats,...((f.category&&!savedCats.includes(f.category))?[f.category]:[])];
-  return allCats.map(c=>(<button key={c} type="button" onClick={()=>setF(p=>({...p,category:c==="General"?"":c,_addingCat:false}))} style={{flexShrink:0,padding:"5px 14px",borderRadius:20,border:"1.5px solid "+((f.category||"")===(c==="General"?"":c)?"var(--green)":"var(--b)"),background:(f.category||"")===(c==="General"?"":c)?"var(--green)":"var(--s1)",color:(f.category||"")===(c==="General"?"":c)?"#fff":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>{c}</button>));
-})()}
-                  <button type="button" onClick={()=>setF(p=>({...p,_addingCat:true,_newCat:""}))} style={{flexShrink:0,padding:"5px 14px",borderRadius:20,border:"1.5px dashed var(--gb)",background:"transparent",color:"var(--green)",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>+ New</button>
-                </div>
-                <div style={{position:"absolute",right:0,top:0,bottom:4,width:24,background:"linear-gradient(to right,transparent,#fff)",pointerEvents:"none"}}/>
-              </div>
-              {f._addingCat&&<div style={{display:"flex",gap:6,marginTop:6}}><input className="inp" style={{flex:1}} autoFocus placeholder="e.g. Individual Defense" value={f._newCat||""} onChange={e=>setF(p=>({...p,_newCat:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"){const nm=(f._newCat||"").trim();if(nm)setF(p=>({...p,category:nm,_addingCat:false,_newCat:""}));}}}/><button type="button" className="btn primary bxs" onClick={()=>{const nm=(f._newCat||"").trim();if(nm)setF(p=>({...p,category:nm,_addingCat:false,_newCat:""}));else setF(p=>({...p,_addingCat:false}));}}>Save</button></div>}
-            </div>
+            
             <div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:50}} value={f.description||""} onChange={e=>set("description",e.target.value)} placeholder="What does this drill do?"/></div>
             <div className="fld"><label className="lbl">Player Grouping</label>
               <div style={{display:"flex",gap:6}}>
