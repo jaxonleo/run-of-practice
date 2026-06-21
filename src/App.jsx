@@ -986,7 +986,7 @@ function ActConfig({act,team,loc,onChange,onDone}){
           {loc&&loc.sublocations.map(sl=><option key={sl.id} value={sl.id}>{sl.name}</option>)}
         </select>
       </div>
-      <div className="fld mb8"><label className="lbl">Equipment</label><input className="inp" placeholder="e.g. 6 cones, 2 ball racks" value={act.equipment||""} onChange={e=>onChange({equipment:e.target.value})}/></div>
+      <div className="fld mb8"><label className="lbl">Team Equipment</label><div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>{(data.assets||[]).map(a=>{const sel=Array.isArray(act.equipment)&&act.equipment.includes(a.id);return(<button key={a.id} type="button" onClick={()=>{const cur=Array.isArray(act.equipment)?act.equipment:[];onChange({equipment:sel?cur.filter(x=>x!==a.id):[...cur,a.id]});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:sel?"var(--green)":"var(--s1)",color:sel?"#fff":"var(--black)",fontSize:12,cursor:"pointer"}}>{a.name}</button>);})} {(data.assets||[]).length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No equipment in library yet</span>}</div></div>
       <div className="fld mb8"><label className="lbl">Grouping</label>
         {(!act.grouping||act.grouping==="whole")&&<span className="bdg bs" style={{fontSize:12}}>Whole Team</span>}
         {act.grouping==="partners"&&<span className="bdg bp" style={{fontSize:12}}>Partners — auto-assigned at run time</span>}
