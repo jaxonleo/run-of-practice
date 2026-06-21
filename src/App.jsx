@@ -428,27 +428,30 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
           <span style={{fontSize:12,color:"var(--td)"}}>{data.activityLibrary.filter(a=>a.sport===sport).length} drills {collapsed[sport]?"":"v"}</span>
         </button>
         {!collapsed[sport]&&(()=>{
-          const sportDrills=data.activityLibrary.filter(a=>a.sport===sport);
-          const cats=["General",...[...new Set(sportDrills.map(a=>a.category).filter(Boolean))].sort()];
-          const [collapsedCat,setCollapsedCat]=useState({});
-          return cats.map(cat=>{
-            const catDrills=cat==="General"?sportDrills.filter(a=>!a.category):sportDrills.filter(a=>a.category===cat);
-            if(catDrills.length===0)return null;
-            return (<div key={cat} style={{marginBottom:4}}>
-              <button onClick={()=>setCollapsedCat(c=>Object.assign({},c,{[cat]:!c[cat]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 12px 7px 20px",background:"var(--s2)",border:"none",cursor:"pointer",borderRadius:"var(--rs)"}}>
-                <span style={{fontSize:12,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em"}}>{cat}</span>
-                <span style={{fontSize:11,color:"var(--td)"}}>{catDrills.length} {collapsedCat[cat]?"":"▾"}</span>
-              </button>
-              {!collapsedCat[cat]&&catDrills.map(act=>(<div key={act.id} style={{padding:"10px 12px",borderLeft:"3px solid var(--gb)",marginLeft:12,marginBottom:3,background:"#fff"}}>
-                <div style={{fontWeight:600,fontSize:14,marginBottom:2}}>{act.name}</div>
-                {act.description&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.description}</div>}
-                {act.coachingPoints&&<div style={{fontSize:12,color:"var(--green2)",fontStyle:"italic",marginBottom:2}}>{act.coachingPoints}</div>}
-                {act.playerGear&&<div style={{fontSize:11,color:"#fbbf24",marginTop:2}}>Player gear: {act.playerGear}</div>}
-                {act.equipment&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--amber)",marginTop:2}}>Needs: {Array.isArray(act.equipment)?act.equipment.map(id=>{const a=data.assets.find(x=>x.id===id);return a?a.name:id;}).join(", "):act.equipment}</div>}
-                {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>{act.grouping==="partners"?"Partners":""+act.numGroups+" groups"}</div>}
-              </div>))}
-            </div>);
-          });
+          const sportDrills=data.activityLibrary.map((a,gi)=>({...a,_gi:gi})).filter(a=>a.sport===sport);
+          const moveUp=act=>{const si=sportDrills.findIndex(a=>a.id===act.id);if(si===0)return;const pi=sportDrills[si-1]._gi;const ci=act._gi;update(d=>{const tmp=d.activityLibrary[ci];d.activityLibrary[ci]=d.activityLibrary[pi];d.activityLibrary[pi]=tmp;return d;});};
+          const moveDown=act=>{const si=sportDrills.findIndex(a=>a.id===act.id);if(si===sportDrills.length-1)return;const ni=sportDrills[si+1]._gi;const ci=act._gi;update(d=>{const tmp=d.activityLibrary[ci];d.activityLibrary[ci]=d.activityLibrary[ni];d.activityLibrary[ni]=tmp;return d;});};
+          return sportDrills.map((act,si)=>(<div key={act.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderBottom:"1px solid var(--b)",background:"#fff"}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",paddingTop:2,gap:1,flexShrink:0,width:20}}>
+              {si>0&&<button onClick={()=>moveUp(act)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"var(--td)",padding:0,lineHeight:1}}>▲</button>}
+              {si<sportDrills.length-1&&<button onClick={()=>moveDown(act)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"var(--td)",padding:0,lineHeight:1}}>▼</button>}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:700,fontSize:14,marginBottom:2}}>{act.name}</div>
+              {act.description&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2,lineHeight:1.4}}>{act.description}</div>}
+              {act.coachingPoints&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.coachingPoints}</div>}
+              {act.playerGear&&<div style={{fontSize:11,color:"#92400e",marginTop:2}}>Player gear: {act.playerGear}</div>}
+              {act.equipment&&Array.isArray(act.equipment)&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>Needs: {act.equipment.map(id=>{const a=data.assets.find(x=>x.id===id);return a?a.name:id;}).join(", ")}</div>}
+              {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>{act.grouping==="partners"?"Partners":act.numGroups+" groups"}</div>}
+            </div>
+            <div style={{position:"relative",flexShrink:0}}>
+              <button className="ell-btn" onClick={e=>{e.stopPropagation();setDrillMenu(drillMenu===act.id?null:act.id);}}><span/><span/><span/></button>
+              {drillMenu===act.id&&<div className="mini-menu" style={{right:0,minWidth:120}}>
+                <button className="mm-item" onClick={()=>{setDrillMenu(null);openModal("editActivity",{activity:act});}}>Edit</button>
+                <button className="mm-item mm-danger" onClick={()=>{setDrillMenu(null);update(d=>{d.activityLibrary=d.activityLibrary.filter(a=>a.id!==act.id);return d;});}}>Delete</button>
+              </div>}
+            </div>
+          </div>));
         })()}
       </div>))}
     </div>}
@@ -648,6 +651,14 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSwitchCo
 
 export default function App(){
   const [data,setData]=useState(INIT);
+  useEffect(()=>{
+    if(!cur||cur.type==="station_block")return;
+    const g=cur.grouping||"whole";
+    if(g==="whole"){setLiveGroups(null);return;}
+    const present=[...presentIds];
+    const players=(team?team.players:[]).filter(p=>present.includes(p.id));
+    setLiveGroups(assignGroups(players,g,cur.numGroups||2));
+  },[idx]);
   useEffect(()=>{let el=document.getElementById('rop-css');if(!el){el=document.createElement('style');el.id='rop-css';document.head.appendChild(el);}el.textContent=CSS;},[]);
   const [loaded,setLoaded]=useState(false);
   const [view,setView]=useState("today");
@@ -932,9 +943,9 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
               </div>
             </div>
             {expandedId===act.id&&(<div className="abbody">
-                {act.type==="activity"&&<ActConfig act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
+                {act.type==="activity"&&<ActConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
                 {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-                {act.type==="station_block"&&<StationConfig act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)}/>}
+                {act.type==="station_block"&&<StationConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)}/>}
               </div>
             )}
           </div>
@@ -963,7 +974,9 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   );
 }
 
-function ActConfig({act,team,loc,onChange,onDone}){
+function ActConfig({act,team,loc,onChange,onDone,assets,update}){
+  const [showNewEquip,setShowNewEquip]=useState(false);
+  const [newEquipName,setNewEquipName]=useState("");
   const tog=pid=>onChange({assignments:act.assignments&&act.assignments.includes(pid)?act.assignments.filter(x=>x!==pid):[...(act.assignments||[]),pid]});
   return (<div>
       {act.coachingPoints&&<div style={{background:"var(--gbg)",border:"1px solid var(--gb)",borderRadius:6,padding:"8px 10px",marginBottom:10,fontSize:13,color:"var(--green2)"}}>{act.coachingPoints}</div>}
@@ -982,7 +995,7 @@ function ActConfig({act,team,loc,onChange,onDone}){
           {loc&&loc.sublocations.map(sl=><option key={sl.id} value={sl.id}>{sl.name}</option>)}
         </select>
       </div>
-      <div className="fld mb8"><label className="lbl">Equipment</label><input className="inp" placeholder="e.g. 6 cones, 2 ball racks" value={act.equipment||""} onChange={e=>onChange({equipment:e.target.value})}/></div>
+      <div className="fld mb8"><label className="lbl">Team Equipment</label><div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>{(assets||[]).map(a=>{const sel=Array.isArray(act.equipment)&&act.equipment.includes(a.id);return(<button key={a.id} type="button" onClick={()=>{const cur=Array.isArray(act.equipment)?act.equipment:[];onChange({equipment:sel?cur.filter(x=>x!==a.id):[...cur,a.id]});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:sel?"var(--green)":"var(--s1)",color:sel?"#fff":"var(--black)",fontSize:12,cursor:"pointer"}}>{a.name}</button>);})} <button type="button" onClick={()=>setShowNewEquip(s=>!s)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px dashed var(--gb)",background:"transparent",color:"var(--green)",fontSize:12,cursor:"pointer"}}>+ New</button></div>{showNewEquip&&<div style={{display:"flex",gap:6,marginTop:6}}><input className="inp" style={{flex:1}} autoFocus placeholder="e.g. Agility ladder" value={newEquipName} onChange={e=>setNewEquipName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newEquipName.trim()){const nm=newEquipName.trim();const nid=uid();update(d=>{d.assets.push({id:nid,name:nm,locationTags:[]});return d;});onChange({equipment:[...(Array.isArray(act.equipment)?act.equipment:[]),nid]});setNewEquipName("");setShowNewEquip(false);}}}/><button type="button" className="btn primary bxs" onClick={()=>{if(!newEquipName.trim())return;const nm=newEquipName.trim();const nid=uid();update(d=>{d.assets.push({id:nid,name:nm,locationTags:[]});return d;});onChange({equipment:[...(Array.isArray(act.equipment)?act.equipment:[]),nid]});setNewEquipName("");setShowNewEquip(false);}}>Add</button><button type="button" className="btn ghost bxs" onClick={()=>{setShowNewEquip(false);setNewEquipName("");}}>✕</button></div></div>
       <div className="fld mb8"><label className="lbl">Notes</label><textarea className="ta" style={{minHeight:44}} value={act.notes||""} placeholder="Notes for this activity..." onChange={e=>onChange({notes:e.target.value})}/></div>
       {team&&(<div className="mb8">
           <label className="lbl">Players ({act.assignments?act.assignments.length:0}/{team.players.length})</label>
@@ -998,7 +1011,6 @@ function ActConfig({act,team,loc,onChange,onDone}){
             <button className="btn ghost bxs" onClick={()=>onChange({assignments:[]})}>None</button>
           </div>
         </div>
-      )}
       <button className="btn primary bsm bfull mt6" onClick={onDone}>Done</button>
     </div>
   );
@@ -1030,8 +1042,10 @@ function RandGroupPlayer({id,team}){
   return (<div className="gplayer">{pl.firstName} {pl.lastName}</div>);
 }
 
-function StationConfig({act,team,loc,onChange,onSt,onDone}){
+function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update}){
   const [exSt,setExSt]=useState(null);
+  const [newStEquip,setNewStEquip]=useState(null);
+  const [newStEquipName,setNewStEquipName]=useState("");
   const [randGroups,setRandGroups]=useState(null);
   const addSt=()=>onChange({stations:[...act.stations,{id:uid(),name:"Station "+(act.stations.length+1),activityName:"",coachId:"",sublocationId:"",assignments:[],equipment:"",coachingPoints:""}]});
   const remSt=id=>onChange({stations:act.stations.filter(s=>s.id!==id)});
@@ -1053,7 +1067,7 @@ function StationConfig({act,team,loc,onChange,onSt,onDone}){
         {rotate&&<div className="fld"><label className="lbl">Transition (min)</label><DurStepper value={act.transitionDuration} min={0} onChange={v=>onChange({transitionDuration:v})}/></div>}
         <div className="fld"><label className="lbl">Total</label><div style={{padding:"10px 0"}}><span className="bdg bp">{blockMins}m</span></div></div>
       </div>
-      <div className="row mb8"><button className="btn ghost bxs" onClick={addSt}>+ Station</button>{team&&act.stations.length>0&&<button className="btn outline bxs" onClick={genRand}>Random Groups</button>}</div>
+      <div className="row mb8">{team&&act.stations.length>0&&<button className="btn outline bxs" onClick={genRand}>Random Groups</button>}</div>
       {act.stations.map(st=>(<div key={st.id} style={{border:"1px solid var(--b)",borderRadius:"var(--rs)",marginBottom:8,overflow:"hidden"}}>
           <div style={{display:"flex",alignItems:"center",padding:"9px 11px",background:"var(--bg)",cursor:"pointer",gap:8}} onClick={()=>setExSt(exSt===st.id?null:st.id)}>
             <span style={{font:"700 13px Barlow Condensed,sans-serif",flex:1}}>{st.name}{st.activityName?": "+st.activityName:""}</span>
@@ -1076,23 +1090,22 @@ function StationConfig({act,team,loc,onChange,onSt,onDone}){
                   {loc&&loc.sublocations.map(sl=><option key={sl.id} value={sl.id}>{sl.name}</option>)}
                 </select>
               </div>
-              <div className="fld"><label className="lbl">Equipment</label><input className="inp" placeholder="e.g. 6 cones" value={st.equipment||""} onChange={e=>onSt(st.id,{equipment:e.target.value})}/></div>
+              <div className="fld"><label className="lbl">Equipment</label><div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>{(assets||[]).map(a=>{const sel=Array.isArray(st.equipment)&&st.equipment.includes(a.id);return(<button key={a.id} type="button" onClick={()=>{const cur=Array.isArray(st.equipment)?st.equipment:[];onSt(st.id,{equipment:sel?cur.filter(x=>x!==a.id):[...cur,a.id]});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:sel?"var(--green)":"var(--s1)",color:sel?"#fff":"var(--black)",fontSize:12,cursor:"pointer"}}>{a.name}</button>);})} <button type="button" onClick={()=>setNewStEquip(st.id===newStEquip?null:st.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px dashed var(--gb)",background:"transparent",color:"var(--green)",fontSize:12,cursor:"pointer"}}>+ New</button></div>{newStEquip===st.id&&<div style={{display:"flex",gap:6,marginTop:6}}><input className="inp" style={{flex:1}} autoFocus placeholder="e.g. Agility ladder" value={newStEquipName} onChange={e=>setNewStEquipName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newStEquipName.trim()){const nm=newStEquipName.trim();const nid=uid();update(d=>{d.assets.push({id:nid,name:nm,locationTags:[]});return d;});onSt(st.id,{equipment:[...(Array.isArray(st.equipment)?st.equipment:[]),nid]});setNewStEquipName("");setNewStEquip(null);}}}/><button type="button" className="btn primary bxs" onClick={()=>{if(!newStEquipName.trim())return;const nm=newStEquipName.trim();const nid=uid();update(d=>{d.assets.push({id:nid,name:nm,locationTags:[]});return d;});onSt(st.id,{equipment:[...(Array.isArray(st.equipment)?st.equipment:[]),nid]});setNewStEquipName("");setNewStEquip(null);}}>Add</button><button type="button" className="btn ghost bxs" onClick={()=>{setNewStEquip(null);setNewStEquipName("");}}>✕</button></div>}</div><div className="fld"><label className="lbl">Player Gear</label><input className="inp" placeholder="e.g. Batting helmet" value={st.playerGear||""} onChange={e=>onSt(st.id,{playerGear:e.target.value})}/></div>
               <div className="fld mb8"><label className="lbl">Coaching Points</label><input className="inp" placeholder="Key cue..." value={st.coachingPoints||""} onChange={e=>onSt(st.id,{coachingPoints:e.target.value})}/></div>
               {team&&(<div>
-                  <label className="lbl">Players ({st.assignments?st.assignments.length:0})</label>
+                  <label className="lbl">Players</label>
                   <div className="cgrid">
-                    {team.players.map(p=>(<div key={p.id} className={"chip "+(st.assignments&&st.assignments.includes(p.id)?"on":"")} onClick={()=>togSt(st.id,p.id)}>
-                        <div className="cn">{p.jersey?"#"+p.jersey:p.firstName.slice(0,2)}</div><div className="cf">{p.firstName}</div>
-                      </div>
-                    ))}
+                    {team.players.map(p=>{const inThis=(st.assignments||[]).includes(p.id);const otherSt=act.stations.find(s=>s.id!==st.id&&(s.assignments||[]).includes(p.id));const handleClick=()=>{if(inThis){togSt(st.id,p.id);}else if(otherSt){onSt(otherSt.id,{assignments:(otherSt.assignments||[]).filter(id=>id!==p.id)});onSt(st.id,{assignments:[...(st.assignments||[]),p.id]});}else{togSt(st.id,p.id);}};return(<div key={p.id} className={"chip "+(inThis?"on":"")+" cp"} onClick={handleClick} style={{opacity:otherSt&&!inThis?0.4:1}}><div className="cn">{p.jersey?"#"+p.jersey:p.firstName.slice(0,2)}</div><div className="cf">{inThis?p.firstName:otherSt?"S"+(act.stations.findIndex(s=>s.id===otherSt.id)+1):p.firstName}</div></div>);})}
                   </div>
+                  <div style={{display:"flex",gap:8,marginTop:6,fontSize:11,color:"var(--td)",alignItems:"center"}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--green)",display:"inline-block"}}/><span>This station</span><span style={{width:8,height:8,borderRadius:"50%",background:"var(--b)",display:"inline-block",marginLeft:6,opacity:.5}}/><span>Other (tap to move)</span></div>
                 </div>
               )}
             </div>
           )}
         </div>
       ))}
-      <button className="btn primary bsm bfull mt8" onClick={onDone}>Done</button>
+      <div style={{display:"flex",gap:6,marginTop:8,marginBottom:8}}><button className="btn ghost bxs" style={{flex:1}} onClick={addSt}>+ Add Station</button><button className="btn ghost bxs" onClick={()=>onChange({stations:act.stations.map(s=>({...s,assignments:[]}))})}>Clear Groups</button></div>
+      <button className="btn primary bsm bfull" onClick={onDone}>Done</button>
       {randGroups&&(<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setRandGroups(null);}}>
           <div className="modal"><div className="mhandle"/><div className="mtitle">Random Groups</div>
             <div className="gpreview">
@@ -1279,9 +1292,9 @@ function ScheduledPracticeEditor({data,update,practice,onDone}){
             </div>
           </div>
           {showActEditor&&expandedId===act.id&&(<div className="abbody">
-              {act.type==="activity"&&<ActConfig act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
+              {act.type==="activity"&&<ActConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
               {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-              {act.type==="station_block"&&<StationConfig act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)}/>}
+              {act.type==="station_block"&&<StationConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)}/>}
             </div>
           )}
         </div>
@@ -1506,9 +1519,9 @@ function TemplateWorkspace({data,update,template,mode,onRun,onSave,onBack}){
               </div>
             </div>
             {expandedId===act.id&&(<div className="abbody">
-                {act.type==="activity"&&<ActConfig act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
+                {act.type==="activity"&&<ActConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
                 {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-                {act.type==="station_block"&&<StationConfig act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)}/>}
+                {act.type==="station_block"&&<StationConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)}/>}
               </div>
             )}
           </div>
@@ -1677,6 +1690,12 @@ function HelperView({sessionId}){
   </div>);
 }
 
+function assignGroups(players,grouping,numGroups){
+  const arr=[...players].sort(()=>Math.random()-0.5);
+  if(grouping==="partners"){const g=[];for(let i=0;i<arr.length;i+=2)g.push(arr.slice(i,i+2));return g;}
+  if(grouping==="groups"){const n=numGroups||2;const g=Array.from({length:n},()=>[]);arr.forEach((p,i)=>g[i%n].push(p));return g.filter(x=>x.length>0);}
+  return [arr];
+}
 function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
   const practice=liveId?data.practices.find(p=>p.id===liveId):null;
   const team=practice?data.teams.find(t=>t.id===practice.teamId):null;
@@ -1694,6 +1713,9 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
   const [elapsed,setElapsed]=useState(0);
   const [running,setRunning]=useState(false);
   const [audioOn,setAudioOn]=useState(false);
+  const [liveGroups,setLiveGroups]=useState(null);
+  const audioCtxRef=useRef(null);
+  const unlockAudio=async()=>{try{if(!audioCtxRef.current){audioCtxRef.current=new(window.AudioContext||window.webkitAudioContext)();}const ctx=audioCtxRef.current;if(ctx.state!=="running"){await ctx.resume();}return ctx;}catch(e){return null;}};
   const [noteText,setNoteText]=useState("");
   const [showROS,setShowROS]=useState(false);
   const [clState,setClState]=useState({});
@@ -1725,7 +1747,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
   const schedDelta=(practiceStart&&practice&&practice.startTime&&practice.durMin)?(Math.floor((Date.now()-practiceStart)/60000)-completedMins-Math.floor(elapsed/60)):null;
   const rotatedStations=isBlock&&cur.stations?(()=>{const n=cur.stations.length;return cur.stations.map((st,i)=>{const srcIdx=(i-stIdx%n+n)%n;return Object.assign({},cur.stations[i],{assignments:cur.stations[srcIdx].assignments});});})():null;
 
-  const beep=useCallback(()=>{try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type="sine";o.frequency.value=880;g.gain.setValueAtTime(0.6,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.6);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.6);}catch(e){}},[]);
+  const beep=useCallback(async()=>{if(!audioOn)return;const ctx=await unlockAudio();if(!ctx)return;try{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(0.4,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.3);}catch(e){}},[ audioOn]);
   const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
 
   const applyAtt=useCallback((pIds,cIds,mode,baseActs)=>{const allPlayers=team?team.players:[];return baseActs.map(act=>{if(act.type!=="station_block")return Object.assign({},act,{assignments:(act.assignments||[]).filter(id=>pIds.has(id))});const newSt=mode==="rebalance"?rebalanceEven(act.stations,pIds,allPlayers):rebalanceKeep(act.stations,pIds);return Object.assign({},act,{stations:newSt});});},[team]);
@@ -1819,6 +1841,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
             <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
           </button>
           <button className="btn ghost bxs" onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}</button>
+          <button onClick={async()=>{if(!audioOn){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();audioCtxRef.current=ctx;await ctx.resume();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0.1,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.2);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.2);}catch(e){}}spoken.current={};setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊 On":"🔇 Off"}</button>
           <div style={{position:"relative"}}>
             <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
             {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
@@ -1946,7 +1969,7 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
         {isBlock&&inTrans&&rotatedStations&&<div>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"var(--red)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Rotate Now</div>
           {rotatedStations.map((st,i)=>(<div key={st.id} className="cc-trans-card">
-            <div style={{fontSize:12,color:"var(--td)",marginBottom:3}}>From {st.name}</div>
+            <div style={{fontSize:12,color:"var(--td)",marginBottom:3,lineHeight:1.6}}><span style={{fontWeight:700}}>From {st.name}</span>{st.activityName&&<span>: {st.activityName}</span>}{coachName(st.coachId)&&<span style={{color:"var(--green)"}}> · {coachName(st.coachId)}</span>}</div>
             <div className="cc-trans-names">{pnames(st.assignments)||"--"}</div>
             <div className="cc-trans-to">to {cur.stations[(i+1)%cur.stations.length].name}{cur.stations[(i+1)%cur.stations.length].activityName?": "+cur.stations[(i+1)%cur.stations.length].activityName:""}</div>
             <div className="cc-trans-sub">
