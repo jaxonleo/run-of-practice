@@ -424,9 +424,9 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
       <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn primary bsm" onClick={()=>openModal("addActivity")}>+ Add Drill</button></div>
       {data.activityLibrary.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No drills yet. Tap + Add Drill.</div>}
       {sports.map(sport=>(<div key={sport} style={{marginBottom:8}}>
-        <button onClick={()=>toggle(sport)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
-          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700}}>{sport}</span>
-          <span style={{fontSize:12,color:"var(--td)"}}>{data.activityLibrary.filter(a=>a.sport===sport).length} drills {collapsed[sport]?"":"v"}</span>
+        <button onClick={()=>toggle(sport)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"var(--s3)",border:"none",borderRadius:"var(--r)",cursor:"pointer",color:"var(--black)"}}>
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,letterSpacing:".04em",textTransform:"uppercase",color:"var(--black2)"}}>{sport}</span>
+          <span style={{fontSize:12,color:"var(--tm)",display:"flex",alignItems:"center",gap:6}}>{data.activityLibrary.filter(a=>a.sport===sport).length} drills <span style={{fontSize:10}}>{collapsed[sport]?"›":"▾"}</span></span>
         </button>
         {!collapsed[sport]&&(()=>{
           const sportDrills=data.activityLibrary.map((a,gi)=>({...a,_gi:gi})).filter(a=>a.sport===sport);
