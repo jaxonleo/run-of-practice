@@ -107,6 +107,13 @@ function migrateData(d){
     // Fix known coach ID bug: c_jaxon2 -> c_jaxon1
     t.coaches.forEach(c=>{if(c.id==="c_jaxon2")c.id="c_jaxon1";});
   });
+  (d.activityLibrary||[]).forEach(a=>{
+    if(!a.sport)a.sport="General";
+    if(!Array.isArray(a.equipment))a.equipment=[];
+    if(!a.grouping)a.grouping="whole";
+    if(!a.numGroups)a.numGroups=2;
+    if(!a.playerGear)a.playerGear="";
+  });
   d.practices.forEach(p=>{
     (p.activities||[]).forEach(a=>{
       if(a.type==="station_block"&&a.rotate===undefined)a.rotate=true;
@@ -405,7 +412,7 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
   const [confirmDel,setConfirmDel]=useState(null);
   const [collapsed,setCollapsed]=useState({});
   const toggle=sport=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}));
-  const sports=[...new Set(data.activityLibrary.map(a=>a.sport))].sort();
+  const sports=[...new Set(data.activityLibrary.map(a=>a.sport||"General").filter(Boolean))].sort();
   const templates=data.templates||[];
   const LTABS=["drills","templates","locations","equipment"];
   if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} mode="edit" onSave={tpl=>{update(d=>{const i=d.templates.findIndex(t=>t.id===tpl.id);if(i>=0)d.templates[i]=tpl;else d.templates.push(tpl);return d;});setEditingTpl(null);}} onBack={()=>setEditingTpl(null)}/></div>);
@@ -428,7 +435,7 @@ function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,set
           <span style={{fontSize:12,color:"var(--td)"}}>{data.activityLibrary.filter(a=>a.sport===sport).length} drills {collapsed[sport]?"":"v"}</span>
         </button>
         {!collapsed[sport]&&(()=>{
-          const sportDrills=data.activityLibrary.map((a,gi)=>({...a,_gi:gi})).filter(a=>a.sport===sport);
+          const sportDrills=data.activityLibrary.map((a,gi)=>({...a,_gi:gi,sport:a.sport||"General"})).filter(a=>a.sport===sport);
           const moveUp=act=>{const si=sportDrills.findIndex(a=>a.id===act.id);if(si===0)return;const pi=sportDrills[si-1]._gi;const ci=act._gi;update(d=>{const tmp=d.activityLibrary[ci];d.activityLibrary[ci]=d.activityLibrary[pi];d.activityLibrary[pi]=tmp;return d;});};
           const moveDown=act=>{const si=sportDrills.findIndex(a=>a.id===act.id);if(si===sportDrills.length-1)return;const ni=sportDrills[si+1]._gi;const ci=act._gi;update(d=>{const tmp=d.activityLibrary[ci];d.activityLibrary[ci]=d.activityLibrary[ni];d.activityLibrary[ni]=tmp;return d;});};
           return sportDrills.map((act,si)=>(<div key={act.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderBottom:"1px solid var(--b)",background:"#fff"}}>
