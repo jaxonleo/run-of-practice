@@ -651,14 +651,6 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSwitchCo
 
 export default function App(){
   const [data,setData]=useState(INIT);
-  useEffect(()=>{
-    if(!cur||cur.type==="station_block")return;
-    const g=cur.grouping||"whole";
-    if(g==="whole"){setLiveGroups(null);return;}
-    const present=[...presentIds];
-    const players=(team?team.players:[]).filter(p=>present.includes(p.id));
-    setLiveGroups(assignGroups(players,g,cur.numGroups||2));
-  },[idx]);
   useEffect(()=>{let el=document.getElementById('rop-css');if(!el){el=document.createElement('style');el.id='rop-css';document.head.appendChild(el);}el.textContent=CSS;},[]);
   const [loaded,setLoaded]=useState(false);
   const [view,setView]=useState("today");
@@ -1733,7 +1725,15 @@ function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
   const schedDelta=(practiceStart&&practice&&practice.startTime&&practice.durMin)?(Math.floor((Date.now()-practiceStart)/60000)-completedMins-Math.floor(elapsed/60)):null;
   const rotatedStations=isBlock&&cur.stations?(()=>{const n=cur.stations.length;return cur.stations.map((st,i)=>{const srcIdx=(i-stIdx%n+n)%n;return Object.assign({},cur.stations[i],{assignments:cur.stations[srcIdx].assignments});});})():null;
 
-  const beep=useCallback(async()=>{if(!audioOn)return;const ctx=await unlockAudio();if(!ctx)return;try{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(0.4,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.3);}catch(e){}},[ audioOn]);
+  useEffect(()=>{
+    if(!cur||cur.type==="station_block")return;
+    const g=cur.grouping||"whole";
+    if(g==="whole"){setLiveGroups(null);return;}
+    const present=[...presentIds];
+    const players=(team?team.players:[]).filter(p=>present.includes(p.id));
+    setLiveGroups(assignGroups(players,g,cur.numGroups||2));
+  },[idx]);
+    const beep=useCallback(async()=>{if(!audioOn)return;const ctx=await unlockAudio();if(!ctx)return;try{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(0.4,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.3);}catch(e){}},[ audioOn]);
   const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
 
   const applyAtt=useCallback((pIds,cIds,mode,baseActs)=>{const allPlayers=team?team.players:[];return baseActs.map(act=>{if(act.type!=="station_block")return Object.assign({},act,{assignments:(act.assignments||[]).filter(id=>pIds.has(id))});const newSt=mode==="rebalance"?rebalanceEven(act.stations,pIds,allPlayers):rebalanceKeep(act.stations,pIds);return Object.assign({},act,{stations:newSt});});},[team]);
