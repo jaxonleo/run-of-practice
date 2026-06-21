@@ -1,117 +1,52 @@
 import { createClient } from '@supabase/supabase-js'
-
 const SUPABASE_URL = 'https://bepoojcbizxhqadrytjq.supabase.co'
 const SUPABASE_ANON_KEY = 'sb_publishable_z0atQT9uv4_9OZSlGe_awg_d07YcC7v'
-
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-
 let _coachKey = null
 export function setCoachKey(id) { _coachKey = 'coach_' + id }
-
 let saveTimer = null
-
-// ── Coach registry (global, device-agnostic) ─────────────────────────────────
 export async function getCoaches() {
-  try {
-    const { data, error } = await supabase
-      .from('coaches')
-      .select('id, name')
-      .order('name', { ascending: true })
-    if (error) { console.error('getCoaches error:', error); return [] }
-    return data || []
-  } catch (e) { console.error('getCoaches exception:', e); return [] }
+  try { const { data, error } = await supabase.from('coaches').select('id, name').order('name', { ascending: true }); if (error) return []; return data || [] } catch (e) { return [] }
 }
-
 export async function registerCoach(id, name) {
-  try {
-    const { error } = await supabase
-      .from('coaches')
-      .upsert({ id, name }, { onConflict: 'id' })
-    if (error) console.error('registerCoach error:', error)
-  } catch (e) { console.error('registerCoach exception:', e) }
+  if (!id || !name) return
+  try { const { error } = await supabase.from('coaches').upsert([{ id, name }], { onConflict: 'id' }); if (error) console.error('registerCoach:', error) } catch (e) { console.error(e) }
 }
-
-// ── Per-coach app data ────────────────────────────────────────────────────────
 export async function loadData() {
   if (!_coachKey) return null
-  try {
-    const { data, error } = await supabase
-      .from('app_data')
-      .select('value')
-      .eq('key', _coachKey)
-      .maybeSingle()
-    if (error) { console.error('loadData error:', error); return null }
-    return data ? data.value : null
-  } catch (e) { console.error('loadData exception:', e); return null }
+  try { const { data, error } = await supabase.from('app_data').select('value').eq('key', _coachKey).maybeSingle(); if (error) return null; return data ? data.value : null } catch (e) { return null }
 }
-
 export function saveData(d) {
   clearTimeout(saveTimer)
   saveTimer = setTimeout(async () => {
     if (!_coachKey) return
-    try {
-      const { error } = await supabase
-        .from('app_data')
-        .upsert({ key: _coachKey, value: d }, { onConflict: 'key' })
-      if (error) console.error('saveData error:', error)
-    } catch (e) { console.error('saveData exception:', e) }
+    try { await supabase.from('app_data').upsert({ key: _coachKey, value: d }, { onConflict: 'key' }) } catch (e) { console.error(e) }
   }, 1500)
 }
-
 export function flushSave(d) {
   clearTimeout(saveTimer)
   if (!_coachKey || !d) return
-  supabase.from('app_data')
-    .upsert({ key: _coachKey, value: d }, { onConflict: 'key' })
-    .then(({ error }) => { if (error) console.error('flushSave error:', error) })
+  supabase.from('app_data').upsert({ key: _coachKey, value: d }, { onConflict: 'key' })
 }
-
-// ── Live session functions ────────────────────────────────────────────────────
-function genSessionId() { return Math.random().toString(36).slice(2, 10) }
-
 export async function createSession(coachId, practiceId, state) {
-  const sessionId = genSessionId()
-  const { error } = await supabase
-    .from('live_sessions')
-    .insert({ session_id: sessionId, coach_id: coachId, practice_id: practiceId, state })
-  if (error) { console.error('createSession error:', error); return null }
+  const sessionId = Math.random().toString(36).slice(2, 10)
+  const { error } = await supabase.from('live_sessions').insert({ session_id: sessionId, coach_id: coachId, practice_id: practiceId, state })
+  if (error) { console.error(error); return null }
   return sessionId
 }
-
 export async function updateSession(sessionId, state) {
-  const { error } = await supabase
-    .from('live_sessions')
-    .update({ state })
-    .eq('session_id', sessionId)
-  if (error) console.error('updateSession error:', error)
+  const { error } = await supabase.from('live_sessions').update({ state }).eq('session_id', sessionId)
+  if (error) console.error(error)
 }
-
 export async function endSession(sessionId) {
-  const { error } = await supabase
-    .from('live_sessions')
-    .update({ ended_at: new Date().toISOString() })
-    .eq('session_id', sessionId)
-  if (error) console.error('endSession error:', error)
+  const { error } = await supabase.from('live_sessions').update({ ended_at: new Date().toISOString() }).eq('session_id', sessionId)
+  if (error) console.error(error)
 }
-
 export async function getSession(sessionId) {
-  const { data, error } = await supabase
-    .from('live_sessions')
-    .select('*')
-    .eq('session_id', sessionId)
-    .maybeSingle()
-  if (error) { console.error('getSession error:', error); return null }
+  const { data, error } = await supabase.from('live_sessions').select('*').eq('session_id', sessionId).maybeSingle()
+  if (error) return null
   return data
 }
-
 export function subscribeToSession(sessionId, onUpdate) {
-  return supabase
-    .channel('session_' + sessionId)
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'live_sessions',
-      filter: 'session_id=eq.' + sessionId
-    }, payload => { onUpdate(payload.new) })
-    .subscribe()
+  return supabase.channel('session_' + sessionId).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_sessions', filter: 'session_id=eq.' + sessionId }, payload => { onUpdate(payload.new) }).subscribe()
 }
