@@ -73,7 +73,7 @@ function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update}){
     {act.stations.map((st,si)=>(<div key={st.id} className="card mb8" style={{background:"var(--s1)"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,marginBottom:8}}>Station {si+1}</div>
       <div className="fld"><label className="lbl">Drill</label>
-        <select className="sel" value={st.activityId||""} onChange={e=>{const lib=(assets||[]);const found=e.target.value;onSt(st.id,{activityId:found,activityName:found?(assets||[]).find?.(a=>a.id===found)?.name||"":"":""});}}>
+        <select className="sel" value={st.activityId||""} onChange={e=>{const found=e.target.value;const match=(assets||[]).find(a=>a.id===found);onSt(st.id,{activityId:found,activityName:found&&match?match.name:""});}}>
           <option value="">Custom</option>
         </select>
       </div>
