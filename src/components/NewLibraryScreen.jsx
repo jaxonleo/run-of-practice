@@ -17,7 +17,7 @@ function DurStepper({value,min,onChange,step}){
   </div>);
 }
 
-function ActConfig({act,team,loc,onChange,onDone,assets,update}){
+export function ActConfig({act,team,loc,onChange,onDone,assets,update}){
   return (<div>
     <div className="fld"><label className="lbl">Name</label><input className="inp" value={act.name} onChange={e=>onChange({name:e.target.value})}/></div>
     <div className="fld"><label className="lbl">Duration (min)</label><DurStepper value={act.duration} min={1} onChange={v=>onChange({duration:v})}/></div>
@@ -28,7 +28,7 @@ function ActConfig({act,team,loc,onChange,onDone,assets,update}){
   </div>);
 }
 
-function ChecklistConfig({act,onChange,onDone}){
+export function ChecklistConfig({act,onChange,onDone}){
   const [newItem,setNewItem]=useState("");
   const addItem=()=>{if(!newItem.trim())return;const items=[...(act.items||[]),{id:uid(),text:newItem.trim(),done:false}];onChange({items});setNewItem("");};
   const remItem=id=>onChange({items:(act.items||[]).filter(it=>it.id!==id)});
@@ -47,7 +47,7 @@ function ChecklistConfig({act,onChange,onDone}){
   </div>);
 }
 
-function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update}){
+export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update}){
   const rotate=act.rotate!==false;
   const [randGroups,setRandGroups]=useState(null);
   const players=team?team.players:[];

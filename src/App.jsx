@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { loadData, saveData, flushSave, setCoachKey, getCoaches, registerCoach } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, DEMO_INIT, migrateData } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
-import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
+import NewLibraryScreen, { ActConfig, ChecklistConfig, StationConfig } from "./components/NewLibraryScreen.jsx";
 import CommandScreen, { HelperView } from "./components/CommandScreen.jsx";
 
 // INIT, DEMO_INIT, migrateData, uid, fmt, sumMins, etc. imported from constants.js
