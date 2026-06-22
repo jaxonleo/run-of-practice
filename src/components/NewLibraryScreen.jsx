@@ -49,71 +49,155 @@ export function ChecklistConfig({act,onChange,onDone}){
 
 export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update}){
   const rotate=act.rotate!==false;
-  const [randGroups,setRandGroups]=useState(null);
   const players=team?team.players:[];
-  const genRand=()=>{
+  const [newEquipIdx,setNewEquipIdx]=useState(null); // which station has add-equip open
+
+  // ── Random groups ──────────────────────────────────────────────────────────
+  const genRandom=()=>{
     const n=act.stations.length;
     const shuffled=[...players].sort(()=>Math.random()-.5);
     const groups=Array.from({length:n},()=>[]);
     shuffled.forEach((p,i)=>groups[i%n].push(p.id));
-    setRandGroups(groups);
+    onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:groups[i]||[]}))});
   };
-  const applyRand=()=>{
-    if(!randGroups)return;
-    const newSts=act.stations.map((st,i)=>Object.assign({},st,{assignments:randGroups[i]||[]}));
-    onChange({stations:newSts});
-    setRandGroups(null);
+  const clearGroups=()=>onChange({stations:act.stations.map(st=>Object.assign({},st,{assignments:[]}))});
+
+  // ── Add / remove stations ─────────────────────────────────────────────────
+  const addStation=()=>{
+    const n=act.stations.length+1;
+    onChange({stations:[...act.stations,{id:Math.random().toString(36).slice(2,9),name:"Station "+n,activityName:"",coachId:"",coachName:"",sublocationId:"",equipment:[],playerGear:"",coachingPoints:"",assignments:[]}]});
   };
+  const removeStation=si=>{
+    if(act.stations.length<=1)return;
+    onChange({stations:act.stations.filter((_,i)=>i!==si)});
+  };
+
+  // ── Player chip click ─────────────────────────────────────────────────────
+  const handleChip=(si,p)=>{
+    const st=act.stations[si];
+    const assigned=(st.assignments||[]).includes(p.id);
+    if(assigned){
+      // unassign → gray
+      onSt(st.id,{assignments:(st.assignments||[]).filter(x=>x!==p.id)});
+    } else {
+      // move from any other station → assign here
+      const newSts=act.stations.map((s2,i2)=>{
+        if(i2===si)return Object.assign({},s2,{assignments:[...(s2.assignments||[]),p.id]});
+        return Object.assign({},s2,{assignments:(s2.assignments||[]).filter(x=>x!==p.id)});
+      });
+      onChange({stations:newSts});
+    }
+  };
+
   return (<div>
-    <div className="g2">
-      <div className="fld"><label className="lbl">Station (min)</label><DurStepper value={act.stationDuration} min={1} onChange={v=>onChange({stationDuration:v})}/></div>
-      {rotate&&<div className="fld"><label className="lbl">Transition (min)</label><DurStepper value={act.transitionDuration} min={0} onChange={v=>onChange({transitionDuration:v})}/></div>}
+    {/* ── Rotate / Static toggle ── */}
+    <div className="fld">
+      <label className="lbl">Player Movement</label>
+      <div style={{display:"flex",gap:0,borderRadius:"var(--r)",overflow:"hidden",border:"1.5px solid var(--b)"}}>
+        <button type="button" onClick={()=>onChange({rotate:true})} style={{flex:1,padding:"10px 0",border:"none",background:rotate?"var(--green)":"var(--s1)",color:rotate?"#fff":"var(--black)",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",letterSpacing:".03em"}}>
+          ROTATE
+        </button>
+        <button type="button" onClick={()=>onChange({rotate:false})} style={{flex:1,padding:"10px 0",border:"none",background:!rotate?"var(--green)":"var(--s1)",color:!rotate?"#fff":"var(--black)",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",letterSpacing:".03em"}}>
+          STATIC
+        </button>
+      </div>
+      <div style={{fontSize:11,color:"var(--td)",marginTop:4}}>{rotate?"Players rotate through all stations on a timer":"Players stay at their assigned station"}</div>
     </div>
-    <div className="fld"><label className="lbl"><input type="checkbox" checked={rotate} onChange={e=>onChange({rotate:e.target.checked})} style={{marginRight:6}}/>Players rotate between stations</label></div>
-    {act.stations.map((st,si)=>(<div key={st.id} className="card mb8" style={{background:"var(--s1)"}}>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,marginBottom:8}}>Station {si+1}</div>
-      <div className="fld"><label className="lbl">Drill</label>
-        <select className="sel" value={st.activityId||""} onChange={e=>{const found=e.target.value;const match=(assets||[]).find(a=>a.id===found);onSt(st.id,{activityId:found,activityName:found&&match?match.name:""});}}>
-          <option value="">Custom</option>
-        </select>
-      </div>
-      <div className="fld"><label className="lbl">Name</label><input className="inp" value={st.activityName||""} onChange={e=>onSt(st.id,{activityName:e.target.value})}/></div>
-      {team&&<div className="fld"><label className="lbl">Coach</label><select className="sel" value={st.coachId||""} onChange={e=>onSt(st.id,{coachId:e.target.value,coachName:(team.coaches.find(c=>c.id===e.target.value)||{}).name||""})}><option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
-      {loc&&loc.sublocations&&loc.sublocations.length>0&&<div className="fld"><label className="lbl">Area</label><select className="sel" value={st.sublocationId||""} onChange={e=>onSt(st.id,{sublocationId:e.target.value})}><option value="">Any</option>{loc.sublocations.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>}
-      <div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" style={{minHeight:40}} value={st.coachingPoints||""} onChange={e=>onSt(st.id,{coachingPoints:e.target.value})}/></div>
-      {players.length>0&&(<div className="fld"><label className="lbl">Players</label>
-        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-          {players.map(p=>{
-            const assigned=(st.assignments||[]).includes(p.id);
-            const inOther=!assigned&&act.stations.some((s2,i2)=>i2!==si&&(s2.assignments||[]).includes(p.id));
-            return (<button key={p.id} type="button" onClick={()=>{
-              if(assigned){onSt(st.id,{assignments:(st.assignments||[]).filter(x=>x!==p.id)});}
-              else if(inOther){const newSts=act.stations.map(s2=>Object.assign({},s2,{assignments:(s2.assignments||[]).filter(x=>x!==p.id)}));newSts[si]=Object.assign({},newSts[si],{assignments:[...(newSts[si].assignments||[]),p.id]});onChange({stations:newSts});}
-              else{onSt(st.id,{assignments:[...(st.assignments||[]),p.id]});}
-            }} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid",borderColor:assigned?"var(--green)":inOther?"var(--b)":"var(--b)",background:assigned?"var(--green)":inOther?"var(--s2)":"var(--s1)",color:assigned?"#fff":inOther?"var(--td)":"var(--black)",fontSize:13,cursor:"pointer",opacity:inOther?0.6:1}}>
-              {p.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,marginRight:3}}>#{p.jersey}</span>}{p.firstName}
-            </button>);
-          })}
+
+    {/* ── Durations ── */}
+    <div className={rotate?"g2":"fld"} style={rotate?{}:{maxWidth:160}}>
+      <div className="fld"><label className="lbl">Time at Station (min)</label><DurStepper value={act.stationDuration||10} min={1} onChange={v=>onChange({stationDuration:v})}/></div>
+      {rotate&&<div className="fld"><label className="lbl">Transition (min)</label><DurStepper value={act.transitionDuration||2} min={0} onChange={v=>onChange({transitionDuration:v})}/></div>}
+    </div>
+
+    {/* ── Random groups bar ── */}
+    {players.length>0&&<div className="brow mb10">
+      <button className="btn outline bmd" style={{flex:1}} onClick={genRandom}>Generate Random Groups</button>
+      <button className="btn ghost bmd" style={{flex:1}} onClick={clearGroups}>Clear Groups</button>
+    </div>}
+
+    {/* ── Stations ── */}
+    {act.stations.map((st,si)=>{
+      const stEquip=Array.isArray(st.equipment)?st.equipment:[];
+      return (<div key={st.id} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 12px 10px",marginBottom:10}}>
+        {/* station header */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:900,color:"var(--green)",letterSpacing:".05em"}}>STATION {si+1}</div>
+          {act.stations.length>1&&<button type="button" onClick={()=>removeStation(si)} style={{background:"none",border:"none",color:"var(--td)",fontSize:12,cursor:"pointer",padding:"2px 6px"}}>Remove</button>}
         </div>
-      </div>)}
-    </div>))}
-    {players.length>0&&(
-      <div className="card mb8" style={{background:"var(--s1)"}}>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,marginBottom:8}}>Random Groups</div>
-        {!randGroups&&<button className="btn ghost bsm bfull" onClick={genRand}>Generate Random Groups</button>}
-        {randGroups&&(<div>
-          <div className="gpreview">
-            {randGroups.map((g,i)=>(<div key={i} className="gcard">
-              <div className="gcardtitle">Station {i+1}</div>
-              {g.map(pid=>{const p=players.find(x=>x.id===pid);return p?<div key={pid} className="gplayer">{p.firstName}</div>:null;})}
-            </div>))}
+
+        <div className="fld"><label className="lbl">Name</label><input className="inp" value={st.activityName||st.name||""} onChange={e=>onSt(st.id,{activityName:e.target.value,name:e.target.value})}/></div>
+
+        {team&&team.coaches.length>0&&<div className="fld"><label className="lbl">Coach</label>
+          <select className="sel" value={st.coachId||""} onChange={e=>{const c=team.coaches.find(c=>c.id===e.target.value);onSt(st.id,{coachId:e.target.value,coachName:c?c.name:""});}}>
+            <option value="">Unassigned</option>
+            {team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>}
+
+        {loc&&loc.sublocations&&loc.sublocations.length>0&&<div className="fld"><label className="lbl">Area</label>
+          <select className="sel" value={st.sublocationId||""} onChange={e=>onSt(st.id,{sublocationId:e.target.value})}>
+            <option value="">Any</option>
+            {loc.sublocations.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>}
+
+        <div className="fld"><label className="lbl">Coaching Points</label>
+          <textarea className="ta" style={{minHeight:40}} value={st.coachingPoints||""} onChange={e=>onSt(st.id,{coachingPoints:e.target.value})}/>
+        </div>
+
+        {/* Equipment */}
+        <div className="fld"><label className="lbl">Equipment</label>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
+            {(assets||[]).map(a=>(<button key={a.id} type="button" onClick={()=>{const cur=stEquip;const has=cur.includes(a.id);onSt(st.id,{equipment:has?cur.filter(x=>x!==a.id):[...cur,a.id]});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:stEquip.includes(a.id)?"var(--green)":"#fff",color:stEquip.includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
+            {(assets||[]).length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No equipment in library</span>}
           </div>
-          <div className="brow mt8"><button className="btn ghost bsm" onClick={genRand}>Reshuffle</button><button className="btn primary bsm" onClick={applyRand}>Apply</button></div>
-          <button className="btn ghost bsm bfull mt6" onClick={()=>setRandGroups(null)}>Cancel</button>
-        </div>)}
-      </div>
-    )}
-    <button className="btn ghost bsm bfull mt8" onClick={onDone}>Done</button>
+          {newEquipIdx===si
+            ?<div style={{display:"flex",gap:6}}>
+                <input className="inp" style={{flex:1}} placeholder="Equipment name..." id={"new-st-equip-"+si} autoFocus/>
+                <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-st-equip-"+si);if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=Math.random().toString(36).slice(2,9);update(d=>{d.assets.push({id:newId,name:nm,locationTags:[]});return d;});onSt(st.id,{equipment:[...stEquip,newId]});setNewEquipIdx(null);}}>Add</button>
+                <button type="button" className="btn ghost bxs" onClick={()=>setNewEquipIdx(null)}>✕</button>
+              </div>
+            :<button type="button" className="btn ghost bxs" onClick={()=>setNewEquipIdx(si)}>+ New</button>
+          }
+        </div>
+
+        {/* Player Gear */}
+        <div className="fld"><label className="lbl">Player Gear Needed</label>
+          <input className="inp" placeholder="e.g. Batting helmet, glove" value={st.playerGear||""} onChange={e=>onSt(st.id,{playerGear:e.target.value})}/>
+        </div>
+
+        {/* Player chips */}
+        {players.length>0&&<div className="fld"><label className="lbl">Players</label>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {players.map(p=>{
+              const here=(st.assignments||[]).includes(p.id);
+              const otherIdx=!here?act.stations.findIndex((s2,i2)=>i2!==si&&(s2.assignments||[]).includes(p.id)):-1;
+              const elsewhere=otherIdx>=0;
+              return (<button key={p.id} type="button" onClick={()=>handleChip(si,p)}
+                style={{padding:"5px 10px",borderRadius:20,border:"1.5px solid",
+                  borderColor:here?"var(--green)":elsewhere?"#d97706":"var(--b)",
+                  background:here?"var(--green)":elsewhere?"#fef3c7":"var(--s1)",
+                  color:here?"#fff":elsewhere?"#92400e":"var(--black)",
+                  fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+                {p.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11}}>#{p.jersey}</span>}
+                <span>{p.firstName}</span>
+                {elsewhere&&<span style={{fontSize:10,opacity:.8}}> · St{otherIdx+1}</span>}
+              </button>);
+            })}
+          </div>
+          <div style={{fontSize:11,color:"var(--td)",marginTop:4}}>
+            <span style={{color:"var(--green)",fontWeight:700}}>Green</span> = here &nbsp;
+            <span style={{color:"#d97706",fontWeight:700}}>Yellow</span> = other station &nbsp;
+            <span style={{color:"var(--td)"}}>Gray</span> = unassigned
+          </div>
+        </div>}
+      </div>);
+    })}
+
+    {/* ── Add station ── */}
+    <button type="button" className="btn outline bsm bfull mb8" onClick={addStation}>+ Add Station</button>
+    <button className="btn ghost bsm bfull mt4" onClick={onDone}>Done</button>
   </div>);
 }
 

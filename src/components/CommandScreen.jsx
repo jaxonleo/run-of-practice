@@ -239,6 +239,10 @@ function HelperView({sessionId}){
           {subName(rotatedStations[focusSt].sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:3}}>{subName(rotatedStations[focusSt].sublocationId)}</div>}
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:32,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:4}}>{rotatedStations[focusSt].activityName||rotatedStations[focusSt].name}</div>
           {rotatedStations[focusSt].coachingPoints&&<div className="cc-focus"><div className="cc-focus-lbl">Coaching Focus</div><div className="cc-focus-txt">{rotatedStations[focusSt].coachingPoints}</div></div>}
+          {(()=>{const stEquip=Array.isArray(rotatedStations[focusSt].equipment)?rotatedStations[focusSt].equipment:[];const equipNames=stEquip.map(id=>{const a=(state.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(equipNames.length>0||rotatedStations[focusSt].playerGear)?(<div style={{marginTop:8,fontSize:13,color:"var(--black2)"}}>
+            {equipNames.length>0&&<div>🏀 <strong>Equipment:</strong> {equipNames.join(", ")}</div>}
+            {rotatedStations[focusSt].playerGear&&<div>🎒 <strong>Player gear:</strong> {rotatedStations[focusSt].playerGear}</div>}
+          </div>):null;})()}
           <div style={{marginTop:10}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -248,17 +252,26 @@ function HelperView({sessionId}){
         </div>}
         {focusSt===null&&<div>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+n+" - Tap a station to focus":"All Stations - Tap to focus"}</div>
-          {rotatedStations.map((st,i)=>(<div key={i} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>{st.name}</div>
-            </div>
-            {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:3}}>{subName(st.sublocationId)}</div>}
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:700,color:"var(--black)",marginBottom:6}}>{st.activityName||st.name}</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {(st.assignments||[]).map(pid=>(<span key={pid} style={{background:"var(--s2)",border:"1px solid var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>{pname(pid)}</span>))}
-            </div>
-            <div style={{fontSize:10,color:"var(--td)",marginTop:5}}>Tap to focus</div>
-          </div>))}
+          {rotatedStations.map((st,i)=>{
+            const stEquip=Array.isArray(st.equipment)?st.equipment:[];
+            const equipNames=stEquip.map(id=>{const a=(state.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
+            return (<div key={i} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}}>
+                <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>{st.name}</div>
+              </div>
+              {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:2}}>{subName(st.sublocationId)}</div>}
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:700,color:"var(--black)",marginBottom:4}}>{st.activityName||st.name}</div>
+              {st.coachingPoints&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:4,lineHeight:1.4}}>{st.coachingPoints}</div>}
+              {(equipNames.length>0||st.playerGear)&&<div style={{fontSize:11,color:"var(--td)",marginBottom:4}}>
+                {equipNames.length>0&&<span>🏀 {equipNames.join(", ")}  </span>}
+                {st.playerGear&&<span>🎒 {st.playerGear}</span>}
+              </div>}
+              <div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:4}}>
+                {(st.assignments||[]).map(pid=>(<span key={pid} style={{background:"var(--s2)",border:"1px solid var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>{pname(pid)}</span>))}
+              </div>
+              <div style={{fontSize:10,color:"var(--td)",marginTop:5}}>Tap to focus</div>
+            </div>);
+          })}
         </div>}
       </div>}
       {isBlock&&inTrans&&rotatedStations&&<div>
@@ -354,7 +367,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     const newActs=applyAtt(pIds,cIds,balanceMode,practice.activities);
     setLiveActs(newActs);setStage("live");setShowAtt(false);
     setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(true);spoken.current={};
-    createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,elapsed:0,running:true,runningAt:Date.now(),presentIds:[...pIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations}).then(sid=>{
+    createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,elapsed:0,running:true,runningAt:Date.now(),presentIds:[...pIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]}).then(sid=>{
       if(sid){sessionRef.current=sid;setSessionId(sid);}
     });
   },[practice,applyAtt,coachId,liveId]);
@@ -515,6 +528,10 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
             {subName(rotatedStations[focusSt].sublocationId)&&<span>{subName(rotatedStations[focusSt].sublocationId)}</span>}
           </div>}
           {rotatedStations[focusSt].coachingPoints&&<div className="cc-focus"><div className="cc-focus-lbl">Coaching Focus</div><div className="cc-focus-txt">{rotatedStations[focusSt].coachingPoints}</div></div>}
+          {(()=>{const stEquip=Array.isArray(rotatedStations[focusSt].equipment)?rotatedStations[focusSt].equipment:[];const equipNames=stEquip.map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(equipNames.length>0||rotatedStations[focusSt].playerGear)?(<div style={{marginTop:8,fontSize:13,color:"var(--black2)"}}>
+            {equipNames.length>0&&<div>🏀 <strong>Equipment:</strong> {equipNames.join(", ")}</div>}
+            {rotatedStations[focusSt].playerGear&&<div>🎒 <strong>Player gear:</strong> {rotatedStations[focusSt].playerGear}</div>}
+          </div>):null;})()}
           <div style={{marginTop:10}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -524,18 +541,27 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
         </div>}
         {focusSt===null&&<div>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+cur.stations.length+" - Tap a station to focus":"All Stations - Tap to focus"}</div>
-          {rotatedStations.map((st,i)=>(<div key={st.id} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>{st.name}</div>
-              <div style={{fontSize:11,color:"var(--td)"}}>{coachName(st.coachId)||"No coach"}</div>
-            </div>
-            {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:3}}>{subName(st.sublocationId)}</div>}
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:700,color:"var(--black)",marginBottom:6}}>{st.activityName||st.name}</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {(st.assignments||[]).map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team}/>))}
-            </div>
-            <div style={{fontSize:10,color:"var(--td)",marginTop:5}}>Tap to focus</div>
-          </div>))}
+          {rotatedStations.map((st,i)=>{
+            const stEquip=Array.isArray(st.equipment)?st.equipment:[];
+            const equipNames=stEquip.map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
+            return (<div key={st.id} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}}>
+                <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>{st.name}</div>
+                <div style={{fontSize:11,color:"var(--td)"}}>{coachName(st.coachId)||""}</div>
+              </div>
+              {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:2}}>{subName(st.sublocationId)}</div>}
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:700,color:"var(--black)",marginBottom:4}}>{st.activityName||st.name}</div>
+              {st.coachingPoints&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:4,lineHeight:1.4}}>{st.coachingPoints}</div>}
+              {(equipNames.length>0||st.playerGear)&&<div style={{fontSize:11,color:"var(--td)",marginBottom:4}}>
+                {equipNames.length>0&&<span>🏀 {equipNames.join(", ")}  </span>}
+                {st.playerGear&&<span>🎒 {st.playerGear}</span>}
+              </div>}
+              <div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:4}}>
+                {(st.assignments||[]).map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team}/>))}
+              </div>
+              <div style={{fontSize:10,color:"var(--td)",marginTop:6}}>Tap to focus</div>
+            </div>);
+          })}
         </div>}
         {movePlayer&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setMovePlayer(null);}}>
           <div className="modal">
