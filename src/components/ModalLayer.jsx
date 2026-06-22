@@ -30,7 +30,7 @@ export default function ModalLayer({modal,data,update,closeModal}){
   const location=modal.type==="editLocation"?modal.payload.location:null;
   const editTeamData=modal.type==="editTeam"?modal.payload.team:null;
   const asset=modal.type==="editAsset"?modal.payload.asset:null;
-  const template=modal.type==="editTemplate"?modal.payload.template:null;
+  const coach=modal.type==="editCoach"?modal.payload.coach:null;
   const [f,setF]=useState(()=>{
     if(player)return{firstName:player.firstName,lastName:player.lastName,jersey:player.jersey,notes:player.notes||""};
     if(activity){
@@ -49,6 +49,7 @@ export default function ModalLayer({modal,data,update,closeModal}){
     }
     if(location)return{name:location.name};
     if(asset)return{name:asset.name,locationTags:asset.locationTags||[]};
+    if(coach)return{name:coach.name,role:coach.role||""};
     if(template)return{name:template.name,sport:template.sport||"General"};
     if(editTeamData)return{name:editTeamData.name,sport:editTeamData.sport||"Basketball"};
     return{sport:lastSportRef.current||"Basketball"};
@@ -61,6 +62,7 @@ export default function ModalLayer({modal,data,update,closeModal}){
     if(t==="addPlayer"){if(!f.firstName)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.teamId);if(tm)tm.players.push({id:uid(),firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",notes:f.notes||""});return d;});}
     if(t==="editPlayer"){if(!f.firstName)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.teamId);if(tm){const pl=tm.players.find(pl=>pl.id===p.player.id);if(pl){pl.firstName=f.firstName;pl.lastName=f.lastName||"";pl.jersey=f.jersey||"";pl.notes=f.notes||"";}}return d;});}
     if(t==="addCoach"){if(!f.name)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.teamId);if(tm)tm.coaches.push({id:uid(),name:f.name,role:f.role||"Assistant",notes:""});return d;});}
+    if(t==="editCoach"){if(!f.name)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.teamId);if(tm){const c=tm.coaches.find(c=>c.id===p.coach.id);if(c){c.name=f.name;c.role=f.role||"Assistant";}}return d;});}
     if(t==="addLocation"){if(!f.name)return;update(d=>{d.locations.push({id:uid(),name:f.name,sublocations:[]});return d;});}
     if(t==="editLocation"){if(!f.name)return;update(d=>{const l=d.locations.find(l=>l.id===p.location.id);if(l)l.name=f.name;return d;});}
     if(t==="addSublocation"){if(!f.name)return;update(d=>{const l=d.locations.find(l=>l.id===p.locationId);if(l)l.sublocations.push({id:uid(),name:f.name});return d;});}
@@ -104,7 +106,7 @@ export default function ModalLayer({modal,data,update,closeModal}){
     if(t==="editTeam"){if(!f.name)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.team.id);if(tm){tm.name=f.name;tm.sport=f.sport||"Basketball";}return d;});}
     closeModal();
   };
-  const TITLES={addTemplate:"New Template",editTemplate:"Edit Template",addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",editPlayer:"Edit Player",addCoach:"Add Coach",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
+  const TITLES={addTemplate:"New Template",editTemplate:"Edit Template",addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",editPlayer:"Edit Player",addCoach:"Add Coach",editCoach:"Edit Coach",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
   return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget)closeModal();}}>
       <div className="modal">
         <div className="mhandle"/>
@@ -119,6 +121,8 @@ export default function ModalLayer({modal,data,update,closeModal}){
           </div>
         )}
         {modal.type==="addCoach"&&(<div><div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus onChange={e=>set("name",e.target.value)}/></div><div className="fld"><label className="lbl">Role</label><input className="inp" placeholder="Assistant" onChange={e=>set("role",e.target.value)}/></div></div>
+        )}
+        {modal.type==="editCoach"&&(<div><div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div><div className="fld"><label className="lbl">Role</label><input className="inp" value={f.role||""} placeholder="Assistant" onChange={e=>set("role",e.target.value)}/></div></div>
         )}
         {(modal.type==="addLocation"||modal.type==="editLocation"||modal.type==="addSublocation")&&(<div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
         )}

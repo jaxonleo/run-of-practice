@@ -856,7 +856,7 @@ function RostersTab({data,update,openModal,fixedTeamId}){
         {team.coaches.map(c=>(<div key={c.id} className="li" style={{position:"relative"}}>
           <div className="lim"><div className="lin">{c.name}</div><div className="limt">{c.role}</div></div>
           <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="coach_"+c.id?null:"coach_"+c.id);}}><span/><span/><span/></button>
-          {openMenu==="coach_"+c.id&&<div className="mini-menu"><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delC(c.id);}}>Remove</button></div>}
+          {openMenu==="coach_"+c.id&&<div className="mini-menu"><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editCoach",{teamId,coach:c});}}>Edit</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delC(c.id);}}>Remove</button></div>}
         </div>))}
       </div>)}
     </div>)}
