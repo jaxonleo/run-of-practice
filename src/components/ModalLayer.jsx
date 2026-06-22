@@ -31,6 +31,7 @@ export default function ModalLayer({modal,data,update,closeModal}){
   const editTeamData=modal.type==="editTeam"?modal.payload.team:null;
   const asset=modal.type==="editAsset"?modal.payload.asset:null;
   const coach=modal.type==="editCoach"?modal.payload.coach:null;
+  const template=modal.type==="editTemplate"?modal.payload.template:null;
   const [f,setF]=useState(()=>{
     if(player)return{firstName:player.firstName,lastName:player.lastName,jersey:player.jersey,notes:player.notes||""};
     if(activity){
@@ -59,7 +60,7 @@ export default function ModalLayer({modal,data,update,closeModal}){
   const save=()=>{
     const t=modal.type,p=modal.payload;
     if(t==="addTeam"){if(!f.name)return;update(d=>{d.teams.push({id:uid(),name:f.name,sport:f.sport||"Basketball",players:[],coaches:[]});return d;});}
-    if(t==="addPlayer"){if(!f.firstName)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.teamId);if(tm)tm.players.push({id:uid(),firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",notes:f.notes||""});return d;});}
+    if(t==="addPlayer"){if(!f.firstName)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.teamId);if(tm)tm.players.push({id:uid(),firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",notes:f.notes||"",focusAreas:[]});return d;});}
     if(t==="editPlayer"){if(!f.firstName)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.teamId);if(tm){const pl=tm.players.find(pl=>pl.id===p.player.id);if(pl){pl.firstName=f.firstName;pl.lastName=f.lastName||"";pl.jersey=f.jersey||"";pl.notes=f.notes||"";}}return d;});}
     if(t==="addCoach"){if(!f.name)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.teamId);if(tm)tm.coaches.push({id:uid(),name:f.name,role:f.role||"Assistant",notes:""});return d;});}
     if(t==="editCoach"){if(!f.name)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.teamId);if(tm){const c=tm.coaches.find(c=>c.id===p.coach.id);if(c){c.name=f.name;c.role=f.role||"Assistant";}}return d;});}
