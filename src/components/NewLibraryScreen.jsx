@@ -175,14 +175,14 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update})
               const otherIdx=!here?act.stations.findIndex((s2,i2)=>i2!==si&&(s2.assignments||[]).includes(p.id)):-1;
               const elsewhere=otherIdx>=0;
               return (<button key={p.id} type="button" onClick={()=>handleChip(si,p)}
-                style={{padding:"5px 10px",borderRadius:20,border:"1.5px solid",
+                style={{padding:"7px 12px",borderRadius:8,border:"1.5px solid",
                   borderColor:here?"var(--green)":elsewhere?"#d97706":"var(--b)",
                   background:here?"var(--green)":elsewhere?"#fef3c7":"var(--s1)",
                   color:here?"#fff":elsewhere?"#92400e":"var(--black)",
-                  fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
-                {p.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11}}>#{p.jersey}</span>}
-                <span>{p.firstName}</span>
-                {elsewhere&&<span style={{fontSize:10,opacity:.8}}> · St{otherIdx+1}</span>}
+                  fontSize:13,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:1,minWidth:72}}>
+                <span style={{fontWeight:700}}>{p.jersey?<span style={{fontFamily:"DM Mono,monospace",fontSize:11,marginRight:3}}>#{p.jersey}</span>:null}{p.firstName}</span>
+                {elsewhere&&<span style={{fontSize:10,opacity:.85}}>→ St {otherIdx+1}</span>}
+                {here&&<span style={{fontSize:10,opacity:.8}}>✓ here</span>}
               </button>);
             })}
           </div>
