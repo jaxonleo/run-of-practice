@@ -734,6 +734,136 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   );
 }
 
+function PlayerProfile({player:playerInit,team:teamInit,data,update,onBack}){
+  const team=data.teams.find(t=>t.id===teamInit.id)||teamInit;
+  const player=team.players.find(p=>p.id===playerInit.id)||playerInit;
+  const [newArea,setNewArea]=useState("");
+  const addArea=()=>{
+    if(!newArea.trim())return;
+    if((player.focusAreas||[]).length>=10)return;
+    update(d=>{const t=d.teams.find(t=>t.id===team.id);if(t){const p=t.players.find(p=>p.id===player.id);if(p){if(!p.focusAreas)p.focusAreas=[];p.focusAreas.push({id:uid(),text:newArea.trim()});}}return d;});
+    setNewArea("");
+  };
+  const delArea=aId=>update(d=>{const t=d.teams.find(t=>t.id===team.id);if(t){const p=t.players.find(p=>p.id===player.id);if(p)p.focusAreas=(p.focusAreas||[]).filter(a=>a.id!==aId);}return d;});
+  const areas=player.focusAreas||[];
+  return (<div style={{paddingBottom:80}}>
+    <div className="row mb10" style={{justifyContent:"space-between"}}>
+      <div>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900}}>{player.firstName} {player.lastName}</div>
+        <div className="td" style={{fontSize:12}}>{team.name}{player.jersey?" - #"+player.jersey:""}</div>
+      </div>
+      <button className="btn ghost bxs" onClick={onBack}>Done</button>
+    </div>
+    <div className="card mb10">
+      <div className="clbl mb8">Focus Areas ({areas.length}/10)</div>
+      {!areas.length&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>No focus areas yet. Add what this player is working on.</div>}
+      {areas.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
+        <div style={{width:20,height:20,borderRadius:"50%",background:"var(--green)",color:"#fff",fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>{i+1}</div>
+        <div style={{flex:1,fontSize:14,lineHeight:1.5,color:"var(--black)"}}>{a.text}</div>
+        <button className="btn danger bxs" onClick={()=>delArea(a.id)}>x</button>
+      </div>))}
+      {areas.length<10&&(<div>
+        <div className="fld"><textarea className="ta" style={{minHeight:58}} placeholder="e.g. Keep dribble low and eyes up. Tends to go right only." value={newArea} onChange={e=>setNewArea(e.target.value)}/></div>
+        <button className="btn primary bsm bfull" onClick={addArea} disabled={!newArea.trim()}>Add Focus Area</button>
+      </div>)}
+    </div>
+    {player.notes&&(<div className="card"><div className="clbl mb6">Notes</div><div style={{fontSize:14,color:"var(--black)",lineHeight:1.6}}>{player.notes}</div></div>)}
+  </div>);
+}
+
+function RostersTab({data,update,openModal,fixedTeamId}){
+  const [teamId,setTeamId]=useState(fixedTeamId||(data.teams[0]?data.teams[0].id:""));
+  const [tab,setTab]=useState("players");
+  const [confirmDel,setConfirmDel]=useState(false);
+  const [openMenu,setOpenMenu]=useState(null);
+  const [sort,setSort]=useState({by:"firstName",dir:"asc"});
+  const [viewPlayer,setViewPlayer]=useState(null);
+  const team=data.teams.find(t=>t.id===teamId)||null;
+  const delP=id=>update(d=>{const t=d.teams.find(t=>t.id===teamId);if(t)t.players=t.players.filter(p=>p.id!==id);return d;});
+  const delC=id=>update(d=>{const t=d.teams.find(t=>t.id===teamId);if(t)t.coaches=t.coaches.filter(c=>c.id!==id);return d;});
+  const delTeam=()=>{
+    const rem=data.teams.filter(t=>t.id!==teamId);
+    update(d=>{d.teams=d.teams.filter(t=>t.id!==teamId);d.practices=d.practices.filter(p=>p.teamId!==teamId);d.templates=(d.templates||[]).filter(t=>t.teamId!==teamId);d.notes=d.notes.filter(n=>!n.practiceId||(d.practices.some(p=>p.id===n.practiceId)));return d;});
+    setConfirmDel(false);setTeamId(rem[0]?rem[0].id:"");
+  };
+  const sorted=team?[...team.players].sort((a,b)=>{
+    let av,bv;
+    if(sort.by==="jersey"){av=parseInt(a.jersey)||0;bv=parseInt(b.jersey)||0;}
+    else if(sort.by==="firstName"){av=(a.firstName||"").toLowerCase();bv=(b.firstName||"").toLowerCase();}
+    else if(sort.by==="lastName"){av=(a.lastName||"").toLowerCase();bv=(b.lastName||"").toLowerCase();}
+    else{av=(a.firstName+" "+a.lastName).toLowerCase();bv=(b.firstName+" "+b.lastName).toLowerCase();}
+    return sort.dir==="asc"?(av>bv?1:av<bv?-1:0):(av<bv?1:av>bv?-1:0);
+  }):[];
+  if(viewPlayer)return(<div style={{paddingBottom:80}}>
+    <div className="row mb10"><button className="btn ghost bxs" onClick={()=>setViewPlayer(null)}>&#8249; Roster</button></div>
+    <PlayerProfile player={viewPlayer} team={team} data={data} update={update} onBack={()=>setViewPlayer(null)}/>
+  </div>);
+  return (<div style={{paddingBottom:80}} onClick={()=>setOpenMenu(null)}>
+    {!fixedTeamId&&(<div className="sechdr mb8">
+      <div>{data.teams.length>1&&<select className="sel" style={{maxWidth:200}} value={teamId} onChange={e=>{setTeamId(e.target.value);setConfirmDel(false);}}>{data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>}</div>
+      <button className="btn primary bsm" onClick={e=>{e.stopPropagation();openModal("addTeam");}}>+ Team</button>
+    </div>)}
+    {team&&(<div>
+      <div className="card mb8" style={{position:"relative"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900}}>{team.name}</div><div className="td" style={{fontSize:12}}>{team.sport}</div></div>
+          <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="__team__"?null:"__team__");}}><span/><span/><span/></button>
+        </div>
+        {openMenu==="__team__"&&(<div className="mini-menu" style={{right:8,top:44}}>
+          <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editTeam",{team});}}>Edit Team</button>
+          <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);setConfirmDel(c=>!c);}}>Delete Team</button>
+        </div>)}
+        {confirmDel&&<div className="confirm-box"><div className="confirm-title">Delete team?</div><div className="confirm-body">Permanently removes this team. Cannot be undone.</div><div className="brow"><button className="btn ghost bsm" onClick={()=>setConfirmDel(false)}>Cancel</button><button className="btn danger bsm" onClick={delTeam}>Delete</button></div></div>}
+      </div>
+      <div className="itabs">
+        <button className={"itab "+(tab==="players"?"on":"")} onClick={()=>setTab("players")}>Players ({team.players.length})</button>
+        <button className={"itab "+(tab==="coaches"?"on":"")} onClick={()=>setTab("coaches")}>Coaches ({team.coaches.length})</button>
+      </div>
+      {tab==="players"&&(<div>
+        <div className="sechdr mb8">
+          <div className="row"><span className="sectitle">{team.players.length} Players</span>
+            <div style={{position:"relative"}}>
+              <button className="sort-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="__sort__"?null:"__sort__");}}><Ic.Sort/></button>
+              {openMenu==="__sort__"&&(<div className="mini-menu" style={{right:0,left:"auto",minWidth:160}}>
+                {[
+                  {by:"firstName",dir:"asc",label:"First Name A-Z"},
+                  {by:"firstName",dir:"desc",label:"First Name Z-A"},
+                  {by:"lastName",dir:"asc",label:"Last Name A-Z"},
+                  {by:"lastName",dir:"desc",label:"Last Name Z-A"},
+                  {by:"jersey",dir:"asc",label:"# Low-High"},
+                  {by:"jersey",dir:"desc",label:"# High-Low"},
+                ].map(opt=>(<button key={opt.by+opt.dir} className="mm-item" onClick={e=>{e.stopPropagation();setSort({by:opt.by,dir:opt.dir});setOpenMenu(null);}}>
+                  {sort.by===opt.by&&sort.dir===opt.dir?"* ":""}{opt.label}
+                </button>))}
+              </div>)}
+            </div>
+          </div>
+          <button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addPlayer",{teamId});}}>+ Add</button>
+        </div>
+        {sorted.map(p=>(<div key={p.id} className="li tap" style={{position:"relative"}} onClick={()=>setViewPlayer(p)}>
+          <div className="lim">
+            <div className="lin">{p.jersey?"#"+p.jersey+" ":""}{p.firstName} {p.lastName}</div>
+            {(p.focusAreas&&p.focusAreas.length>0)&&<div className="limt">{p.focusAreas.length} focus area{p.focusAreas.length>1?"s":""}</div>}
+            {(!p.focusAreas||!p.focusAreas.length)&&p.notes&&<div className="limt">{p.notes}</div>}
+          </div>
+          <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===p.id?null:p.id);}}><span/><span/><span/></button>
+          {openMenu===p.id&&<div className="mini-menu"><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setViewPlayer(p);}}>View Profile</button><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editPlayer",{teamId,player:p});}}>Edit</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delP(p.id);}}>Remove</button></div>}
+        </div>))}
+        {!team.players.length&&<div className="empty"><div className="emtx">No players yet</div></div>}
+      </div>)}
+      {tab==="coaches"&&(<div>
+        <div className="sechdr mb8"><span className="sectitle">{team.coaches.length} Coaches</span><button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addCoach",{teamId});}}>+ Add</button></div>
+        {team.coaches.map(c=>(<div key={c.id} className="li" style={{position:"relative"}}>
+          <div className="lim"><div className="lin">{c.name}</div><div className="limt">{c.role}</div></div>
+          <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="coach_"+c.id?null:"coach_"+c.id);}}><span/><span/><span/></button>
+          {openMenu==="coach_"+c.id&&<div className="mini-menu"><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delC(c.id);}}>Remove</button></div>}
+        </div>))}
+      </div>)}
+    </div>)}
+    {!team&&<div className="empty"><div className="emtx">Create a team to get started</div></div>}
+  </div>);
+}
+
 function NotesTab({data,update}){
   const [txt,setTxt]=useState("");const [ctx,setCtx]=useState("");
   const [search,setSearch]=useState("");const [filterCtx,setFilterCtx]=useState("");
