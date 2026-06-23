@@ -331,15 +331,14 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSwitchCo
   const now=new Date();
   const todayStr=now.toISOString().slice(0,10);
   const hour=now.getHours();
-  const myTeamIds=data.teams.filter(t=>t.coaches.some(c=>c.id===coachId)).map(t=>t.id);
-  const myPractices=data.practices.filter(p=>myTeamIds.includes(p.teamId));
+  const myPractices=data.practices;
   const todayPractices=myPractices.filter(p=>{
     if(p.date!==todayStr)return false;
     if(!p.startTime)return true;
     const pts=p.startTime.split(":");
     const pm=parseInt(pts[0])*60+parseInt(pts[1]);
     const nm=now.getHours()*60+now.getMinutes();
-    return pm-nm<=240&&pm-nm>=-90;
+    return pm-nm<=480&&pm-nm>=-180;
   }).sort((a,b)=>a.startTime>b.startTime?1:-1);
   const myTemplates=data.templates||[];
   const upcoming=myPractices.filter(p=>p.date>todayStr).sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:0).slice(0,3);
