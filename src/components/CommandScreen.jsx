@@ -254,13 +254,13 @@ function HelperView({sessionId}){
     <div className="cc-prog"><div className={"cc-prog-bar"+(elapsed>phaseSecs?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div>
     <div className="cc-body">
       {isCl&&cur&&<div className="cc-focus"><div className="cc-focus-lbl">{cur.name}</div>{(cur.items||[]).map(it=>(<div key={it.id} className="cl-item"><div className="cl-check"/><div className="cl-text">{it.text}</div></div>))}</div>}
-      {!isBlock&&!isCl&&cur&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {cur.coachingPoints&&<div style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:"var(--r)",padding:"12px 14px"}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:6}}>💡 Coaching Focus</div>
+      {!isBlock&&!isCl&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {cur.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
           <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{cur.coachingPoints}</div>
         </div>}
-        {(cur.coachId||cur.sublocationId)&&<div style={{background:"#eff6ff",border:"1.5px solid #93c5fd",borderRadius:"var(--r)",padding:"10px 14px"}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#2563eb",marginBottom:4}}>📍 Location</div>
+        {(cur.coachId||cur.sublocationId)&&<div style={{borderLeft:"3px solid #2563eb",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#2563eb",marginBottom:3}}>📍 Location</div>
           <div style={{fontSize:14,color:"var(--black)"}}>
             {subName(cur.sublocationId)&&<span style={{fontWeight:600}}>{subName(cur.sublocationId)}</span>}
             {subName(cur.sublocationId)&&cur.coachId&&<span style={{color:"var(--td)"}}> · </span>}
@@ -268,24 +268,24 @@ function HelperView({sessionId}){
           </div>
         </div>}
         {(()=>{const eq=Array.isArray(cur.equipment)?cur.equipment:[];const names=eq.map(id=>{const a=assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(names.length>0||cur.playerGear)?(<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-          {names.length>0&&<span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#854d0e",fontWeight:600}}>Equipment: {names.join(", ")}</span>}
-          {cur.playerGear&&<span style={{background:"#fff7ed",border:"1px solid #fdba74",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#9a3412",fontWeight:600}}>Player Gear: {cur.playerGear}</span>}
+          {names.length>0&&<span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"3px 10px",fontSize:12,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {names.join(", ")}</span>}
+          {cur.playerGear&&<span style={{border:"1.5px solid #fdba74",borderRadius:20,padding:"3px 10px",fontSize:12,color:"#9a3412",fontWeight:600,background:"#fff"}}>Player Gear: {cur.playerGear}</span>}
         </div>):null;})()}
-        {(!cur.grouping||cur.grouping==="whole")&&<div style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 14px"}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:4}}>👥 Players</div>
+        {(!cur.grouping||cur.grouping==="whole")&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:3}}>👥 Players</div>
           <div style={{fontSize:14,color:"var(--black)"}}>Whole Team Together</div>
         </div>}
-        {liveGroups&&liveGroups.length>0&&<div style={{background:"#f5f3ff",border:"1.5px solid #c4b5fd",borderRadius:"var(--r)",padding:"12px 14px"}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed",marginBottom:10}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {liveGroups.map((g,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1.5px solid #c4b5fd",borderRadius:20,padding:"6px 12px"}}>
+        {liveGroups&&liveGroups.length>0&&<div style={{borderLeft:"3px solid #7c3aed",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed",marginBottom:8}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {liveGroups.map((g,i)=>(<div key={i} style={{display:"inline-flex",alignItems:"center",gap:6,border:"1.5px solid #c4b5fd",borderRadius:20,padding:"5px 12px",background:"#fff"}}>
               <span style={{fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,color:"#7c3aed",flexShrink:0}}>{cur.grouping==="partners"?"P"+(i+1):"G"+(i+1)}</span>
               <span style={{fontSize:13,fontWeight:600,color:"var(--black)"}}>{g.map(p=>typeof p==="object"?(p.jersey?"#"+p.jersey+" "+p.firstName:p.firstName):pname(p)).join(" · ")}</span>
             </div>))}
           </div>
         </div>}
-        {cur.grouping&&cur.grouping!=="whole"&&!liveGroups&&<div style={{background:"#f5f3ff",border:"1.5px solid #c4b5fd",borderRadius:"var(--r)",padding:"10px 14px"}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed",marginBottom:4}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
+        {cur.grouping&&cur.grouping!=="whole"&&!liveGroups&&<div style={{borderLeft:"3px solid #c4b5fd",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed",marginBottom:3}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
           <div style={{fontSize:13,color:"var(--td)"}}>Waiting for coach to assign groups...</div>
         </div>}
       </div>}
@@ -295,7 +295,7 @@ function HelperView({sessionId}){
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {focusSt+1}</div>
           {subName(rotatedStations[focusSt].sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:3}}>{subName(rotatedStations[focusSt].sublocationId)}</div>}
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:6}}>{rotatedStations[focusSt].activityName||rotatedStations[focusSt].name||"Station "+(focusSt+1)}</div>
-          {rotatedStations[focusSt].coachingPoints&&<div style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:"var(--r)",padding:"10px 14px",marginBottom:8}}>
+          {rotatedStations[focusSt].coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
             <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coachingPoints}</div>
           </div>}
@@ -560,49 +560,40 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
         </div>))}
         {cur.notes&&<div style={{fontSize:13,color:"var(--black2)",marginTop:8,fontStyle:"italic"}}>{cur.notes}</div>}
       </div>}
-      {!isBlock&&!isCl&&cur&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {/* Coaching Focus card */}
-        {cur.coachingPoints&&<div style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:"var(--r)",padding:"12px 14px"}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:6}}>💡 Coaching Focus</div>
+      {!isBlock&&!isCl&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {cur.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
           <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{cur.coachingPoints}</div>
         </div>}
-        {/* Location + Coach row */}
-        {(coachName(cur.coachId)||subName(cur.sublocationId))&&<div style={{background:"#eff6ff",border:"1.5px solid #93c5fd",borderRadius:"var(--r)",padding:"10px 14px"}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#2563eb",marginBottom:4}}>📍 Location</div>
+        {(coachName(cur.coachId)||subName(cur.sublocationId))&&<div style={{borderLeft:"3px solid #2563eb",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#2563eb",marginBottom:3}}>📍 Location</div>
           <div style={{fontSize:14,color:"var(--black)"}}>
             {subName(cur.sublocationId)&&<span style={{fontWeight:600}}>{subName(cur.sublocationId)}</span>}
             {subName(cur.sublocationId)&&coachName(cur.coachId)&&<span style={{color:"var(--td)"}}> · </span>}
             {coachName(cur.coachId)&&<span>Coach: {coachName(cur.coachId)}</span>}
           </div>
         </div>}
-        {/* Equipment card */}
-        {(()=>{const eq=Array.isArray(cur.equipment)?cur.equipment:[];const names=eq.map(id=>{const a=(data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return names.length>0?(<div style={{background:"#fefce8",border:"1.5px solid #fde047",borderRadius:"var(--r)",padding:"10px 14px"}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#ca8a04",marginBottom:4}}>Equipment Needed</div>
-          <div style={{fontSize:14,color:"var(--black)",fontWeight:600}}>{names.join(", ")}</div>
+        {(()=>{const eq=Array.isArray(cur.equipment)?cur.equipment:[];const names=eq.map(id=>{const a=(data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(names.length>0||cur.playerGear)?(<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {names.length>0&&<span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"3px 10px",fontSize:12,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {names.join(", ")}</span>}
+          {cur.playerGear&&<span style={{border:"1.5px solid #fdba74",borderRadius:20,padding:"3px 10px",fontSize:12,color:"#9a3412",fontWeight:600,background:"#fff"}}>Player Gear: {cur.playerGear}</span>}
         </div>):null;})()}
-        {/* Player Gear card */}
-        {cur.playerGear&&<div style={{background:"#fff7ed",border:"1.5px solid #fdba74",borderRadius:"var(--r)",padding:"10px 14px"}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#ea580c",marginBottom:4}}>Player Gear</div>
-          <div style={{fontSize:14,color:"var(--black)",fontWeight:600}}>{cur.playerGear}</div>
-        </div>}
-        {/* Groups card */}
-        {(!cur.grouping||cur.grouping==="whole")&&<div style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 14px"}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:4}}>👥 Players</div>
+        {(!cur.grouping||cur.grouping==="whole")&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:3}}>👥 Players</div>
           <div style={{fontSize:14,color:"var(--black)"}}>Whole Team Together</div>
         </div>}
-        {cur.grouping&&cur.grouping!=="whole"&&!liveGroups&&<div style={{background:"#f5f3ff",border:"1.5px solid #c4b5fd",borderRadius:"var(--r)",padding:"10px 14px"}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed",marginBottom:4}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
+        {cur.grouping&&cur.grouping!=="whole"&&!liveGroups&&<div style={{borderLeft:"3px solid #c4b5fd",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed",marginBottom:3}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
           <div style={{fontSize:13,color:"var(--td)"}}>Assigning groups...</div>
         </div>}
-        {liveGroups&&liveGroups.length>0&&<div style={{background:"#f5f3ff",border:"1.5px solid #c4b5fd",borderRadius:"var(--r)",padding:"12px 14px"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+        {liveGroups&&liveGroups.length>0&&<div style={{borderLeft:"3px solid #7c3aed",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed"}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
             <button className="btn ghost bxs" onClick={()=>{const present=[...presentIds];const players=(team?team.players:[]).filter(p=>present.includes(p.id));const groups=assignGroups(players,cur.grouping,cur.numGroups||2);setLiveGroups(groups);if(sessionRef.current)updateSession(sessionRef.current,{idx,stIdx,inTrans,elapsed,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,liveGroups:groups,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]});}}>Reshuffle</button>
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {liveGroups.map((g,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1.5px solid #c4b5fd",borderRadius:20,padding:"6px 12px"}}>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {liveGroups.map((g,i)=>(<div key={i} style={{display:"inline-flex",alignItems:"center",gap:6,border:"1.5px solid #c4b5fd",borderRadius:20,padding:"5px 12px",background:"#fff"}}>
               <span style={{fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,color:"#7c3aed",flexShrink:0}}>{cur.grouping==="partners"?"P"+(i+1):"G"+(i+1)}</span>
-              <span style={{fontSize:13,fontWeight:600,color:"var(--black)"}}>{g.map(p=>(p.jersey?"#"+p.jersey+" "+p.firstName:p.firstName)).join(" · ")}</span>
+              <span style={{fontSize:13,fontWeight:600,color:"var(--black)"}}>{g.map(p=>p.jersey?"#"+p.jersey+" "+p.firstName:p.firstName).join(" · ")}</span>
             </div>))}
           </div>
         </div>}
@@ -617,7 +608,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
             {coachName(rotatedStations[focusSt].coachId)&&subName(rotatedStations[focusSt].sublocationId)&&<span> · </span>}
             {subName(rotatedStations[focusSt].sublocationId)&&<span>{subName(rotatedStations[focusSt].sublocationId)}</span>}
           </div>}
-          {rotatedStations[focusSt].coachingPoints&&<div style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:"var(--r)",padding:"10px 14px",marginBottom:8}}>
+          {rotatedStations[focusSt].coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
             <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coachingPoints}</div>
           </div>}
