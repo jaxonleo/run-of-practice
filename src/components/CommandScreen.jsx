@@ -173,21 +173,31 @@ function HelperView({sessionId}){
   const [session,setSession]=useState(null);
   const [loading,setLoading]=useState(true);
   const [focusSt,setFocusSt]=useState(null);
+  const [showROS,setShowROS]=useState(false);
+  const [showAtt,setShowAtt]=useState(false);
+  const [audioOn,setAudioOn]=useState(false);
+  const audioCtxRef=useRef(null);
   const subRef=useRef(null);
+  const spokenRef=useRef({});
   const [tick,setTick]=useState(0);
   useEffect(()=>{const iv=setInterval(()=>setTick(t=>t+1),1000);return()=>clearInterval(iv);},[]);
   useEffect(()=>{
     getSession(sessionId).then(s=>{setSession(s);setLoading(false);});
-    subRef.current=subscribeToSession(sessionId,updated=>{setSession(updated);setFocusSt(f=>f);});
+    subRef.current=subscribeToSession(sessionId,updated=>{setSession(updated);});
     return()=>{if(subRef.current)subRef.current.unsubscribe();};
   },[sessionId]);
-  if(loading)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,background:"#0d1512"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,letterSpacing:".1em"}}>JOINING SESSION...</div></div>);
-  if(!session)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,textAlign:"center"}}>Session not found</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This link may be invalid or the practice has ended.</div></div>);
-  if(session.ended_at||(session.state&&session.state.ended))return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:48,fontWeight:900,textAlign:"center"}}>Well Done</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This practice session has ended.</div></div>);
+  const beep=async()=>{if(!audioOn)return;try{if(!audioCtxRef.current)audioCtxRef.current=new(window.AudioContext||window.webkitAudioContext)();const ctx=audioCtxRef.current;if(ctx.state!=="running")await ctx.resume();const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type="sine";o.frequency.value=880;g.gain.setValueAtTime(0.4,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.3);}catch(e){}};
+  const speak=txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){}};
+  if(loading)return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,background:"#0d1512"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,letterSpacing:".1em"}}>JOINING SESSION...</div></div>);
+  if(!session)return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,textAlign:"center"}}>Session not found</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This link may be invalid or the practice has ended.</div></div>);
+  if(session.ended_at||(session.state&&session.state.ended))return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:48,fontWeight:900,textAlign:"center"}}>Well Done</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This practice session has ended.</div></div>);
   const state=session.state||{};
   const liveActs=state.liveActs||[];
   const roster=state.roster||[];
   const locations=state.locations||[];
+  const assets=state.assets||[];
+  const presentIds=new Set(state.presentIds||[]);
+  const liveGroups=state.liveGroups||null;
   const idx=state.idx||0;
   const stIdx=state.stIdx||0;
   const inTrans=state.inTrans||false;
@@ -209,41 +219,74 @@ function HelperView({sessionId}){
   const pname=id=>{const p=roster.find(p=>p.id===id);return p?(p.jersey?"#"+p.jersey+" "+p.firstName:p.firstName):id;};
   const subName=id=>{const l=locations.find(l=>l.sublocations&&l.sublocations.find(s=>s.id===id));if(!l)return null;const s=l.sublocations.find(s=>s.id===id);return s?s.name:null;};
   const pnames=ids=>(ids||[]).map(id=>pname(id)).join(", ");
-  return (<div className="ccs">
+  const pCount=presentIds.size;
+  useEffect(()=>{if(!audioOn)return;if(rem===120&&!spokenRef.current[idx+"_120"]){speak("Two minutes remaining.");spokenRef.current[idx+"_120"]=true;}if(rem===0&&!spokenRef.current[idx+"_0"]){beep();spokenRef.current[idx+"_0"]=true;}},[elapsed,audioOn]);
+  return(<div className="ccs">
     <div className="cc-header">
       <div>
-        <div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span><span style={{marginLeft:8,fontSize:11,color:"var(--td)"}}>View only</span></div>
-        {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>STATION BLOCK</div>}
+        <div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span><span style={{marginLeft:8,fontSize:11,color:"var(--td)"}}>Helper View</span></div>
+        {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>{(()=>{const n2=cur.stations?cur.stations.length:0;const totalMins=n2*(cur.stationDuration||0)+Math.max(0,n2-1)*(blockRotate?(cur.transitionDuration||0):0);return n2+" Stations · "+totalMins+"min total";})()}</div>}
         <div className="cc-act-name">{phaseLabel}</div>
       </div>
-      <span style={{background:"var(--gbg)",border:"1.5px solid var(--gb)",borderRadius:20,padding:"4px 10px",fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:"var(--green)"}}>{(state.presentIds||[]).length}/{roster.length}</span>
+      <div className="row" style={{gap:6}}>
+        <button onClick={()=>setShowAtt(s=>!s)} style={{background:pCount<roster.length?"var(--ambg)":"var(--gbg)",border:"1.5px solid",borderColor:pCount<roster.length?"var(--ambb)":"var(--gb)",borderRadius:20,padding:"4px 10px",cursor:"pointer"}}>
+          <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<roster.length?"var(--amber)":"var(--green)"}}>{pCount}/{roster.length}</span>
+        </button>
+        <button onClick={async()=>{if(!audioOn){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();audioCtxRef.current=ctx;await ctx.resume();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0.1,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.2);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.2);}catch(e){}}spokenRef.current={};setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊":"🔇"}</button>
+        <button className="btn ghost bxs" onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}</button>
+      </div>
     </div>
-    <div className="cc-timer-row">
-      <div className={"cc-timer"+(urg?" urg":(elapsed>phaseSecs?" over":""))}>{fmt(rem)}</div>
-    </div>
+    {showAtt&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",padding:"12px 14px",maxHeight:200,overflowY:"auto",flexShrink:0}}>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Attendance ({pCount}/{roster.length})</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+        {roster.map(p=>(<span key={p.id} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid",borderColor:presentIds.has(p.id)?"var(--green)":"var(--b)",background:presentIds.has(p.id)?"var(--gbg)":"var(--s2)",color:presentIds.has(p.id)?"var(--green)":"var(--td)",fontSize:13,fontWeight:600}}>{p.jersey?"#"+p.jersey+" ":""}{p.firstName}</span>))}
+      </div>
+      <button className="btn ghost bxs" style={{marginTop:8}} onClick={()=>setShowAtt(false)}>Close</button>
+    </div>}
+    {showROS&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",maxHeight:200,overflowY:"auto",flexShrink:0}}>
+      {liveActs.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--b)",background:i===idx?"var(--gbg)":"#fff",opacity:i<idx?0.5:1}}>
+        <div style={{flex:1,fontSize:14,color:i===idx?"var(--green)":i<idx?"var(--td)":"var(--black)",textDecoration:i<idx?"line-through":"none"}}>{i===idx?"▶ ":""}{a.type==="station_block"?"Station Block":a.name}</div>
+        <span className="bdg bs" style={{fontSize:11}}>{a.type==="station_block"?(a.stations.length*a.stationDuration+(a.stations.length-1)*(a.transitionDuration||0))+"m":a.duration+"m"}</span>
+      </div>))}
+      <div style={{padding:"8px 14px"}}><button className="btn ghost bxs" onClick={()=>setShowROS(false)}>Close</button></div>
+    </div>}
+    <div className="cc-timer-row"><div className={"cc-timer"+(urg?" urg":(elapsed>phaseSecs?" over":""))}>{fmt(rem)}</div></div>
     <div className="cc-prog"><div className={"cc-prog-bar"+(elapsed>phaseSecs?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div>
     <div className="cc-body">
-      {isCl&&cur&&<div className="cc-focus">
-        <div className="cc-focus-lbl">{cur.name}</div>
-        {(cur.items||[]).map(it=>(<div key={it.id} className="cl-item"><div className="cl-check"/><div className="cl-text">{it.text}</div></div>))}
-        {cur.notes&&<div style={{fontSize:13,color:"var(--black2)",marginTop:8,fontStyle:"italic"}}>{cur.notes}</div>}
-      </div>}
+      {isCl&&cur&&<div className="cc-focus"><div className="cc-focus-lbl">{cur.name}</div>{(cur.items||[]).map(it=>(<div key={it.id} className="cl-item"><div className="cl-check"/><div className="cl-text">{it.text}</div></div>))}</div>}
       {!isBlock&&!isCl&&cur&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
         {cur.coachingPoints&&<div style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:"var(--r)",padding:"12px 14px"}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:6}}>💡 Coaching Focus</div>
           <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{cur.coachingPoints}</div>
         </div>}
-        {(()=>{const assets=state.assets||[];const eq=Array.isArray(cur.equipment)?cur.equipment:[];const names=eq.map(id=>{const a=assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(names.length>0||cur.playerGear)?(<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+        {(cur.coachId||cur.sublocationId)&&<div style={{background:"#eff6ff",border:"1.5px solid #93c5fd",borderRadius:"var(--r)",padding:"10px 14px"}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#2563eb",marginBottom:4}}>📍 Location</div>
+          <div style={{fontSize:14,color:"var(--black)"}}>
+            {subName(cur.sublocationId)&&<span style={{fontWeight:600}}>{subName(cur.sublocationId)}</span>}
+            {subName(cur.sublocationId)&&cur.coachId&&<span style={{color:"var(--td)"}}> · </span>}
+            {cur.coachId&&<span>Coach: {pname(cur.coachId)}</span>}
+          </div>
+        </div>}
+        {(()=>{const eq=Array.isArray(cur.equipment)?cur.equipment:[];const names=eq.map(id=>{const a=assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(names.length>0||cur.playerGear)?(<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
           {names.length>0&&<span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#854d0e",fontWeight:600}}>Equipment: {names.join(", ")}</span>}
           {cur.playerGear&&<span style={{background:"#fff7ed",border:"1px solid #fdba74",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#9a3412",fontWeight:600}}>Player Gear: {cur.playerGear}</span>}
         </div>):null;})()}
-        {(cur.grouping==="whole"||!cur.grouping)&&<div style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 14px"}}>
+        {(!cur.grouping||cur.grouping==="whole")&&<div style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 14px"}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:4}}>👥 Players</div>
           <div style={{fontSize:14,color:"var(--black)"}}>Whole Team Together</div>
         </div>}
-        {cur.grouping&&cur.grouping!=="whole"&&<div style={{background:"#f5f3ff",border:"1.5px solid #c4b5fd",borderRadius:"var(--r)",padding:"12px 14px"}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed",marginBottom:6}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
-          <div style={{fontSize:13,color:"var(--td)"}}>Groups assigned at practice start.</div>
+        {liveGroups&&liveGroups.length>0&&<div style={{background:"#f5f3ff",border:"1.5px solid #c4b5fd",borderRadius:"var(--r)",padding:"12px 14px"}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed",marginBottom:10}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {liveGroups.map((g,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1.5px solid #c4b5fd",borderRadius:20,padding:"6px 12px"}}>
+              <span style={{fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,color:"#7c3aed",flexShrink:0}}>{cur.grouping==="partners"?"P"+(i+1):"G"+(i+1)}</span>
+              <span style={{fontSize:13,fontWeight:600,color:"var(--black)"}}>{g.map(p=>typeof p==="object"?(p.jersey?"#"+p.jersey+" "+p.firstName:p.firstName):pname(p)).join(" · ")}</span>
+            </div>))}
+          </div>
+        </div>}
+        {cur.grouping&&cur.grouping!=="whole"&&!liveGroups&&<div style={{background:"#f5f3ff",border:"1.5px solid #c4b5fd",borderRadius:"var(--r)",padding:"10px 14px"}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed",marginBottom:4}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
+          <div style={{fontSize:13,color:"var(--td)"}}>Waiting for coach to assign groups...</div>
         </div>}
       </div>}
       {isBlock&&!inTrans&&rotatedStations&&<div>
@@ -256,26 +299,20 @@ function HelperView({sessionId}){
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
             <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coachingPoints}</div>
           </div>}
-          {(()=>{const stEquip=Array.isArray(rotatedStations[focusSt].equipment)?rotatedStations[focusSt].equipment:[];const names=stEquip.map(id=>{const a=(state.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(names.length>0||rotatedStations[focusSt].playerGear)?(<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+          {(()=>{const stEquip=Array.isArray(rotatedStations[focusSt].equipment)?rotatedStations[focusSt].equipment:[];const names=stEquip.map(id=>{const a=assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(names.length>0||rotatedStations[focusSt].playerGear)?(<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
             {names.length>0&&<span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#854d0e",fontWeight:600}}>Equipment: {names.join(", ")}</span>}
             {rotatedStations[focusSt].playerGear&&<span style={{background:"#fff7ed",border:"1px solid #fdba74",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#9a3412",fontWeight:600}}>Player Gear: {rotatedStations[focusSt].playerGear}</span>}
           </div>):null;})()}
-          <div>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {(rotatedStations[focusSt].assignments||[]).map(pid=>(<span key={pid} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--gb)",background:"var(--gbg)",fontSize:14,fontWeight:600,color:"var(--black)"}}>{pname(pid)}</span>))}
-            </div>
-          </div>
+          <div><div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(rotatedStations[focusSt].assignments||[]).map(pid=>(<span key={pid} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--gb)",background:"var(--gbg)",fontSize:14,fontWeight:600,color:"var(--black)"}}>{pname(pid)}</span>))}</div></div>
         </div>}
         {focusSt===null&&<div>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+n+" — Tap to focus":"All Stations — Tap to focus"}</div>
           {rotatedStations.map((st,i)=>{
             const stEquip=Array.isArray(st.equipment)?st.equipment:[];
-            const equipNames=stEquip.map(id=>{const a=(state.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
-            return (<div key={i} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}}>
-                <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Station {i+1}</div>
-              </div>
+            const equipNames=stEquip.map(id=>{const a=assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
+            return(<div key={i} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {i+1}</div>
               <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.activityName||st.name||"Station "+(i+1)}</div>
               {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{subName(st.sublocationId)}</div>}
               {st.coachingPoints&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:6,lineHeight:1.4,borderLeft:"2px solid var(--green)",paddingLeft:8}}>{st.coachingPoints}</div>}
@@ -283,9 +320,7 @@ function HelperView({sessionId}){
                 {equipNames.length>0&&<span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600}}>Equipment: {equipNames.join(", ")}</span>}
                 {st.playerGear&&<span style={{background:"#fff7ed",border:"1px solid #fdba74",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#9a3412",fontWeight:600}}>Player Gear: {st.playerGear}</span>}
               </div>}
-              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                {(st.assignments||[]).map(pid=>(<span key={pid} style={{background:"var(--s2)",border:"1px solid var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600}}>{pname(pid)}</span>))}
-              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{(st.assignments||[]).map(pid=>(<span key={pid} style={{background:"var(--s2)",border:"1px solid var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600}}>{pname(pid)}</span>))}</div>
               <div style={{fontSize:10,color:"var(--td)",marginTop:5}}>Tap to focus</div>
             </div>);
           })}
@@ -297,7 +332,7 @@ function HelperView({sessionId}){
           const nextSt=cur.stations[(i+1)%n];
           const fromLabel="Station "+(i+1)+(st.activityName?": "+st.activityName:"");
           const toLabel="Station "+((i+1)%n+1)+(nextSt.activityName?": "+nextSt.activityName:"");
-          return (<div key={i} className="cc-trans-card">
+          return(<div key={i} className="cc-trans-card">
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",lineHeight:1.2,marginBottom:6}}>{pnames(st.assignments)||"--"}</div>
             <div style={{fontSize:12,color:"var(--td)",marginBottom:3}}>from {fromLabel}</div>
             <div style={{fontSize:13,fontWeight:700,color:"var(--black)"}}>→ {toLabel}</div>
@@ -309,7 +344,7 @@ function HelperView({sessionId}){
         <div style={{padding:"6px 12px",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>Up Next</div>
         {liveActs.slice(idx+1,idx+3).map(a=>(<div key={a.id} className="cc-queue-item">
           <span style={{fontSize:14,color:"var(--black2)"}}>{a.type==="station_block"?"Station Block":a.name}</span>
-          <span className="bdg bs">{a.type==="station_block"?(a.stations.length*a.stationDuration+(a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
+          <span className="bdg bs">{a.type==="station_block"?(a.stations.length*a.stationDuration+(a.stations.length-1)*(a.transitionDuration||0))+"m":a.duration+"m"}</span>
         </div>))}
       </div>}
     </div>
@@ -379,7 +414,9 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     const present=[...presentIds];
     const players=(team?team.players:[]).filter(p=>present.includes(p.id));
     if(players.length===0)return;
-    setLiveGroups(assignGroups(players,g,act.numGroups||2));
+    const groups=assignGroups(players,g,act.numGroups||2);
+    setLiveGroups(groups);
+    if(sessionRef.current)updateSession(sessionRef.current,{idx,stIdx,inTrans,elapsed,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,liveGroups:groups,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]});
   },[idx,liveActs,presentIds]);
 
   const beep=useCallback(async()=>{if(!audioOn)return;const ctx=await unlockAudio();if(!ctx)return;try{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(0.4,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.3);}catch(e){}},[audioOn]);
@@ -468,7 +505,9 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     <div className="cc-header">
       <div>
         <div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span>{schedBadge}</div>
-        {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>STATION BLOCK {blockCount+1}</div>}
+        {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>
+          {(()=>{const totalBlocks=liveActs.filter(a=>a.type==="station_block").length;const n2=cur.stations?cur.stations.length:0;const totalMins=n2*(cur.stationDuration||0)+Math.max(0,n2-1)*(blockRotate?(cur.transitionDuration||0):0);return(totalBlocks>1?"Block "+(blockCount+1)+" of "+totalBlocks+" · ":"")+n2+" Stations · "+totalMins+"min total";})()}
+        </div>}
         <div className="cc-act-name">{phaseLabel}</div>
       </div>
       <div className="row">
@@ -558,14 +597,12 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
         {liveGroups&&liveGroups.length>0&&<div style={{background:"#f5f3ff",border:"1.5px solid #c4b5fd",borderRadius:"var(--r)",padding:"12px 14px"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed"}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
-            <button className="btn ghost bxs" onClick={()=>{const present=[...presentIds];const players=(team?team.players:[]).filter(p=>present.includes(p.id));setLiveGroups(assignGroups(players,cur.grouping,cur.numGroups||2));}}>Reshuffle</button>
+            <button className="btn ghost bxs" onClick={()=>{const present=[...presentIds];const players=(team?team.players:[]).filter(p=>present.includes(p.id));const groups=assignGroups(players,cur.grouping,cur.numGroups||2);setLiveGroups(groups);if(sessionRef.current)updateSession(sessionRef.current,{idx,stIdx,inTrans,elapsed,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,liveGroups:groups,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]});}}>Reshuffle</button>
           </div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-            {liveGroups.map((g,i)=>(<div key={i} style={{background:"#fff",border:"1.5px solid #c4b5fd",borderRadius:"var(--rs)",padding:"8px 12px",minWidth:80}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#7c3aed",marginBottom:4,letterSpacing:".05em"}}>{cur.grouping==="partners"?"PAIR "+(i+1):"GROUP "+(i+1)}</div>
-              {g.map(p=>(<div key={p.id} style={{fontSize:14,fontWeight:600,color:"var(--black)",lineHeight:1.6}}>
-                {p.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--green)",marginRight:4}}>#{p.jersey}</span>}{p.firstName}
-              </div>))}
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {liveGroups.map((g,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1.5px solid #c4b5fd",borderRadius:20,padding:"6px 12px"}}>
+              <span style={{fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,color:"#7c3aed",flexShrink:0}}>{cur.grouping==="partners"?"P"+(i+1):"G"+(i+1)}</span>
+              <span style={{fontSize:13,fontWeight:600,color:"var(--black)"}}>{g.map(p=>(p.jersey?"#"+p.jersey+" "+p.firstName:p.firstName)).join(" · ")}</span>
             </div>))}
           </div>
         </div>}

@@ -164,7 +164,10 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update})
 
         {/* Player Gear */}
         <div className="fld"><label className="lbl">Player Gear Needed</label>
-          <input className="inp" placeholder="e.g. Batting helmet, glove" value={st.playerGear||""} onChange={e=>onSt(st.id,{playerGear:e.target.value})}/>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
+            {["Hat","Glove","Helmet","Bat","Catcher's Gear","Cleats","Shin Guards","Batting Gloves"].map(item=>(<button key={item} type="button" onClick={()=>{const cur=(st.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);const has=cur.includes(item);const next=has?cur.filter(x=>x!==item):[...cur,item];onSt(st.id,{playerGear:next.join(", ")});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:(st.playerGear||"").split(",").map(s=>s.trim()).includes(item)?"var(--green)":"#fff",color:(st.playerGear||"").split(",").map(s=>s.trim()).includes(item)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{item}</button>))}
+          </div>
+          <input className="inp" placeholder="Or type custom gear..." value={(st.playerGear||"").split(",").map(s=>s.trim()).filter(s=>!["Hat","Glove","Helmet","Bat","Catcher's Gear","Cleats","Shin Guards","Batting Gloves"].includes(s)).join(", ")} onChange={e=>{const preset=(st.playerGear||"").split(",").map(s=>s.trim()).filter(s=>["Hat","Glove","Helmet","Bat","Catcher's Gear","Cleats","Shin Guards","Batting Gloves"].includes(s));const custom=e.target.value.trim();onSt(st.id,{playerGear:[...preset,custom].filter(Boolean).join(", ")});}}/>
         </div>
 
         {/* Player chips */}

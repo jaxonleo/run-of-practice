@@ -184,7 +184,12 @@ export default function ModalLayer({modal,data,update,closeModal}){
                 <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-equip-inp");if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();update(d=>{d.assets.push({id:newId,name:nm,locationTags:[]});return d;});set("equipment",[...(f.equipment||[]),newId]);el.value="";}}>Add</button>
               </div>
             </div>
-            <div className="fld"><label className="lbl">Player Gear Needed</label><input className="inp" placeholder="e.g. Batting helmet, glove" value={f.playerGear||""} onChange={e=>set("playerGear",e.target.value)}/></div>
+            <div className="fld"><label className="lbl">Player Gear Needed</label>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
+                {["Hat","Glove","Helmet","Bat","Catcher's Gear","Cleats","Shin Guards","Batting Gloves"].map(item=>(<button key={item} type="button" onClick={()=>{const cur=(f.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);const has=cur.includes(item);const next=has?cur.filter(x=>x!==item):[...cur,item];set("playerGear",next.join(", "));}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:(f.playerGear||"").split(",").map(s=>s.trim()).includes(item)?"var(--green)":"var(--s1)",color:(f.playerGear||"").split(",").map(s=>s.trim()).includes(item)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{item}</button>))}
+              </div>
+              <input className="inp" placeholder="Or type custom gear..." value={(f.playerGear||"").split(",").map(s=>s.trim()).filter(s=>!["Hat","Glove","Helmet","Bat","Catcher's Gear","Cleats","Shin Guards","Batting Gloves"].includes(s)).join(", ")} onChange={e=>{const preset=(f.playerGear||"").split(",").map(s=>s.trim()).filter(s=>["Hat","Glove","Helmet","Bat","Catcher's Gear","Cleats","Shin Guards","Batting Gloves"].includes(s));const custom=e.target.value.trim();set("playerGear",[...preset,custom].filter(Boolean).join(", "));}}/>
+            </div>
           </div>
         )}
         <div className="mfooter"><button className="btn ghost bmd" onClick={closeModal}>Cancel</button><button className="btn primary bmd" onClick={save}>Save</button></div>
