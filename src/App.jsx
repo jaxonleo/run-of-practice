@@ -567,7 +567,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const allPlayerIds=team?team.players.map(p=>p.id):[];
   const totalMins=sumMins(acts);
   const addAct=lib=>{
-    setActs(p=>[...p,{id:uid(),type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:allPlayerIds,coachId:headCoachId,sublocationId:"",notes:"",coachingPoints:lib.coachingPoints||""}]);
+    setActs(p=>[...p,{id:uid(),type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:allPlayerIds,coachId:headCoachId,sublocationId:"",notes:"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);
   };
   const addChecklist=isClose=>{
     const a={id:uid(),type:"checklist",name:isClose?"Closer":"Intro",duration:5,assignments:allPlayerIds,coachId:headCoachId,items:[],notes:""};
@@ -575,10 +575,10 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   };
   const addBlock=()=>{
     const n=3;const groups=mkGroups(allPlayerIds,n);
-    const b={id:uid(),type:"station_block",stationDuration:10,transitionDuration:2,stations:[
-      {id:uid(),name:"Station 1",activityName:"",coachId:headCoachId,sublocationId:"",assignments:groups[0]||[],coachingPoints:""},
-      {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:groups[1]||[],coachingPoints:""},
-      {id:uid(),name:"Station 3",activityName:"",coachId:"",sublocationId:"",assignments:groups[2]||[],coachingPoints:""},
+    const b={id:uid(),type:"station_block",rotate:true,stationDuration:10,transitionDuration:2,stations:[
+      {id:uid(),name:"Station 1",activityName:"",coachId:headCoachId,sublocationId:"",assignments:groups[0]||[],coachingPoints:"",equipment:[],playerGear:""},
+      {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:groups[1]||[],coachingPoints:"",equipment:[],playerGear:""},
+      {id:uid(),name:"Station 3",activityName:"",coachId:"",sublocationId:"",assignments:groups[2]||[],coachingPoints:"",equipment:[],playerGear:""},
     ]};
     setActs(p=>[...p,b]);setExpandedId(b.id);
   };
