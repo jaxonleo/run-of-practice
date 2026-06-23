@@ -119,7 +119,20 @@ export function migrateData(d){
   d.practices.forEach(p=>{
     (p.activities||[]).forEach(a=>{
       if(a.type==="station_block"&&a.rotate===undefined)a.rotate=true;
-      if(a.type==="station_block")(a.stations||[]).forEach(s=>{if(!s.equipment)s.equipment="";});
+      if(a.type==="station_block")(a.stations||[]).forEach(s=>{
+        if(!s.equipment)s.equipment=[];
+        if(!Array.isArray(s.equipment))s.equipment=[];
+        if(!s.playerGear)s.playerGear="";
+        if(!s.coachingPoints)s.coachingPoints="";
+        if(!s.assignments)s.assignments=[];
+      });
+      // Patch grouping fields on non-station activities too
+      if(a.type==="activity"){
+        if(!a.grouping)a.grouping="whole";
+        if(!a.numGroups)a.numGroups=2;
+        if(!a.playerGear)a.playerGear="";
+        if(!Array.isArray(a.equipment))a.equipment=[];
+      }
     });
   });
   d.templates.forEach(t=>{
