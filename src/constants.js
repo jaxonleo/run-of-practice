@@ -15,10 +15,24 @@ export function assignGroups(players,grouping,numGroups){
   return [arr];
 }
 
+// ── Player gear presets by sport ──────────────────────────────────────────────
+export const PLAYER_GEAR_BY_SPORT={
+  Baseball:["Hat","Glove","Helmet","Bat","Batting Gloves","Catcher's Gear","Cleats"],
+  Softball:["Hat","Glove","Helmet","Bat","Batting Gloves","Catcher's Gear","Cleats"],
+  Soccer:["Cleats","Shin Guards","Socks"],
+  Football:["Helmet","Shoulder Pads","Cleats","Mouthguard"],
+  Lacrosse:["Helmet","Gloves","Stick","Cleats","Shoulder Pads","Mouthguard"],
+  Hockey:["Helmet","Gloves","Stick","Skates","Pads"],
+  Basketball:[],
+  Volleyball:["Knee Pads"],
+  Tennis:["Racket"],
+  Swimming:["Goggles","Swim Cap"],
+  General:[],
+  Other:[],
+};
+
 // ── Constants ────────────────────────────────────────────────────────────────
 export const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
-
-// ── Blank INIT — every new coach starts with a clean slate ───────────────────
 export const INIT={
   teams:[],
   locations:[],
@@ -115,6 +129,12 @@ export function migrateData(d){
     if(!a.grouping)a.grouping="whole";
     if(!a.numGroups)a.numGroups=2;
     if(!a.playerGear)a.playerGear="";
+  });
+  // Patch assets with type and sport fields
+  (d.assets||[]).forEach(a=>{
+    if(!a.type)a.type="team";
+    if(!a.sport)a.sport="General";
+    if(!a.locationTags)a.locationTags=[];
   });
   d.practices.forEach(p=>{
     (p.activities||[]).forEach(a=>{
