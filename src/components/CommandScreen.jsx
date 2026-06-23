@@ -371,13 +371,16 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const rotatedStations=isBlock&&cur.stations?(()=>{const n=cur.stations.length;return cur.stations.map((st,i)=>{const srcIdx=(i-stIdx%n+n)%n;return Object.assign({},cur.stations[i],{assignments:cur.stations[srcIdx].assignments});});})():null;
 
   useEffect(()=>{
-    if(!cur||cur.type==="station_block")return;
-    const g=cur.grouping||"whole";
+    const act=liveActs[idx];
+    if(!act||act.type==="station_block")return;
+    const g=act.grouping||"whole";
     if(g==="whole"){setLiveGroups(null);return;}
+    if(presentIds.size===0)return; // wait until attendance is confirmed
     const present=[...presentIds];
     const players=(team?team.players:[]).filter(p=>present.includes(p.id));
-    setLiveGroups(assignGroups(players,g,cur.numGroups||2));
-  },[idx]);
+    if(players.length===0)return;
+    setLiveGroups(assignGroups(players,g,act.numGroups||2));
+  },[idx,liveActs,presentIds]);
 
   const beep=useCallback(async()=>{if(!audioOn)return;const ctx=await unlockAudio();if(!ctx)return;try{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(0.4,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.3);}catch(e){}},[audioOn]);
   const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
@@ -544,9 +547,13 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
           <div style={{fontSize:14,color:"var(--black)",fontWeight:600}}>{cur.playerGear}</div>
         </div>}
         {/* Groups card */}
-        {(cur.grouping==="whole"||!cur.grouping)&&<div style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 14px"}}>
+        {(!cur.grouping||cur.grouping==="whole")&&<div style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 14px"}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:4}}>👥 Players</div>
           <div style={{fontSize:14,color:"var(--black)"}}>Whole Team Together</div>
+        </div>}
+        {cur.grouping&&cur.grouping!=="whole"&&!liveGroups&&<div style={{background:"#f5f3ff",border:"1.5px solid #c4b5fd",borderRadius:"var(--r)",padding:"10px 14px"}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed",marginBottom:4}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
+          <div style={{fontSize:13,color:"var(--td)"}}>Assigning groups...</div>
         </div>}
         {liveGroups&&liveGroups.length>0&&<div style={{background:"#f5f3ff",border:"1.5px solid #c4b5fd",borderRadius:"var(--r)",padding:"12px 14px"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
