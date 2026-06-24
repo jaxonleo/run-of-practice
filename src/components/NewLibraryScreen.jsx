@@ -347,7 +347,7 @@ function EquipmentTab({data,update,openModal}){
 }
 
 // ── TemplateWorkspace ─────────────────────────────────────────────────────────
-function TemplateWorkspace({data,update,template,onRun,onBack}){
+function TemplateWorkspace({data,update,template,onRun,onBack,openModal}){
   const [name,setName]=useState(template.name);
   const [sport,setSport]=useState(template.sport||"General");
   const [teamId,setTeamId]=useState(()=>{
@@ -499,6 +499,52 @@ function TemplateWorkspace({data,update,template,onRun,onBack}){
       </div>
     </div>))}
 
+    {/* Add drills panel — same as builder */}
+    <div style={{borderTop:"1px solid var(--b)",paddingTop:14,marginTop:8}}>
+      <div className="sechdr mb8">
+        <span className="sectitle">Add to Template</span>
+        <button className="btn ghost bxs" onClick={()=>openModal&&openModal("addActivity")}>+ New Drill</button>
+      </div>
+      <div className="g2" style={{marginBottom:6}}>
+        <div className="li tap" style={{marginBottom:0}} onClick={()=>{const id=uid();setActs(p=>[...p,{id,type:"checklist",name:"Intro",items:[],notes:"",duration:5}]);}}>
+          <div className="lim"><div className="lin">Intro</div><div className="limt">Checklist</div></div>
+          <span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span>
+        </div>
+        <div className="li tap" style={{marginBottom:0}} onClick={()=>{const id=uid();setActs(p=>[...p,{id,type:"checklist",name:"Closer",items:[],notes:"",duration:5}]);}}>
+          <div className="lim"><div className="lin">Closer</div><div className="limt">Checklist</div></div>
+          <span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span>
+        </div>
+      </div>
+      <div className="li tap" style={{marginBottom:6,background:"var(--gbg)",borderColor:"var(--gb)"}} onClick={()=>{
+        const n=3;
+        const b={id:uid(),type:"station_block",rotate:true,stationDuration:10,transitionDuration:2,stations:[
+          {id:uid(),name:"Station 1",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
+          {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
+          {id:uid(),name:"Station 3",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
+        ]};
+        setActs(p=>[...p,b]);setExpandedId(b.id);
+      }}>
+        <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">3 stations, rotate or static</div></div>
+        <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
+      </div>
+      {(()=>{
+        const tplSport=sport||"General";
+        const filtered=(data.activityLibrary||[]).filter(a=>(a.sport||"General")===tplSport||(a.sport||"General")==="General");
+        if(filtered.length===0)return(<div style={{padding:"16px 0",textAlign:"center",color:"var(--td)",fontSize:13}}>No drills in library for {tplSport} yet.</div>);
+        return(<div>
+          <div className="clbl" style={{marginBottom:8}}>{tplSport} + General</div>
+          {filtered.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>{setActs(p=>[...p,{id:uid(),type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:[],coachId:"",sublocationId:"",notes:"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);}}>
+            <div className="lim">
+              <div className="lin">{lib.name}</div>
+              <div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div>
+              {lib.coachingPoints&&<div style={{fontSize:11,color:"var(--green2)",marginTop:2}}>{lib.coachingPoints}</div>}
+            </div>
+            <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
+          </div>))}
+        </div>);
+      })()}
+    </div>
+
     {/* Saved confirmation */}
     {savedMsg&&<div style={{textAlign:"center",padding:"10px",color:"var(--green)",fontWeight:700,fontSize:14}}>{savedMsg}</div>}
 
@@ -521,7 +567,7 @@ function TemplateWorkspace({data,update,template,onRun,onBack}){
 
     {/* Bottom action bar */}
     {!showNewTpl&&!schedMode&&<div style={{position:"fixed",bottom:"calc(var(--tab))",left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#fff",borderTop:"1px solid var(--b)",padding:"10px 14px",zIndex:50}}>
-      <button className="btn primary bxl bfull" style={{marginBottom:8}} onClick={handleRun}>Run Now</button>
+      <button className="btn primary bxl bfull" style={{marginBottom:8,height:52,fontSize:17}} onClick={handleRun}>Run Now</button>
       <div className="brow">
         <button className="btn ghost bmd" style={{flex:1}} onClick={()=>setSchedMode(true)}>Schedule</button>
         <button className="btn ghost bmd" style={{flex:1}} onClick={handleSave}>Save Template</button>
@@ -544,7 +590,7 @@ export default function NewLibraryScreen({data,update,openModal,setView,setLiveI
   const sports=[...new Set(data.activityLibrary.map(a=>a.sport||"General").filter(Boolean))].sort();
   const templates=data.templates||[];
   const LTABS=["drills","templates","locations","equipment"];
-  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} update={update} template={editingTpl} onRun={p=>{update(d=>{if(!d.practices.find(pr=>pr.id===p.id))d.practices.push(p);return d;});setLiveId(p.id);setView("command");}} onBack={()=>setEditingTpl(null)}/></div>);
+  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} update={update} template={editingTpl} openModal={openModal} onRun={p=>{update(d=>{if(!d.practices.find(pr=>pr.id===p.id))d.practices.push(p);return d;});setLiveId(p.id);setView("command");}} onBack={()=>setEditingTpl(null)}/></div>);
   return (<div style={{paddingBottom:80}}>
     <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>Library</div>
