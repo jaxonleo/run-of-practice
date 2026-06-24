@@ -28,6 +28,8 @@ export function flushSave(d) {
   if (!_coachKey || !d) return
   supabase.from('app_data').upsert({ key: _coachKey, value: d }, { onConflict: 'key' })
 }
+
+// ── Live sessions ─────────────────────────────────────────────────────────────
 export async function createSession(coachId, practiceId, state) {
   const sessionId = Math.random().toString(36).slice(2, 10)
   const { error } = await supabase.from('live_sessions').insert({ session_id: sessionId, coach_id: coachId, practice_id: practiceId, state })
@@ -49,4 +51,48 @@ export async function getSession(sessionId) {
 }
 export function subscribeToSession(sessionId, onUpdate) {
   return supabase.channel('session_' + sessionId).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_sessions', filter: 'session_id=eq.' + sessionId }, payload => { onUpdate(payload.new) }).subscribe()
+}
+
+// ── Preview sessions ──────────────────────────────────────────────────────────
+// Reuses live_sessions table with type:"preview" in state.
+// preview_id is stored as practice_id so we can query it.
+// The state object contains full practice data for helpers to see setup info.
+
+export async function createPreviewSession(coachId, practice, teamData, locationData, assetData) {
+  const previewId = 'prev_' + Math.random().toString(36).slice(2, 10)
+  const state = {
+    type: 'preview',
+    practice,
+    team: teamData || null,
+    locations: locationData || [],
+    assets: assetData || [],
+    liveSessionId: null, // filled when coach starts practice
+  }
+  const { error } = await supabase.from('live_sessions').insert({
+    session_id: previewId,
+    coach_id: coachId,
+    practice_id: practice.id,
+    state,
+  })
+  if (error) { console.error('createPreviewSession:', error); return null }
+  return previewId
+}
+
+export async function updatePreviewWithLiveSession(previewId, liveSessionId) {
+  const { data } = await supabase.from('live_sessions').select('state').eq('session_id', previewId).maybeSingle()
+  if (!data) return
+  const newState = Object.assign({}, data.state, { liveSessionId })
+  await supabase.from('live_sessions').update({ state: newState }).eq('session_id', previewId)
+}
+
+export async function getPreviewSession(previewId) {
+  const { data, error } = await supabase.from('live_sessions').select('*').eq('session_id', previewId).maybeSingle()
+  if (error) return null
+  return data
+}
+
+export function subscribeToPreview(previewId, onUpdate) {
+  return supabase.channel('preview_' + previewId)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_sessions', filter: 'session_id=eq.' + previewId }, payload => { onUpdate(payload.new) })
+    .subscribe()
 }
