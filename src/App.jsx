@@ -3,7 +3,7 @@ import { loadData, saveData, flushSave, setCoachKey, getCoaches, registerCoach }
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, DEMO_INIT, migrateData } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { ActConfig, ChecklistConfig, StationConfig } from "./components/NewLibraryScreen.jsx";
-import CommandScreen, { HelperView } from "./components/CommandScreen.jsx";
+import CommandScreen, { HelperView, HistoryViewer } from "./components/CommandScreen.jsx";
 
 // INIT, DEMO_INIT, migrateData, uid, fmt, sumMins, etc. imported from constants.js
 
@@ -203,7 +203,11 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
   const now=new Date();
   const todayStr=now.toISOString().slice(0,10);
   const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
-  if(selectedPractice)return (<PracticeDetail practice={selectedPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} onBack={()=>setSelectedPractice(null)}/>);
+  if(selectedPractice){
+    const isPast=selectedPractice.date<new Date().toISOString().slice(0,10);
+    if(isPast)return(<div style={{padding:"14px 14px calc(var(--tab)+40px)"}}><HistoryViewer data={data} update={update} practice={selectedPractice} onRunAgain={()=>{const now=new Date();const newId=uid();const copy=JSON.parse(JSON.stringify(selectedPractice));copy.id=newId;copy.date=now.toISOString().slice(0,10);copy.startTime=now.toTimeString().slice(0,5);update(d=>{d.practices.push(copy);return d;});setSelectedPractice(null);setLiveId(newId);setView("command");}} onBack={()=>setSelectedPractice(null)}/></div>);
+    return (<PracticeDetail practice={selectedPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} onBack={()=>setSelectedPractice(null)}/>);
+  }
   if(selectedTeam){
     const team=data.teams.find(t=>t.id===selectedTeam);
     if(!team)return null;
@@ -240,26 +244,15 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
         {teamTab==="history"&&<div>
           {past.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No practice history yet.</div>}
           {past.map(p=>{
-            const actLabel=a=>{if(a.type==="station_block")return "Station Block - "+a.stations.length+" stations";if(a.type==="checklist")return "Checklist: "+a.name;return a.name;};
-            const actMins=a=>{if(a.type==="station_block")return a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*a.transitionDuration;return a.duration||0;};
             const practiceNotes=(data.notes||[]).filter(n=>n.practiceId===p.id);
-            return (<div key={p.id} style={{marginBottom:16,borderBottom:"1px solid var(--b)",paddingBottom:16}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+            return(<div key={p.id} className="card" style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setSelectedPractice(p)}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div>
                   <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900}}>{new Date(p.date+"T12:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}</div>
-                  <div style={{fontSize:12,color:"var(--td)"}}>{(p.activities||[]).length} activities - {(p.activities||[]).reduce((s,a)=>s+actMins(a),0)}min</div>
+                  <div style={{fontSize:12,color:"var(--td)"}}>{(p.activities||[]).length} activities · {(p.activities||[]).reduce((s,a)=>{if(a.type==="station_block")return s+a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*(a.transitionDuration||0);return s+(a.duration||0);},0)}min{practiceNotes.length>0?" · "+practiceNotes.length+" note"+(practiceNotes.length>1?"s":""):""}</div>
                 </div>
-                <button className="btn ghost bxs" onClick={()=>{const now=new Date();const newId=uid();const copy=JSON.parse(JSON.stringify(p));copy.id=newId;copy.date=now.toISOString().slice(0,10);copy.startTime=now.toTimeString().slice(0,5);update(d=>{d.practices.push(copy);return d;});setSelectedPractice(null);}}>Run Again</button>
+                <span style={{color:"var(--td)",fontSize:13}}>&#8250;</span>
               </div>
-              {(p.activities||[]).map((a,i)=>(<div key={a.id||i} style={{display:"flex",gap:8,padding:"4px 0",borderBottom:"1px solid var(--s2)"}}>
-                <span style={{width:20,fontSize:11,color:"var(--td)",flexShrink:0,paddingTop:1}}>{i+1}.</span>
-                <span style={{fontSize:13,flex:1,color:"var(--black)"}}>{actLabel(a)}</span>
-                <span style={{fontSize:11,fontFamily:"DM Mono,monospace",color:"var(--td)",flexShrink:0}}>{actMins(a)}m</span>
-              </div>))}
-              {practiceNotes.length>0&&<div style={{marginTop:10}}>
-                <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:6}}>Notes</div>
-                {practiceNotes.map(n=>(<div key={n.id} style={{padding:"8px 10px",background:"var(--s2)",borderRadius:"var(--rs)",marginBottom:4,fontSize:13,color:"var(--black2)",lineHeight:1.5}}>{n.context&&<span style={{fontWeight:600,color:"var(--td)",marginRight:4}}>{n.context}:</span>}{n.text}</div>))}
-              </div>}
             </div>);
           })}
         </div>}
@@ -486,6 +479,7 @@ export default function App(){
 }
 
 function PracticeLog({data,update,launchRun}){
+  const [viewPractice,setViewPractice]=useState(null);
   const fmtDate=ds=>{
     const today=new Date().toISOString().slice(0,10);
     const yest=new Date(Date.now()-864e5).toISOString().slice(0,10);
@@ -493,42 +487,32 @@ function PracticeLog({data,update,launchRun}){
     if(ds===yest)return "Yesterday";
     return new Date(ds+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"});
   };
-  const del=id=>update(d=>{d.notes=d.notes.filter(n=>n.id!==id);return d;});
   const sorted=[...data.practices].sort((a,b)=>b.date.localeCompare(a.date));
   const standalone=data.notes.filter(n=>!n.practiceId);
-  if(!sorted.length&&!standalone.length)return(<div className="empty"><div className="emtx">No practice history yet. Run a practice to see it here.</div></div>
-  );
+  if(viewPractice)return(<div style={{paddingBottom:80}}><HistoryViewer data={data} update={update} practice={viewPractice} onRunAgain={()=>{const now=new Date();const newId=uid();const copy=JSON.parse(JSON.stringify(viewPractice));copy.id=newId;copy.date=now.toISOString().slice(0,10);copy.startTime=now.toTimeString().slice(0,5);update(d=>{d.practices.push(copy);return d;});setViewPractice(null);launchRun(newId);}} onBack={()=>setViewPractice(null)}/></div>);
+  if(!sorted.length&&!standalone.length)return(<div className="empty"><div className="emtx">No practice history yet. Run a practice to see it here.</div></div>);
   return(<div>
-      {sorted.map(p=>(<div key={p.id} className="card" style={{marginBottom:10}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:data.notes.filter(n=>n.practiceId===p.id).length?10:0}}>
-            <div>
-              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{(data.teams.find(t=>t.id===p.teamId)||{name:"Practice"}).name}</div>
-              <div className="limt">{fmtDate(p.date)}{p.startTime?" at "+fmt12(p.startTime):""} - {sumMins(p.activities)}m</div>
-            </div>
+    {sorted.map(p=>{
+      const practiceNotes=(data.notes||[]).filter(n=>n.practiceId===p.id);
+      const team=data.teams.find(t=>t.id===p.teamId);
+      return(<div key={p.id} className="card" style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setViewPractice(p)}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{team?team.name:"Practice"}</div>
+            <div className="limt">{fmtDate(p.date)}{p.startTime?" at "+fmt12(p.startTime):""} · {sumMins(p.activities)}m{practiceNotes.length>0?" · "+practiceNotes.length+" note"+(practiceNotes.length>1?"s":""):""}</div>
           </div>
-          {data.notes.filter(n=>n.practiceId===p.id).sort((a,b)=>a.date.localeCompare(b.date)).map(n=>(<div key={n.id} style={{borderTop:"1px solid var(--b)",paddingTop:8,marginTop:8}}>
-              <div style={{fontSize:11,fontFamily:"DM Mono,monospace",color:"var(--td)",marginBottom:3}}>
-                {n.context&&<span style={{color:"var(--green2)",fontWeight:700,marginRight:4}}>{n.context}</span>}
-                {new Date(n.date).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"})}
-              </div>
-              <div style={{fontSize:14,lineHeight:1.5}}>{n.text}</div>
-            </div>
-          ))}
-          {!data.notes.filter(n=>n.practiceId===p.id).length&&<div style={{fontSize:12,color:"var(--td)"}}>No notes for this session</div>}
+          <span style={{color:"var(--td)",fontSize:13}}>&#8250;</span>
         </div>
-      ))}
-      {standalone.length>0&&(<div>
-          <div className="clbl" style={{marginTop:8,marginBottom:8}}>Standalone Notes</div>
-          {standalone.map(n=>(<div key={n.id} className="notec">
-              <div className="notect">{n.context&&<span style={{color:"var(--green2)",fontWeight:700,marginRight:4}}>{n.context} -</span>}{new Date(n.date).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"})}</div>
-              <div className="notetx">{n.text}</div>
-              <button className="btn danger bxs mt6" onClick={()=>del(n.id)}>Delete</button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+      </div>);
+    })}
+    {standalone.length>0&&(<div>
+      <div className="clbl" style={{marginTop:8,marginBottom:8}}>Standalone Notes</div>
+      {standalone.map(n=>(<div key={n.id} className="notec">
+        <div className="notect">{n.context&&<span style={{color:"var(--green2)",fontWeight:700,marginRight:4}}>{n.context} -</span>}{new Date(n.date).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"})}</div>
+        <div className="notetx">{n.text}</div>
+      </div>))}
+    </div>)}
+  </div>);
 }
 
 function DurStepper({value,min,onChange,step}){
@@ -704,7 +688,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
             {expandedId===act.id&&(<div className="abbody">
                 {act.type==="activity"&&<ActConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
                 {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-                {act.type==="station_block"&&<StationConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)}/>}
+                {act.type==="station_block"&&<StationConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport}/>}
               </div>
             )}
           </div>

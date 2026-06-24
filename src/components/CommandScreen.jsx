@@ -425,7 +425,7 @@ function HelperView({sessionId}){
 }
 
 // ── CommandScreen ─────────────────────────────────────────────────────────────
-export { HelperView };
+export { HelperView, HistoryViewer };
 
 export default function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
   const practice=liveId?data.practices.find(p=>p.id===liveId):null;
