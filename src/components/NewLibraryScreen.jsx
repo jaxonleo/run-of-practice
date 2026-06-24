@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { uid, sumMins, PLAYER_GEAR_BY_SPORT } from "../constants.js";
+import { uid, sumMins } from "../constants.js";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -220,18 +220,38 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update,t
   </div>);
 }
 
+// ── GearEditRow — inline edit for a player gear item ─────────────────────────
+function GearEditRow({asset,update,onDone}){
+  const [name,setName]=useState(asset.name);
+  const [sport,setSport]=useState(asset.sport||"General");
+  const save=()=>{
+    if(!name.trim())return;
+    update(d=>{const a=d.assets.find(a=>a.id===asset.id);if(a){a.name=name.trim();a.sport=sport;}return d;});
+    onDone();
+  };
+  return(<div style={{padding:"10px 12px",background:"var(--s2)",borderBottom:"1px solid var(--b)"}}>
+    <div className="g2" style={{marginBottom:8}}>
+      <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}/></div>
+      <div className="fld"><label className="lbl">Sport</label>
+        <select className="sel" value={sport} onChange={e=>setSport(e.target.value)}>
+          {["General","Baseball","Basketball","Football","Soccer","Softball","Lacrosse","Hockey","Volleyball","Tennis","Swimming","Other"].map(s=><option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+    </div>
+    <div className="brow"><button className="btn ghost bxs" onClick={onDone}>Cancel</button><button className="btn primary bxs" onClick={save} disabled={!name.trim()}>Save</button></div>
+  </div>);
+}
+
 // ── EquipmentTab ──────────────────────────────────────────────────────────────
 function EquipmentTab({data,update,openModal}){
   const [equipTab,setEquipTab]=useState("team");
-  const [sportFilter,setSportFilter]=useState("All");
   const [openMenu,setOpenMenu]=useState(null);
   const [newName,setNewName]=useState("");
   const [newSport,setNewSport]=useState("General");
   const [showAdd,setShowAdd]=useState(false);
+  const [collapsed,setCollapsed]=useState({});
   const teamAssets=(data.assets||[]).filter(a=>!a.type||a.type==="team");
   const playerAssets=(data.assets||[]).filter(a=>a.type==="player");
-  const sports=["All",...new Set(playerAssets.map(a=>a.sport||"General").filter(Boolean))].filter((s,i,arr)=>arr.indexOf(s)===i);
-  const filteredPlayer=sportFilter==="All"?playerAssets:playerAssets.filter(a=>(a.sport||"General")===sportFilter);
   const addNew=()=>{
     if(!newName.trim())return;
     const newId=uid();
@@ -273,9 +293,9 @@ function EquipmentTab({data,update,openModal}){
     {equipTab==="player"&&<div>
       <div className="sechdr mb10">
         <span className="sectitle">{playerAssets.length} items</span>
-        <button className="btn primary bsm" onClick={()=>setShowAdd(s=>!s)}>+ Add</button>
+        <button className="btn primary bsm" onClick={()=>setShowAdd(s=>!s)}>+ Add Gear</button>
       </div>
-      {showAdd&&<div className="card mb10">
+      {showAdd&&<div className="card mb12">
         <div className="g2">
           <div className="fld"><label className="lbl">Gear Name</label><input className="inp" autoFocus placeholder="e.g. Batting Helmet" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNew()}/></div>
           <div className="fld"><label className="lbl">Sport</label>
@@ -284,25 +304,44 @@ function EquipmentTab({data,update,openModal}){
             </select>
           </div>
         </div>
-        <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowAdd(false)}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
+        <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowAdd(false);setNewName("");}}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
       </div>}
-      {/* Sport filter pills */}
-      {sports.length>1&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
-        {sports.map(s=>(<button key={s} type="button" onClick={()=>setSportFilter(s)} style={{padding:"4px 12px",borderRadius:20,border:"1.5px solid",borderColor:sportFilter===s?"var(--green)":"var(--b)",background:sportFilter===s?"var(--green)":"#fff",color:sportFilter===s?"#fff":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{s}</button>))}
+      {playerAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>
+        <div style={{marginBottom:8}}>No player gear yet.</div>
+        <div style={{fontSize:12}}>Add gear here and it will appear as chips when building drills for that sport. Basketball coaches may not need this at all.</div>
       </div>}
-      {filteredPlayer.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>
-        No player gear yet.{sportFilter!=="All"&&" Try 'All' or add gear for this sport."}
-      </div>}
-      {filteredPlayer.map(a=>(<div key={a.id} className="li" style={{position:"relative",marginBottom:6}}>
-        <div className="lim">
-          <div className="lin">{a.name}</div>
-          <div className="limt">{a.sport||"General"}</div>
-        </div>
-        <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
-        {openMenu===a.id&&<div className="mini-menu">
-          <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
-        </div>}
-      </div>))}
+      {(()=>{
+        // Group by sport
+        const bySport={};
+        playerAssets.forEach(a=>{const s=a.sport||"General";if(!bySport[s])bySport[s]=[];bySport[s].push(a);});
+        const sportKeys=Object.keys(bySport).sort();
+        return sportKeys.map(sport=>{
+          const isCollapsed=collapsed["pg_"+sport];
+          const items=bySport[sport];
+          return(<div key={sport} style={{marginBottom:8}}>
+            <button onClick={()=>setCollapsed(c=>Object.assign({},c,{["pg_"+sport]:!c["pg_"+sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
+              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700}}>{sport}</span>
+              <span style={{fontSize:12,color:"var(--td)"}}>{items.length} item{items.length!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
+            </button>
+            {!isCollapsed&&<div style={{border:"1px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)",overflow:"hidden"}}>
+              {items.map((a,i)=>{
+                const isEditing=openMenu==="edit_"+a.id;
+                return(<div key={a.id}>
+                  {!isEditing&&<div className="li" style={{position:"relative",borderBottom:i<items.length-1?"1px solid var(--b)":"none"}}>
+                    <div className="lim"><div className="lin">{a.name}</div></div>
+                    <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
+                    {openMenu===a.id&&<div className="mini-menu">
+                      <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu("edit_"+a.id);}}>Edit</button>
+                      <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
+                    </div>}
+                  </div>}
+                  {isEditing&&<GearEditRow asset={a} update={update} onDone={()=>setOpenMenu(null)}/>}
+                </div>);
+              })}
+            </div>}
+          </div>);
+        });
+      })()}
     </div>}
   </div>);
 }
@@ -331,6 +370,17 @@ function TemplateWorkspace({data,update,template,mode,onRun,onSave,onBack}){
     const now=new Date();
     const p={id:uid(),teamId,locationId:locId,date:now.toISOString().slice(0,10),startTime:now.toTimeString().slice(0,5),durMin:sumMins(acts),activities:acts,fromTemplate:template.id};
     if(onRun)onRun(p);
+  };
+  const [schedMode,setSchedMode]=useState(false);
+  const [schedDate,setSchedDate]=useState(()=>new Date().toISOString().slice(0,10));
+  const [schedTime,setSchedTime]=useState("16:00");
+  const [schedDone,setSchedDone]=useState(false);
+  const handleSchedule=()=>{
+    if(!schedDate)return;
+    const p={id:uid(),teamId,locationId:locId,date:schedDate,startTime:schedTime,durMin:sumMins(acts),activities:JSON.parse(JSON.stringify(acts)),fromTemplate:template.id};
+    update(d=>{d.practices.push(p);return d;});
+    setSchedDone(true);
+    setTimeout(()=>{setSchedDone(false);setSchedMode(false);if(onBack)onBack();},1500);
   };
   const handleSave=()=>{
     update(d=>{
@@ -403,7 +453,22 @@ function TemplateWorkspace({data,update,template,mode,onRun,onSave,onBack}){
         <button className="btn ghost bmd" onClick={onBack}>Cancel</button>
         <button className="btn primary bmd" onClick={handleSave}>{saved?"Saved":"Save Template"}</button>
       </div>}
-      {!isEdit&&<button className="btn primary bxl bfull" onClick={handleRun}>Run Now</button>}
+      {!isEdit&&!schedMode&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <button className="btn primary bxl bfull" onClick={handleRun}>Run Now</button>
+        <button className="btn outline bmd bfull" onClick={()=>setSchedMode(true)}>Schedule for Later</button>
+      </div>}
+      {!isEdit&&schedMode&&<div className="card">
+        <div className="clbl mb10">Schedule Practice</div>
+        <div className="g2">
+          <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/></div>
+          <div className="fld"><label className="lbl">Start Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
+        </div>
+        <div style={{fontSize:12,color:"var(--td)",marginBottom:12}}>Saves to your calendar. You can share a setup link from the practice detail.</div>
+        <div className="brow">
+          <button className="btn ghost bmd" onClick={()=>setSchedMode(false)}>Cancel</button>
+          <button className="btn primary bmd" onClick={handleSchedule} disabled={!schedDate}>{schedDone?"Scheduled!":"Schedule"}</button>
+        </div>
+      </div>}
     </div>
   </div>);
 }

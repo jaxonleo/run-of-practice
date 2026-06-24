@@ -15,22 +15,6 @@ export function assignGroups(players,grouping,numGroups){
   return [arr];
 }
 
-// ── Player gear presets by sport ──────────────────────────────────────────────
-export const PLAYER_GEAR_BY_SPORT={
-  Baseball:["Hat","Glove","Helmet","Bat","Batting Gloves","Catcher's Gear","Cleats"],
-  Softball:["Hat","Glove","Helmet","Bat","Batting Gloves","Catcher's Gear","Cleats"],
-  Soccer:["Cleats","Shin Guards","Socks"],
-  Football:["Helmet","Shoulder Pads","Cleats","Mouthguard"],
-  Lacrosse:["Helmet","Gloves","Stick","Cleats","Shoulder Pads","Mouthguard"],
-  Hockey:["Helmet","Gloves","Stick","Skates","Pads"],
-  Basketball:[],
-  Volleyball:["Knee Pads"],
-  Tennis:["Racket"],
-  Swimming:["Goggles","Swim Cap"],
-  General:[],
-  Other:[],
-};
-
 // ── Constants ────────────────────────────────────────────────────────────────
 export const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
 export const INIT={

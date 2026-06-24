@@ -67,8 +67,8 @@ export default function ModalLayer({modal,data,update,closeModal}){
     if(t==="addLocation"){if(!f.name)return;update(d=>{d.locations.push({id:uid(),name:f.name,sublocations:[]});return d;});}
     if(t==="editLocation"){if(!f.name)return;update(d=>{const l=d.locations.find(l=>l.id===p.location.id);if(l)l.name=f.name;return d;});}
     if(t==="addSublocation"){if(!f.name)return;update(d=>{const l=d.locations.find(l=>l.id===p.locationId);if(l)l.sublocations.push({id:uid(),name:f.name});return d;});}
-    if(t==="addAsset"){if(!f.name)return;update(d=>{d.assets.push({id:uid(),name:f.name,locationTags:f.locationTags||[]});return d;});}
-    if(t==="editAsset"){if(!f.name)return;update(d=>{const a=d.assets.find(a=>a.id===p.asset.id);if(a){a.name=f.name;a.locationTags=f.locationTags||[];}return d;});}
+    if(t==="addAsset"){if(!f.name)return;update(d=>{d.assets.push({id:uid(),name:f.name,type:f.assetType||"team",sport:f.assetSport||"General",locationTags:f.locationTags||[]});return d;});}
+    if(t==="editAsset"){if(!f.name)return;update(d=>{const a=d.assets.find(a=>a.id===p.asset.id);if(a){a.name=f.name;a.type=a.type||"team";a.sport=a.sport||"General";a.locationTags=f.locationTags||[];}return d;});}
     if(t==="addActivity"){
       if(!f.name)return;
       update(d=>{
@@ -175,21 +175,42 @@ export default function ModalLayer({modal,data,update,closeModal}){
             </div>
             <div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" style={{minHeight:50}} value={f.coachingPoints||""} onChange={e=>set("coachingPoints",e.target.value)}/></div>
             <div className="fld"><label className="lbl">Team Equipment</label>
-              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-                {data.assets.map(a=>(<button key={a.id} type="button" onClick={()=>{const cur=(f.equipment||[]);const has=cur.includes(a.id);set("equipment",has?cur.filter(x=>x!==a.id):[...cur,a.id]);}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:(f.equipment||[]).includes(a.id)?"var(--green)":"var(--s1)",color:(f.equipment||[]).includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
-                {data.assets.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No equipment in library yet</span>}
-              </div>
-              <div style={{display:"flex",gap:6}}>
-                <input className="inp" placeholder="Add new equipment..." id="new-equip-inp" style={{flex:1}}/>
-                <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-equip-inp");if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();update(d=>{d.assets.push({id:newId,name:nm,locationTags:[]});return d;});set("equipment",[...(f.equipment||[]),newId]);el.value="";}}>Add</button>
-              </div>
+              {(()=>{const teamAssets=(data.assets||[]).filter(a=>!a.type||a.type==="team");return(<div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
+                  {teamAssets.map(a=>(<button key={a.id} type="button" onClick={()=>{const cur=(f.equipment||[]);const has=cur.includes(a.id);set("equipment",has?cur.filter(x=>x!==a.id):[...cur,a.id]);}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:(f.equipment||[]).includes(a.id)?"var(--green)":"var(--s1)",color:(f.equipment||[]).includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
+                  {teamAssets.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No team equipment in library yet</span>}
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <input className="inp" placeholder="Add new equipment..." id="new-equip-inp" style={{flex:1}}/>
+                  <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-equip-inp");if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();update(d=>{d.assets.push({id:newId,name:nm,type:"team",sport:"General",locationTags:[]});return d;});set("equipment",[...(f.equipment||[]),newId]);el.value="";}}>Add</button>
+                </div>
+              </div>);})()}
             </div>
-            <div className="fld"><label className="lbl">Player Gear Needed</label>
-              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-                {["Hat","Glove","Helmet","Bat","Catcher's Gear","Cleats","Shin Guards","Batting Gloves"].map(item=>(<button key={item} type="button" onClick={()=>{const cur=(f.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);const has=cur.includes(item);const next=has?cur.filter(x=>x!==item):[...cur,item];set("playerGear",next.join(", "));}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:(f.playerGear||"").split(",").map(s=>s.trim()).includes(item)?"var(--green)":"var(--s1)",color:(f.playerGear||"").split(",").map(s=>s.trim()).includes(item)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{item}</button>))}
-              </div>
-              <input className="inp" placeholder="Or type custom gear..." value={(f.playerGear||"").split(",").map(s=>s.trim()).filter(s=>!["Hat","Glove","Helmet","Bat","Catcher's Gear","Cleats","Shin Guards","Batting Gloves"].includes(s)).join(", ")} onChange={e=>{const preset=(f.playerGear||"").split(",").map(s=>s.trim()).filter(s=>["Hat","Glove","Helmet","Bat","Catcher's Gear","Cleats","Shin Guards","Batting Gloves"].includes(s));const custom=e.target.value.trim();set("playerGear",[...preset,custom].filter(Boolean).join(", "));}}/>
-            </div>
+            {(()=>{
+              const drillSport=f.sport||"General";
+              const playerGearAssets=(data.assets||[]).filter(a=>a.type==="player"&&(a.sport===drillSport||a.sport==="General"||drillSport==="General"));
+              if(playerGearAssets.length===0){
+                return(<div className="fld"><label className="lbl">Player Gear Needed</label>
+                  <div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>No player gear set up for {drillSport} yet. Add gear in Library → Equipment → Player Gear, or add inline:</div>
+                  <div style={{display:"flex",gap:6}}>
+                    <input className="inp" placeholder="e.g. Batting Helmet" id="new-gear-inp" style={{flex:1}}/>
+                    <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-gear-inp");if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();update(d=>{d.assets.push({id:newId,name:nm,type:"player",sport:drillSport,locationTags:[]});return d;});const cur=(f.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);set("playerGear",[...cur,nm].join(", "));el.value="";}}>Add</button>
+                  </div>
+                </div>);
+              }
+              return(<div className="fld"><label className="lbl">Player Gear Needed</label>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
+                  {playerGearAssets.map(a=>{
+                    const sel=(f.playerGear||"").split(",").map(s=>s.trim()).includes(a.name);
+                    return(<button key={a.id} type="button" onClick={()=>{const cur=(f.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);const next=sel?cur.filter(x=>x!==a.name):[...cur,a.name];set("playerGear",next.join(", "));}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:sel?"var(--green)":"var(--s1)",color:sel?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>);
+                  })}
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <input className="inp" placeholder="Add new gear..." id="new-gear-inp" style={{flex:1}}/>
+                  <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-gear-inp");if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();update(d=>{d.assets.push({id:newId,name:nm,type:"player",sport:drillSport,locationTags:[]});return d;});const cur=(f.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);set("playerGear",[...cur,nm].join(", "));el.value="";}}>Add</button>
+                </div>
+              </div>);
+            })()}
           </div>
         )}
         <div className="mfooter"><button className="btn ghost bmd" onClick={closeModal}>Cancel</button><button className="btn primary bmd" onClick={save}>Save</button></div>
