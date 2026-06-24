@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups } from "../constants.js";
-import { createSession, updateSession, endSession, getSession, subscribeToSession } from "../supabase.js";
+import { createSession, updateSession, endSession, getSession, subscribeToSession, createPreviewSession, updatePreviewWithLiveSession, getPreviewSession, subscribeToPreview } from "../supabase.js";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
 const Ic={
@@ -242,6 +242,175 @@ function HistoryViewer({data,update,practice,onRunAgain,onBack}){
   </div>);
 }
 
+// ── PreviewView — shown at /preview/[id] before practice starts ───────────────
+export function PreviewView({previewId}){
+  const [preview,setPreview]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [tick,setTick]=useState(0);
+  const subRef=useRef(null);
+  const audioCtxRef=useRef(null);
+
+  useEffect(()=>{const iv=setInterval(()=>setTick(t=>t+1),1000);return()=>clearInterval(iv);},[]);
+
+  useEffect(()=>{
+    getPreviewSession(previewId).then(s=>{setPreview(s);setLoading(false);});
+    subRef.current=subscribeToPreview(previewId,updated=>{setPreview(updated);});
+    return()=>{if(subRef.current)subRef.current.unsubscribe();};
+  },[previewId]);
+
+  if(loading)return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,background:"#0d1512"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,letterSpacing:".1em"}}>LOADING...</div></div>);
+  if(!preview)return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:24}}><div style={{color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,textAlign:"center"}}>Preview not found</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This link may be invalid or expired.</div></div>);
+
+  const state=preview.state||{};
+
+  // If practice has gone live, redirect to live view
+  if(state.liveSessionId){
+    window.location.href='/live/'+state.liveSessionId;
+    return null;
+  }
+
+  const practice=state.practice||{};
+  const team=state.team||null;
+  const locations=state.locations||[];
+  const assets=state.assets||[];
+  const activities=practice.activities||[];
+
+  // Countdown calculation
+  const now=new Date();
+  const startStr=practice.date&&practice.startTime?practice.date+"T"+practice.startTime:null;
+  const startMs=startStr?new Date(startStr).getTime():null;
+  const diffSecs=startMs?Math.floor((startMs-now.getTime())/1000):null;
+  const isStarted=diffSecs!==null&&diffSecs<=0;
+  const absDiff=diffSecs!==null?Math.abs(diffSecs):null;
+
+  const fmtCountdown=secs=>{
+    if(secs===null)return"--:--";
+    const h=Math.floor(secs/3600);
+    const m=Math.floor((secs%3600)/60);
+    const s=secs%60;
+    if(h>0)return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+    return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+  };
+
+  const subName=id=>{
+    const l=locations.find(l=>l.sublocations&&l.sublocations.find(s=>s.id===id));
+    if(!l)return null;
+    const s=l.sublocations.find(s=>s.id===id);
+    return s?s.name:null;
+  };
+  const coachName=id=>{
+    if(!team)return null;
+    const c=team.coaches&&team.coaches.find(c=>c.id===id);
+    return c?c.name:null;
+  };
+  const equipNames=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
+  const loc=locations.find(l=>l.id===practice.locationId)||null;
+
+  // Gather all equipment needed across the whole practice (deduped)
+  const allEquipIds=new Set();
+  activities.forEach(act=>{
+    if(act.type==="station_block")(act.stations||[]).forEach(st=>(Array.isArray(st.equipment)?st.equipment:[]).forEach(id=>allEquipIds.add(id)));
+    else(Array.isArray(act.equipment)?act.equipment:[]).forEach(id=>allEquipIds.add(id));
+  });
+  const allEquipNames=[...allEquipIds].map(id=>{const a=assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
+
+  return(<div style={{minHeight:"100dvh",background:"#0d1512",color:"#fff",paddingBottom:40}}>
+    {/* Header */}
+    <div style={{padding:"24px 20px 16px",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <span style={{width:8,height:8,borderRadius:"50%",background:"#52b788",display:"inline-block",flexShrink:0}}/>
+        <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#52b788"}}>Practice Setup</span>
+        {loc&&<span style={{fontSize:11,color:"#555",marginLeft:4}}>· {loc.name}</span>}
+      </div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:4}}>{team?team.name:"Practice"}</div>
+      {practice.date&&<div style={{fontSize:13,color:"#aaa"}}>{new Date(practice.date+"T12:00:00").toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})}{practice.startTime?" at "+practice.startTime.replace(/^(\d+):(\d+)$/,(_,h,m)=>{const hh=+h;return(hh%12||12)+":"+m+" "+(hh>=12?"PM":"AM")}):""}</div>}
+    </div>
+
+    {/* Countdown */}
+    <div style={{padding:"24px 20px",textAlign:"center",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
+      {diffSecs!==null&&<div>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:isStarted?"#f59e0b":"#52b788",marginBottom:8}}>
+          {isStarted?"Practice should have started":"Starts in"}
+        </div>
+        <div style={{fontFamily:"DM Mono,monospace",fontSize:56,fontWeight:700,color:isStarted?"#f59e0b":"#fff",lineHeight:1,marginBottom:4}}>
+          {fmtCountdown(absDiff)}
+        </div>
+        {isStarted&&<div style={{fontSize:12,color:"#555"}}>Waiting for coach to start the live run</div>}
+        {!isStarted&&<div style={{fontSize:12,color:"#555"}}>Use this time to set up stations</div>}
+      </div>}
+      {diffSecs===null&&<div style={{fontSize:14,color:"#555"}}>No start time scheduled</div>}
+    </div>
+
+    {/* All equipment summary */}
+    {allEquipNames.length>0&&<div style={{padding:"16px 20px",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#ca8a04",marginBottom:10}}>Equipment Needed</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+        {allEquipNames.map((n,i)=>(<span key={i} style={{background:"rgba(202,138,4,.15)",border:"1px solid rgba(202,138,4,.4)",borderRadius:20,padding:"4px 12px",fontSize:13,color:"#fde047",fontWeight:600}}>{n}</span>))}
+      </div>
+    </div>}
+
+    {/* Run order / stations */}
+    <div style={{padding:"16px 20px"}}>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#555",marginBottom:12}}>Run Order · {Math.round(activities.reduce((s,a)=>s+actSecs(a),0)/60)}min</div>
+      {activities.map((act,i)=>{
+        if(act.type==="station_block"){
+          const totalMins=act.stations.length*(act.stationDuration||0)+Math.max(0,act.stations.length-1)*(act.rotate!==false?(act.transitionDuration||0):0);
+          return(<div key={act.id} style={{marginBottom:12,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,overflow:"hidden"}}>
+            <div style={{padding:"12px 14px",borderBottom:"1px solid rgba(255,255,255,.08)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div>
+                <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#52b788"}}>Station Block</div>
+                <div style={{fontSize:12,color:"#555",marginTop:2}}>{act.stations.length} stations · {act.stationDuration}m each{act.rotate!==false?" · rotates":""}</div>
+              </div>
+              <span style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"#555"}}>{totalMins}m</span>
+            </div>
+            {act.stations.map((st,si)=>{
+              const stEquip=equipNames(st.equipment);
+              return(<div key={st.id} style={{padding:"10px 14px",borderBottom:si<act.stations.length-1?"1px solid rgba(255,255,255,.06)":"none"}}>
+                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:stEquip.length||st.coachingPoints||st.playerGear?6:0}}>
+                  <div>
+                    <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,color:"#52b788",letterSpacing:".05em",marginBottom:2}}>Station {si+1}</div>
+                    <div style={{fontSize:15,fontWeight:700,color:"#fff"}}>{st.activityName||st.name||"Station "+(si+1)}</div>
+                    {(coachName(st.coachId)||subName(st.sublocationId))&&<div style={{fontSize:12,color:"#888",marginTop:2}}>
+                      {subName(st.sublocationId)&&<span style={{color:"#52b788",fontWeight:600}}>{subName(st.sublocationId)}</span>}
+                      {subName(st.sublocationId)&&coachName(st.coachId)&&<span style={{color:"#444"}}> · </span>}
+                      {coachName(st.coachId)&&<span>{coachName(st.coachId)}</span>}
+                    </div>}
+                  </div>
+                </div>
+                {st.coachingPoints&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8,marginBottom:6}}>{st.coachingPoints}</div>}
+                {(stEquip.length>0||st.playerGear)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                  {stEquip.map((n,j)=>(<span key={j} style={{background:"rgba(202,138,4,.12)",border:"1px solid rgba(202,138,4,.3)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fde047"}}>{n}</span>))}
+                  {st.playerGear&&<span style={{background:"rgba(251,146,60,.12)",border:"1px solid rgba(251,146,60,.3)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fdba74"}}>Player Gear: {st.playerGear}</span>}
+                </div>}
+              </div>);
+            })}
+          </div>);
+        }
+        // Regular activity
+        const actEquip=equipNames(act.equipment);
+        return(<div key={act.id} style={{marginBottom:8,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"12px 14px"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:act.coachingPoints||actEquip.length?6:0}}>
+            <div>
+              <div style={{fontSize:15,fontWeight:700,color:"#fff"}}>{act.name}</div>
+              {(coachName(act.coachId)||subName(act.sublocationId))&&<div style={{fontSize:12,color:"#888",marginTop:2}}>
+                {subName(act.sublocationId)&&<span style={{color:"#52b788",fontWeight:600}}>{subName(act.sublocationId)}</span>}
+                {subName(act.sublocationId)&&coachName(act.coachId)&&<span style={{color:"#444"}}> · </span>}
+                {coachName(act.coachId)&&<span>{coachName(act.coachId)}</span>}
+              </div>}
+            </div>
+            <span style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"#555",flexShrink:0,marginLeft:8}}>{act.duration}m</span>
+          </div>
+          {act.coachingPoints&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8,marginBottom:6}}>{act.coachingPoints}</div>}
+          {(actEquip.length>0||act.playerGear)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+            {actEquip.map((n,j)=>(<span key={j} style={{background:"rgba(202,138,4,.12)",border:"1px solid rgba(202,138,4,.3)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fde047"}}>{n}</span>))}
+            {act.playerGear&&<span style={{background:"rgba(251,146,60,.12)",border:"1px solid rgba(251,146,60,.3)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fdba74"}}>Player Gear: {act.playerGear}</span>}
+          </div>}
+        </div>);
+      })}
+    </div>
+  </div>);
+}
+
 function HelperView({sessionId}){
   const [session,setSession]=useState(null);
   const [loading,setLoading]=useState(true);
@@ -424,6 +593,7 @@ function HelperView({sessionId}){
   </div>);
 }
 
+
 // ── CommandScreen ─────────────────────────────────────────────────────────────
 export { HelperView, HistoryViewer };
 
@@ -503,7 +673,14 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     setLiveActs(newActs);setStage("live");setShowAtt(false);
     setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(true);spoken.current={};
     createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,elapsed:0,running:true,runningAt:Date.now(),presentIds:[...pIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]}).then(sid=>{
-      if(sid){sessionRef.current=sid;setSessionId(sid);}
+      if(sid){
+        sessionRef.current=sid;setSessionId(sid);
+        // If there's a preview session for this practice, link it to the live session
+        // so helpers on the preview URL auto-redirect to the live view
+        if(practice&&practice.previewId){
+          updatePreviewWithLiveSession(practice.previewId,sid);
+        }
+      }
     });
   },[practice,applyAtt,coachId,liveId]);
   const handleAttUpdate=useCallback(({presentIds:pIds,coachPresentIds:cIds})=>{setPresentIds(pIds);setCoachPresentIds(cIds);setLiveActs(prev=>applyAtt(pIds,cIds,"keep",prev));setShowAtt(false);},[applyAtt]);
