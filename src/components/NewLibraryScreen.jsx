@@ -347,8 +347,7 @@ function EquipmentTab({data,update,openModal}){
 }
 
 // ── TemplateWorkspace ─────────────────────────────────────────────────────────
-function TemplateWorkspace({data,update,template,mode,onRun,onSave,onBack}){
-  const isEdit=mode==="edit";
+function TemplateWorkspace({data,update,template,onRun,onBack}){
   const [name,setName]=useState(template.name);
   const [sport,setSport]=useState(template.sport||"General");
   const [teamId,setTeamId]=useState(()=>{
@@ -356,89 +355,140 @@ function TemplateWorkspace({data,update,template,mode,onRun,onSave,onBack}){
     const match=data.teams.find(t=>(t.sport||"General")===template.sport);
     return match?match.id:(data.teams[0]?data.teams[0].id:"");
   });
-  const [locId,setLocId]=useState(data.locations[0]?data.locations[0].id:"");
-  const [acts,setActs]=useState(()=>JSON.parse(JSON.stringify(template.activities||[])));
+  const [locId,setLocId]=useState(()=>template.locationId||(data.locations[0]?data.locations[0].id:""));
+  const [acts,setActs]=useState(()=>{
+    // Migrate old template activities missing new fields
+    const raw=JSON.parse(JSON.stringify(template.activities||[]));
+    raw.forEach(a=>{
+      if(a.type==="activity"){
+        if(!a.grouping)a.grouping="whole";
+        if(!a.numGroups)a.numGroups=2;
+        if(!a.playerGear)a.playerGear="";
+        if(!Array.isArray(a.equipment))a.equipment=[];
+      }
+      if(a.type==="station_block"){
+        if(a.rotate===undefined)a.rotate=true;
+        (a.stations||[]).forEach(s=>{
+          if(!Array.isArray(s.equipment))s.equipment=[];
+          if(!s.playerGear)s.playerGear="";
+          if(!s.coachingPoints)s.coachingPoints="";
+          if(!s.assignments)s.assignments=[];
+        });
+      }
+    });
+    return raw;
+  });
   const [expandedId,setExpandedId]=useState(null);
-  const [saved,setSaved]=useState(false);
-  const team=data.teams.find(t=>t.id===teamId)||null;
-  const loc=data.locations.find(l=>l.id===locId)||null;
-  const dragIdx=useRef(null);
-  const updAct=(id,ch)=>setActs(p=>p.map(a=>a.id===id?Object.assign({},a,ch):a));
-  const updSt=(aid,sid,ch)=>setActs(p=>p.map(a=>a.id===aid?Object.assign({},a,{stations:a.stations.map(s=>s.id===sid?Object.assign({},s,ch):s)}):a));
-  const remAct=id=>setActs(p=>p.filter(a=>a.id!==id));
-  const handleRun=()=>{
-    const now=new Date();
-    const p={id:uid(),teamId,locationId:locId,date:now.toISOString().slice(0,10),startTime:now.toTimeString().slice(0,5),durMin:sumMins(acts),activities:acts,fromTemplate:template.id};
-    if(onRun)onRun(p);
-  };
+  const [savedMsg,setSavedMsg]=useState(null);
+  const [newTplName,setNewTplName]=useState("");
+  const [showNewTpl,setShowNewTpl]=useState(false);
   const [schedMode,setSchedMode]=useState(false);
   const [schedDate,setSchedDate]=useState(()=>new Date().toISOString().slice(0,10));
   const [schedTime,setSchedTime]=useState("16:00");
-  const [schedDone,setSchedDone]=useState(false);
-  const handleSchedule=()=>{
-    if(!schedDate)return;
-    const p={id:uid(),teamId,locationId:locId,date:schedDate,startTime:schedTime,durMin:sumMins(acts),activities:JSON.parse(JSON.stringify(acts)),fromTemplate:template.id};
+  const team=data.teams.find(t=>t.id===teamId)||null;
+  const loc=data.locations.find(l=>l.id===locId)||null;
+  const updAct=(id,ch)=>setActs(p=>p.map(a=>a.id===id?Object.assign({},a,ch):a));
+  const updSt=(aid,sid,ch)=>setActs(p=>p.map(a=>a.id===aid?Object.assign({},a,{stations:a.stations.map(s=>s.id===sid?Object.assign({},s,ch):s)}):a));
+  const remAct=id=>setActs(p=>p.filter(a=>a.id!==id));
+  const equipNames=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
+
+  const handleRun=()=>{
+    const now=new Date();
+    const newId=uid();
+    const p={id:newId,teamId,locationId:locId,date:now.toISOString().slice(0,10),startTime:now.toTimeString().slice(0,5),durMin:sumMins(acts),activities:JSON.parse(JSON.stringify(acts)),fromTemplate:template.id};
     update(d=>{d.practices.push(p);return d;});
-    setSchedDone(true);
-    setTimeout(()=>{setSchedDone(false);setSchedMode(false);if(onBack)onBack();},1500);
+    if(onRun)onRun(p);
   };
+
   const handleSave=()=>{
     update(d=>{
       const idx=d.templates.findIndex(t=>t.id===template.id);
-      if(idx>=0)d.templates[idx]=Object.assign({},d.templates[idx],{name,sport,activities:acts});
+      if(idx>=0)d.templates[idx]=Object.assign({},d.templates[idx],{name,sport,teamId,locationId:locId,activities:JSON.parse(JSON.stringify(acts))});
       return d;
     });
-    setSaved(true);setTimeout(()=>{setSaved(false);if(onSave)onSave();},1200);
+    setSavedMsg("Template saved!");
+    setTimeout(()=>setSavedMsg(null),2000);
   };
-  return (<div style={{paddingBottom:80}}>
+
+  const handleSaveAsNew=()=>{
+    if(!newTplName.trim())return;
+    update(d=>{
+      d.templates.push({id:uid(),name:newTplName.trim(),sport,teamId,locationId:locId,activities:JSON.parse(JSON.stringify(acts))});
+      return d;
+    });
+    setSavedMsg("Saved as \""+newTplName.trim()+"\"!");
+    setShowNewTpl(false);setNewTplName("");
+    setTimeout(()=>setSavedMsg(null),2000);
+  };
+
+  const handleSchedule=()=>{
+    if(!schedDate)return;
+    const newId=uid();
+    const p={id:newId,teamId,locationId:locId,date:schedDate,startTime:schedTime,durMin:sumMins(acts),activities:JSON.parse(JSON.stringify(acts)),fromTemplate:template.id};
+    update(d=>{d.practices.push(p);return d;});
+    setSavedMsg("Scheduled for "+schedDate+"!");
+    setSchedMode(false);
+    setTimeout(()=>{setSavedMsg(null);onBack();},1500);
+  };
+
+  return (<div style={{paddingBottom:100}}>
+    {/* Header */}
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
       <button className="btn ghost bxs" onClick={onBack}>Back</button>
-      <div className="ptitle" style={{fontSize:20}}>{isEdit?"Edit: "+name:name}</div>
+      <div style={{flex:1,minWidth:0}}>
+        <input className="inp" value={name} onChange={e=>setName(e.target.value)} style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,border:"none",background:"transparent",padding:0,width:"100%"}}/>
+      </div>
     </div>
-    {isEdit&&(<div className="card mb10">
+
+    {/* Template meta */}
+    <div className="card mb10">
+      <div className="clbl mb8">Template Settings</div>
       <div className="g2">
-        <div className="fld"><label className="lbl">Name</label><input className="inp" value={name} onChange={e=>setName(e.target.value)}/></div>
         <div className="fld"><label className="lbl">Sport</label>
           <select className="sel" value={sport} onChange={e=>setSport(e.target.value)}>
             {["General","Baseball","Basketball","Football","Soccer","Softball","Volleyball","Other"].map(s=><option key={s} value={s}>{s}</option>)}
           </select>
         </div>
+        <div className="fld"><label className="lbl">Default Team</label>
+          <select className="sel" value={teamId} onChange={e=>setTeamId(e.target.value)}>
+            <option value="">None</option>
+            {data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
       </div>
-    </div>)}
-    <div className="card mb10">
-      <div className="clbl">{isEdit?"Default Team & Location":"Run Setup"}</div>
-      <div className="fld"><label className="lbl">Team</label>
-        <select className="sel" value={teamId} onChange={e=>setTeamId(e.target.value)}>
-          {data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
-      </div>
-      <div className="fld"><label className="lbl">Location</label>
+      <div className="fld"><label className="lbl">Default Location</label>
         <select className="sel" value={locId} onChange={e=>setLocId(e.target.value)}>
           <option value="">None</option>
           {data.locations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
       </div>
-      {!isEdit&&<div style={{fontSize:12,color:"var(--td)",marginTop:4}}>Editing here only affects this run. The template stays unchanged.</div>}
     </div>
+
     <div className="sechdr mb8"><span className="sectitle">{acts.length} Activities</span><span className="pill">{sumMins(acts)}m</span></div>
+
     {acts.map((act,i)=>(<div key={act.id}>
       <div className="ablk">
         <div className="abhdr" onClick={()=>setExpandedId(expandedId===act.id?null:act.id)}>
-          {/* Up/down arrows matching builder style */}
           <div style={{display:"flex",flexDirection:"column",gap:2,marginRight:6,flexShrink:0}}>
             <button onClick={e=>{e.stopPropagation();if(i>0)setActs(p=>{const a=[...p];[a[i-1],a[i]]=[a[i],a[i-1]];return a;});}} disabled={i===0} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===0?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8593;</button>
             <button onClick={e=>{e.stopPropagation();if(i<acts.length-1)setActs(p=>{const a=[...p];[a[i],a[i+1]]=[a[i+1],a[i]];return a;});}} disabled={i===acts.length-1} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===acts.length-1?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8595;</button>
           </div>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{act.type==="station_block"?"Station Block":act.name}</div>
-            {act.type==="station_block"
-              ?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length}{act.rotate!==false?" + "+(act.transitionDuration||0)+"m trans":""}</div>
-              :<div className="limt">{act.duration}min{act.grouping&&act.grouping!=="whole"?" · "+(act.grouping==="partners"?"Partners":act.numGroups+" groups"):""}</div>}
+            <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+              {act.type==="station_block"?"Station Block":act.name}
+            </div>
+            {act.type==="station_block"&&<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} · {act.stationDuration}m×{act.stations.length}{act.rotate!==false?" rotates":""}</div>}
+            {act.type==="activity"&&<div className="limt">
+              {act.duration}min
+              {act.grouping&&act.grouping!=="whole"?" · "+(act.grouping==="partners"?"Partners":act.numGroups+" groups"):""}
+              {equipNames(act.equipment).length>0?" · "+equipNames(act.equipment).join(", "):""}
+              {act.playerGear?" · "+act.playerGear:""}
+            </div>}
           </div>
           <div className="row">
             {act.type!=="station_block"&&<span className="bdg bp">{act.duration}m</span>}
             {act.type==="station_block"&&<span className="bdg bp">{act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*(act.transitionDuration||0):0)}m</span>}
-            <button className="btn danger bxs" onClick={e=>{e.stopPropagation();remAct(act.id);}}>x</button>
+            <button className="btn danger bxs" onClick={e=>{e.stopPropagation();remAct(act.id);}}>×</button>
           </div>
         </div>
         {expandedId===act.id&&(<div className="abbody">
@@ -448,28 +498,36 @@ function TemplateWorkspace({data,update,template,mode,onRun,onSave,onBack}){
         </div>)}
       </div>
     </div>))}
-    <div style={{marginTop:12}}>
-      {isEdit&&<div className="brow">
-        <button className="btn ghost bmd" onClick={onBack}>Cancel</button>
-        <button className="btn primary bmd" onClick={handleSave}>{saved?"Saved":"Save Template"}</button>
-      </div>}
-      {!isEdit&&!schedMode&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
-        <button className="btn primary bxl bfull" onClick={handleRun}>Run Now</button>
-        <button className="btn outline bmd bfull" onClick={()=>setSchedMode(true)}>Schedule for Later</button>
-      </div>}
-      {!isEdit&&schedMode&&<div className="card">
-        <div className="clbl mb10">Schedule Practice</div>
-        <div className="g2">
-          <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/></div>
-          <div className="fld"><label className="lbl">Start Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
-        </div>
-        <div style={{fontSize:12,color:"var(--td)",marginBottom:12}}>Saves to your calendar. You can share a setup link from the practice detail.</div>
-        <div className="brow">
-          <button className="btn ghost bmd" onClick={()=>setSchedMode(false)}>Cancel</button>
-          <button className="btn primary bmd" onClick={handleSchedule} disabled={!schedDate}>{schedDone?"Scheduled!":"Schedule"}</button>
-        </div>
-      </div>}
-    </div>
+
+    {/* Saved confirmation */}
+    {savedMsg&&<div style={{textAlign:"center",padding:"10px",color:"var(--green)",fontWeight:700,fontSize:14}}>{savedMsg}</div>}
+
+    {/* Save as new template */}
+    {showNewTpl&&<div className="card mt10">
+      <div className="clbl mb8">Save as New Template</div>
+      <div className="fld"><input className="inp" autoFocus placeholder="New template name..." value={newTplName} onChange={e=>setNewTplName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSaveAsNew()}/></div>
+      <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowNewTpl(false);setNewTplName("");}}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsNew} disabled={!newTplName.trim()}>Save</button></div>
+    </div>}
+
+    {/* Schedule */}
+    {schedMode&&<div className="card mt10">
+      <div className="clbl mb8">Schedule Practice</div>
+      <div className="g2">
+        <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/></div>
+        <div className="fld"><label className="lbl">Start Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
+      </div>
+      <div className="brow"><button className="btn ghost bsm" onClick={()=>setSchedMode(false)}>Cancel</button><button className="btn primary bsm" onClick={handleSchedule} disabled={!schedDate}>Schedule</button></div>
+    </div>}
+
+    {/* Bottom action bar */}
+    {!showNewTpl&&!schedMode&&<div style={{position:"fixed",bottom:"calc(var(--tab))",left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#fff",borderTop:"1px solid var(--b)",padding:"10px 14px",zIndex:50}}>
+      <button className="btn primary bxl bfull" style={{marginBottom:8}} onClick={handleRun}>Run Now</button>
+      <div className="brow">
+        <button className="btn ghost bmd" style={{flex:1}} onClick={()=>setSchedMode(true)}>Schedule</button>
+        <button className="btn ghost bmd" style={{flex:1}} onClick={handleSave}>Save Template</button>
+        <button className="btn outline bmd" style={{flex:1}} onClick={()=>setShowNewTpl(true)}>Save as New</button>
+      </div>
+    </div>}
   </div>);
 }
 
@@ -486,7 +544,7 @@ export default function NewLibraryScreen({data,update,openModal,setView,setLiveI
   const sports=[...new Set(data.activityLibrary.map(a=>a.sport||"General").filter(Boolean))].sort();
   const templates=data.templates||[];
   const LTABS=["drills","templates","locations","equipment"];
-  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} mode="edit" onSave={tpl=>{update(d=>{const i=d.templates.findIndex(t=>t.id===tpl.id);if(i>=0)d.templates[i]=tpl;else d.templates.push(tpl);return d;});setEditingTpl(null);}} onBack={()=>setEditingTpl(null)}/></div>);
+  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} update={update} template={editingTpl} onRun={p=>{update(d=>{if(!d.practices.find(pr=>pr.id===p.id))d.practices.push(p);return d;});setLiveId(p.id);setView("command");}} onBack={()=>setEditingTpl(null)}/></div>);
   return (<div style={{paddingBottom:80}}>
     <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>Library</div>
@@ -548,8 +606,7 @@ export default function NewLibraryScreen({data,update,openModal,setView,setLiveI
           </div>
         </div>
         <div className="brow">
-          <button className="btn ghost bmd" style={{flex:1}} onClick={()=>setEditingTpl(tpl)}>Preview</button>
-          <button className="btn primary bmd" style={{flex:1}} onClick={()=>{const now=new Date();const newId=uid();update(d=>{d.practices.push({id:newId,teamId:d.teams[0]?d.teams[0].id:"",locationId:d.locations[0]?d.locations[0].id:"",date:now.toISOString().slice(0,10),startTime:now.toTimeString().slice(0,5),durMin:tpl.durMin||0,activities:JSON.parse(JSON.stringify(tpl.activities||[]))});return d;});setLiveId(newId);setView("command");}}>Use Now</button>
+          <button className="btn primary bmd bfull" onClick={()=>setEditingTpl(tpl)}>View / Edit</button>
         </div>
       </div>))}
       {confirmDel&&<div className="movly" onClick={()=>setConfirmDel(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="mtitle">Delete template?</div><div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This cannot be undone.</div><div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDel(null)}>Cancel</button><button className="btn primary bmd" onClick={()=>{update(d=>{d.templates=d.templates.filter(t=>t.id!==confirmDel);return d;});setConfirmDel(null);}}>Delete</button></div></div></div>}
