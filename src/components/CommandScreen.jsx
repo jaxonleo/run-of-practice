@@ -107,14 +107,19 @@ function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPre
 
 function HistoryViewer({data,update,practice,onRunAgain,onBack}){
   const [tplSaved,setTplSaved]=useState(false);
+  const [expandedId,setExpandedId]=useState(null);
   const team=data.teams.find(t=>t.id===practice.teamId)||null;
   const loc=data.locations.find(l=>l.id===practice.locationId)||null;
   const fmtDate=ds=>new Date(ds+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"});
   const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
   const subName=id=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:null;};
   const pnames=ids=>(ids||[]).map(id=>{const p=team&&team.players.find(p=>p.id===id);return p?p.firstName:null;}).filter(Boolean).join(", ");
+  const equipNames=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean).join(", ");
   const [tplNameInput,setTplNameInput]=useState("");
   const [showTplInput,setShowTplInput]=useState(false);
+  // Notes keyed by context string
+  const practiceNotes=(data.notes||[]).filter(n=>n.practiceId===practice.id);
+  const notesForContext=ctx=>practiceNotes.filter(n=>n.context===ctx);
   const handleSaveAsTpl=()=>{
     if(!tplNameInput.trim())return;
     const sport=(team&&team.sport)||"General";
@@ -128,36 +133,104 @@ function HistoryViewer({data,update,practice,onRunAgain,onBack}){
     setTplSaved(true);setShowTplInput(false);setTplNameInput("");
     setTimeout(()=>setTplSaved(false),2500);
   };
+  const NotesList=({ctx})=>{
+    const notes=notesForContext(ctx);
+    if(!notes.length)return null;
+    return(<div style={{marginTop:8,paddingTop:8,borderTop:"1px dashed var(--b)"}}>
+      {notes.map(n=>(<div key={n.id} style={{display:"flex",gap:8,marginBottom:6,alignItems:"flex-start"}}>
+        <span style={{fontSize:11,color:"var(--td)",flexShrink:0,marginTop:2}}>{new Date(n.date).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</span>
+        <span style={{fontSize:13,color:"var(--black)",lineHeight:1.4,flex:1}}>{n.text}</span>
+      </div>))}
+    </div>);
+  };
   return (<div style={{paddingBottom:80}}>
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
       <button className="btn ghost bxs" onClick={onBack}>Back</button>
       <div>
         <div className="ptitle" style={{fontSize:20}}>{team?team.name:"Practice"}</div>
-        <div className="limt">{fmtDate(practice.date)}{practice.startTime?" at ":""}{loc?" - "+loc.name:""}</div>
+        <div className="limt">{fmtDate(practice.date)}{practice.startTime?" at "+practice.startTime:""}{loc?" · "+loc.name:""}</div>
       </div>
     </div>
     <div className="sechdr mb8">
       <span className="sectitle">{practice.activities.length} Activities</span>
       <span className="pill">{sumMins(practice.activities)}m</span>
     </div>
-    {practice.activities.map(act=>(<div key={act.id} className="ablk" style={{marginBottom:8}}>
-      <div style={{display:"flex",alignItems:"center",padding:"11px 12px",background:"var(--s2)",gap:8}}>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{act.type==="station_block"?"Station Block":act.name}</div>
-          {act.type==="station_block"?(<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m each</div>
-          ):(<div className="limt">{act.duration}min{coachName(act.coachId)?" - "+coachName(act.coachId):""}</div>)}
+    {practice.activities.map(act=>{
+      const isExpanded=expandedId===act.id;
+      const actNotes=notesForContext(act.name);
+      const hasNotes=actNotes.length>0;
+      return(<div key={act.id} className="ablk" style={{marginBottom:8}}>
+        {/* Header row */}
+        <div style={{display:"flex",alignItems:"center",padding:"11px 12px",background:"var(--s2)",gap:8,cursor:"pointer"}} onClick={()=>setExpandedId(isExpanded?null:act.id)}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+              {act.type==="station_block"?"Station Block":act.name}
+              {hasNotes&&<span style={{marginLeft:6,fontSize:10,background:"var(--green)",color:"#fff",borderRadius:10,padding:"1px 6px"}}>{actNotes.length} note{actNotes.length>1?"s":""}</span>}
+            </div>
+            {act.type==="station_block"
+              ?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} · {act.stationDuration}m each{act.rotate!==false?" · rotates":""}</div>
+              :<div className="limt">{act.duration}min{coachName(act.coachId)?" · "+coachName(act.coachId):""}{act.grouping&&act.grouping!=="whole"?" · "+(act.grouping==="partners"?"Partners":act.numGroups+" groups"):""}</div>}
+          </div>
+          {act.type!=="station_block"&&<span className="bdg bs">{act.duration}m</span>}
+          {act.type==="station_block"&&<span className="bdg bs">{act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*(act.transitionDuration||0):0)}m</span>}
+          <span style={{color:"var(--td)",fontSize:12}}>{isExpanded?"▲":"▼"}</span>
         </div>
-        {act.type!=="station_block"&&<span className="bdg bs">{act.duration}m</span>}
-      </div>
-      {act.type==="station_block"&&(<div style={{padding:"10px 12px",borderTop:"1px solid var(--b)"}}>
-        {act.stations.map(st=>(<div key={st.id} style={{marginBottom:8,paddingBottom:8,borderBottom:"1px solid var(--b)"}}>
-          <div style={{font:"700 13px Barlow Condensed,sans-serif"}}>{st.name}{st.activityName?": "+st.activityName:""}</div>
-          {(coachName(st.coachId)||subName(st.sublocationId))&&<div className="limt">{coachName(st.coachId)&&"Coach: "+coachName(st.coachId)+"  "}{subName(st.sublocationId)&&subName(st.sublocationId)}</div>}
-          {st.coachingPoints&&<div style={{fontSize:12,color:"var(--green2)"}}>{st.coachingPoints}</div>}
-          {st.assignments&&st.assignments.length>0&&<div className="limt">{pnames(st.assignments)}</div>}
-        </div>))}
-      </div>)}
-    </div>))}
+        {/* Expanded detail */}
+        {isExpanded&&<div style={{padding:"10px 12px",borderTop:"1px solid var(--b)"}}>
+          {act.type==="activity"&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {act.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:8}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
+              <div style={{fontSize:13,lineHeight:1.5}}>{act.coachingPoints}</div>
+            </div>}
+            {subName(act.sublocationId)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Location: </span>{subName(act.sublocationId)}</div>}
+            {equipNames(act.equipment)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Equipment: </span>{equipNames(act.equipment)}</div>}
+            {act.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Player Gear: </span>{act.playerGear}</div>}
+            {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Grouping: </span>{act.grouping==="partners"?"Partners":act.numGroups+" Groups"}</div>}
+            {act.assignments&&act.assignments.length>0&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Players: </span>{pnames(act.assignments)}</div>}
+            <NotesList ctx={act.name}/>
+          </div>}
+          {act.type==="checklist"&&<div>
+            {(act.items||[]).map(it=>(<div key={it.id} style={{fontSize:13,padding:"4px 0",borderBottom:"1px solid var(--b)",color:"var(--black)"}}>{it.text}</div>))}
+            <NotesList ctx={act.name}/>
+          </div>}
+          {act.type==="station_block"&&<div>
+            {act.stations.map(st=>{
+              const stCtx=st.activityName||st.name;
+              const stNotes=notesForContext(stCtx);
+              return(<div key={st.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--b)"}}>
+                <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:"var(--green)",letterSpacing:".05em",marginBottom:4}}>
+                  {st.name}{st.activityName&&st.activityName!==st.name?": "+st.activityName:""}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                  {coachName(st.coachId)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Coach: </span>{coachName(st.coachId)}</div>}
+                  {subName(st.sublocationId)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Area: </span>{subName(st.sublocationId)}</div>}
+                  {st.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:8,marginTop:2}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
+                    <div style={{fontSize:13,lineHeight:1.5}}>{st.coachingPoints}</div>
+                  </div>}
+                  {equipNames(st.equipment)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Equipment: </span>{equipNames(st.equipment)}</div>}
+                  {st.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Player Gear: </span>{st.playerGear}</div>}
+                  {st.assignments&&st.assignments.length>0&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Players: </span>{pnames(st.assignments)}</div>}
+                  {stNotes.length>0&&<div style={{marginTop:6,paddingTop:6,borderTop:"1px dashed var(--b)"}}>
+                    {stNotes.map(n=>(<div key={n.id} style={{display:"flex",gap:8,marginBottom:4,alignItems:"flex-start"}}>
+                      <span style={{fontSize:11,color:"var(--td)",flexShrink:0,marginTop:2}}>{new Date(n.date).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</span>
+                      <span style={{fontSize:13,color:"var(--black)",lineHeight:1.4}}>{n.text}</span>
+                    </div>))}
+                  </div>}
+                </div>
+              </div>);
+            })}
+            {/* Block-level notes not tied to a specific station */}
+            <NotesList ctx="Station Block"/>
+          </div>}
+        </div>}
+      </div>);
+    })}
+    {/* End of practice notes */}
+    {notesForContext("End of Practice").length>0&&<div className="card mb10">
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,marginBottom:8}}>End of Practice Notes</div>
+      <NotesList ctx="End of Practice"/>
+    </div>}
     <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--b)"}}>
       <button className="btn primary bxl bfull" style={{marginBottom:8}} onClick={onRunAgain}>Run Again</button>
       {showTplInput&&<div>

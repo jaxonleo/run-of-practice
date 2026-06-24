@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { uid, sumMins } from "../constants.js";
+import { uid, sumMins, PLAYER_GEAR_BY_SPORT } from "../constants.js";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -47,10 +47,14 @@ export function ChecklistConfig({act,onChange,onDone}){
   </div>);
 }
 
-export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update}){
+export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update,teamSport}){
   const rotate=act.rotate!==false;
   const players=team?team.players:[];
-  const [newEquipIdx,setNewEquipIdx]=useState(null); // which station has add-equip open
+  const [newEquipIdx,setNewEquipIdx]=useState(null);
+  const [newGearIdx,setNewGearIdx]=useState(null);
+  const sport=teamSport||"General";
+  const teamEquipAssets=(assets||[]).filter(a=>!a.type||a.type==="team");
+  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General"));
 
   // ── Random groups ──────────────────────────────────────────────────────────
   const genRandom=()=>{
@@ -149,13 +153,13 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update})
         {/* Equipment */}
         <div className="fld"><label className="lbl">Equipment</label>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-            {(assets||[]).map(a=>(<button key={a.id} type="button" onClick={()=>{const cur=stEquip;const has=cur.includes(a.id);onSt(st.id,{equipment:has?cur.filter(x=>x!==a.id):[...cur,a.id]});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:stEquip.includes(a.id)?"var(--green)":"#fff",color:stEquip.includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
-            {(assets||[]).length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No equipment in library</span>}
+            {teamEquipAssets.map(a=>(<button key={a.id} type="button" onClick={()=>{const cur=stEquip;const has=cur.includes(a.id);onSt(st.id,{equipment:has?cur.filter(x=>x!==a.id):[...cur,a.id]});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:stEquip.includes(a.id)?"var(--green)":"#fff",color:stEquip.includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
+            {teamEquipAssets.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No team equipment in library</span>}
           </div>
           {newEquipIdx===si
             ?<div style={{display:"flex",gap:6}}>
                 <input className="inp" style={{flex:1}} placeholder="Equipment name..." id={"new-st-equip-"+si} autoFocus/>
-                <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-st-equip-"+si);if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=Math.random().toString(36).slice(2,9);update(d=>{d.assets.push({id:newId,name:nm,locationTags:[]});return d;});onSt(st.id,{equipment:[...stEquip,newId]});setNewEquipIdx(null);}}>Add</button>
+                <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-st-equip-"+si);if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();update(d=>{d.assets.push({id:newId,name:nm,type:"team",sport:"General",locationTags:[]});return d;});onSt(st.id,{equipment:[...stEquip,newId]});setNewEquipIdx(null);}}>Add</button>
                 <button type="button" className="btn ghost bxs" onClick={()=>setNewEquipIdx(null)}>✕</button>
               </div>
             :<button type="button" className="btn ghost bxs" onClick={()=>setNewEquipIdx(si)}>+ New</button>
@@ -163,12 +167,24 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update})
         </div>
 
         {/* Player Gear */}
-        <div className="fld"><label className="lbl">Player Gear Needed</label>
+        {(playerGearAssets.length>0||newGearIdx===si)&&<div className="fld"><label className="lbl">Player Gear Needed</label>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-            {["Hat","Glove","Helmet","Bat","Catcher's Gear","Cleats","Shin Guards","Batting Gloves"].map(item=>(<button key={item} type="button" onClick={()=>{const cur=(st.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);const has=cur.includes(item);const next=has?cur.filter(x=>x!==item):[...cur,item];onSt(st.id,{playerGear:next.join(", ")});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:(st.playerGear||"").split(",").map(s=>s.trim()).includes(item)?"var(--green)":"#fff",color:(st.playerGear||"").split(",").map(s=>s.trim()).includes(item)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{item}</button>))}
+            {playerGearAssets.map(a=>{const gearList=(st.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);const sel=gearList.includes(a.name);return(<button key={a.id} type="button" onClick={()=>{const cur=gearList;const next=sel?cur.filter(x=>x!==a.name):[...cur,a.name];onSt(st.id,{playerGear:next.join(", ")});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:sel?"var(--green)":"#fff",color:sel?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>);})}
           </div>
-          <input className="inp" placeholder="Or type custom gear..." value={(st.playerGear||"").split(",").map(s=>s.trim()).filter(s=>!["Hat","Glove","Helmet","Bat","Catcher's Gear","Cleats","Shin Guards","Batting Gloves"].includes(s)).join(", ")} onChange={e=>{const preset=(st.playerGear||"").split(",").map(s=>s.trim()).filter(s=>["Hat","Glove","Helmet","Bat","Catcher's Gear","Cleats","Shin Guards","Batting Gloves"].includes(s));const custom=e.target.value.trim();onSt(st.id,{playerGear:[...preset,custom].filter(Boolean).join(", ")});}}/>
-        </div>
+          {newGearIdx===si
+            ?<div style={{display:"flex",gap:6}}>
+                <input className="inp" style={{flex:1}} placeholder="Gear name..." id={"new-st-gear-"+si} autoFocus/>
+                <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-st-gear-"+si);if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();update(d=>{d.assets.push({id:newId,name:nm,type:"player",sport,locationTags:[]});return d;});const cur=(st.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);onSt(st.id,{playerGear:[...cur,nm].join(", ")});setNewGearIdx(null);}}>Add</button>
+                <button type="button" className="btn ghost bxs" onClick={()=>setNewGearIdx(null)}>✕</button>
+              </div>
+            :<button type="button" className="btn ghost bxs" onClick={()=>setNewGearIdx(si)}>+ New Gear</button>
+          }
+        </div>}
+        {playerGearAssets.length===0&&newGearIdx!==si&&<div className="fld">
+          <label className="lbl">Player Gear Needed</label>
+          <div style={{fontSize:12,color:"var(--td)",marginBottom:4}}>No player gear set up for {sport} yet.</div>
+          <button type="button" className="btn ghost bxs" onClick={()=>setNewGearIdx(si)}>+ Add Gear</button>
+        </div>}
 
         {/* Player chips */}
         {players.length>0&&<div className="fld"><label className="lbl">Players</label>
@@ -201,6 +217,93 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update})
     {/* ── Add station ── */}
     <button type="button" className="btn outline bsm bfull mb8" onClick={addStation}>+ Add Station</button>
     <button className="btn ghost bsm bfull mt4" onClick={onDone}>Done</button>
+  </div>);
+}
+
+// ── EquipmentTab ──────────────────────────────────────────────────────────────
+function EquipmentTab({data,update,openModal}){
+  const [equipTab,setEquipTab]=useState("team");
+  const [sportFilter,setSportFilter]=useState("All");
+  const [openMenu,setOpenMenu]=useState(null);
+  const [newName,setNewName]=useState("");
+  const [newSport,setNewSport]=useState("General");
+  const [showAdd,setShowAdd]=useState(false);
+  const teamAssets=(data.assets||[]).filter(a=>!a.type||a.type==="team");
+  const playerAssets=(data.assets||[]).filter(a=>a.type==="player");
+  const sports=["All",...new Set(playerAssets.map(a=>a.sport||"General").filter(Boolean))].filter((s,i,arr)=>arr.indexOf(s)===i);
+  const filteredPlayer=sportFilter==="All"?playerAssets:playerAssets.filter(a=>(a.sport||"General")===sportFilter);
+  const addNew=()=>{
+    if(!newName.trim())return;
+    const newId=uid();
+    update(d=>{d.assets.push({id:newId,name:newName.trim(),type:equipTab,sport:equipTab==="player"?newSport:"General",locationTags:[]});return d;});
+    setNewName("");setShowAdd(false);
+  };
+  const del=id=>update(d=>{d.assets=d.assets.filter(a=>a.id!==id);return d;});
+  return(<div onClick={()=>setOpenMenu(null)}>
+    {/* Toggle */}
+    <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:16}}>
+      {["team","player"].map(t=>(<button key={t} onClick={()=>{setEquipTab(t);setSportFilter("All");setShowAdd(false);}} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:equipTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:equipTab===t?"var(--black)":"var(--td)"}}>{t==="team"?"Team Equipment":"Player Gear"}</button>))}
+    </div>
+
+    {/* Team Equipment */}
+    {equipTab==="team"&&<div>
+      <div className="sechdr mb10">
+        <span className="sectitle">{teamAssets.length} items</span>
+        <button className="btn primary bsm" onClick={()=>setShowAdd(s=>!s)}>+ Add</button>
+      </div>
+      {showAdd&&<div className="card mb10">
+        <div className="fld"><label className="lbl">Equipment Name</label><input className="inp" autoFocus placeholder="e.g. Ball Rack" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNew()}/></div>
+        <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowAdd(false)}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
+      </div>}
+      {teamAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No team equipment yet.</div>}
+      {teamAssets.map(a=>(<div key={a.id} className="li" style={{position:"relative",marginBottom:6}}>
+        <div className="lim">
+          <div className="lin">{a.name}</div>
+          {a.locationTags&&a.locationTags.length>0&&<div className="limt">{a.locationTags.map(lid=>{const l=data.locations.find(l=>l.id===lid);return l?l.name:null;}).filter(Boolean).join(", ")}</div>}
+        </div>
+        <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
+        {openMenu===a.id&&<div className="mini-menu">
+          <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editAsset",{asset:a});}}>Edit</button>
+          <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
+        </div>}
+      </div>))}
+    </div>}
+
+    {/* Player Gear */}
+    {equipTab==="player"&&<div>
+      <div className="sechdr mb10">
+        <span className="sectitle">{playerAssets.length} items</span>
+        <button className="btn primary bsm" onClick={()=>setShowAdd(s=>!s)}>+ Add</button>
+      </div>
+      {showAdd&&<div className="card mb10">
+        <div className="g2">
+          <div className="fld"><label className="lbl">Gear Name</label><input className="inp" autoFocus placeholder="e.g. Batting Helmet" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNew()}/></div>
+          <div className="fld"><label className="lbl">Sport</label>
+            <select className="sel" value={newSport} onChange={e=>setNewSport(e.target.value)}>
+              {["General","Baseball","Basketball","Football","Soccer","Softball","Lacrosse","Hockey","Volleyball","Tennis","Swimming","Other"].map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowAdd(false)}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
+      </div>}
+      {/* Sport filter pills */}
+      {sports.length>1&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
+        {sports.map(s=>(<button key={s} type="button" onClick={()=>setSportFilter(s)} style={{padding:"4px 12px",borderRadius:20,border:"1.5px solid",borderColor:sportFilter===s?"var(--green)":"var(--b)",background:sportFilter===s?"var(--green)":"#fff",color:sportFilter===s?"#fff":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{s}</button>))}
+      </div>}
+      {filteredPlayer.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>
+        No player gear yet.{sportFilter!=="All"&&" Try 'All' or add gear for this sport."}
+      </div>}
+      {filteredPlayer.map(a=>(<div key={a.id} className="li" style={{position:"relative",marginBottom:6}}>
+        <div className="lim">
+          <div className="lin">{a.name}</div>
+          <div className="limt">{a.sport||"General"}</div>
+        </div>
+        <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
+        {openMenu===a.id&&<div className="mini-menu">
+          <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
+        </div>}
+      </div>))}
+    </div>}
   </div>);
 }
 
@@ -271,20 +374,27 @@ function TemplateWorkspace({data,update,template,mode,onRun,onSave,onBack}){
     {acts.map((act,i)=>(<div key={act.id}>
       <div className="ablk">
         <div className="abhdr" onClick={()=>setExpandedId(expandedId===act.id?null:act.id)}>
-          <span className="dh"><Ic_Dots/></span>
+          {/* Up/down arrows matching builder style */}
+          <div style={{display:"flex",flexDirection:"column",gap:2,marginRight:6,flexShrink:0}}>
+            <button onClick={e=>{e.stopPropagation();if(i>0)setActs(p=>{const a=[...p];[a[i-1],a[i]]=[a[i],a[i-1]];return a;});}} disabled={i===0} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===0?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8593;</button>
+            <button onClick={e=>{e.stopPropagation();if(i<acts.length-1)setActs(p=>{const a=[...p];[a[i],a[i+1]]=[a[i+1],a[i]];return a;});}} disabled={i===acts.length-1} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===acts.length-1?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8595;</button>
+          </div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{act.type==="station_block"?"Station Block":act.name}</div>
-            <div className="limt">{act.type==="station_block"?act.stations.map(s=>s.activityName||s.name).join(" / ")+" - "+act.stationDuration+"m each":act.duration+"min"}</div>
+            {act.type==="station_block"
+              ?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length}{act.rotate!==false?" + "+(act.transitionDuration||0)+"m trans":""}</div>
+              :<div className="limt">{act.duration}min{act.grouping&&act.grouping!=="whole"?" · "+(act.grouping==="partners"?"Partners":act.numGroups+" groups"):""}</div>}
           </div>
           <div className="row">
             {act.type!=="station_block"&&<span className="bdg bp">{act.duration}m</span>}
+            {act.type==="station_block"&&<span className="bdg bp">{act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*(act.transitionDuration||0):0)}m</span>}
             <button className="btn danger bxs" onClick={e=>{e.stopPropagation();remAct(act.id);}}>x</button>
           </div>
         </div>
         {expandedId===act.id&&(<div className="abbody">
           {act.type==="activity"&&<ActConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
           {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-          {act.type==="station_block"&&<StationConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)}/>}
+          {act.type==="station_block"&&<StationConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={team?team.sport:sport}/>}
         </div>)}
       </div>
     </div>))}
@@ -401,19 +511,7 @@ export default function NewLibraryScreen({data,update,openModal,setView,setLiveI
       </div>))}
     </div>}
     {libTab==="equipment"&&<div style={{padding:"0 16px"}} onClick={()=>setOpenMenu(null)}>
-      <div className="sechdr mb10"><span className="sectitle">{data.assets.length} Items</span><button className="btn primary bsm" onClick={()=>openModal("addAsset")}>+ Add</button></div>
-      {data.assets.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No equipment yet.</div>}
-      {data.assets.map(a=>(<div key={a.id} className="li" style={{position:"relative",marginBottom:6}}>
-        <div className="lim">
-          <div className="lin">{a.name}</div>
-          {a.locationTags&&a.locationTags.length>0&&<div className="limt">{a.locationTags.map(lid=>{const l=data.locations.find(l=>l.id===lid);return l?l.name:null;}).filter(Boolean).join(", ")}</div>}
-        </div>
-        <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
-        {openMenu===a.id&&<div className="mini-menu">
-          <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editAsset",{asset:a});}}>Edit</button>
-          <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);update(d=>{d.assets=d.assets.filter(x=>x.id!==a.id);return d;});}}>Delete</button>
-        </div>}
-      </div>))}
+      <EquipmentTab data={data} update={update} openModal={openModal}/>
     </div>}
   </div>);
 }
