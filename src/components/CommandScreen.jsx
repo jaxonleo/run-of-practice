@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups } from "../constants.js";
 import { createSession, updateSession, endSession, getSession, subscribeToSession, createPreviewSession, updatePreviewWithLiveSession, getPreviewSession, subscribeToPreview } from "../supabase.js";
+import { ActConfig, ChecklistConfig, StationConfig } from "./NewLibraryScreen.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
 const Ic={
@@ -594,6 +595,103 @@ function HelperView({sessionId}){
 }
 
 
+// ── LiveEditBuilder — in-session practice editor ──────────────────────────────
+function LiveEditBuilder({data,update,liveActs,practice,team,loc,onSaveResume,onBack}){
+  const [acts,setActs]=useState(()=>JSON.parse(JSON.stringify(liveActs)));
+  const [expandedId,setExpandedId]=useState(null);
+  const updAct=(id,ch)=>setActs(p=>p.map(a=>a.id===id?Object.assign({},a,ch):a));
+  const updSt=(aid,sid,ch)=>setActs(p=>p.map(a=>a.id===aid?Object.assign({},a,{stations:a.stations.map(s=>s.id===sid?Object.assign({},s,ch):s)}):a));
+  const remAct=id=>setActs(p=>p.filter(a=>a.id!==id));
+  const teamSport=(team&&team.sport)||"General";
+  const headCoachId=(team&&(team.coaches.find(c=>c.role==="Head Coach")||team.coaches[0]))?((team.coaches.find(c=>c.role==="Head Coach")||team.coaches[0]).id):"";
+  const allPlayerIds=team?team.players.map(p=>p.id):[];
+  const filteredLib=(data.activityLibrary||[]).filter(a=>(a.sport||"General")===teamSport||(a.sport||"General")==="General");
+  const equipNames=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
+
+  return(<div style={{minHeight:"100dvh",background:"#fff",paddingBottom:120}}>
+    {/* Header */}
+    <div style={{padding:"14px 14px 10px",borderBottom:"1px solid var(--b)",background:"#fff",position:"sticky",top:0,zIndex:10}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+        <button className="btn ghost bxs" onClick={onBack}>Cancel</button>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900}}>Edit Practice</div>
+        <button className="btn primary bmd" onClick={()=>onSaveResume(acts)}>Save & Resume</button>
+      </div>
+      <div style={{fontSize:12,color:"var(--td)",textAlign:"center"}}>Changes will update all helper views instantly. Practice restarts from the Overview.</div>
+    </div>
+
+    <div style={{padding:"14px"}}>
+      <div className="sechdr mb8"><span className="sectitle">{acts.length} Activities</span><span className="pill">{sumMins(acts)}m</span></div>
+
+      {acts.map((act,i)=>(<div key={act.id}>
+        <div className="ablk">
+          <div className="abhdr" onClick={()=>setExpandedId(expandedId===act.id?null:act.id)}>
+            <div style={{display:"flex",flexDirection:"column",gap:2,marginRight:6,flexShrink:0}}>
+              <button onClick={e=>{e.stopPropagation();if(i>0)setActs(p=>{const a=[...p];[a[i-1],a[i]]=[a[i],a[i-1]];return a;});}} disabled={i===0} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===0?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8593;</button>
+              <button onClick={e=>{e.stopPropagation();if(i<acts.length-1)setActs(p=>{const a=[...p];[a[i],a[i+1]]=[a[i+1],a[i]];return a;});}} disabled={i===acts.length-1} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===acts.length-1?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8595;</button>
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{act.type==="station_block"?"Station Block":act.name}</div>
+              {act.type==="station_block"&&<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} · {act.stationDuration}m×{act.stations.length}</div>}
+              {act.type==="activity"&&<div className="limt">{act.duration}min{equipNames(act.equipment).length>0?" · "+equipNames(act.equipment).join(", "):""}</div>}
+            </div>
+            <div className="row">
+              {act.type!=="station_block"&&<span className="bdg bp">{act.duration}m</span>}
+              {act.type==="station_block"&&<span className="bdg bp">{act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*(act.transitionDuration||0):0)}m</span>}
+              <button className="btn danger bxs" onClick={e=>{e.stopPropagation();remAct(act.id);}}>×</button>
+            </div>
+          </div>
+          {expandedId===act.id&&(<div className="abbody">
+            {act.type==="activity"&&<ActConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
+            {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
+            {act.type==="station_block"&&<StationConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport}/>}
+          </div>)}
+        </div>
+      </div>))}
+
+      {/* Add activities */}
+      <div style={{borderTop:"1px solid var(--b)",paddingTop:14,marginTop:8}}>
+        <div className="sechdr mb8"><span className="sectitle">Add Activity</span></div>
+        <div className="g2" style={{marginBottom:6}}>
+          <div className="li tap" style={{marginBottom:0}} onClick={()=>{const id=uid();setActs(p=>[...p,{id,type:"checklist",name:"Intro",items:[],notes:"",duration:5}]);}}>
+            <div className="lim"><div className="lin">Intro</div><div className="limt">Checklist</div></div>
+            <span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span>
+          </div>
+          <div className="li tap" style={{marginBottom:0}} onClick={()=>{const id=uid();setActs(p=>[...p,{id,type:"checklist",name:"Closer",items:[],notes:"",duration:5}]);}}>
+            <div className="lim"><div className="lin">Closer</div><div className="limt">Checklist</div></div>
+            <span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span>
+          </div>
+        </div>
+        <div className="li tap" style={{marginBottom:6,background:"var(--gbg)",borderColor:"var(--gb)"}} onClick={()=>{
+          const b={id:uid(),type:"station_block",rotate:true,stationDuration:10,transitionDuration:2,stations:[
+            {id:uid(),name:"Station 1",activityName:"",coachId:headCoachId,sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
+            {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
+            {id:uid(),name:"Station 3",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
+          ]};
+          setActs(p=>[...p,b]);setExpandedId(b.id);
+        }}>
+          <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">3 stations</div></div>
+          <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
+        </div>
+        {filteredLib.length>0&&<div>
+          <div className="clbl mb8">{teamSport} + General</div>
+          {filteredLib.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>{setActs(p=>[...p,{id:uid(),type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:allPlayerIds,coachId:headCoachId,sublocationId:"",notes:"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);}}>
+            <div className="lim">
+              <div className="lin">{lib.name}</div>
+              <div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div>
+            </div>
+            <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
+          </div>))}
+        </div>}
+      </div>
+    </div>
+
+    {/* Fixed bottom save bar */}
+    <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#fff",borderTop:"1px solid var(--b)",padding:"12px 14px",zIndex:20}}>
+      <button className="btn primary bxl bfull" style={{height:52,fontSize:17}} onClick={()=>onSaveResume(acts)}>Save & Resume Practice</button>
+    </div>
+  </div>);
+}
+
 // ── CommandScreen ─────────────────────────────────────────────────────────────
 export { HelperView, HistoryViewer };
 
@@ -622,6 +720,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const [clState,setClState]=useState({});
   const [movePlayer,setMovePlayer]=useState(null);
   const [showEllipsis,setShowEllipsis]=useState(false);
+  const [showEditBuilder,setShowEditBuilder]=useState(false);
   const [focusSt,setFocusSt]=useState(null);
   const [livePlayerProfile,setLivePlayerProfile]=useState(null);
   const [sessionId,setSessionId]=useState(null);
@@ -742,6 +841,27 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const [histPractice,setHistPractice]=useState(null);
   const handleTplRun=p=>{update(d=>{d.practices.push(p);return d;});setLivePracticeOverride(p);setLiveId(p.id);setTplPractice(null);setStage("attend");};
 
+  // ── In-session practice editor ─────────────────────────────────────────────
+  if(showEditBuilder){
+    return(<LiveEditBuilder
+      data={data}
+      update={update}
+      liveActs={liveActs}
+      practice={practice}
+      team={team}
+      loc={loc}
+      onSaveResume={(newActs)=>{
+        setLiveActs(newActs);
+        setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};
+        // Write updated acts to session so helpers see it immediately
+        const sessionState={idx:0,stIdx:0,inTrans:false,elapsed:0,running:false,runningAt:null,presentIds:[...presentIds],liveActs:newActs,liveGroups:null,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]};
+        if(sessionRef.current)writeSession(sessionState);
+        setShowEditBuilder(false);
+      }}
+      onBack={()=>{setShowEditBuilder(false);}}
+    />);
+  }
+
   if(histPractice)return (<div className="screen" style={{padding:"14px 14px calc(var(--tab) + 40px)"}}><HistoryViewer data={data} update={update} practice={histPractice} onRunAgain={()=>{const now=new Date();const newP={id:uid(),teamId:histPractice.teamId,locationId:histPractice.locationId,date:now.toISOString().slice(0,10),startTime:now.toTimeString().slice(0,5),durMin:sumMins(histPractice.activities),activities:JSON.parse(JSON.stringify(histPractice.activities)),rerunOf:histPractice.id};update(d=>{d.practices.push(newP);return d;});setLivePracticeOverride(newP);setLiveId(newP.id);setHistPractice(null);setStage("attend");}} onBack={()=>setHistPractice(null)}/></div>);
 
   if(stage==="attend"||showAtt){const attendPractice=livePracticeOverride||(liveId?data.practices.find(p=>p.id===liveId):null);const attendTeam=attendPractice?data.teams.find(t=>t.id===attendPractice.teamId):null;const attBack=()=>{if(showAtt){setShowAtt(false);}else{setLiveId(null);setLivePracticeOverride(null);setStage("pick");setView("today");}};return (<AttendanceScreen key={showAtt?"upd":"init"} practice={attendPractice} team={attendTeam} isUpdate={showAtt} initialPresent={showAtt?[...presentIds]:null} initialCoachPresent={showAtt?[...coachPresentIds]:null} onConfirm={showAtt?handleAttUpdate:handleAttConfirm} onBack={attBack}/>);}
@@ -769,6 +889,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
         <div style={{position:"relative"}}>
           <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
           {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
+            <button className="mm-item" onClick={()=>{setShowEllipsis(false);setRunning(false);setShowEditBuilder(true);}}>Edit Practice</button>
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
             {sessionId&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowShare(true);}}>Share Live View</button>}
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){writeSession({idx,stIdx,inTrans,elapsed,running:false,runningAt:null,presentIds:[...presentIds],liveActs,ended:true,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});setTimeout(()=>{endSession(sessionRef.current);sessionRef.current=null;setSessionId(null);},500);}}}>End Practice</button>
