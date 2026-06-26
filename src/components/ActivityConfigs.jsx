@@ -11,12 +11,14 @@ function DurStepper({value,min,onChange,step}){
 }
 
 export function ActConfig({act,team,loc,onChange,onDone,assets,update}){
+  const [newGearOpen,setNewGearOpen]=useState(false);
   const teamEquip=(assets||[]).filter(a=>!a.type||a.type==="team");
   const sport=act.sport||"General";
   const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General"));
   return (<div>
     <div className="fld"><label className="lbl">Name</label><input className="inp" value={act.name} onChange={e=>onChange({name:e.target.value})}/></div>
     <div className="fld"><label className="lbl">Duration (min)</label><DurStepper value={act.duration||10} min={1} onChange={v=>onChange({duration:v})}/></div>
+    <div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:48}} value={act.description||""} onChange={e=>onChange({description:e.target.value})}/></div>
     <div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" value={act.coachingPoints||""} onChange={e=>onChange({coachingPoints:e.target.value})}/></div>
     {team&&<div className="fld"><label className="lbl">Coach</label><select className="sel" value={act.coachId||""} onChange={e=>onChange({coachId:e.target.value,coachName:(team.coaches.find(c=>c.id===e.target.value)||{}).name||""})}><option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
     {loc&&loc.sublocations&&loc.sublocations.length>0&&<div className="fld"><label className="lbl">Area</label><select className="sel" value={act.sublocationId||""} onChange={e=>onChange({sublocationId:e.target.value})}><option value="">Any</option>{loc.sublocations.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>}
@@ -52,9 +54,19 @@ export function ActConfig({act,team,loc,onChange,onDone,assets,update}){
       <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
         {playerGearAssets.map(a=>{const sel=(act.playerGear||"").split(",").map(s=>s.trim()).includes(a.name);return(<button key={a.id} type="button" onClick={()=>{const cur=(act.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);const next=sel?cur.filter(x=>x!==a.name):[...cur,a.name];onChange({playerGear:next.join(", ")});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:sel?"var(--green)":"var(--s1)",color:sel?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>);})}
       </div>
+      {newGearOpen?<div style={{display:"flex",gap:6}}>
+        <input className="inp" style={{flex:1}} placeholder="Gear name..." id="actcfg-gear-inp" autoFocus/>
+        <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("actcfg-gear-inp");if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();if(update)update(d=>{d.assets.push({id:newId,name:nm,type:"player",sport,locationTags:[]});return d;});const cur=(act.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);onChange({playerGear:[...cur,nm].join(", ")});setNewGearOpen(false);}}>Add</button>
+        <button type="button" className="btn ghost bxs" onClick={()=>setNewGearOpen(false)}>✕</button>
+      </div>:<button type="button" className="btn ghost bxs" onClick={()=>setNewGearOpen(true)}>+ New Gear</button>}
     </div>}
     {playerGearAssets.length===0&&<div className="fld"><label className="lbl">Player Gear Needed</label>
-      <div style={{fontSize:12,color:"var(--td)",marginBottom:4}}>No player gear set up for {sport} yet. Add from Library → Equipment → Player Gear.</div>
+      <div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>No player gear for {sport} yet.</div>
+      {newGearOpen?<div style={{display:"flex",gap:6}}>
+        <input className="inp" style={{flex:1}} placeholder="Gear name..." id="actcfg-gear-inp" autoFocus/>
+        <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("actcfg-gear-inp");if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();if(update)update(d=>{d.assets.push({id:newId,name:nm,type:"player",sport,locationTags:[]});return d;});const cur=(act.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);onChange({playerGear:[...cur,nm].join(", ")});setNewGearOpen(false);}}>Add</button>
+        <button type="button" className="btn ghost bxs" onClick={()=>setNewGearOpen(false)}>✕</button>
+      </div>:<button type="button" className="btn ghost bxs" onClick={()=>setNewGearOpen(true)}>+ Add Gear</button>}
     </div>}
     <button className="btn ghost bsm bfull mt8" onClick={onDone}>Done</button>
   </div>);
