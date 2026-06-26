@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups } from "../constants.js";
 import { createSession, updateSession, endSession, getSession, subscribeToSession, createPreviewSession, updatePreviewWithLiveSession, getPreviewSession, subscribeToPreview } from "../supabase.js";
-import { ActConfig, ChecklistConfig, StationConfig } from "./NewLibraryScreen.jsx";
+import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
 const Ic={
