@@ -146,14 +146,17 @@ function TemplateWorkspace({data,update,template,onRun,onBack,openModal}){
   });
   const [locId,setLocId]=useState(()=>template.locationId||(data.locations[0]?data.locations[0].id:""));
   const [acts,setActs]=useState(()=>{
-    // Migrate old template activities missing new fields
+    // Migrate old template activities — patch missing fields, backfill from library where possible
     const raw=JSON.parse(JSON.stringify(template.activities||[]));
     raw.forEach(a=>{
       if(a.type==="activity"){
-        if(!a.grouping)a.grouping="whole";
-        if(!a.numGroups)a.numGroups=2;
-        if(!a.playerGear)a.playerGear="";
-        if(!Array.isArray(a.equipment))a.equipment=[];
+        // Backfill from library drill if we have a libraryId
+        const libDrill=a.libraryId?(data.activityLibrary||[]).find(l=>l.id===a.libraryId):null;
+        if(!a.description&&libDrill&&libDrill.description)a.description=libDrill.description;
+        if(!a.grouping)a.grouping=libDrill?libDrill.grouping||"whole":"whole";
+        if(!a.numGroups)a.numGroups=libDrill?libDrill.numGroups||2:2;
+        if(!a.playerGear&&libDrill)a.playerGear=libDrill.playerGear||"";
+        if(!Array.isArray(a.equipment))a.equipment=libDrill&&Array.isArray(libDrill.equipment)?libDrill.equipment:[];
       }
       if(a.type==="station_block"){
         if(a.rotate===undefined)a.rotate=true;

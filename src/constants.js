@@ -136,6 +136,7 @@ export function migrateData(d){
         if(!a.numGroups)a.numGroups=2;
         if(!a.playerGear)a.playerGear="";
         if(!Array.isArray(a.equipment))a.equipment=[];
+        if(a.description===undefined)a.description="";
       }
     });
   });
