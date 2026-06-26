@@ -1,10 +1,6 @@
 {
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ],
-  "buildCommand": "npm run build",
-  "installCommand": "npm install"
+    { "source": "/live/:path*", "destination": "/index.html" },
+    { "source": "/preview/:path*", "destination": "/index.html" }
+  ]
 }
