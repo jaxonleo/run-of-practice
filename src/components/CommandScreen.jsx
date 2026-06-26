@@ -731,6 +731,8 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const iref=useRef(null);
   const spoken=useRef({});
   const sessionRef=useRef(null);
+  const startedAtRef=useRef(null);
+  const baseElapsedRef=useRef(0);
   const writeSession=useCallback((newState)=>{
     if(!sessionRef.current)return;
     updateSession(sessionRef.current,newState);
@@ -811,8 +813,6 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
 
   const goBack=useCallback(()=>{if(isBlock){if(inTrans){setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(false);}else if(stIdx>0){setStIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(false);}else if(idx>0){setIdx(i=>i-1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(false);}}else{if(idx>0){setIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(false);}}},[isBlock,inTrans,stIdx,idx]);
 
-  const startedAtRef=useRef(null);
-  const baseElapsedRef=useRef(0);
   useEffect(()=>{
     if(running){
       startedAtRef.current=Date.now();
