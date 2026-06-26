@@ -429,7 +429,7 @@ function HelperView({sessionId}){
     subRef.current=subscribeToSession(sessionId,updated=>{setSession(updated);});
     return()=>{if(subRef.current)subRef.current.unsubscribe();};
   },[sessionId]);
-  const beep=async()=>{if(!audioOn)return;try{if(!audioCtxRef.current)audioCtxRef.current=new(window.AudioContext||window.webkitAudioContext)();const ctx=audioCtxRef.current;if(ctx.state!=="running")await ctx.resume();const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type="sine";o.frequency.value=880;g.gain.setValueAtTime(0.4,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.3);}catch(e){}};
+  const beep=async()=>{if(!audioOn)return;try{if(!audioCtxRef.current)audioCtxRef.current=new(window.AudioContext||window.webkitAudioContext)();const ctx=audioCtxRef.current;if(ctx.state!=="running")await ctx.resume();const now2=ctx.currentTime;const o1=ctx.createOscillator();const o2=ctx.createOscillator();const g=ctx.createGain();o1.connect(g);o2.connect(g);g.connect(ctx.destination);o1.type="square";o1.frequency.setValueAtTime(180,now2);o1.frequency.linearRampToValueAtTime(160,now2+1.8);o2.type="square";o2.frequency.setValueAtTime(185,now2);o2.frequency.linearRampToValueAtTime(165,now2+1.8);g.gain.setValueAtTime(0,now2);g.gain.linearRampToValueAtTime(0.3,now2+0.05);g.gain.setValueAtTime(0.3,now2+1.6);g.gain.linearRampToValueAtTime(0,now2+1.8);o1.start(now2);o1.stop(now2+1.8);o2.start(now2);o2.stop(now2+1.8);}catch(e){}};
   const speak=txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){}};
   // Derive session state safely for use in hooks below
   const _state=session?session.state||{}:{};
@@ -454,7 +454,7 @@ function HelperView({sessionId}){
   },[_elapsed,audioOn]);
   if(loading)return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,background:"#0d1512"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,letterSpacing:".1em"}}>JOINING SESSION...</div></div>);
   if(!session)return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,textAlign:"center"}}>Session not found</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This link may be invalid or the practice has ended.</div></div>);
-  if(session.ended_at||(session.state&&session.state.ended))return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:48,fontWeight:900,textAlign:"center"}}>Well Done</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This practice session has ended.</div></div>);
+  if(session.ended_at||(session.state&&session.state.ended))return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:48,fontWeight:900,textAlign:"center"}}>Practice Complete</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This session has ended.</div></div>);
   const state=session.state||{};
   const liveActs=state.liveActs||[];
   const roster=state.roster||[];
@@ -518,6 +518,10 @@ function HelperView({sessionId}){
     <div className="cc-body">
       {isCl&&cur&&<div className="cc-focus"><div className="cc-focus-lbl">{cur.name}</div>{(cur.items||[]).map(it=>(<div key={it.id} className="cl-item"><div className="cl-check"/><div className="cl-text">{it.text}</div></div>))}</div>}
       {!isBlock&&!isCl&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {cur.description&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:4}}>Description</div>
+          <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{cur.description}</div>
+        </div>}
         {cur.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
           <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{cur.coachingPoints}</div>
@@ -528,7 +532,7 @@ function HelperView({sessionId}){
         </div>}
         {cur.coachId&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:3}}>Coach</div>
-          <div style={{fontSize:14,color:"var(--black)"}}>{pname(cur.coachId)}</div>
+          <div style={{fontSize:14,color:"var(--black)"}}>{(()=>{const p=roster.find(p=>p.id===cur.coachId);if(p)return p.name||p.firstName;const byName=roster.find(p=>p.name===cur.coachId);return byName?byName.name:cur.coachName||cur.coachId;})()}</div>
         </div>}
         {(()=>{const eq=Array.isArray(cur.equipment)?cur.equipment:[];const names=eq.map(id=>{const a=assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(names.length>0||cur.playerGear)?(<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
           {names.length>0&&<span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"3px 10px",fontSize:12,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {names.join(", ")}</span>}
@@ -786,7 +790,18 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     if(sessionRef.current)updateSession(sessionRef.current,{idx,stIdx,inTrans,elapsed,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,liveGroups:groups,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]});
   },[idx,liveActs,presentIds]);
 
-  const beep=useCallback(async()=>{if(!audioOn)return;const ctx=await unlockAudio();if(!ctx)return;try{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(0.4,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.3);}catch(e){}},[audioOn]);
+  const beep=useCallback(async()=>{if(!audioOn)return;const ctx=await unlockAudio();if(!ctx)return;try{
+    const now2=ctx.currentTime;
+    // Scoreboard buzzer: square wave at 220Hz for 1.8s with slight frequency sweep
+    const o1=ctx.createOscillator();const o2=ctx.createOscillator();
+    const g=ctx.createGain();const g2=ctx.createGain();
+    o1.connect(g);o2.connect(g);g.connect(ctx.destination);
+    o1.type='square';o1.frequency.setValueAtTime(180,now2);o1.frequency.linearRampToValueAtTime(160,now2+1.8);
+    o2.type='square';o2.frequency.setValueAtTime(185,now2);o2.frequency.linearRampToValueAtTime(165,now2+1.8);
+    g.gain.setValueAtTime(0,now2);g.gain.linearRampToValueAtTime(0.3,now2+0.05);
+    g.gain.setValueAtTime(0.3,now2+1.6);g.gain.linearRampToValueAtTime(0,now2+1.8);
+    o1.start(now2);o1.stop(now2+1.8);o2.start(now2);o2.stop(now2+1.8);
+  }catch(e){}},[audioOn]);
   const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
 
   const applyAtt=useCallback((pIds,cIds,mode,baseActs)=>{const allPlayers=team?team.players:[];return baseActs.map(act=>{if(act.type!=="station_block")return Object.assign({},act,{assignments:(act.assignments||[]).filter(id=>pIds.has(id))});const newSt=mode==="rebalance"?rebalanceEven(act.stations,pIds,allPlayers):rebalanceKeep(act.stations,pIds);return Object.assign({},act,{stations:newSt});});},[team]);
@@ -807,7 +822,15 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
       }
     });
   },[practice,applyAtt,coachId,liveId]);
-  const handleAttUpdate=useCallback(({presentIds:pIds,coachPresentIds:cIds})=>{setPresentIds(pIds);setCoachPresentIds(cIds);setLiveActs(prev=>applyAtt(pIds,cIds,"keep",prev));setShowAtt(false);},[applyAtt]);
+  const handleAttUpdate=useCallback(({presentIds:pIds,coachPresentIds:cIds})=>{
+    setPresentIds(pIds);setCoachPresentIds(cIds);
+    const newActs=applyAtt(pIds,cIds,"keep",liveActs);
+    setLiveActs(newActs);setShowAtt(false);
+    if(sessionRef.current){
+      const roster2=practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[];
+      writeSession({idx,stIdx,inTrans,elapsed,running,runningAt:running?Date.now():null,presentIds:[...pIds],liveActs:newActs,roster:roster2,locations:data.locations,assets:data.assets||[]});
+    }
+  },[applyAtt,liveActs,idx,stIdx,inTrans,elapsed,running,practice,data,writeSession]);
 
   const advance=useCallback(()=>{
     if(!cur)return;
@@ -831,7 +854,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     }
   },[cur,isBlock,blockRotate,inTrans,stIdx,idx,liveActs,presentIds,writeSession]);
 
-  const goBack=useCallback(()=>{if(isBlock){if(inTrans){setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(false);}else if(stIdx>0){setStIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(false);}else if(idx>0){setIdx(i=>i-1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(false);}}else{if(idx>0){setIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(false);}}},[isBlock,inTrans,stIdx,idx]);
+  const goBack=useCallback(()=>{if(isBlock){if(inTrans){setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);}else if(stIdx>0){setStIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(true);}else if(idx>0){setIdx(i=>i-1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);}}else{if(idx>0){setIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(true);}}},[isBlock,inTrans,stIdx,idx]);
 
   useEffect(()=>{
     if(running){
@@ -952,6 +975,10 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
         {cur.notes&&<div style={{fontSize:13,color:"var(--black2)",marginTop:8,fontStyle:"italic"}}>{cur.notes}</div>}
       </div>}
       {!isBlock&&!isCl&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {cur.description&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:4}}>Description</div>
+          <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{cur.description}</div>
+        </div>}
         {cur.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
           <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{cur.coachingPoints}</div>

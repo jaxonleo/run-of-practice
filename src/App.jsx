@@ -168,34 +168,20 @@ function PracticeDetail({practice,data,update,setView,setLiveId,setEditPracticeI
   const todayStr=now.toISOString().slice(0,10);
   const [sharing,setSharing]=useState(false);
   const [previewUrl,setPreviewUrl]=useState(practice.previewId?window.location.origin+"/preview/"+practice.previewId:null);
+  const [expandedId,setExpandedId]=useState(null);
   const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
-  const actLabel=a=>{if(a.type==="station_block")return "Station Block - "+a.stations.length+" stations";if(a.type==="checklist")return "Checklist";return a.name;};
   const actMins=a=>{if(a.type==="station_block")return a.stations.length*(a.stationDuration||0)+Math.max(0,a.stations.length-1)*(a.transitionDuration||0);return a.duration||0;};
   const totalMins=(practice.activities||[]).reduce((s,a)=>s+actMins(a),0);
-  // Fix: resolve equipment IDs to names, deduplicated
   const resolveEquip=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
-  const allEquipNames=[...new Set([
-    ...(practice.activities||[]).flatMap(a=>{
-      if(a.type==="station_block")return(a.stations||[]).flatMap(st=>resolveEquip(st.equipment));
-      return resolveEquip(a.equipment);
-    })
-  ])];
+  const allEquipNames=[...new Set([...(practice.activities||[]).flatMap(a=>{if(a.type==="station_block")return(a.stations||[]).flatMap(st=>resolveEquip(st.equipment));return resolveEquip(a.equipment);})])];
+  const subName=id=>{const l=loc&&loc.sublocations.find(s=>s.id===id);return l?l.name:null;};
+  const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
   const shareSetup=async()=>{
     setSharing(true);
     try{
       let pid=practice.previewId;
-      if(!pid){
-        pid=await createPreviewSession(coachId||"anon",practice,team||null,data.locations,data.assets||[]);
-        if(pid){
-          update(d=>{const p=d.practices.find(p=>p.id===practice.id);if(p)p.previewId=pid;return d;});
-        }
-      }
-      if(pid){
-        const url=window.location.origin+"/preview/"+pid;
-        setPreviewUrl(url);
-        if(navigator.share){navigator.share({title:"Practice Setup - "+(team?team.name:"Practice"),url});}
-        else{navigator.clipboard.writeText(url).catch(()=>{});}
-      }
+      if(!pid){pid=await createPreviewSession(coachId||"anon",practice,team||null,data.locations,data.assets||[]);if(pid){update(d=>{const p=d.practices.find(p=>p.id===practice.id);if(p)p.previewId=pid;return d;});}}
+      if(pid){const url=window.location.origin+"/preview/"+pid;setPreviewUrl(url);if(navigator.share){navigator.share({title:"Practice Setup - "+(team?team.name:"Practice"),url});}else{navigator.clipboard.writeText(url).catch(()=>{});}}
     }catch(e){console.error(e);}
     setSharing(false);
   };
@@ -205,13 +191,12 @@ function PracticeDetail({practice,data,update,setView,setLiveId,setEditPracticeI
     <div style={{padding:"12px 16px 0"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:2}}>{practice.date===todayStr?"TODAY":"PRACTICE"} {practice.date&&new Date(practice.date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2}}>{team?team.name:"Practice"}</div>
-      <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>{timeLbl(practice)}{loc?" - "+loc.name:""} - {totalMins}min</div>
+      <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>{timeLbl(practice)}{loc?" · "+loc.name:""} · {totalMins}min</div>
       <div className="brow" style={{marginBottom:8}}>
         <button className="btn primary bmd bfull" onClick={()=>{setLiveId(practice.id);setView("command");}}>{practice.date>=todayStr?"Run Now":"Run Again"}</button>
       </div>
-      {/* Share Setup Link */}
-      {!previewUrl&&<button className="btn outline bmd bfull" style={{marginBottom:16}} onClick={shareSetup} disabled={sharing}>{sharing?"Creating link...":"Share Setup Link"}</button>}
-      {previewUrl&&<div style={{background:"var(--gbg)",border:"1.5px solid var(--gb)",borderRadius:"var(--r)",padding:"10px 12px",marginBottom:16,display:"flex",alignItems:"center",gap:8}}>
+      {!previewUrl&&<button className="btn outline bmd bfull" style={{marginBottom:12}} onClick={shareSetup} disabled={sharing}>{sharing?"Creating link...":"Share Setup Link"}</button>}
+      {previewUrl&&<div style={{background:"var(--gbg)",border:"1.5px solid var(--gb)",borderRadius:"var(--r)",padding:"10px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:10,fontWeight:700,color:"var(--green)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Setup Link Active</div>
           <div style={{fontSize:12,color:"var(--td)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{previewUrl}</div>
@@ -220,14 +205,67 @@ function PracticeDetail({practice,data,update,setView,setLiveId,setEditPracticeI
       </div>}
       {allEquipNames.length>0&&<div className="card" style={{marginBottom:12,background:"var(--ambg)",border:"1.5px solid var(--ambb)"}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--amber)",marginBottom:6}}>Equipment Needed</div>
-        {allEquipNames.map((n,i)=>(<div key={i} style={{fontSize:14,color:"var(--black)",marginBottom:2}}>- {n}</div>))}
+        {allEquipNames.map((n,i)=>(<div key={i} style={{fontSize:14,color:"var(--black)",marginBottom:2}}>· {n}</div>))}
       </div>}
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Run Order</div>
-      {(practice.activities||[]).map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"10px 12px",background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",marginBottom:6}}>
-        <div style={{width:24,height:24,borderRadius:"50%",background:"var(--s2)",border:"1px solid var(--b)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"var(--td)",flexShrink:0,marginRight:10}}>{i+1}</div>
-        <div style={{flex:1}}><div style={{fontSize:14,fontWeight:600,color:"var(--black)"}}>{actLabel(a)}</div>{a.coachingPoints&&<div style={{fontSize:12,color:"var(--td)",marginTop:2}}>{a.coachingPoints.slice(0,60)}{a.coachingPoints.length>60?"...":""}</div>}</div>
-        <span style={{fontFamily:"DM Mono,monospace",fontSize:12,fontWeight:600,color:"var(--td)",flexShrink:0}}>{actMins(a)}m</span>
-      </div>))}
+      {(practice.activities||[]).map((a,i)=>{
+        const isExp=expandedId===a.id;
+        const mins=actMins(a);
+        return(<div key={a.id} style={{border:"1.5px solid var(--b)",borderRadius:"var(--r)",marginBottom:6,overflow:"hidden"}}>
+          <div style={{display:"flex",alignItems:"center",padding:"10px 12px",background:isExp?"var(--gbg)":"var(--s1)",cursor:"pointer"}} onClick={()=>setExpandedId(isExp?null:a.id)}>
+            <div style={{width:24,height:24,borderRadius:"50%",background:"var(--s2)",border:"1px solid var(--b)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"var(--td)",flexShrink:0,marginRight:10}}>{i+1}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:600,color:"var(--black)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {a.type==="station_block"?"Station Block · "+a.stations.length+" stations":a.type==="checklist"?a.name:a.name}
+              </div>
+              {a.type==="activity"&&a.coachingPoints&&!isExp&&<div style={{fontSize:11,color:"var(--td)",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.coachingPoints}</div>}
+              {a.type==="station_block"&&<div style={{fontSize:11,color:"var(--td)",marginTop:1}}>{a.stations.map(s=>s.activityName||s.name).join(" / ")}</div>}
+            </div>
+            <span style={{fontFamily:"DM Mono,monospace",fontSize:12,fontWeight:600,color:"var(--td)",flexShrink:0,marginLeft:8}}>{mins}m</span>
+            <span style={{color:"var(--td)",fontSize:11,marginLeft:6}}>{isExp?"▲":"▼"}</span>
+          </div>
+          {isExp&&<div style={{padding:"10px 12px",borderTop:"1px solid var(--b)",background:"#fff"}}>
+            {a.type==="activity"&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {(subName(a.sublocationId)||coachName(a.coachId))&&<div style={{fontSize:13}}>
+                {subName(a.sublocationId)&&<span style={{fontWeight:600,color:"var(--green2)"}}>{subName(a.sublocationId)}</span>}
+                {subName(a.sublocationId)&&coachName(a.coachId)&&<span style={{color:"var(--td)"}}> · </span>}
+                {coachName(a.coachId)&&<span style={{color:"var(--td)"}}>Coach: {coachName(a.coachId)}</span>}
+              </div>}
+              {a.description&&<div style={{fontSize:13,color:"var(--black)",lineHeight:1.5}}>{a.description}</div>}
+              {a.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:8}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
+                <div style={{fontSize:13,lineHeight:1.5}}>{a.coachingPoints}</div>
+              </div>}
+              {resolveEquip(a.equipment).length>0&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Equipment: </span>{resolveEquip(a.equipment).join(", ")}</div>}
+              {a.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Player Gear: </span>{a.playerGear}</div>}
+              {a.grouping&&a.grouping!=="whole"&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Grouping: </span>{a.grouping==="partners"?"Partners":a.numGroups+" Groups"}</div>}
+            </div>}
+            {a.type==="checklist"&&<div>
+              {(a.items||[]).map(it=>(<div key={it.id} style={{fontSize:13,padding:"3px 0",borderBottom:"1px solid var(--s2)"}}>{it.text}</div>))}
+              {a.notes&&<div style={{fontSize:12,color:"var(--td)",marginTop:6,fontStyle:"italic"}}>{a.notes}</div>}
+            </div>}
+            {a.type==="station_block"&&<div>
+              {a.stations.map((st,si)=>{
+                const stEquip=resolveEquip(st.equipment);
+                return(<div key={st.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--s2)"}}>
+                  <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:"var(--green)",marginBottom:4}}>Station {si+1}{st.activityName?" · "+st.activityName:""}</div>
+                  {(coachName(st.coachId)||subName(st.sublocationId))&&<div style={{fontSize:12,marginBottom:3}}>
+                    {subName(st.sublocationId)&&<span style={{fontWeight:600,color:"var(--green2)"}}>{subName(st.sublocationId)}</span>}
+                    {subName(st.sublocationId)&&coachName(st.coachId)&&<span style={{color:"var(--td)"}}> · </span>}
+                    {coachName(st.coachId)&&<span style={{color:"var(--td)"}}>Coach: {coachName(st.coachId)}</span>}
+                  </div>}
+                  {st.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:8,marginBottom:4}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
+                    <div style={{fontSize:12,lineHeight:1.4}}>{st.coachingPoints}</div>
+                  </div>}
+                  {stEquip.length>0&&<div style={{fontSize:12,color:"var(--td)"}}>Equipment: {stEquip.join(", ")}</div>}
+                  {st.playerGear&&<div style={{fontSize:12,color:"var(--td)"}}>Player Gear: {st.playerGear}</div>}
+                </div>);
+              })}
+            </div>}
+          </div>}
+        </div>);
+      })}
     </div>
   </div>);
 }

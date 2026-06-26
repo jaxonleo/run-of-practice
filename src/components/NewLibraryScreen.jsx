@@ -215,7 +215,9 @@ function TemplateWorkspace({data,update,template,onRun,onBack,openModal}){
     const newId=uid();
     const p={id:newId,teamId,locationId:locId,date:schedDate,startTime:schedTime,durMin:sumMins(acts),activities:JSON.parse(JSON.stringify(acts)),fromTemplate:template.id};
     update(d=>{d.practices.push(p);return d;});
-    setSavedMsg("Scheduled for "+schedDate+"!");
+    const [mo,da,yr]=[schedDate.slice(5,7),schedDate.slice(8,10),schedDate.slice(0,4)];
+    const st=schedTime.split(":");const sh=parseInt(st[0]);const sm=st[1];const sampm=sh>=12?"PM":"AM";const s12=(sh%12||12)+":"+sm+" "+sampm;
+    setSavedMsg("Scheduled for "+mo+"-"+da+"-"+yr+" at "+s12+"!");
     setSchedMode(false);
     setTimeout(()=>{setSavedMsg(null);onBack();},1500);
   };
@@ -344,18 +346,25 @@ function TemplateWorkspace({data,update,template,onRun,onBack,openModal}){
       <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowNewTpl(false);setNewTplName("");}}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsNew} disabled={!newTplName.trim()}>Save</button></div>
     </div>}
 
-    {/* Schedule */}
-    {schedMode&&<div className="card mt10">
-      <div className="clbl mb8">Schedule Practice</div>
-      <div className="g2">
-        <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/></div>
-        <div className="fld"><label className="lbl">Start Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
+    {/* Schedule overlay - fixed so it's always visible */}
+    {schedMode&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:100,display:"flex",alignItems:"flex-end"}} onClick={()=>setSchedMode(false)}>
+      <div style={{background:"#fff",width:"100%",maxWidth:480,margin:"0 auto",borderRadius:"20px 20px 0 0",padding:"24px 20px 40px"}} onClick={e=>e.stopPropagation()}>
+        <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 20px"}}/>
+        <div className="clbl mb10">Schedule Practice</div>
+        <div className="g2">
+          <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/></div>
+          <div className="fld"><label className="lbl">Start Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
+        </div>
+        <div style={{fontSize:12,color:"var(--td)",marginBottom:16}}>Saves to your calendar. Share a setup link from the practice detail.</div>
+        <div className="brow">
+          <button className="btn ghost bmd" style={{flex:1}} onClick={()=>setSchedMode(false)}>Cancel</button>
+          <button className="btn primary bmd" style={{flex:1}} onClick={handleSchedule} disabled={!schedDate}>Schedule</button>
+        </div>
       </div>
-      <div className="brow"><button className="btn ghost bsm" onClick={()=>setSchedMode(false)}>Cancel</button><button className="btn primary bsm" onClick={handleSchedule} disabled={!schedDate}>Schedule</button></div>
     </div>}
 
     {/* Bottom action bar */}
-    {!showNewTpl&&!schedMode&&<div style={{position:"fixed",bottom:"calc(var(--tab))",left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#fff",borderTop:"1px solid var(--b)",padding:"10px 14px",zIndex:50}}>
+    {!showNewTpl&&<div style={{position:"fixed",bottom:"calc(var(--tab))",left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#fff",borderTop:"1px solid var(--b)",padding:"10px 14px",zIndex:50}}>
       <button className="btn primary bxl bfull" style={{marginBottom:8,height:52,fontSize:17}} onClick={handleRun}>Run Now</button>
       <div className="brow">
         <button className="btn ghost bmd" style={{flex:1}} onClick={()=>setSchedMode(true)}>Schedule</button>
