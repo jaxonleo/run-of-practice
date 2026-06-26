@@ -721,6 +721,9 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const [movePlayer,setMovePlayer]=useState(null);
   const [showEllipsis,setShowEllipsis]=useState(false);
   const [showEditBuilder,setShowEditBuilder]=useState(false);
+  const [tplPractice,setTplPractice]=useState(null);
+  const [livePracticeOverride,setLivePracticeOverride]=useState(null);
+  const [histPractice,setHistPractice]=useState(null);
   const [focusSt,setFocusSt]=useState(null);
   const [livePlayerProfile,setLivePlayerProfile]=useState(null);
   const [sessionId,setSessionId]=useState(null);
@@ -836,9 +839,6 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const addNote=()=>{if(!noteText.trim())return;const ctx=isBlock&&cur.stations[stIdx]?cur.stations[stIdx].activityName||cur.stations[stIdx].name:(cur&&cur.name)||"Practice";update(d=>{d.notes.push({id:uid(),text:noteText,context:ctx,date:new Date().toISOString(),practiceId:liveId});return d;});setNoteText("");};
   const toggleCl=(actId,itemId)=>{setClState(s=>{const cur2=s[actId]||{};return Object.assign({},s,{[actId]:Object.assign({},cur2,{[itemId]:!cur2[itemId]})});});};
 
-  const [tplPractice,setTplPractice]=useState(null);
-  const [livePracticeOverride,setLivePracticeOverride]=useState(null);
-  const [histPractice,setHistPractice]=useState(null);
   const handleTplRun=p=>{update(d=>{d.practices.push(p);return d;});setLivePracticeOverride(p);setLiveId(p.id);setTplPractice(null);setStage("attend");};
 
   // ── In-session practice editor ─────────────────────────────────────────────
