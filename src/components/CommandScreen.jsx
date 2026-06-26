@@ -465,6 +465,7 @@ function HelperView({sessionId}){
   const idx=state.idx||0;
   const stIdx=state.stIdx||0;
   const inTrans=state.inTrans||false;
+  const inBlockIntro=state.inBlockIntro||false;
   const running=state.running||false;
   const runningAt=state.runningAt||null;
   const savedElapsed=state.elapsed||0;
@@ -472,14 +473,14 @@ function HelperView({sessionId}){
   const isBlock=cur&&cur.type==="station_block";
   const isCl=cur&&cur.type==="checklist";
   const blockRotate=isBlock&&cur.rotate!==false;
-  const phaseSecs=isBlock?(blockRotate&&inTrans?cur.transitionDuration*60:cur.stationDuration*60):(cur?((cur.duration||0)*60):0);
+  const phaseSecs=isBlock?(inBlockIntro?(cur.transitionDuration||2)*60:blockRotate&&inTrans?cur.transitionDuration*60:cur.stationDuration*60):(cur?((cur.duration||0)*60):0);
   const elapsed=running&&runningAt?savedElapsed+Math.floor((Date.now()-runningAt)/1000):savedElapsed;
   const rem=phaseSecs-elapsed;
   const prog=phaseSecs>0?Math.min(1,elapsed/phaseSecs):0;
   const urg=rem<=30&&rem>0&&running;
   const n=isBlock&&cur.stations?cur.stations.length:1;
   const rotatedStations=isBlock&&cur.stations?(cur.stations.map((st,i)=>{const srcIdx=(i-stIdx%n+n)%n;return Object.assign({},cur.stations[i],{assignments:cur.stations[srcIdx].assignments});})):null;
-  const phaseLabel=isBlock?(blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+n):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
+  const phaseLabel=isBlock?(inBlockIntro?"INTRODUCING STATIONS":blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+n):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
   const pname=id=>{const p=roster.find(p=>p.id===id);return p?(p.jersey?"#"+p.jersey+" "+p.firstName:p.firstName):id;};
   const subName=id=>{const l=locations.find(l=>l.sublocations&&l.sublocations.find(s=>s.id===id));if(!l)return null;const s=l.sublocations.find(s=>s.id===id);return s?s.name:null;};
   const pnames=ids=>(ids||[]).map(id=>pname(id)).join(", ");
@@ -556,7 +557,29 @@ function HelperView({sessionId}){
           <div style={{fontSize:13,color:"var(--td)"}}>Waiting for coach to assign groups...</div>
         </div>}
       </div>}
-      {isBlock&&!inTrans&&rotatedStations&&<div>
+      {isBlock&&inBlockIntro&&cur.stations&&<div>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--td)",marginBottom:12}}>Get everyone to their station</div>
+        {cur.stations.map((st,i)=>{
+          const stEquip=(Array.isArray(st.equipment)?st.equipment:[]).map(id=>{const a=assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
+          return(<div key={st.id} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Station {i+1}</div>
+            </div>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",marginBottom:6}}>{st.activityName||st.name||"Station "+(i+1)}</div>
+            {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{subName(st.sublocationId)}</div>}
+            {st.coachingPoints&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:4,lineHeight:1.4,borderLeft:"2px solid var(--green)",paddingLeft:8}}>{st.coachingPoints}</div>}
+            {(stEquip.length>0||st.playerGear)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
+              {stEquip.length>0&&<span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {stEquip.join(", ")}</span>}
+              {st.playerGear&&<span style={{border:"1.5px solid #fdba74",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#fff"}}>Player Gear: {st.playerGear}</span>}
+            </div>}
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              {(st.assignments||[]).map(pid=>(<span key={pid} style={{background:"var(--s2)",border:"1px solid var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600}}>{pname(pid)}</span>))}
+            </div>
+          </div>);
+        })}
+        <div style={{textAlign:"center",fontSize:12,color:"var(--td)",marginTop:8}}>Waiting for coach to start the block</div>
+      </div>}
+      {isBlock&&!inBlockIntro&&!inTrans&&rotatedStations&&<div>
         {focusSt!==null&&<div>
           <button className="btn ghost bxs" style={{marginBottom:10}} onClick={()=>setFocusSt(null)}>&#8249; All Stations</button>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {focusSt+1}</div>
@@ -733,6 +756,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const [idx,setIdx]=useState(0);
   const [stIdx,setStIdx]=useState(0);
   const [inTrans,setInTrans]=useState(false);
+  const [inBlockIntro,setInBlockIntro]=useState(false);
   const [elapsed,setElapsed]=useState(0);
   const [running,setRunning]=useState(false);
   const [audioOn,setAudioOn]=useState(false);
@@ -765,7 +789,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const isBlock=cur&&cur.type==="station_block";
   const blockRotate=isBlock&&cur.rotate!==false;
   const isCl=cur&&cur.type==="checklist";
-  const phaseSecs=isBlock?(blockRotate&&inTrans?cur.transitionDuration*60:cur.stationDuration*60):(cur?actSecs(cur):0);
+  const phaseSecs=isBlock?(inBlockIntro?(cur.transitionDuration||2)*60:blockRotate&&inTrans?cur.transitionDuration*60:cur.stationDuration*60):(cur?actSecs(cur):0);
   const isOver=elapsed>phaseSecs;
   const rem=phaseSecs-elapsed;
   const prog=phaseSecs>0?Math.min(1,elapsed/phaseSecs):0;
@@ -811,7 +835,10 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     const newActs=applyAtt(pIds,cIds,balanceMode,practice.activities);
     setLiveActs(newActs);setStage("live");setShowAtt(false);
     setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(true);spoken.current={};
-    createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,elapsed:0,running:true,runningAt:Date.now(),presentIds:[...pIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]}).then(sid=>{
+    const firstAct=newActs[0];
+    const firstIsBlock=firstAct&&firstAct.type==="station_block";
+    if(firstIsBlock){setInBlockIntro(true);}else{setInBlockIntro(false);}
+    createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,inBlockIntro:firstIsBlock,elapsed:0,running:true,runningAt:Date.now(),presentIds:[...pIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]}).then(sid=>{
       if(sid){
         sessionRef.current=sid;setSessionId(sid);
         // If there's a preview session for this practice, link it to the live session
@@ -836,23 +863,31 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     if(!cur)return;
     const base={liveActs,presentIds:[...presentIds],running:true,runningAt:Date.now(),elapsed:0,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations};
     if(isBlock){
+      // If in intro, advance to Station 1
+      if(inBlockIntro){
+        baseElapsedRef.current=0;startedAtRef.current=Date.now();setInBlockIntro(false);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
+        writeSession({...base,idx,stIdx:0,inTrans:false,inBlockIntro:false});
+        return;
+      }
       if(blockRotate&&!inTrans&&cur.transitionDuration>0&&stIdx<cur.stations.length-1){
         baseElapsedRef.current=0;startedAtRef.current=Date.now();setInTrans(true);setElapsed(0);spoken.current={};setRunning(true);
-        writeSession({...base,idx,stIdx,inTrans:true});
+        writeSession({...base,idx,stIdx,inTrans:true,inBlockIntro:false});
       }else if(blockRotate&&stIdx<cur.stations.length-1){
         const ns=stIdx+1;setStIdx(ns);setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
-        writeSession({...base,idx,stIdx:ns,inTrans:false});
+        writeSession({...base,idx,stIdx:ns,inTrans:false,inBlockIntro:false});
       }else if(idx<liveActs.length-1){
-        const ni=idx+1;setIdx(ni);setStIdx(0);setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
-        writeSession({...base,idx:ni,stIdx:0,inTrans:false});
-      }else{setStage("end");setRunning(false);writeSession({...base,idx,stIdx,inTrans,running:false,runningAt:null});}
+        const ni=idx+1;const nextAct=liveActs[ni];const nextIsBlock=nextAct&&nextAct.type==="station_block";
+        setIdx(ni);setStIdx(0);setInTrans(false);setInBlockIntro(nextIsBlock);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
+        writeSession({...base,idx:ni,stIdx:0,inTrans:false,inBlockIntro:nextIsBlock});
+      }else{setStage("end");setRunning(false);writeSession({...base,idx,stIdx,inTrans,running:false,runningAt:null,inBlockIntro:false});}
     }else{
       if(idx<liveActs.length-1){
-        const ni=idx+1;setIdx(ni);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);
-        writeSession({...base,idx:ni,stIdx:0,inTrans:false});
-      }else{setStage("end");setRunning(false);writeSession({...base,idx,stIdx,inTrans,running:false,runningAt:null});}
+        const ni=idx+1;const nextAct=liveActs[ni];const nextIsBlock=nextAct&&nextAct.type==="station_block";
+        setIdx(ni);setInBlockIntro(nextIsBlock);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);
+        writeSession({...base,idx:ni,stIdx:0,inTrans:false,inBlockIntro:nextIsBlock});
+      }else{setStage("end");setRunning(false);writeSession({...base,idx,stIdx,inTrans,running:false,runningAt:null,inBlockIntro:false});}
     }
-  },[cur,isBlock,blockRotate,inTrans,stIdx,idx,liveActs,presentIds,writeSession]);
+  },[cur,isBlock,blockRotate,inTrans,inBlockIntro,stIdx,idx,liveActs,presentIds,writeSession]);
 
   const goBack=useCallback(()=>{if(isBlock){if(inTrans){setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);}else if(stIdx>0){setStIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(true);}else if(idx>0){setIdx(i=>i-1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);}}else{if(idx>0){setIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(true);}}},[isBlock,inTrans,stIdx,idx]);
 
@@ -910,7 +945,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   if(stage==="attend"||showAtt){const attendPractice=livePracticeOverride||(liveId?data.practices.find(p=>p.id===liveId):null);const attendTeam=attendPractice?data.teams.find(t=>t.id===attendPractice.teamId):null;const attBack=()=>{if(showAtt){setShowAtt(false);}else{setLiveId(null);setLivePracticeOverride(null);setStage("pick");setView("today");}};return (<AttendanceScreen key={showAtt?"upd":"init"} practice={attendPractice} team={attendTeam} isUpdate={showAtt} initialPresent={showAtt?[...presentIds]:null} initialCoachPresent={showAtt?[...coachPresentIds]:null} onConfirm={showAtt?handleAttUpdate:handleAttConfirm} onBack={attBack}/>);}
   if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--green)",marginBottom:4}}>Practice Complete</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{team&&team.name} practice complete.</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>setNoteText(e.target.value)}/><button className="btn primary bsm bfull mt6" onClick={()=>{if(noteText.trim()){update(d=>{d.notes.push({id:uid(),text:noteText,context:"End of Practice",date:new Date().toISOString(),practiceId:liveId});return d;});setNoteText("");}}} >Save Note</button></div><button className="btn primary bmd bfull" onClick={()=>{setLiveId(null);setStage("pick");setView("today");}}>Done</button></div></div>);
 
-  const phaseLabel=isBlock?(blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+cur.stations.length):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
+  const phaseLabel=isBlock?(inBlockIntro?"INTRODUCING STATIONS":blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+cur.stations.length):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
   const blockCount=liveActs.slice(0,idx).filter(a=>a.type==="station_block").length;
   const schedBadge=schedDelta===null?null:(Math.abs(schedDelta)<1?<span style={{background:"var(--gbg)",color:"var(--green)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>On time</span>:schedDelta>0?<span style={{background:"var(--ambg)",color:"var(--amber)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>+{schedDelta}m behind</span>:<span style={{background:"var(--gbg)",color:"var(--green)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>{Math.abs(schedDelta)}m ahead</span>);
 
@@ -1016,7 +1051,46 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
           </div>
         </div>}
       </div>}
-      {isBlock&&!inTrans&&rotatedStations&&<div>
+      {isBlock&&inBlockIntro&&cur.stations&&<div>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--td)",marginBottom:12}}>Get everyone to their station</div>
+        {cur.stations.map((st,i)=>{
+          const stEquip=(Array.isArray(st.equipment)?st.equipment:[]).map(id=>{const a=(data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
+          return(<div key={st.id} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Station {i+1}</div>
+              {(coachName(st.coachId)||subName(st.sublocationId))&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600}}>{subName(st.sublocationId)||coachName(st.coachId)}</div>}
+            </div>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",marginBottom:6}}>{st.activityName||st.name||"Station "+(i+1)}</div>
+            {(stEquip.length>0||st.playerGear)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
+              {stEquip.length>0&&<span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {stEquip.join(", ")}</span>}
+              {st.playerGear&&<span style={{border:"1.5px solid #fdba74",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#fff"}}>Player Gear: {st.playerGear}</span>}
+            </div>}
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              {(st.assignments||[]).map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team}/>))}
+            </div>
+          </div>);
+        })}
+        <div className="brow mt10">
+          <button className="btn outline bmd" style={{flex:1}} onClick={()=>{
+            const present=[...presentIds];
+            const players=(team?team.players:[]).filter(p=>present.includes(p.id));
+            const n2=cur.stations.length;
+            const shuffled=[...players].sort(()=>Math.random()-.5);
+            const groups=Array.from({length:n2},()=>[]);
+            shuffled.forEach((p,i2)=>groups[i2%n2].push(p.id));
+            const newSts=cur.stations.map((st,i2)=>Object.assign({},st,{assignments:groups[i2]||[]}));
+            const newActs=liveActs.map(a=>a.id===cur.id?Object.assign({},a,{stations:newSts}):a);
+            setLiveActs(newActs);
+            if(sessionRef.current)writeSession({idx,stIdx,inTrans,inBlockIntro:true,elapsed,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]});
+          }}>Reshuffle</button>
+          <button className="btn primary bmd" style={{flex:1}} onClick={()=>{
+            setInBlockIntro(false);setStIdx(0);setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
+            const base2={liveActs,presentIds:[...presentIds],running:true,runningAt:Date.now(),elapsed:0,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations};
+            writeSession({...base2,idx,stIdx:0,inTrans:false,inBlockIntro:false,assets:data.assets||[]});
+          }}>Start Block ▶</button>
+        </div>
+      </div>}
+      {isBlock&&!inBlockIntro&&!inTrans&&rotatedStations&&<div>
         {focusSt!==null&&<div>
           <button className="btn ghost bxs" style={{marginBottom:10}} onClick={()=>setFocusSt(null)}>&#8249; All Stations</button>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {focusSt+1}</div>
