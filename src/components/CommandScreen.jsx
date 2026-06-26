@@ -431,6 +431,27 @@ function HelperView({sessionId}){
   },[sessionId]);
   const beep=async()=>{if(!audioOn)return;try{if(!audioCtxRef.current)audioCtxRef.current=new(window.AudioContext||window.webkitAudioContext)();const ctx=audioCtxRef.current;if(ctx.state!=="running")await ctx.resume();const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type="sine";o.frequency.value=880;g.gain.setValueAtTime(0.4,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.3);}catch(e){}};
   const speak=txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){}};
+  // Derive session state safely for use in hooks below
+  const _state=session?session.state||{}:{};
+  const _savedElapsed=_state.elapsed||0;
+  const _running=_state.running||false;
+  const _runningAt=_state.runningAt||null;
+  const _liveActs=_state.liveActs||[];
+  const _idx=_state.idx||0;
+  const _stIdx=_state.stIdx||0;
+  const _inTrans=_state.inTrans||false;
+  const _cur=_liveActs[_idx]||null;
+  const _isBlock=_cur&&_cur.type==="station_block";
+  const _blockRotate=_isBlock&&_cur.rotate!==false;
+  const _phaseSecs=_isBlock?(_blockRotate&&_inTrans?_cur.transitionDuration*60:_cur.stationDuration*60):(_cur?((_cur.duration||0)*60):0);
+  const _elapsed=_running&&_runningAt?_savedElapsed+Math.floor((Date.now()-_runningAt)/1000):_savedElapsed;
+  const _rem=_phaseSecs-_elapsed;
+  // Audio cue effect — must be before early returns
+  useEffect(()=>{
+    if(!audioOn||!session)return;
+    if(_rem===120&&!spokenRef.current[_idx+"_120"]){speak("Two minutes remaining.");spokenRef.current[_idx+"_120"]=true;}
+    if(_rem===0&&!spokenRef.current[_idx+"_0"]){beep();spokenRef.current[_idx+"_0"]=true;}
+  },[_elapsed,audioOn]);
   if(loading)return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,background:"#0d1512"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,letterSpacing:".1em"}}>JOINING SESSION...</div></div>);
   if(!session)return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,textAlign:"center"}}>Session not found</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This link may be invalid or the practice has ended.</div></div>);
   if(session.ended_at||(session.state&&session.state.ended))return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:48,fontWeight:900,textAlign:"center"}}>Well Done</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This practice session has ended.</div></div>);
@@ -463,7 +484,6 @@ function HelperView({sessionId}){
   const subName=id=>{const l=locations.find(l=>l.sublocations&&l.sublocations.find(s=>s.id===id));if(!l)return null;const s=l.sublocations.find(s=>s.id===id);return s?s.name:null;};
   const pnames=ids=>(ids||[]).map(id=>pname(id)).join(", ");
   const pCount=presentIds.size;
-  useEffect(()=>{if(!audioOn)return;if(rem===120&&!spokenRef.current[idx+"_120"]){speak("Two minutes remaining.");spokenRef.current[idx+"_120"]=true;}if(rem===0&&!spokenRef.current[idx+"_0"]){beep();spokenRef.current[idx+"_0"]=true;}},[elapsed,audioOn]);
   return(<div className="ccs">
     <div className="cc-header">
       <div>
