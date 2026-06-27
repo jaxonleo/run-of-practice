@@ -449,8 +449,8 @@ function HelperView({sessionId}){
   // Audio cue effect — must be before early returns
   useEffect(()=>{
     if(!audioOn||!session)return;
-    if(_rem===120&&!spokenRef.current[_idx+"_120"]){speak("Two minutes remaining.");spokenRef.current[_idx+"_120"]=true;}
-    if(_rem===0&&!spokenRef.current[_idx+"_0"]){beep();spokenRef.current[_idx+"_0"]=true;}
+    if(_rem<=122&&_rem>=120&&!spokenRef.current[_idx+"_120"]){speak("Two minutes remaining.");spokenRef.current[_idx+"_120"]=true;}
+    if(_rem<=0&&_rem>-3&&!spokenRef.current[_idx+"_0"]){beep();spokenRef.current[_idx+"_0"]=true;}
   },[_elapsed,audioOn]);
   if(loading)return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,background:"#0d1512"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,letterSpacing:".1em"}}>JOINING SESSION...</div></div>);
   if(!session)return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:"24px"}}><div style={{color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,textAlign:"center"}}>Session not found</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This link may be invalid or the practice has ended.</div></div>);
@@ -901,9 +901,9 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
         const wallElapsed=baseElapsedRef.current+Math.floor((Date.now()-startedAtRef.current)/1000);
         setElapsed(wallElapsed);
         const r=phaseSecs-wallElapsed;
-        if(r===120&&!spoken.current[120]){speak("Two minutes remaining.");spoken.current[120]=true;}
-        if(r===0&&!spoken.current[0]){beep();spoken.current[0]=true;}
-        if(r<0&&wallElapsed%30===0){beep();}
+        if(r<=122&&r>=120&&!spoken.current[120]){speak("Two minutes remaining.");spoken.current[120]=true;}
+        if(r<=0&&r>-3&&!spoken.current[0]){beep();spoken.current[0]=true;}
+        if(r<-3&&Math.round(wallElapsed)%30===0&&!spoken.current["over_"+Math.round(wallElapsed)]){beep();spoken.current["over_"+Math.round(wallElapsed)]=true;}
       },500);
     }else{
       clearInterval(iref.current);
