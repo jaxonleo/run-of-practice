@@ -820,19 +820,18 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     try{
       const ctx=audioCtxRef.current;
       if(!ctx)return;
-      // Force resume if needed - fire and forget
       if(ctx.state!=='running'){ctx.resume();}
       const now2=ctx.currentTime;
-      const o1=ctx.createOscillator();
-      const o2=ctx.createOscillator();
+      // Simple loud square wave burst - no fancy envelope, just loud and clear
+      const o=ctx.createOscillator();
       const g=ctx.createGain();
-      o1.connect(g);o2.connect(g);g.connect(ctx.destination);
-      o1.type='square';o1.frequency.setValueAtTime(180,now2);o1.frequency.linearRampToValueAtTime(160,now2+1.8);
-      o2.type='square';o2.frequency.setValueAtTime(185,now2);o2.frequency.linearRampToValueAtTime(165,now2+1.8);
-      g.gain.setValueAtTime(0,now2);g.gain.linearRampToValueAtTime(0.35,now2+0.05);
-      g.gain.setValueAtTime(0.35,now2+1.6);g.gain.linearRampToValueAtTime(0,now2+1.8);
-      o1.start(now2);o1.stop(now2+1.8);
-      o2.start(now2);o2.stop(now2+1.8);
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.type='square';
+      o.frequency.value=220;
+      g.gain.value=0.8;
+      o.start(now2);
+      o.stop(now2+1.5);
     }catch(e){console.error('beep failed:',e);}
   },[audioOn]);
   const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
@@ -1000,7 +999,21 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
           <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
         </button>
         <button className="btn ghost bxs" onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}</button>
-        <button onClick={async()=>{if(!audioOn){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();audioCtxRef.current=ctx;await ctx.resume();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0.1,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.2);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.2);}catch(e){}}spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊 On":"🔇 Off"}</button>
+        <button onClick={async()=>{
+          if(!audioOn){
+            try{
+              const ctx=new(window.AudioContext||window.webkitAudioContext)();
+              audioCtxRef.current=ctx;
+              await ctx.resume();
+              // Play test buzz immediately so coach knows audio is working
+              const o=ctx.createOscillator();const g=ctx.createGain();
+              o.connect(g);g.connect(ctx.destination);
+              o.type='square';o.frequency.value=220;g.gain.value=0.8;
+              o.start(ctx.currentTime);o.stop(ctx.currentTime+0.4);
+            }catch(e){}
+          }
+          spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);
+        }} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊 On":"🔇 Off"}</button>
         <div style={{position:"relative"}}>
           <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
           {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
