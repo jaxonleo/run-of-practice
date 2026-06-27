@@ -816,13 +816,13 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   },[idx,liveActs,presentIds]);
 
   const beep=useCallback(()=>{
-    if(!audioOn)return;
+    if(!audioOn){console.log('beep blocked: audioOn false');return;}
     try{
       const ctx=audioCtxRef.current;
-      if(!ctx)return;
+      console.log('beep called: ctx=',ctx?ctx.state:'null');
+      if(!ctx){console.log('beep blocked: no ctx');return;}
       if(ctx.state!=='running'){ctx.resume();}
       const now2=ctx.currentTime;
-      // Simple loud square wave burst - no fancy envelope, just loud and clear
       const o=ctx.createOscillator();
       const g=ctx.createGain();
       o.connect(g);
@@ -832,7 +832,8 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
       g.gain.value=0.8;
       o.start(now2);
       o.stop(now2+1.5);
-    }catch(e){console.error('beep failed:',e);}
+      console.log('beep: oscillator started at',now2);
+    }catch(e){console.error('beep error:',e);}
   },[audioOn]);
   const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
 
@@ -1018,7 +1019,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
           <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
           {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);setRunning(false);setShowEditBuilder(true);}}>Edit Practice</button>
-            <button className="mm-item" onClick={()=>{setShowEllipsis(false);setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
+            <button className="mm-item" onClick={async()=>{setShowEllipsis(false);if(!audioOn){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();audioCtxRef.current=ctx;await ctx.resume();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='square';o.frequency.value=220;g.gain.value=0.8;o.start(ctx.currentTime);o.stop(ctx.currentTime+0.4);}catch(e){}}spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
             {sessionId&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowShare(true);}}>Share Live View</button>}
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){writeSession({idx,stIdx,inTrans,elapsed,running:false,runningAt:null,presentIds:[...presentIds],liveActs,ended:true,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});setTimeout(()=>{endSession(sessionRef.current);sessionRef.current=null;setSessionId(null);},500);}}}>End Practice</button>
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setStage("attend");}}>Restart Practice</button>
