@@ -835,7 +835,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     setPresentIds(pIds);setCoachPresentIds(cIds);
     const newActs=applyAtt(pIds,cIds,balanceMode,practice.activities);
     setLiveActs(newActs);setStage("live");setShowAtt(false);
-    setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(true);spoken.current={};
+    setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(true);spoken.current={};buzzedRef.current=false;warnedRef.current=false;
     const firstAct=newActs[0];
     const firstIsBlock=firstAct&&firstAct.type==="station_block";
     if(firstIsBlock){setInBlockIntro(true);}else{setInBlockIntro(false);}
@@ -866,31 +866,31 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     if(isBlock){
       // If in intro, advance to Station 1
       if(inBlockIntro){
-        baseElapsedRef.current=0;startedAtRef.current=Date.now();setInBlockIntro(false);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
+        baseElapsedRef.current=0;startedAtRef.current=Date.now();setInBlockIntro(false);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);setFocusSt(null);
         writeSession({...base,idx,stIdx:0,inTrans:false,inBlockIntro:false});
         return;
       }
       if(blockRotate&&!inTrans&&cur.transitionDuration>0&&stIdx<cur.stations.length-1){
-        baseElapsedRef.current=0;startedAtRef.current=Date.now();setInTrans(true);setElapsed(0);spoken.current={};setRunning(true);
+        baseElapsedRef.current=0;startedAtRef.current=Date.now();setInTrans(true);setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);
         writeSession({...base,idx,stIdx,inTrans:true,inBlockIntro:false});
       }else if(blockRotate&&stIdx<cur.stations.length-1){
-        const ns=stIdx+1;setStIdx(ns);setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
+        const ns=stIdx+1;setStIdx(ns);setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);setFocusSt(null);
         writeSession({...base,idx,stIdx:ns,inTrans:false,inBlockIntro:false});
       }else if(idx<liveActs.length-1){
         const ni=idx+1;const nextAct=liveActs[ni];const nextIsBlock=nextAct&&nextAct.type==="station_block";
-        setIdx(ni);setStIdx(0);setInTrans(false);setInBlockIntro(nextIsBlock);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
+        setIdx(ni);setStIdx(0);setInTrans(false);setInBlockIntro(nextIsBlock);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);setFocusSt(null);
         writeSession({...base,idx:ni,stIdx:0,inTrans:false,inBlockIntro:nextIsBlock});
       }else{setStage("end");setRunning(false);writeSession({...base,idx,stIdx,inTrans,running:false,runningAt:null,inBlockIntro:false});}
     }else{
       if(idx<liveActs.length-1){
         const ni=idx+1;const nextAct=liveActs[ni];const nextIsBlock=nextAct&&nextAct.type==="station_block";
-        setIdx(ni);setInBlockIntro(nextIsBlock);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);
+        setIdx(ni);setInBlockIntro(nextIsBlock);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);
         writeSession({...base,idx:ni,stIdx:0,inTrans:false,inBlockIntro:nextIsBlock});
       }else{setStage("end");setRunning(false);writeSession({...base,idx,stIdx,inTrans,running:false,runningAt:null,inBlockIntro:false});}
     }
   },[cur,isBlock,blockRotate,inTrans,inBlockIntro,stIdx,idx,liveActs,presentIds,writeSession]);
 
-  const goBack=useCallback(()=>{if(isBlock){if(inTrans){setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);}else if(stIdx>0){setStIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(true);}else if(idx>0){setIdx(i=>i-1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);}}else{if(idx>0){setIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(true);}}},[isBlock,inTrans,stIdx,idx]);
+  const goBack=useCallback(()=>{if(isBlock){if(inTrans){setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);}else if(stIdx>0){setStIdx(i=>i-1);setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);}else if(idx>0){setIdx(i=>i-1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);}}else{if(idx>0){setIdx(i=>i-1);setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);}}},[isBlock,inTrans,stIdx,idx]);
 
   const phaseSecsRef=useRef(phaseSecs);
   useEffect(()=>{phaseSecsRef.current=phaseSecs;},[phaseSecs]);
@@ -901,6 +901,29 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const speakRef=useRef(speak);
   useEffect(()=>{speakRef.current=speak;},[speak]);
 
+  // Dedicated effect: fires buzzer when elapsed crosses phaseSecs
+  const buzzedRef=useRef(false);
+  useEffect(()=>{
+    if(elapsed>=phaseSecs&&phaseSecs>0&&!buzzedRef.current&&running){
+      buzzedRef.current=true;
+      beepRef.current();
+    }
+    if(elapsed<phaseSecs-5){
+      buzzedRef.current=false; // reset when clearly before zero
+    }
+  },[elapsed,phaseSecs,running]);
+
+  // Two minute warning
+  const warnedRef=useRef(false);
+  useEffect(()=>{
+    const rem=phaseSecs-elapsed;
+    if(rem<=122&&rem>=118&&!warnedRef.current&&running){
+      warnedRef.current=true;
+      speakRef.current("Two minutes remaining.");
+    }
+    if(rem>130){warnedRef.current=false;}
+  },[elapsed,phaseSecs,running]);
+
   useEffect(()=>{
     if(running){
       startedAtRef.current=Date.now();
@@ -909,11 +932,6 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
         if(!startedAtRef.current)return;
         const wallElapsed=baseElapsedRef.current+Math.floor((Date.now()-startedAtRef.current)/1000);
         setElapsed(wallElapsed);
-        const ps=phaseSecsRef.current;
-        const r=ps-wallElapsed;
-        if(r<=122&&r>=118&&!spoken.current[120]){speakRef.current("Two minutes remaining.");spoken.current[120]=true;}
-        if(r<=2&&r>=-2&&!spoken.current[0]){beepRef.current();spoken.current[0]=true;}
-        if(r<-2&&wallElapsed%30<1&&!spoken.current["over_"+Math.floor(wallElapsed/30)]){beepRef.current();spoken.current["over_"+Math.floor(wallElapsed/30)]=true;}
       },500);
     }else{
       clearInterval(iref.current);
@@ -941,7 +959,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
       loc={loc}
       onSaveResume={(newActs)=>{
         setLiveActs(newActs);
-        setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};
+        setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};buzzedRef.current=false;warnedRef.current=false;
         // Write updated acts to session so helpers see it immediately
         const sessionState={idx:0,stIdx:0,inTrans:false,elapsed:0,running:false,runningAt:null,presentIds:[...presentIds],liveActs:newActs,liveGroups:null,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]};
         if(sessionRef.current)writeSession(sessionState);
@@ -974,7 +992,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
           <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
         </button>
         <button className="btn ghost bxs" onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}</button>
-        <button onClick={async()=>{if(!audioOn){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();audioCtxRef.current=ctx;await ctx.resume();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0.1,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.2);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.2);}catch(e){}}spoken.current={};setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊 On":"🔇 Off"}</button>
+        <button onClick={async()=>{if(!audioOn){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();audioCtxRef.current=ctx;await ctx.resume();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0.1,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.2);o.start(ctx.currentTime);o.stop(ctx.currentTime+0.2);}catch(e){}}spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊 On":"🔇 Off"}</button>
         <div style={{position:"relative"}}>
           <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
           {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
@@ -982,13 +1000,13 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
             {sessionId&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowShare(true);}}>Share Live View</button>}
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){writeSession({idx,stIdx,inTrans,elapsed,running:false,runningAt:null,presentIds:[...presentIds],liveActs,ended:true,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});setTimeout(()=>{endSession(sessionRef.current);sessionRef.current=null;setSessionId(null);},500);}}}>End Practice</button>
-            <button className="mm-item" onClick={()=>{setShowEllipsis(false);setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};setStage("attend");}}>Restart Practice</button>
+            <button className="mm-item" onClick={()=>{setShowEllipsis(false);setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setStage("attend");}}>Restart Practice</button>
           </div>}
         </div>
       </div>
     </div>
     {showROS&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",maxHeight:200,overflowY:"auto",flexShrink:0}}>
-      {liveActs.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--b)",background:i===idx?"var(--gbg)":"#fff",cursor:"pointer",opacity:i<idx?0.5:1}} onClick={()=>{const ni=i;baseElapsedRef.current=0;startedAtRef.current=Date.now();setIdx(ni);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);setShowROS(false);const base2={liveActs,presentIds:[...presentIds],running:true,runningAt:Date.now(),elapsed:0,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations};writeSession({...base2,idx:ni,stIdx:0,inTrans:false});}}>
+      {liveActs.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--b)",background:i===idx?"var(--gbg)":"#fff",cursor:"pointer",opacity:i<idx?0.5:1}} onClick={()=>{const ni=i;baseElapsedRef.current=0;startedAtRef.current=Date.now();setIdx(ni);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);setShowROS(false);const base2={liveActs,presentIds:[...presentIds],running:true,runningAt:Date.now(),elapsed:0,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations};writeSession({...base2,idx:ni,stIdx:0,inTrans:false});}}>
         <div style={{flex:1,fontSize:14,color:i===idx?"var(--green)":i<idx?"var(--td)":"var(--black)",textDecoration:i<idx?"line-through":"none"}}>{i===idx?">> ":""}{a.type==="station_block"?"Station Block":a.name}</div>
         <span className="bs bdg" style={{fontSize:11}}>{a.type==="station_block"?(a.stations.length*a.stationDuration+(a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
       </div>))}
@@ -1003,8 +1021,8 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
       {schedBadge}
     </div>
     <div style={{padding:"2px 14px 4px",display:"flex",gap:8,flexShrink:0}}>
-      <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=Math.max(0,elapsed-60);baseElapsedRef.current=ne;startedAtRef.current=running?Date.now():null;setElapsed(ne);if(phaseSecsRef.current-ne>5)spoken.current[0]=false;writeSession({idx,stIdx,inTrans,elapsed:ne,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});}}>+1m</button>
-      <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=elapsed+60;baseElapsedRef.current=ne;startedAtRef.current=running?Date.now():null;setElapsed(ne);if(phaseSecsRef.current-ne>5)spoken.current[0]=false;writeSession({idx,stIdx,inTrans,elapsed:ne,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});}}>-1m</button>
+      <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=Math.max(0,elapsed-60);baseElapsedRef.current=ne;startedAtRef.current=running?Date.now():null;setElapsed(ne);buzzedRef.current=false;warnedRef.current=false;writeSession({idx,stIdx,inTrans,elapsed:ne,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});}}>+1m</button>
+      <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=elapsed+60;baseElapsedRef.current=ne;startedAtRef.current=running?Date.now():null;setElapsed(ne);buzzedRef.current=false;warnedRef.current=false;writeSession({idx,stIdx,inTrans,elapsed:ne,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});}}>-1m</button>
     </div>
     <div className="cc-prog"><div className={"cc-prog-bar"+(isOver?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div>
     <div className="cc-controls">
@@ -1096,7 +1114,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
             if(sessionRef.current)writeSession({idx,stIdx,inTrans,inBlockIntro:true,elapsed,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]});
           }}>Reshuffle</button>
           <button className="btn primary bmd" style={{flex:1}} onClick={()=>{
-            setInBlockIntro(false);setStIdx(0);setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);setFocusSt(null);
+            setInBlockIntro(false);setStIdx(0);setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);setFocusSt(null);
             const base2={liveActs,presentIds:[...presentIds],running:true,runningAt:Date.now(),elapsed:0,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations};
             writeSession({...base2,idx,stIdx:0,inTrans:false,inBlockIntro:false,assets:data.assets||[]});
           }}>Start Block ▶</button>
