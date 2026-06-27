@@ -815,18 +815,26 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     if(sessionRef.current)updateSession(sessionRef.current,{idx,stIdx,inTrans,elapsed,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,liveGroups:groups,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]});
   },[idx,liveActs,presentIds]);
 
-  const beep=useCallback(async()=>{if(!audioOn)return;const ctx=await unlockAudio();if(!ctx)return;try{
-    const now2=ctx.currentTime;
-    // Scoreboard buzzer: square wave at 220Hz for 1.8s with slight frequency sweep
-    const o1=ctx.createOscillator();const o2=ctx.createOscillator();
-    const g=ctx.createGain();const g2=ctx.createGain();
-    o1.connect(g);o2.connect(g);g.connect(ctx.destination);
-    o1.type='square';o1.frequency.setValueAtTime(180,now2);o1.frequency.linearRampToValueAtTime(160,now2+1.8);
-    o2.type='square';o2.frequency.setValueAtTime(185,now2);o2.frequency.linearRampToValueAtTime(165,now2+1.8);
-    g.gain.setValueAtTime(0,now2);g.gain.linearRampToValueAtTime(0.3,now2+0.05);
-    g.gain.setValueAtTime(0.3,now2+1.6);g.gain.linearRampToValueAtTime(0,now2+1.8);
-    o1.start(now2);o1.stop(now2+1.8);o2.start(now2);o2.stop(now2+1.8);
-  }catch(e){}},[audioOn]);
+  const beep=useCallback(()=>{
+    if(!audioOn)return;
+    try{
+      const ctx=audioCtxRef.current;
+      if(!ctx)return;
+      // Force resume if needed - fire and forget
+      if(ctx.state!=='running'){ctx.resume();}
+      const now2=ctx.currentTime;
+      const o1=ctx.createOscillator();
+      const o2=ctx.createOscillator();
+      const g=ctx.createGain();
+      o1.connect(g);o2.connect(g);g.connect(ctx.destination);
+      o1.type='square';o1.frequency.setValueAtTime(180,now2);o1.frequency.linearRampToValueAtTime(160,now2+1.8);
+      o2.type='square';o2.frequency.setValueAtTime(185,now2);o2.frequency.linearRampToValueAtTime(165,now2+1.8);
+      g.gain.setValueAtTime(0,now2);g.gain.linearRampToValueAtTime(0.35,now2+0.05);
+      g.gain.setValueAtTime(0.35,now2+1.6);g.gain.linearRampToValueAtTime(0,now2+1.8);
+      o1.start(now2);o1.stop(now2+1.8);
+      o2.start(now2);o2.stop(now2+1.8);
+    }catch(e){console.error('beep failed:',e);}
+  },[audioOn]);
   const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
 
   const applyAtt=useCallback((pIds,cIds,mode,baseActs)=>{const allPlayers=team?team.players:[];return baseActs.map(act=>{if(act.type!=="station_block")return Object.assign({},act,{assignments:(act.assignments||[]).filter(id=>pIds.has(id))});const newSt=mode==="rebalance"?rebalanceEven(act.stations,pIds,allPlayers):rebalanceKeep(act.stations,pIds);return Object.assign({},act,{stations:newSt});});},[team]);
