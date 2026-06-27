@@ -816,23 +816,13 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   },[idx,liveActs,presentIds]);
 
   const beep=useCallback(()=>{
-    if(!audioOn){console.log('beep blocked: audioOn false');return;}
+    if(!audioOn)return;
     try{
-      const ctx=audioCtxRef.current;
-      console.log('beep called: ctx=',ctx?ctx.state:'null');
-      if(!ctx){console.log('beep blocked: no ctx');return;}
-      if(ctx.state!=='running'){ctx.resume();}
-      const now2=ctx.currentTime;
-      const o=ctx.createOscillator();
-      const g=ctx.createGain();
-      o.connect(g);
-      g.connect(ctx.destination);
-      o.type='square';
-      o.frequency.value=220;
-      g.gain.value=0.8;
-      o.start(now2);
-      o.stop(now2+1.5);
-      console.log('beep: oscillator started at',now2);
+      // Use speechSynthesis as primary buzzer - Web Audio unreliable in Safari
+      window.speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance("Time");
+      u.rate=0.1;u.pitch=0.1;u.volume=1;
+      window.speechSynthesis.speak(u);
     }catch(e){console.error('beep error:',e);}
   },[audioOn]);
   const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
@@ -1000,17 +990,13 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
           <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
         </button>
         <button className="btn ghost bxs" onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}</button>
-        <button onClick={async()=>{
+        <button onClick={()=>{
           if(!audioOn){
             try{
-              const ctx=new(window.AudioContext||window.webkitAudioContext)();
-              audioCtxRef.current=ctx;
-              await ctx.resume();
-              // Play test buzz immediately so coach knows audio is working
-              const o=ctx.createOscillator();const g=ctx.createGain();
-              o.connect(g);g.connect(ctx.destination);
-              o.type='square';o.frequency.value=220;g.gain.value=0.8;
-              o.start(ctx.currentTime);o.stop(ctx.currentTime+0.4);
+              window.speechSynthesis.cancel();
+              const u=new SpeechSynthesisUtterance("Audio on");
+              u.rate=1;u.volume=1;
+              window.speechSynthesis.speak(u);
             }catch(e){}
           }
           spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);
@@ -1019,7 +1005,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
           <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
           {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);setRunning(false);setShowEditBuilder(true);}}>Edit Practice</button>
-            <button className="mm-item" onClick={async()=>{setShowEllipsis(false);if(!audioOn){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();audioCtxRef.current=ctx;await ctx.resume();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type='square';o.frequency.value=220;g.gain.value=0.8;o.start(ctx.currentTime);o.stop(ctx.currentTime+0.4);}catch(e){}}spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
+            <button className="mm-item" onClick={()=>{setShowEllipsis(false);if(!audioOn){try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
             {sessionId&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowShare(true);}}>Share Live View</button>}
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){writeSession({idx,stIdx,inTrans,elapsed,running:false,runningAt:null,presentIds:[...presentIds],liveActs,ended:true,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});setTimeout(()=>{endSession(sessionRef.current);sessionRef.current=null;setSessionId(null);},500);}}}>End Practice</button>
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setStage("attend");}}>Restart Practice</button>
