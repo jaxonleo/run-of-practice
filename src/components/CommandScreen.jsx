@@ -892,6 +892,15 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
 
   const goBack=useCallback(()=>{if(isBlock){if(inTrans){setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};setRunning(true);}else if(stIdx>0){setStIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(true);}else if(idx>0){setIdx(i=>i-1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};setRunning(true);}}else{if(idx>0){setIdx(i=>i-1);setElapsed(0);spoken.current={};setRunning(true);}}},[isBlock,inTrans,stIdx,idx]);
 
+  const phaseSecsRef=useRef(phaseSecs);
+  useEffect(()=>{phaseSecsRef.current=phaseSecs;},[phaseSecs]);
+
+  const beepRef=useRef(beep);
+  useEffect(()=>{beepRef.current=beep;},[beep]);
+
+  const speakRef=useRef(speak);
+  useEffect(()=>{speakRef.current=speak;},[speak]);
+
   useEffect(()=>{
     if(running){
       startedAtRef.current=Date.now();
@@ -900,17 +909,18 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
         if(!startedAtRef.current)return;
         const wallElapsed=baseElapsedRef.current+Math.floor((Date.now()-startedAtRef.current)/1000);
         setElapsed(wallElapsed);
-        const r=phaseSecs-wallElapsed;
-        if(r<=122&&r>=120&&!spoken.current[120]){speak("Two minutes remaining.");spoken.current[120]=true;}
-        if(r<=0&&r>-3&&!spoken.current[0]){beep();spoken.current[0]=true;}
-        if(r<-3&&Math.round(wallElapsed)%30===0&&!spoken.current["over_"+Math.round(wallElapsed)]){beep();spoken.current["over_"+Math.round(wallElapsed)]=true;}
+        const ps=phaseSecsRef.current;
+        const r=ps-wallElapsed;
+        if(r<=122&&r>=118&&!spoken.current[120]){speakRef.current("Two minutes remaining.");spoken.current[120]=true;}
+        if(r<=2&&r>=-2&&!spoken.current[0]){beepRef.current();spoken.current[0]=true;}
+        if(r<-2&&wallElapsed%30<1&&!spoken.current["over_"+Math.floor(wallElapsed/30)]){beepRef.current();spoken.current["over_"+Math.floor(wallElapsed/30)]=true;}
       },500);
     }else{
       clearInterval(iref.current);
       startedAtRef.current=null;
     }
     return()=>clearInterval(iref.current);
-  },[running,phaseSecs,speak,beep]);
+  },[running]);
 
   const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
   const subName=id=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:null;};
