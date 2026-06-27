@@ -820,8 +820,8 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     try{
       // Use speechSynthesis as primary buzzer - Web Audio unreliable in Safari
       window.speechSynthesis.cancel();
-      const u=new SpeechSynthesisUtterance("Time");
-      u.rate=0.1;u.pitch=0.1;u.volume=1;
+      const u=new SpeechSynthesisUtterance("Next up!");
+      u.rate=1.1;u.pitch=1.2;u.volume=1;
       window.speechSynthesis.speak(u);
     }catch(e){console.error('beep error:',e);}
   },[audioOn]);
@@ -1023,7 +1023,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     <div className="cc-timer-row">
       <div className={"cc-timer"+(urg?" urg":"")+(isOver?" over":"")}>{fmt(rem)}</div>
       <button onClick={()=>{const nr=!running;setRunning(nr);writeSession({idx,stIdx,inTrans,elapsed,running:nr,runningAt:nr?Date.now():null,presentIds:[...presentIds],liveActs});}} style={{width:52,height:52,borderRadius:"50%",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:isOver?"var(--red)":running?"var(--s3)":"var(--green)",color:isOver?"#fff":running?"var(--black2)":"#fff",boxShadow:running?"none":"0 2px 8px rgba(45,106,79,.35)"}}>
-        {isOver?<Ic.Restart/>:running?<Ic.Pause/>:<Ic.Play/>}
+        {running?<Ic.Pause/>:<Ic.Play/>}
       </button>
       <div style={{flex:1}}/>
       {schedBadge}
