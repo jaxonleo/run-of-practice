@@ -458,6 +458,7 @@ function HelperView({sessionId}){
   const state=session.state||{};
   const liveActs=state.liveActs||[];
   const roster=state.roster||[];
+  const coaches=state.coaches||[];
   const locations=state.locations||[];
   const assets=state.assets||[];
   const presentIds=new Set(state.presentIds||[]);
@@ -482,6 +483,7 @@ function HelperView({sessionId}){
   const rotatedStations=isBlock&&cur.stations?(cur.stations.map((st,i)=>{const srcIdx=(i-stIdx%n+n)%n;return Object.assign({},cur.stations[i],{assignments:cur.stations[srcIdx].assignments});})):null;
   const phaseLabel=isBlock?(inBlockIntro?"INTRODUCING STATIONS":blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+n):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
   const pname=id=>{const p=roster.find(p=>p.id===id);return p?(p.jersey?"#"+p.jersey+" "+p.firstName:p.firstName):id;};
+  const coachNameH=id=>{const c=coaches.find(c=>c.id===id);if(c)return c.name||c.firstName;const p=roster.find(p=>p.id===id);if(p)return p.name||p.firstName;return null;};
   const subName=id=>{const l=locations.find(l=>l.sublocations&&l.sublocations.find(s=>s.id===id));if(!l)return null;const s=l.sublocations.find(s=>s.id===id);return s?s.name:null;};
   const pnames=ids=>(ids||[]).map(id=>pname(id)).join(", ");
   const pCount=presentIds.size;
@@ -531,9 +533,9 @@ function HelperView({sessionId}){
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#2563eb",marginBottom:3}}>📍 Location</div>
           <div style={{fontSize:14,color:"var(--black)",fontWeight:600}}>{subName(cur.sublocationId)}</div>
         </div>}
-        {cur.coachId&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+        {cur.coachId&&coachNameH(cur.coachId)&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:3}}>Coach</div>
-          <div style={{fontSize:14,color:"var(--black)"}}>{(()=>{const p=roster.find(p=>p.id===cur.coachId);if(p)return p.name||p.firstName;const byName=roster.find(p=>p.name===cur.coachId);return byName?byName.name:cur.coachName||cur.coachId;})()}</div>
+          <div style={{fontSize:14,color:"var(--black)"}}>{coachNameH(cur.coachId)||cur.coachName}</div>
         </div>}
         {(()=>{const eq=Array.isArray(cur.equipment)?cur.equipment:[];const names=eq.map(id=>{const a=assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(names.length>0||cur.playerGear)?(<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
           {names.length>0&&<span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"3px 10px",fontSize:12,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {names.join(", ")}</span>}
@@ -554,7 +556,7 @@ function HelperView({sessionId}){
         </div>}
         {cur.grouping&&cur.grouping!=="whole"&&!liveGroups&&<div style={{borderLeft:"3px solid #c4b5fd",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed",marginBottom:3}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
-          <div style={{fontSize:13,color:"var(--td)"}}>Waiting for coach to assign groups...</div>
+          <div style={{fontSize:13,color:"var(--td)"}}>Syncing groups... pull to refresh if needed.</div>
         </div>}
       </div>}
       {isBlock&&inBlockIntro&&cur.stations&&<div>
@@ -812,7 +814,15 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     if(players.length===0)return;
     const groups=assignGroups(players,g,act.numGroups||2);
     setLiveGroups(groups);
-    if(sessionRef.current)updateSession(sessionRef.current,{idx,stIdx,inTrans,elapsed,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,liveGroups:groups,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]});
+    // Write to session immediately - retry up to 3 times if session not ready yet
+    const writeGroups=(attempt)=>{
+      if(sessionRef.current){
+        updateSession(sessionRef.current,{idx,stIdx,inTrans,elapsed,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,liveGroups:groups,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],coaches:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).coaches||[]:[]:[],locations:data.locations,assets:data.assets||[]});
+      }else if(attempt<5){
+        setTimeout(()=>writeGroups(attempt+1),500);
+      }
+    };
+    writeGroups(0);
   },[idx,liveActs,presentIds]);
 
   const beep=useCallback(()=>{
@@ -837,7 +847,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     const firstAct=newActs[0];
     const firstIsBlock=firstAct&&firstAct.type==="station_block";
     if(firstIsBlock){setInBlockIntro(true);}else{setInBlockIntro(false);}
-    createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,inBlockIntro:firstIsBlock,elapsed:0,running:true,runningAt:Date.now(),presentIds:[...pIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]}).then(sid=>{
+    createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,inBlockIntro:firstIsBlock,elapsed:0,running:true,runningAt:Date.now(),presentIds:[...pIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],coaches:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).coaches||[]:[]:[],locations:data.locations,assets:data.assets||[]}).then(sid=>{
       if(sid){
         sessionRef.current=sid;setSessionId(sid);
         // If there's a preview session for this practice, link it to the live session
@@ -860,7 +870,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
 
   const advance=useCallback(()=>{
     if(!cur)return;
-    const base={liveActs,presentIds:[...presentIds],running:true,runningAt:Date.now(),elapsed:0,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations};
+    const base={liveActs,presentIds:[...presentIds],running:true,runningAt:Date.now(),elapsed:0,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],coaches:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).coaches||[]:[]:[],locations:data.locations,assets:data.assets||[]};
     if(isBlock){
       // If in intro, advance to Station 1
       if(inBlockIntro){
