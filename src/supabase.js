@@ -635,14 +635,39 @@ export async function createLiveSession(practiceId, controllerUserId, { practice
   return data
 }
 
-// Returns the updated row, or null if the version was stale (someone else
-// wrote first, or took control) -- caller should refetch and reconcile.
+// A genuine network failure (offline, request never reached the server)
+// looks identical to a stale-version conflict at the call site otherwise
+// (both resolve with data:null) -- but they need opposite handling. A
+// conflict means someone else moved the session forward, so refetching is
+// correct. A network failure means nothing changed server-side, so
+// refetching (which will also fail offline) and blowing away local state
+// would blank the coach's screen mid-practice over a momentary signal drop.
+// Real Postgrest/PG errors always carry a `code`; a fetch-level failure
+// doesn't.
+function isNetworkError(error) {
+  if (!error) return false
+  if (error.code) return false
+  const msg = (error.message || '').toLowerCase()
+  return msg.includes('fetch') || msg.includes('network') || msg.includes('load failed') || (typeof navigator !== 'undefined' && navigator.onLine === false)
+}
+
+// Returns { data, offline }. data is the updated row, or null if the
+// version was stale (someone else wrote first / took control) or the
+// request never reached the server. offline distinguishes the two --
+// caller should only refetch-and-reconcile when offline is false.
 export async function updateLiveSession(id, version, patch) {
-  const { data, error } = await supabase.from('practice_live_sessions')
-    .update(Object.assign({}, patch, { version: version + 1 }))
-    .eq('id', id).eq('version', version).select().maybeSingle()
-  if (error) { console.error('updateLiveSession:', error); return null }
-  return data
+  try {
+    const { data, error } = await supabase.from('practice_live_sessions')
+      .update(Object.assign({}, patch, { version: version + 1 }))
+      .eq('id', id).eq('version', version).select().maybeSingle()
+    if (error) {
+      if (!isNetworkError(error)) console.error('updateLiveSession:', error)
+      return { data: null, offline: isNetworkError(error) }
+    }
+    return { data, offline: false }
+  } catch (e) {
+    return { data: null, offline: true }
+  }
 }
 
 export async function takeControl(id, version, userId) {

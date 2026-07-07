@@ -724,14 +724,65 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     return()=>{sub.unsubscribe();};
   },[session?.id]);
 
+  // A network hiccup mid-practice must never blank the coach's screen --
+  // only a genuine version conflict (someone else moved the session
+  // forward) should trigger a refetch. Offline failures keep showing the
+  // last-known local state and retry the same write in the background.
+  const [syncOffline,setSyncOffline]=useState(false);
+  const pendingWriteRef=useRef(null);
+  const sessionRef=useRef(session);
+  useEffect(()=>{sessionRef.current=session;},[session]);
+  const retryTimerRef=useRef(null);
+  const retryDelayRef=useRef(3000);
+
   const writeSession=useCallback(async(patch)=>{
     if(!session)return null;
-    const updated=await updateLiveSession(session.id,session.version,patch);
-    if(updated){setSession(updated);return updated;}
+    const {data:updated,offline}=await updateLiveSession(session.id,session.version,patch);
+    if(updated){
+      setSession(updated);setSyncOffline(false);pendingWriteRef.current=null;
+      clearTimeout(retryTimerRef.current);retryDelayRef.current=3000;
+      return updated;
+    }
+    if(offline){
+      pendingWriteRef.current={patch};
+      setSyncOffline(true);
+      return null;
+    }
     const fresh=await findActiveLiveSession(practice.id);
-    setSession(fresh);
+    setSession(fresh);setSyncOffline(false);
     return null;
   },[session,practice]);
+
+  const attemptPendingRetry=useCallback(async()=>{
+    const pending=pendingWriteRef.current;
+    const cur=sessionRef.current;
+    if(!pending||!cur)return;
+    const {data:updated,offline}=await updateLiveSession(cur.id,cur.version,pending.patch);
+    if(updated){
+      setSession(updated);setSyncOffline(false);pendingWriteRef.current=null;
+      clearTimeout(retryTimerRef.current);retryDelayRef.current=3000;
+    }else if(!offline){
+      // The world moved on without us (conflict, not a network issue) --
+      // stop retrying this stale patch and reconcile to real state.
+      pendingWriteRef.current=null;
+      const fresh=await findActiveLiveSession(practice.id);
+      setSession(fresh);setSyncOffline(false);
+    }
+    // else: still offline, the scheduling effect below will try again.
+  },[practice]);
+
+  useEffect(()=>{
+    if(!syncOffline)return;
+    const onOnline=()=>{retryDelayRef.current=3000;attemptPendingRetry();};
+    window.addEventListener('online',onOnline);
+    retryTimerRef.current=setTimeout(function tick(){
+      attemptPendingRetry();
+      retryDelayRef.current=Math.min(retryDelayRef.current*2,30000);
+      retryTimerRef.current=setTimeout(tick,retryDelayRef.current);
+    },retryDelayRef.current);
+    return()=>{window.removeEventListener('online',onOnline);clearTimeout(retryTimerRef.current);};
+    // eslint-disable-next-line
+  },[syncOffline]);
 
   const closeCurrentLog=useCallback(async()=>{
     if(activityLogIdRef.current){await closeActivityLog(activityLogIdRef.current);activityLogIdRef.current=null;}
@@ -899,9 +950,11 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
 
   const takeControlNow=useCallback(async()=>{
     if(!session)return;
-    const updated=await takeControl(session.id,session.version,coachId);
-    if(updated)setSession(updated);
-    else{const fresh=await findActiveLiveSession(practice.id);setSession(fresh);}
+    const {data:updated,offline}=await takeControl(session.id,session.version,coachId);
+    if(updated){setSession(updated);return;}
+    if(offline){setSyncOffline(true);pendingWriteRef.current={patch:{controller_user_id:coachId}};return;}
+    const fresh=await findActiveLiveSession(practice.id);
+    if(fresh)setSession(fresh);
   },[session,coachId,practice]);
 
   const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
@@ -993,6 +1046,10 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const schedBadge=schedDelta===null?null:(Math.abs(schedDelta)<1?<span style={{background:"var(--gbg)",color:"var(--green)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>On time</span>:schedDelta>0?<span style={{background:"var(--ambg)",color:"var(--amber)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>+{schedDelta}m behind</span>:<span style={{background:"var(--gbg)",color:"var(--green)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>{Math.abs(schedDelta)}m ahead</span>);
 
   return (<div className="ccs">
+    {syncOffline&&<div style={{background:"var(--rbg)",borderBottom:"1px solid var(--rb)",padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
+      <span style={{width:8,height:8,borderRadius:"50%",background:"var(--red)",flexShrink:0}}/>
+      <span style={{fontSize:12,color:"var(--red)",fontWeight:600}}>Offline — will sync automatically when reconnected</span>
+    </div>}
     {!isController&&<div style={{background:"var(--ambg)",borderBottom:"1px solid var(--ambb)",padding:"8px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
       <span style={{fontSize:12,color:"var(--amber)",fontWeight:600}}>Read-only — {controllerName} has control</span>
       <button className="btn primary bxs" onClick={takeControlNow}>Take Control</button>
