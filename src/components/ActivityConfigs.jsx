@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { uid } from "../constants.js";
+import { createAsset } from "../supabase.js";
 
 function DurStepper({value,min,onChange,step}){
   const s=step||1;const mn=min||1;
@@ -10,17 +11,29 @@ function DurStepper({value,min,onChange,step}){
   </div>);
 }
 
-export function ActConfig({act,team,loc,onChange,onDone,assets,update}){
+export function ActConfig({act,team,loc,onChange,onDone,assets,coachId,refreshLibrary}){
   const [newGearOpen,setNewGearOpen]=useState(false);
   const teamEquip=(assets||[]).filter(a=>!a.type||a.type==="team");
   const sport=act.sport||"General";
   const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General"));
+  const equip=Array.isArray(act.equipment)?act.equipment:[];
+  const toggleEquip=id=>{const has=equip.includes(id);onChange({equipment:has?equip.filter(x=>x!==id):[...equip,id]});};
+  const addInline=async(inputId,type,gearSport)=>{
+    const el=document.getElementById(inputId);
+    if(!el||!el.value.trim())return;
+    const nm=el.value.trim();
+    const {data:newAsset}=await createAsset(coachId,{name:nm,type,sport:type==="player"?gearSport:"General"});
+    if(newAsset)onChange({equipment:[...equip,newAsset.id]});
+    el.value="";
+    if(refreshLibrary)await refreshLibrary();
+    if(type==="player")setNewGearOpen(false);
+  };
   return (<div>
     <div className="fld"><label className="lbl">Name</label><input className="inp" value={act.name} onChange={e=>onChange({name:e.target.value})}/></div>
     <div className="fld"><label className="lbl">Duration (min)</label><DurStepper value={act.duration||10} min={1} onChange={v=>onChange({duration:v})}/></div>
     <div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:48}} value={act.description||""} onChange={e=>onChange({description:e.target.value})}/></div>
     <div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" value={act.coachingPoints||""} onChange={e=>onChange({coachingPoints:e.target.value})}/></div>
-    {team&&<div className="fld"><label className="lbl">Coach</label><select className="sel" value={act.coachId||""} onChange={e=>onChange({coachId:e.target.value,coachName:(team.coaches.find(c=>c.id===e.target.value)||{}).name||""})}><option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
+    {team&&<div className="fld"><label className="lbl">Coach</label><select className="sel" value={act.coachId||""} onChange={e=>onChange({coachId:e.target.value})}><option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
     {loc&&loc.sublocations&&loc.sublocations.length>0&&<div className="fld"><label className="lbl">Area</label><select className="sel" value={act.sublocationId||""} onChange={e=>onChange({sublocationId:e.target.value})}><option value="">Any</option>{loc.sublocations.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>}
     {/* Player Grouping */}
     <div className="fld"><label className="lbl">Player Grouping</label>
@@ -41,22 +54,22 @@ export function ActConfig({act,team,loc,onChange,onDone,assets,update}){
     {/* Team Equipment */}
     <div className="fld"><label className="lbl">Team Equipment</label>
       <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-        {teamEquip.map(a=>(<button key={a.id} type="button" onClick={()=>{const cur=Array.isArray(act.equipment)?act.equipment:[];const has=cur.includes(a.id);onChange({equipment:has?cur.filter(x=>x!==a.id):[...cur,a.id]});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:(Array.isArray(act.equipment)&&act.equipment.includes(a.id))?"var(--green)":"var(--s1)",color:(Array.isArray(act.equipment)&&act.equipment.includes(a.id))?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
+        {teamEquip.map(a=>(<button key={a.id} type="button" onClick={()=>toggleEquip(a.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:equip.includes(a.id)?"var(--green)":"var(--s1)",color:equip.includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
         {teamEquip.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No team equipment in library yet</span>}
       </div>
       <div style={{display:"flex",gap:6}}>
         <input className="inp" placeholder="Add new equipment..." id="actcfg-equip-inp" style={{flex:1}}/>
-        <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("actcfg-equip-inp");if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();if(update)update(d=>{d.assets.push({id:newId,name:nm,type:"team",sport:"General",locationTags:[]});return d;});const cur=Array.isArray(act.equipment)?act.equipment:[];onChange({equipment:[...cur,newId]});el.value="";}}>Add</button>
+        <button type="button" className="btn ghost bxs" onClick={()=>addInline("actcfg-equip-inp","team")}>Add</button>
       </div>
     </div>
     {/* Player Gear */}
     {playerGearAssets.length>0&&<div className="fld"><label className="lbl">Player Gear Needed</label>
       <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-        {playerGearAssets.map(a=>{const sel=(act.playerGear||"").split(",").map(s=>s.trim()).includes(a.name);return(<button key={a.id} type="button" onClick={()=>{const cur=(act.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);const next=sel?cur.filter(x=>x!==a.name):[...cur,a.name];onChange({playerGear:next.join(", ")});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:sel?"var(--green)":"var(--s1)",color:sel?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>);})}
+        {playerGearAssets.map(a=>(<button key={a.id} type="button" onClick={()=>toggleEquip(a.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:equip.includes(a.id)?"var(--green)":"var(--s1)",color:equip.includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
       </div>
       {newGearOpen?<div style={{display:"flex",gap:6}}>
         <input className="inp" style={{flex:1}} placeholder="Gear name..." id="actcfg-gear-inp" autoFocus/>
-        <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("actcfg-gear-inp");if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();if(update)update(d=>{d.assets.push({id:newId,name:nm,type:"player",sport,locationTags:[]});return d;});const cur=(act.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);onChange({playerGear:[...cur,nm].join(", ")});setNewGearOpen(false);}}>Add</button>
+        <button type="button" className="btn ghost bxs" onClick={()=>addInline("actcfg-gear-inp","player",sport)}>Add</button>
         <button type="button" className="btn ghost bxs" onClick={()=>setNewGearOpen(false)}>✕</button>
       </div>:<button type="button" className="btn ghost bxs" onClick={()=>setNewGearOpen(true)}>+ New Gear</button>}
     </div>}
@@ -64,7 +77,7 @@ export function ActConfig({act,team,loc,onChange,onDone,assets,update}){
       <div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>No player gear for {sport} yet.</div>
       {newGearOpen?<div style={{display:"flex",gap:6}}>
         <input className="inp" style={{flex:1}} placeholder="Gear name..." id="actcfg-gear-inp" autoFocus/>
-        <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("actcfg-gear-inp");if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();if(update)update(d=>{d.assets.push({id:newId,name:nm,type:"player",sport,locationTags:[]});return d;});const cur=(act.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);onChange({playerGear:[...cur,nm].join(", ")});setNewGearOpen(false);}}>Add</button>
+        <button type="button" className="btn ghost bxs" onClick={()=>addInline("actcfg-gear-inp","player",sport)}>Add</button>
         <button type="button" className="btn ghost bxs" onClick={()=>setNewGearOpen(false)}>✕</button>
       </div>:<button type="button" className="btn ghost bxs" onClick={()=>setNewGearOpen(true)}>+ Add Gear</button>}
     </div>}
@@ -91,14 +104,26 @@ export function ChecklistConfig({act,onChange,onDone}){
   </div>);
 }
 
-export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update,teamSport}){
+export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,refreshLibrary,teamSport,libraryDrills}){
   const rotate=act.rotate!==false;
   const [newEquipIdx,setNewEquipIdx]=useState(null);
   const [newGearIdx,setNewGearIdx]=useState(null);
+  const [libraryPickerIdx,setLibraryPickerIdx]=useState(null);
   const sport=teamSport||"General";
   const players=team?team.players:[];
   const teamEquipAssets=(assets||[]).filter(a=>!a.type||a.type==="team");
   const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General"));
+  const filteredLibrary=(libraryDrills||[]).filter(a=>(a.sport||"General")===sport||(a.sport||"General")==="General");
+  const chooseFromLibrary=(si,lib)=>{
+    const st=act.stations[si];
+    onSt(st.id,{
+      activityName:lib.name,name:lib.name,
+      coachingPoints:lib.coachingPoints||st.coachingPoints||"",
+      equipment:Array.isArray(lib.equipment)?lib.equipment:[],
+      libraryId:lib.id,
+    });
+    setLibraryPickerIdx(null);
+  };
 
   const genRandom=()=>{
     const n=act.stations.length;
@@ -143,7 +168,17 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update,t
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:900,color:"var(--green)",letterSpacing:".05em"}}>STATION {si+1}</div>
           {act.stations.length>1&&<button type="button" onClick={()=>removeStation(si)} style={{background:"none",border:"none",color:"var(--td)",fontSize:12,cursor:"pointer",padding:"2px 6px"}}>Remove</button>}
         </div>
-        <div className="fld"><label className="lbl">Name</label><input className="inp" value={st.activityName||st.name||""} onChange={e=>onSt(st.id,{activityName:e.target.value,name:e.target.value})}/></div>
+        <div className="fld">
+          <label className="lbl">Name</label>
+          <input className="inp" placeholder="Write your own, or choose from library below" value={st.activityName||st.name||""} onChange={e=>onSt(st.id,{activityName:e.target.value,name:e.target.value})}/>
+          <button type="button" className="btn ghost bxs mt6" onClick={()=>setLibraryPickerIdx(libraryPickerIdx===si?null:si)}>{st.libraryId?"Change Library Drill":"Choose from Library"}</button>
+          {libraryPickerIdx===si&&<div style={{marginTop:6,border:"1px solid var(--b)",borderRadius:"var(--rs)",maxHeight:180,overflowY:"auto",background:"#fff"}}>
+            {filteredLibrary.length===0&&<div style={{padding:10,fontSize:12,color:"var(--td)"}}>No drills in library for {sport} yet.</div>}
+            {filteredLibrary.map(lib=>(<div key={lib.id} className="li tap" style={{marginBottom:0,borderRadius:0,borderLeft:"none",borderRight:"none",borderTop:"none"}} onClick={()=>chooseFromLibrary(si,lib)}>
+              <div className="lim"><div className="lin">{lib.name}</div>{lib.description&&<div className="limt">{lib.description}</div>}</div>
+            </div>))}
+          </div>}
+        </div>
         {team&&team.coaches.length>0&&<div className="fld"><label className="lbl">Coach</label>
           <select className="sel" value={st.coachId||""} onChange={e=>{const c=team.coaches.find(c=>c.id===e.target.value);onSt(st.id,{coachId:e.target.value,coachName:c?c.name:""});}}>
             <option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
@@ -162,17 +197,17 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,update,t
           </div>
           {newEquipIdx===si?<div style={{display:"flex",gap:6}}>
             <input className="inp" style={{flex:1}} placeholder="Equipment name..." id={"new-st-equip-"+si} autoFocus/>
-            <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-st-equip-"+si);if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();if(update)update(d=>{d.assets.push({id:newId,name:nm,type:"team",sport:"General",locationTags:[]});return d;});onSt(st.id,{equipment:[...stEquip,newId]});setNewEquipIdx(null);}}>Add</button>
+            <button type="button" className="btn ghost bxs" onClick={async()=>{const el=document.getElementById("new-st-equip-"+si);if(!el||!el.value.trim())return;const nm=el.value.trim();const {data:newAsset}=await createAsset(coachId,{name:nm,type:"team",sport:"General"});if(newAsset)onSt(st.id,{equipment:[...stEquip,newAsset.id]});el.value="";if(refreshLibrary)await refreshLibrary();setNewEquipIdx(null);}}>Add</button>
             <button type="button" className="btn ghost bxs" onClick={()=>setNewEquipIdx(null)}>✕</button>
           </div>:<button type="button" className="btn ghost bxs" onClick={()=>setNewEquipIdx(si)}>+ New</button>}
         </div>
         {(playerGearAssets.length>0||newGearIdx===si)&&<div className="fld"><label className="lbl">Player Gear Needed</label>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-            {playerGearAssets.map(a=>{const gearList=(st.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);const sel=gearList.includes(a.name);return(<button key={a.id} type="button" onClick={()=>{const cur=gearList;const next=sel?cur.filter(x=>x!==a.name):[...cur,a.name];onSt(st.id,{playerGear:next.join(", ")});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:sel?"var(--green)":"#fff",color:sel?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>);})}
+            {playerGearAssets.map(a=>(<button key={a.id} type="button" onClick={()=>{const has=stEquip.includes(a.id);onSt(st.id,{equipment:has?stEquip.filter(x=>x!==a.id):[...stEquip,a.id]});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:stEquip.includes(a.id)?"var(--green)":"#fff",color:stEquip.includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
           </div>
           {newGearIdx===si?<div style={{display:"flex",gap:6}}>
             <input className="inp" style={{flex:1}} placeholder="Gear name..." id={"new-st-gear-"+si} autoFocus/>
-            <button type="button" className="btn ghost bxs" onClick={()=>{const el=document.getElementById("new-st-gear-"+si);if(!el||!el.value.trim())return;const nm=el.value.trim();const newId=uid();if(update)update(d=>{d.assets.push({id:newId,name:nm,type:"player",sport,locationTags:[]});return d;});const cur=(st.playerGear||"").split(",").map(s=>s.trim()).filter(Boolean);onSt(st.id,{playerGear:[...cur,nm].join(", ")});setNewGearIdx(null);}}>Add</button>
+            <button type="button" className="btn ghost bxs" onClick={async()=>{const el=document.getElementById("new-st-gear-"+si);if(!el||!el.value.trim())return;const nm=el.value.trim();const {data:newAsset}=await createAsset(coachId,{name:nm,type:"player",sport});if(newAsset)onSt(st.id,{equipment:[...stEquip,newAsset.id]});el.value="";if(refreshLibrary)await refreshLibrary();setNewGearIdx(null);}}>Add</button>
             <button type="button" className="btn ghost bxs" onClick={()=>setNewGearIdx(null)}>✕</button>
           </div>:<button type="button" className="btn ghost bxs" onClick={()=>setNewGearIdx(si)}>+ New Gear</button>}
         </div>}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { loadData, saveData, flushSave, setCoachKey, sendMagicLink, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayerFocusAreas, fetchLibraryData } from "./supabase.js";
+import { loadData, saveData, flushSave, setCoachKey, sendMagicLink, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayerFocusAreas, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
@@ -8,6 +8,20 @@ import CommandScreen, { HelperView, HistoryViewer, PreviewView } from "./compone
 import { createPreviewSession } from "./supabase.js";
 
 // INIT, DEMO_INIT, migrateData, uid, fmt, sumMins, etc. imported from constants.js
+
+// "Run Again" copies a past practice's activities into a brand-new one --
+// every nested id (activity, station) must be regenerated as a fresh local
+// id first, or savePracticeTree's isDbId check would treat them as
+// already-saved rows belonging to the OLD practice and silently reparent
+// (steal) them instead of inserting real copies.
+function stripIdsForCopy(acts){
+  return JSON.parse(JSON.stringify(acts||[])).map(a=>{
+    a.id=uid();
+    if(a.type==="station_block"&&Array.isArray(a.stations))a.stations=a.stations.map(s=>Object.assign({},s,{id:uid()}));
+    if(a.type==="checklist"&&Array.isArray(a.items))a.items=a.items.map(it=>Object.assign({},it,{id:uid()}));
+    return a;
+  });
+}
 
 const CSS=`
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=DM+Mono:wght@400;500&family=Barlow:wght@400;500;600&display=swap');
@@ -270,19 +284,19 @@ function PracticeDetail({practice,data,update,setView,setLiveId,setEditPracticeI
   </div>);
 }
 
-function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPracticeId,refreshTeams}){
+function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPracticeId,refreshTeams,refreshPlanning}){
   const [selectedTeam,setSelectedTeam]=useState(null);
   const [teamTab,setTeamTab]=useState("practices");
   const [selectedPractice,setSelectedPractice]=useState(null);
   const myTeams=data.teams;
   const [practiceMenuId,setPracticeMenuId]=useState(null);
-  const delPractice=id=>{update(d=>{d.practices=d.practices.filter(p=>p.id!==id);return d;});if(selectedPractice&&selectedPractice.id===id)setSelectedPractice(null);};
+  const delPractice=async id=>{await archivePractice(id);await refreshPlanning();if(selectedPractice&&selectedPractice.id===id)setSelectedPractice(null);};
   const now=new Date();
   const todayStr=now.toISOString().slice(0,10);
   const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
   if(selectedPractice){
     const isPast=selectedPractice.date<new Date().toISOString().slice(0,10);
-    if(isPast)return(<div style={{padding:"14px 14px calc(var(--tab)+40px)"}}><HistoryViewer data={data} update={update} practice={selectedPractice} onRunAgain={()=>{const now=new Date();const newId=uid();const copy=JSON.parse(JSON.stringify(selectedPractice));copy.id=newId;copy.date=now.toISOString().slice(0,10);copy.startTime=now.toTimeString().slice(0,5);update(d=>{d.practices.push(copy);return d;});setSelectedPractice(null);setLiveId(newId);setView("command");}} onBack={()=>setSelectedPractice(null)}/></div>);
+    if(isPast)return(<div style={{padding:"14px 14px calc(var(--tab)+40px)"}}><HistoryViewer data={data} update={update} practice={selectedPractice} onRunAgain={async()=>{const now=new Date();const {data:saved}=await savePracticeTree(null,{teamId:selectedPractice.teamId,locationId:selectedPractice.locationId,date:now.toISOString().slice(0,10),startTime:now.toTimeString().slice(0,5),activities:stripIdsForCopy(selectedPractice.activities)});await refreshPlanning();setSelectedPractice(null);if(saved){setLiveId(saved.id);setView("command");}}} onBack={()=>setSelectedPractice(null)}/></div>);
     return (<PracticeDetail practice={selectedPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} coachId={coachId} onBack={()=>setSelectedPractice(null)}/>);
   }
   if(selectedTeam){
@@ -394,7 +408,7 @@ function AuthScreen(){
     </div>
   </div>);
 }
-function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSignOut,setEditPracticeId}){
+function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSignOut,setEditPracticeId,refreshPlanning}){
   const now=new Date();
   const todayStr=now.toISOString().slice(0,10);
   const hour=now.getHours();
@@ -417,7 +431,7 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSignOut,
   const greeting=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
   const [practiceMenuId,setPracticeMenuId]=useState(null);
   const [viewPractice,setViewPractice]=useState(null);
-  const delPractice=id=>{update(d=>{d.practices=d.practices.filter(p=>p.id!==id);return d;});if(viewPractice&&viewPractice.id===id)setViewPractice(null);};
+  const delPractice=async id=>{await archivePractice(id);await refreshPlanning();if(viewPractice&&viewPractice.id===id)setViewPractice(null);};
   if(viewPractice)return (<div style={{padding:"0 0 calc(var(--tab) + 20px)"}}><PracticeDetail practice={viewPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} coachId={coachId} onBack={()=>setViewPractice(null)}/></div>);
   return (<div style={{padding:"0 0 calc(var(--tab) + 20px)"}}>
     <div style={{padding:"20px 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -468,7 +482,7 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSignOut,
           <div style={{position:"relative"}}>
             <button className="ell-btn" onClick={e=>{e.stopPropagation();setPracticeMenuId(practiceMenuId===p.id?null:p.id);}}><span/><span/><span/></button>
             {practiceMenuId===p.id&&<div className="mini-menu" style={{right:0,minWidth:160}}>
-              <button className="mm-item" onClick={()=>{setPracticeMenuId(null);const now=new Date();const newId=uid();const copy=JSON.parse(JSON.stringify(p));copy.id=newId;copy.date=now.toISOString().slice(0,10);copy.startTime=now.toTimeString().slice(0,5);update(d=>{d.practices.push(copy);return d;});if(setEditPracticeId)setEditPracticeId(newId);setView("builder");}}>Run Again</button>
+              <button className="mm-item" onClick={async()=>{setPracticeMenuId(null);const now=new Date();const {data:saved}=await savePracticeTree(null,{teamId:p.teamId,locationId:p.locationId,date:now.toISOString().slice(0,10),startTime:now.toTimeString().slice(0,5),activities:stripIdsForCopy(p.activities)});await refreshPlanning();if(saved){if(setEditPracticeId)setEditPracticeId(saved.id);setView("builder");}}}>Run Again</button>
               <button className="mm-item mm-danger" onClick={()=>{delPractice(p.id);setPracticeMenuId(null);}}>Delete</button>
             </div>}
           </div>
@@ -519,7 +533,14 @@ export default function App(){
     setLibrary(await fetchLibraryData());
   },[coachId]);
   useEffect(()=>{refreshLibrary();},[refreshLibrary]);
-  const fullData=useMemo(()=>Object.assign({},data,{teams},library),[data,teams,library]);
+  const [planning,setPlanning]=useState({locations:[],practices:[],templates:[]});
+  const refreshPlanning=useCallback(async()=>{
+    if(!coachId)return;
+    const [locations,practices,templates]=await Promise.all([fetchLocations(),fetchPracticesFull(),fetchTemplatesFull()]);
+    setPlanning({locations,practices,templates});
+  },[coachId]);
+  useEffect(()=>{refreshPlanning();},[refreshPlanning]);
+  const fullData=useMemo(()=>Object.assign({},data,{teams},library,planning),[data,teams,library,planning]);
   const openModal=(t,p)=>setModal({type:t,payload:p||{}});
   const closeModal=()=>setModal(null);
   const launchRun=id=>{if(id)setLiveId(id);setView("command");};
@@ -544,10 +565,10 @@ export default function App(){
   return (<div style={{display:"contents"}}>
     <div className="app">
       <div className="screen">
-        {view==="today"&&<TodayScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSignOut={signOut} setEditPracticeId={setEditPracticeId}/>}
-        {view==="teams"&&<TeamsScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams}/>}
-        {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun} setEditPracticeId={setEditPracticeId} refreshLibrary={refreshLibrary} coachId={coachId}/>}
-        {view==="builder"&&<BuilderScreen data={fullData} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId}/>}
+        {view==="today"&&<TodayScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSignOut={signOut} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning}/>}
+        {view==="teams"&&<TeamsScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning}/>}
+        {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun} setEditPracticeId={setEditPracticeId} refreshLibrary={refreshLibrary} coachId={coachId} refreshPlanning={refreshPlanning}/>}
+        {view==="builder"&&<BuilderScreen data={fullData} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
         {view==="command"&&<CommandScreen data={fullData} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} setView={setView}/>}
       </div>
       {view!=="command"&&<nav className="tabbar">
@@ -558,7 +579,7 @@ export default function App(){
         ))}
       </nav>}
     </div>
-    {modal&&<ModalLayer modal={modal} data={fullData} update={update} closeModal={closeModal} refreshTeams={refreshTeams} refreshLibrary={refreshLibrary} coachId={coachId}/>}
+    {modal&&<ModalLayer modal={modal} data={fullData} update={update} closeModal={closeModal} refreshTeams={refreshTeams} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} coachId={coachId}/>}
   </div>);
 }
 
@@ -610,9 +631,9 @@ function DurStepper({value,min,onChange,step}){
   );
 }
 
-function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPracticeId}){
+function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPracticeId,coachId,refreshPlanning,refreshLibrary}){
   const editP=editPracticeId?data.practices.find(p=>p.id===editPracticeId):null;
-  const [existingId]=useState(editP?editP.id:null);
+  const [existingId,setExistingId]=useState(editP?editP.id:null);
   const [teamId,setTeamId]=useState(editP?editP.teamId:(data.teams[0]?data.teams[0].id:""));
   const lastLocForTeam=(tid)=>{const tps=data.practices.filter(p=>p.teamId===tid&&p.locationId).sort((a,b)=>b.date>a.date?1:-1);return tps.length?tps[0].locationId:(data.locations[0]?data.locations[0].id:"");};
   const [locId,setLocId]=useState(editP?editP.locationId:lastLocForTeam(editP?editP.teamId:(data.teams[0]?data.teams[0].id:"")));
@@ -641,11 +662,10 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
     setActs(p=>[...p,a]);setExpandedId(a.id);
   };
   const addBlock=()=>{
-    const n=3;const groups=mkGroups(allPlayerIds,n);
+    const n=2;const groups=mkGroups(allPlayerIds,n);
     const b={id:uid(),type:"station_block",rotate:true,stationDuration:10,transitionDuration:2,stations:[
       {id:uid(),name:"Station 1",activityName:"",coachId:headCoachId,sublocationId:"",assignments:groups[0]||[],coachingPoints:"",equipment:[],playerGear:""},
       {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:groups[1]||[],coachingPoints:"",equipment:[],playerGear:""},
-      {id:uid(),name:"Station 3",activityName:"",coachId:"",sublocationId:"",assignments:groups[2]||[],coachingPoints:"",equipment:[],playerGear:""},
     ]};
     setActs(p=>[...p,b]);setExpandedId(b.id);
   };
@@ -656,46 +676,30 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const onDO=e=>{e.preventDefault();e.dataTransfer.dropEffect="move";};
   const onDrop=(e,i)=>{e.preventDefault();if(dragIdx.current===null||dragIdx.current===i){dragIdx.current=null;return;}setActs(p=>{const arr=[...p],[mv]=arr.splice(dragIdx.current,1);arr.splice(i,0,mv);return arr;});dragIdx.current=null;};
   const onDE=()=>{dragIdx.current=null;};
-  const doSchedule=(dateVal,timeVal,durVal)=>{
+  const doSchedule=async(dateVal,timeVal)=>{
     if(!dateVal)return;
-    update(d=>{
-      d.practices=d.practices.filter(p=>!(p.teamId===teamId&&p.date===dateVal));
-      d.practices.push({id:uid(),teamId,date:dateVal,locationId:locId,startTime:timeVal||"",durMin:+(durVal||60),activities:acts});
-      return d;
-    });
+    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:dateVal,startTime:timeVal||"",activities:acts});
+    if(saved)setExistingId(saved.id);
+    await refreshPlanning();
     setBottomMode("done_sched");
   };
-  const doSaveTpl=(tname)=>{
+  const doSaveTpl=async(tname)=>{
     if(!tname.trim())return;
-    update(d=>{
-      if(!d.templates)d.templates=[];
-      const existing=d.templates.findIndex(t=>t.name===tname&&t.sport===teamSport);
-      const tpl={id:existing>=0?d.templates[existing].id:uid(),name:tname,sport:teamSport,teamId,activities:JSON.parse(JSON.stringify(acts))};
-      if(existing>=0)d.templates[existing]=tpl;
-      else d.templates.push(tpl);
-      return d;
-    });
+    await saveTemplateTree(coachId,null,{name:tname,sport:teamSport,locationId:locId,activities:acts});
+    await refreshPlanning();
     setBottomMode("done_tpl");
     setTimeout(()=>setBottomMode(null),2000);
   };
-  const handleSave=()=>{
-    if(existingId){
-      update(d=>{const p=d.practices.find(p=>p.id===existingId);if(p){p.teamId=teamId;p.locationId=locId;p.activities=acts;p.durMin=totalMins;if(schedDate)p.date=schedDate;if(schedTime)p.startTime=schedTime;}return d;});
-      if(setEditPracticeId)setEditPracticeId(null);
-    }else{
-      const now=new Date();const newId=uid();
-      update(d=>{d.practices.push({id:newId,teamId,locationId:locId,date:schedDate||now.toISOString().slice(0,10),startTime:schedTime||now.toTimeString().slice(0,5),durMin:totalMins,activities:acts});return d;});
-    }
+  const handleSave=async()=>{
+    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,activities:acts});
+    if(saved)setExistingId(saved.id);
+    await refreshPlanning();
+    if(existingId&&setEditPracticeId)setEditPracticeId(null);
   };
-  const handleRun=()=>{
-    if(existingId){
-      update(d=>{const p=d.practices.find(p=>p.id===existingId);if(p){p.teamId=teamId;p.locationId=locId;p.activities=acts;p.durMin=totalMins;}return d;});
-      launchRun(existingId);
-    }else{
-      const now=new Date();const newId=uid();
-      update(d=>{d.practices.push({id:newId,teamId,locationId:locId,date:schedDate||now.toISOString().slice(0,10),startTime:schedTime||now.toTimeString().slice(0,5),durMin:totalMins,activities:acts});return d;});
-      launchRun(newId);
-    }
+  const handleRun=async()=>{
+    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,activities:acts});
+    await refreshPlanning();
+    if(saved)launchRun(saved.id);
   };
   return (<div style={{paddingBottom:80}}>
       <div style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)",padding:"8px 14px",display:"flex",gap:6}}>
@@ -770,9 +774,9 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
               </div>
             </div>
             {expandedId===act.id&&(<div className="abbody">
-                {act.type==="activity"&&<ActConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
+                {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
                 {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-                {act.type==="station_block"&&<StationConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport}/>}
+                {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport} libraryDrills={data.activityLibrary}/>}
               </div>
             )}
           </div>
@@ -785,7 +789,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
           <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(true)}><div className="lim"><div className="lin">Closer</div><div className="limt">Checklist</div></div><span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span></div>
         </div>
         <div className="li tap" style={{marginBottom:6,background:"var(--gbg)",borderColor:"var(--gb)"}} onClick={addBlock}>
-          <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">3 stations, players auto-split</div></div>
+          <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">2 stations, add or remove as needed</div></div>
           <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
         </div>
         {team&&<div className="clbl" style={{marginBottom:8}}>{teamSport} + General</div>}
@@ -859,7 +863,6 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams}){
   const delTeam=async()=>{
     const rem=data.teams.filter(t=>t.id!==teamId);
     await archiveTeam(teamId);
-    update(d=>{d.practices=d.practices.filter(p=>p.teamId!==teamId);d.templates=(d.templates||[]).filter(t=>t.teamId!==teamId);d.notes=d.notes.filter(n=>!n.practiceId||(d.practices.some(p=>p.id===n.practiceId)));return d;});
     await refreshTeams();
     setConfirmDel(false);setTeamId(rem[0]?rem[0].id:"");
   };

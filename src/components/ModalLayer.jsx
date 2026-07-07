@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { uid } from "../constants.js";
-import { createTeam, updateTeam, createPlayer, updatePlayer, createStaff, updateStaff, createAsset, updateAsset, createDrill, updateDrill, createSkillTag } from "../supabase.js";
+import { createTeam, updateTeam, createPlayer, updatePlayer, createStaff, updateStaff, createAsset, updateAsset, createDrill, updateDrill, createSkillTag, createLocation, updateLocation, createSublocation } from "../supabase.js";
 
 const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
 const STAFF_ROLES=["Head Coach","Assistant Coach","Helper"];
@@ -16,7 +16,7 @@ function DurStepper({value,min,onChange,step}){
   );
 }
 
-export default function ModalLayer({modal,data,update,closeModal,refreshTeams,refreshLibrary,coachId}){
+export default function ModalLayer({modal,data,update,closeModal,refreshTeams,refreshLibrary,refreshPlanning,coachId}){
   const defaultSport=()=>{
     const lib=data.activityLibrary||[];
     if(lib.length>0)return lib[lib.length-1].sport||"Basketball";
@@ -65,11 +65,11 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     if(t==="editTeam"){if(!f.name)return;await updateTeam(p.team.id,{name:f.name,sport:f.sport||"Basketball"});await refreshTeams();}
     if(t==="addPlayer"){if(!f.firstName)return;await createPlayer(p.teamId,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:parsePositions(f.positions),notes:f.notes||""});await refreshTeams();}
     if(t==="editPlayer"){if(!f.firstName)return;await updatePlayer(p.player.id,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:parsePositions(f.positions),notes:f.notes||""});await refreshTeams();}
-    if(t==="addCoach"){if(!f.name)return;await createStaff(p.teamId,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail||""});await refreshTeams();}
-    if(t==="editCoach"){if(!f.name)return;await updateStaff(p.coach.id,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail||""});await refreshTeams();}
-    if(t==="addLocation"){if(!f.name)return;update(d=>{d.locations.push({id:uid(),name:f.name,sublocations:[]});return d;});}
-    if(t==="editLocation"){if(!f.name)return;update(d=>{const l=d.locations.find(l=>l.id===p.location.id);if(l)l.name=f.name;return d;});}
-    if(t==="addSublocation"){if(!f.name)return;update(d=>{const l=d.locations.find(l=>l.id===p.locationId);if(l)l.sublocations.push({id:uid(),name:f.name});return d;});}
+    if(t==="addCoach"){if(!f.name||!f.inviteEmail)return;await createStaff(p.teamId,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail});await refreshTeams();}
+    if(t==="editCoach"){if(!f.name)return;if(!coach.userId&&!f.inviteEmail)return;await updateStaff(p.coach.id,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail||""});await refreshTeams();}
+    if(t==="addLocation"){if(!f.name)return;await createLocation(coachId,f.name);await refreshPlanning();}
+    if(t==="editLocation"){if(!f.name)return;await updateLocation(p.location.id,f.name);await refreshPlanning();}
+    if(t==="addSublocation"){if(!f.name)return;await createSublocation(p.locationId,f.name);await refreshPlanning();}
     if(t==="addAsset"){if(!f.name)return;await createAsset(coachId,{name:f.name,type:f.assetType||"team",sport:f.assetSport||"General"});await refreshLibrary();}
     if(t==="editAsset"){if(!f.name)return;await updateAsset(p.asset.id,{name:f.name,sport:p.asset.sport||"General"});await refreshLibrary();}
     if(t==="addActivity"){
@@ -117,7 +117,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
                 {STAFF_ROLES.map(r=>(<button key={r} type="button" className={"btn bsm "+((f.role||"Assistant Coach")===r?"primary":"ghost")} onClick={()=>set("role",r)}>{r}</button>))}
               </div>
             </div>
-            <div className="fld"><label className="lbl">Invite Email (optional)</label><input className="inp" type="email" placeholder="For staff without an account yet" value={f.inviteEmail||""} onChange={e=>set("inviteEmail",e.target.value)}/></div>
+            {!(coach&&coach.userId)&&<div className="fld"><label className="lbl">Invite Email</label><input className="inp" type="email" placeholder="Required until they create an account" value={f.inviteEmail||""} onChange={e=>set("inviteEmail",e.target.value)}/></div>}
           </div>
         )}
         {(modal.type==="addLocation"||modal.type==="editLocation"||modal.type==="addSublocation")&&(<div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>

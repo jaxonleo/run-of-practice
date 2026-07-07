@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid, sumMins } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
-import { createAsset, updateAsset, archiveAsset, archiveDrill, setDrillShare, copyDrillToMyLibrary } from "../supabase.js";
+import { createAsset, updateAsset, archiveAsset, archiveDrill, setDrillShare, copyDrillToMyLibrary, archiveLocation, savePracticeTree, saveTemplateTree, archiveTemplate } from "../supabase.js";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -137,40 +137,24 @@ function EquipmentTab({data,coachId,refreshLibrary,openModal}){
 }
 
 // ── TemplateWorkspace ─────────────────────────────────────────────────────────
-function TemplateWorkspace({data,update,template,onRun,onBack,openModal}){
+// team/players/coach assignment is deliberately NOT shown while editing a
+// template (team={null} passed to ActConfig/StationConfig below) -- templates
+// aren't team-scoped in the new schema (reusable across every team a coach
+// coaches), so there's nowhere to persist a specific coach or player
+// assignment at the template level, only sublocation (coach/org-owned, not
+// team-owned). teamId here is pure local UI state: which team's roster to
+// preview against and which team a practice defaults to when run/scheduled
+// from this template.
+function TemplateWorkspace({data,template,onRun,onBack,openModal,coachId,refreshLibrary,refreshPlanning}){
   const [name,setName]=useState(template.name);
   const [sport,setSport]=useState(template.sport||"General");
   const [teamId,setTeamId]=useState(()=>{
-    if(template.teamId&&data.teams.find(t=>t.id===template.teamId))return template.teamId;
     const match=data.teams.find(t=>(t.sport||"General")===template.sport);
     return match?match.id:(data.teams[0]?data.teams[0].id:"");
   });
   const [locId,setLocId]=useState(()=>template.locationId||(data.locations[0]?data.locations[0].id:""));
-  const [acts,setActs]=useState(()=>{
-    // Migrate old template activities — patch missing fields, backfill from library where possible
-    const raw=JSON.parse(JSON.stringify(template.activities||[]));
-    raw.forEach(a=>{
-      if(a.type==="activity"){
-        // Backfill from library drill if we have a libraryId
-        const libDrill=a.libraryId?(data.activityLibrary||[]).find(l=>l.id===a.libraryId):null;
-        if(!a.description&&libDrill&&libDrill.description)a.description=libDrill.description;
-        if(!a.grouping)a.grouping=libDrill?libDrill.grouping||"whole":"whole";
-        if(!a.numGroups)a.numGroups=libDrill?libDrill.numGroups||2:2;
-        if(!a.playerGear&&libDrill)a.playerGear=libDrill.playerGear||"";
-        if(!Array.isArray(a.equipment))a.equipment=libDrill&&Array.isArray(libDrill.equipment)?libDrill.equipment:[];
-      }
-      if(a.type==="station_block"){
-        if(a.rotate===undefined)a.rotate=true;
-        (a.stations||[]).forEach(s=>{
-          if(!Array.isArray(s.equipment))s.equipment=[];
-          if(!s.playerGear)s.playerGear="";
-          if(!s.coachingPoints)s.coachingPoints="";
-          if(!s.assignments)s.assignments=[];
-        });
-      }
-    });
-    return raw;
-  });
+  const [acts,setActs]=useState(()=>JSON.parse(JSON.stringify(template.activities||[])));
+  const [existingId,setExistingId]=useState(template.id);
   const [expandedId,setExpandedId]=useState(null);
   const [savedMsg,setSavedMsg]=useState(null);
   const [newTplName,setNewTplName]=useState("");
@@ -185,43 +169,39 @@ function TemplateWorkspace({data,update,template,onRun,onBack,openModal}){
   const remAct=id=>setActs(p=>p.filter(a=>a.id!==id));
   const equipNames=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
 
-  const handleRun=()=>{
+  const handleRun=async()=>{
     const now=new Date();
-    const newId=uid();
-    const p={id:newId,teamId,locationId:locId,date:now.toISOString().slice(0,10),startTime:now.toTimeString().slice(0,5),durMin:sumMins(acts),activities:JSON.parse(JSON.stringify(acts)),fromTemplate:template.id};
-    update(d=>{d.practices.push(p);return d;});
-    if(onRun)onRun(p);
+    const dateStr=now.toISOString().slice(0,10);
+    const timeStr=now.toTimeString().slice(0,5);
+    const {data:saved}=await savePracticeTree(null,{teamId,locationId:locId,date:dateStr,startTime:timeStr,activities:acts});
+    await refreshPlanning();
+    if(saved&&onRun)onRun(saved.id);
   };
 
-  const handleSave=()=>{
-    update(d=>{
-      const idx=d.templates.findIndex(t=>t.id===template.id);
-      if(idx>=0)d.templates[idx]=Object.assign({},d.templates[idx],{name,sport,teamId,locationId:locId,activities:JSON.parse(JSON.stringify(acts))});
-      return d;
-    });
+  const handleSave=async()=>{
+    const {data:saved}=await saveTemplateTree(coachId,existingId,{name,sport,locationId:locId,activities:acts});
+    if(saved)setExistingId(saved.id);
+    await refreshPlanning();
     setSavedMsg("Template saved!");
     setTimeout(()=>setSavedMsg(null),2000);
   };
 
-  const handleSaveAsNew=()=>{
+  const handleSaveAsNew=async()=>{
     if(!newTplName.trim())return;
-    update(d=>{
-      d.templates.push({id:uid(),name:newTplName.trim(),sport,teamId,locationId:locId,activities:JSON.parse(JSON.stringify(acts))});
-      return d;
-    });
+    await saveTemplateTree(coachId,null,{name:newTplName.trim(),sport,locationId:locId,activities:acts});
+    await refreshPlanning();
     setSavedMsg("Saved as \""+newTplName.trim()+"\"!");
     setShowNewTpl(false);setNewTplName("");
     setTimeout(()=>setSavedMsg(null),2000);
   };
 
-  const handleSchedule=()=>{
+  const handleSchedule=async()=>{
     if(!schedDate)return;
-    const newId=uid();
-    const p={id:newId,teamId,locationId:locId,date:schedDate,startTime:schedTime,durMin:sumMins(acts),activities:JSON.parse(JSON.stringify(acts)),fromTemplate:template.id};
-    update(d=>{d.practices.push(p);return d;});
+    const {data:saved}=await savePracticeTree(null,{teamId,locationId:locId,date:schedDate,startTime:schedTime,activities:acts});
+    await refreshPlanning();
     const [mo,da,yr]=[schedDate.slice(5,7),schedDate.slice(8,10),schedDate.slice(0,4)];
     const st=schedTime.split(":");const sh=parseInt(st[0]);const sm=st[1];const sampm=sh>=12?"PM":"AM";const s12=(sh%12||12)+":"+sm+" "+sampm;
-    setSavedMsg("Scheduled for "+mo+"-"+da+"-"+yr+" at "+s12+"!");
+    setSavedMsg(saved?("Scheduled for "+mo+"-"+da+"-"+yr+" at "+s12+"!"):"Something went wrong.");
     setSchedMode(false);
     setTimeout(()=>{setSavedMsg(null);onBack();},1500);
   };
@@ -287,9 +267,9 @@ function TemplateWorkspace({data,update,template,onRun,onBack,openModal}){
           </div>
         </div>
         {expandedId===act.id&&(<div className="abbody">
-          {act.type==="activity"&&<ActConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
+          {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
           {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-          {act.type==="station_block"&&<StationConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={team?team.sport:sport}/>}
+          {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={sport} libraryDrills={data.activityLibrary}/>}
         </div>)}
       </div>
     </div>))}
@@ -311,15 +291,13 @@ function TemplateWorkspace({data,update,template,onRun,onBack,openModal}){
         </div>
       </div>
       <div className="li tap" style={{marginBottom:6,background:"var(--gbg)",borderColor:"var(--gb)"}} onClick={()=>{
-        const n=3;
         const b={id:uid(),type:"station_block",rotate:true,stationDuration:10,transitionDuration:2,stations:[
           {id:uid(),name:"Station 1",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
           {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
-          {id:uid(),name:"Station 3",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
         ]};
         setActs(p=>[...p,b]);setExpandedId(b.id);
       }}>
-        <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">3 stations, rotate or static</div></div>
+        <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">2 stations, add or remove as needed</div></div>
         <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
       </div>
       {(()=>{
@@ -380,7 +358,7 @@ function TemplateWorkspace({data,update,template,onRun,onBack,openModal}){
 }
 
 // ── NewLibraryScreen ──────────────────────────────────────────────────────────
-export default function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,setEditPracticeId,refreshLibrary,coachId}){
+export default function NewLibraryScreen({data,openModal,setView,setLiveId,launchRun,setEditPracticeId,refreshLibrary,coachId,refreshPlanning}){
   const [libTab,setLibTab]=useState("drills");
   useEffect(()=>{window.__ropLibTab=setLibTab;return()=>{delete window.__ropLibTab;};},[]);
   const [openMenu,setOpenMenu]=useState(null);
@@ -408,7 +386,7 @@ export default function NewLibraryScreen({data,update,openModal,setView,setLiveI
   const doCopy=async(drill)=>{setCopyingId(drill.id);await copyDrillToMyLibrary(coachId,drill,assetsById);await refreshLibrary();setCopyingId(null);};
   const templates=data.templates||[];
   const LTABS=["drills","templates","locations","equipment"];
-  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} update={update} template={editingTpl} openModal={openModal} onRun={p=>{update(d=>{if(!d.practices.find(pr=>pr.id===p.id))d.practices.push(p);return d;});setLiveId(p.id);setView("command");}} onBack={()=>setEditingTpl(null)}/></div>);
+  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onRun={practiceId=>{setLiveId(practiceId);setView("command");}} onBack={()=>setEditingTpl(null)}/></div>);
   return (<div style={{paddingBottom:80}}>
     <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>Library</div>
@@ -479,7 +457,7 @@ export default function NewLibraryScreen({data,update,openModal,setView,setLiveI
           <button className="btn primary bmd bfull" onClick={()=>setEditingTpl(tpl)}>View / Edit</button>
         </div>
       </div>))}
-      {confirmDel&&<div className="movly" onClick={()=>setConfirmDel(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="mtitle">Delete template?</div><div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This cannot be undone.</div><div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDel(null)}>Cancel</button><button className="btn primary bmd" onClick={()=>{update(d=>{d.templates=d.templates.filter(t=>t.id!==confirmDel);return d;});setConfirmDel(null);}}>Delete</button></div></div></div>}
+      {confirmDel&&<div className="movly" onClick={()=>setConfirmDel(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="mtitle">Delete template?</div><div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This cannot be undone.</div><div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDel(null)}>Cancel</button><button className="btn primary bmd" onClick={async()=>{await archiveTemplate(confirmDel);await refreshPlanning();setConfirmDel(null);}}>Delete</button></div></div></div>}
     </div>}
     {libTab==="locations"&&<div style={{padding:"0 16px"}} onClick={()=>setOpenMenu(null)}>
       <div className="sechdr mb10"><span className="sectitle">{data.locations.length} Locations</span><button className="btn primary bsm" onClick={()=>openModal("addLocation")}>+ Add</button></div>
@@ -494,7 +472,7 @@ export default function NewLibraryScreen({data,update,openModal,setView,setLiveI
         </div>
         {openMenu===loc.id&&<div className="mini-menu" style={{right:8,top:44}}>
           <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editLocation",{location:loc});}}>Edit</button>
-          <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);update(d=>{d.locations=d.locations.filter(l=>l.id!==loc.id);return d;});}}>Delete</button>
+          <button className="mm-item mm-danger" onClick={async e=>{e.stopPropagation();setOpenMenu(null);await archiveLocation(loc.id);await refreshPlanning();}}>Delete</button>
         </div>}
         <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
           {loc.sublocations.map(sl=>(<span key={sl.id} className="bdg bs">{sl.name}</span>))}

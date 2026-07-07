@@ -294,6 +294,317 @@ export async function copyDrillToMyLibrary(ownerUserId, sourceDrill, sourceAsset
   return { data: created }
 }
 
+// ── Locations ──────────────────────────────────────────────────────────────────
+export async function fetchLocations() {
+  const [locsRes, subsRes] = await Promise.all([
+    supabase.from('locations').select('*').is('archived_at', null),
+    supabase.from('sublocations').select('*').is('archived_at', null),
+  ])
+  if (locsRes.error) console.error('fetchLocations:', locsRes.error)
+  return (locsRes.data || []).map(l => ({
+    id: l.id, name: l.name,
+    sublocations: (subsRes.data || []).filter(s => s.location_id === l.id).map(s => ({ id: s.id, name: s.name })),
+  }))
+}
+export async function createLocation(ownerUserId, name) {
+  const { data, error } = await supabase.from('locations').insert({ owner_user_id: ownerUserId, name }).select().single()
+  if (error) console.error('createLocation:', error)
+  return { data, error }
+}
+export async function updateLocation(id, name) {
+  const { error } = await supabase.from('locations').update({ name }).eq('id', id)
+  if (error) console.error('updateLocation:', error)
+  return { error }
+}
+export async function archiveLocation(id) {
+  const { error } = await supabase.from('locations').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  if (error) console.error('archiveLocation:', error)
+  return { error }
+}
+export async function createSublocation(locationId, name) {
+  const { error } = await supabase.from('sublocations').insert({ location_id: locationId, name })
+  if (error) console.error('createSublocation:', error)
+  return { error }
+}
+
+// ── Practice / template trees ─────────────────────────────────────────────────
+// Both practices and templates share the same activities-tree shape used
+// throughout ActConfig/StationConfig/ChecklistConfig/Builder/TemplateWorkspace
+// -- the local editing UX never changes, only how it's persisted. A local
+// activity/station id is either a real DB uuid (already-saved row) or a
+// short client-generated id from uid() (never saved yet); the two are never
+// ambiguous since uid() never produces UUID-shaped strings.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const isDbId = id => UUID_RE.test(id || '')
+
+function localToScheduledAt(date, time) {
+  if (!date) return null
+  const d = new Date(date + 'T' + (time || '00:00'))
+  return d.toISOString()
+}
+function scheduledAtToLocal(iso) {
+  if (!iso) return { date: '', startTime: '' }
+  const d = new Date(iso)
+  const pad = n => String(n).padStart(2, '0')
+  return {
+    date: d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()),
+    startTime: pad(d.getHours()) + ':' + pad(d.getMinutes()),
+  }
+}
+
+function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsByBlock, stationEquipByStation) {
+  const base = {
+    id: a.id, type: a.type, name: a.name || '', duration: a.duration_minutes || 10,
+    description: a.description || '', coachingPoints: a.coaching_points || '',
+    grouping: a.grouping || 'whole', numGroups: a.num_groups || 2,
+    coachId: a.team_staff_id || '', sublocationId: a.sublocation_id || '',
+    libraryId: a.library_activity_id || null,
+    equipment: equipByAct[a.id] || [],
+  }
+  if (a.type === 'checklist') {
+    base.items = (itemsByAct[a.id] || []).map(it => ({ id: it.id, text: it.text }))
+    base.notes = base.description
+  }
+  if (a.type === 'station_block') {
+    const block = (stationBlocksByAct[a.id] || [])[0]
+    base.rotate = block ? block.rotate : true
+    base.stationDuration = block ? Math.round((block.station_duration_seconds || 600) / 60) : 10
+    base.transitionDuration = block ? Math.round((block.transition_duration_seconds || 120) / 60) : 2
+    const stations = block ? (stationsByBlock[block.id] || []) : []
+    base.stations = stations.map(st => ({
+      id: st.id, name: st.name || '', activityName: st.name || '',
+      coachId: st.team_staff_id || '', sublocationId: st.sublocation_id || '',
+      coachingPoints: st.coaching_points || '', libraryId: st.library_activity_id || null,
+      equipment: stationEquipByStation[st.id] || [], playerGear: '',
+      assignments: st.assignments || [],
+    }))
+  }
+  return base
+}
+
+export async function fetchPracticesFull() {
+  const [practicesRes, actsRes, equipRes, itemsRes, blocksRes, stationsRes, stationEquipRes] = await Promise.all([
+    supabase.from('practices').select('*').is('archived_at', null),
+    supabase.from('practice_activities').select('*').is('archived_at', null),
+    supabase.from('practice_activity_equipment').select('*'),
+    supabase.from('practice_activity_checklist_items').select('*').order('position'),
+    supabase.from('station_blocks').select('*'),
+    supabase.from('stations').select('*').is('archived_at', null).order('position'),
+    supabase.from('station_equipment').select('*'),
+  ])
+  if (practicesRes.error) console.error('fetchPracticesFull:', practicesRes.error)
+  const equipByAct = {}
+  for (const e of equipRes.data || []) (equipByAct[e.practice_activity_id] ||= []).push(e.asset_id)
+  const itemsByAct = {}
+  for (const it of itemsRes.data || []) (itemsByAct[it.practice_activity_id] ||= []).push(it)
+  const blocksByAct = {}
+  for (const b of blocksRes.data || []) (blocksByAct[b.practice_activity_id] ||= []).push(b)
+  const stationsByBlock = {}
+  for (const s of stationsRes.data || []) (stationsByBlock[s.station_block_id] ||= []).push(s)
+  const stationEquipByStation = {}
+  for (const se of stationEquipRes.data || []) (stationEquipByStation[se.station_id] ||= []).push(se.asset_id)
+
+  const actsByPractice = {}
+  for (const a of (actsRes.data || []).sort((x, y) => x.position - y.position)) (actsByPractice[a.practice_id] ||= []).push(a)
+
+  return (practicesRes.data || []).map(p => {
+    const { date, startTime } = scheduledAtToLocal(p.scheduled_at)
+    const activities = (actsByPractice[p.id] || []).map(a => mapActivityRow(a, equipByAct, itemsByAct, blocksByAct, stationsByBlock, stationEquipByStation))
+    return { id: p.id, teamId: p.team_id, locationId: p.location_id || '', date, startTime, durMin: sumMinsLocal(activities), activities }
+  })
+}
+
+function sumMinsLocal(acts) {
+  return (acts || []).reduce((s, a) => {
+    if (a.type === 'station_block') return s + a.stations.length * (a.stationDuration || 0) + Math.max(0, a.stations.length - 1) * (a.rotate !== false ? (a.transitionDuration || 0) : 0)
+    return s + (a.duration || 0)
+  }, 0)
+}
+
+// Full replace-all sync for a join/list table scoped to one parent row --
+// simplest robust approach for explicit-Save-button data (not live-typing),
+// matching the size of these lists (a handful of equipment/items per activity).
+async function replaceEquipment(table, fkCol, parentId, assetIds) {
+  await supabase.from(table).delete().eq(fkCol, parentId)
+  const ids = (assetIds || []).filter(Boolean)
+  if (ids.length) await supabase.from(table).insert(ids.map(asset_id => ({ [fkCol]: parentId, asset_id })))
+}
+async function replaceChecklistItems(table, fkCol, parentId, items) {
+  await supabase.from(table).delete().eq(fkCol, parentId)
+  const list = (items || []).filter(it => it.text && it.text.trim())
+  if (list.length) await supabase.from(table).insert(list.map((it, i) => ({ [fkCol]: parentId, position: i, text: it.text.trim() })))
+}
+
+async function saveActivityTree({ parentIdCol, parentId, activities, activityTable, equipTable, itemsTable, blockTable, stationTable, stationEquipTable, teamScoped }) {
+  const { data: existingActs } = await supabase.from(activityTable).select('id').eq(parentIdCol, parentId).is('archived_at', null)
+  const keepActIds = new Set()
+
+  for (let i = 0; i < activities.length; i++) {
+    const act = activities[i]
+    const row = {
+      [parentIdCol]: parentId, position: i, type: act.type, name: act.name || null,
+      duration_minutes: act.duration || null,
+      description: act.type === 'checklist' ? (act.notes || null) : (act.description || null),
+      coaching_points: act.coachingPoints || null,
+      grouping: act.grouping || 'whole', num_groups: act.numGroups || null,
+      library_activity_id: act.libraryId || null,
+      sublocation_id: act.sublocationId || null,
+    }
+    if (teamScoped) row.team_staff_id = act.coachId || null
+
+    let actId = act.id
+    if (isDbId(actId)) {
+      await supabase.from(activityTable).update(row).eq('id', actId)
+    } else {
+      const { data: created, error } = await supabase.from(activityTable).insert(row).select().single()
+      if (error) { console.error('saveActivityTree insert activity:', error); continue }
+      actId = created.id
+    }
+    keepActIds.add(actId)
+
+    await replaceEquipment(equipTable, activityTable === 'practice_activities' ? 'practice_activity_id' : 'template_activity_id', actId, act.equipment)
+
+    if (act.type === 'checklist' && itemsTable) {
+      await replaceChecklistItems(itemsTable, activityTable === 'practice_activities' ? 'practice_activity_id' : 'template_activity_id', actId, act.items)
+    }
+
+    if (act.type === 'station_block' && blockTable) {
+      const { data: existingBlock } = await supabase.from(blockTable).select('id').eq(activityTable === 'practice_activities' ? 'practice_activity_id' : 'template_activity_id', actId).maybeSingle()
+      const blockRow = {
+        rotate: act.rotate !== false,
+        station_duration_seconds: (act.stationDuration || 10) * 60,
+        transition_duration_seconds: (act.transitionDuration || 2) * 60,
+      }
+      let blockId = existingBlock && existingBlock.id
+      if (blockId) {
+        await supabase.from(blockTable).update(blockRow).eq('id', blockId)
+      } else {
+        blockRow[activityTable === 'practice_activities' ? 'practice_activity_id' : 'template_activity_id'] = actId
+        const { data: createdBlock, error } = await supabase.from(blockTable).insert(blockRow).select().single()
+        if (error) { console.error('saveActivityTree insert block:', error); continue }
+        blockId = createdBlock.id
+      }
+
+      const { data: existingStations } = await supabase.from(stationTable).select('id').eq(blockTable === 'station_blocks' ? 'station_block_id' : 'template_station_block_id', blockId).is('archived_at', null)
+      const keepStationIds = new Set()
+      const stations = act.stations || []
+      for (let si = 0; si < stations.length; si++) {
+        const st = stations[si]
+        const stRow = {
+          [blockTable === 'station_blocks' ? 'station_block_id' : 'template_station_block_id']: blockId,
+          position: si, name: st.activityName || st.name || null,
+          coaching_points: st.coachingPoints || null,
+          sublocation_id: st.sublocationId || null,
+          library_activity_id: st.libraryId || null,
+        }
+        if (teamScoped) {
+          stRow.team_staff_id = st.coachId || null
+          stRow.assignments = st.assignments || []
+        }
+        let stId = st.id
+        if (isDbId(stId)) {
+          await supabase.from(stationTable).update(stRow).eq('id', stId)
+        } else {
+          const { data: createdSt, error } = await supabase.from(stationTable).insert(stRow).select().single()
+          if (error) { console.error('saveActivityTree insert station:', error); continue }
+          stId = createdSt.id
+        }
+        keepStationIds.add(stId)
+        await replaceEquipment(stationEquipTable, stationTable === 'stations' ? 'station_id' : 'template_station_id', stId, st.equipment)
+      }
+      for (const es of existingStations || []) {
+        if (!keepStationIds.has(es.id)) await supabase.from(stationTable).update({ archived_at: new Date().toISOString() }).eq('id', es.id)
+      }
+    }
+  }
+
+  for (const ea of existingActs || []) {
+    if (!keepActIds.has(ea.id)) await supabase.from(activityTable).update({ archived_at: new Date().toISOString() }).eq('id', ea.id)
+  }
+}
+
+export async function savePracticeTree(existingId, { teamId, locationId, date, startTime, activities }) {
+  const row = { team_id: teamId, location_id: locationId || null, scheduled_at: localToScheduledAt(date, startTime), status: date ? 'scheduled' : 'draft' }
+  let practiceId = existingId
+  if (isDbId(practiceId)) {
+    await supabase.from('practices').update(row).eq('id', practiceId)
+  } else {
+    const { data, error } = await supabase.from('practices').insert(row).select().single()
+    if (error) { console.error('savePracticeTree:', error); return { error } }
+    practiceId = data.id
+  }
+  await saveActivityTree({
+    parentIdCol: 'practice_id', parentId: practiceId, activities,
+    activityTable: 'practice_activities', equipTable: 'practice_activity_equipment',
+    itemsTable: 'practice_activity_checklist_items', blockTable: 'station_blocks',
+    stationTable: 'stations', stationEquipTable: 'station_equipment', teamScoped: true,
+  })
+  return { data: { id: practiceId } }
+}
+export async function archivePractice(id) {
+  const { error } = await supabase.from('practices').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  if (error) console.error('archivePractice:', error)
+  return { error }
+}
+
+export async function fetchTemplatesFull() {
+  const [tplsRes, actsRes, equipRes, itemsRes, blocksRes, stationsRes, stationEquipRes] = await Promise.all([
+    supabase.from('templates').select('*').is('archived_at', null),
+    supabase.from('template_activities').select('*').is('archived_at', null),
+    supabase.from('template_activity_equipment').select('*'),
+    supabase.from('template_activity_checklist_items').select('*').order('position'),
+    supabase.from('template_station_blocks').select('*'),
+    supabase.from('template_stations').select('*').is('archived_at', null).order('position'),
+    supabase.from('template_station_equipment').select('*'),
+  ])
+  if (tplsRes.error) console.error('fetchTemplatesFull:', tplsRes.error)
+  const equipByAct = {}
+  for (const e of equipRes.data || []) (equipByAct[e.template_activity_id] ||= []).push(e.asset_id)
+  const itemsByAct = {}
+  for (const it of itemsRes.data || []) (itemsByAct[it.template_activity_id] ||= []).push(it)
+  const blocksByAct = {}
+  for (const b of blocksRes.data || []) (blocksByAct[b.template_activity_id] ||= []).push(b)
+  const stationsByBlock = {}
+  for (const s of stationsRes.data || []) (stationsByBlock[s.template_station_block_id] ||= []).push(s)
+  const stationEquipByStation = {}
+  for (const se of stationEquipRes.data || []) (stationEquipByStation[se.template_station_id] ||= []).push(se.asset_id)
+
+  const actsByTpl = {}
+  for (const a of (actsRes.data || []).sort((x, y) => x.position - y.position)) (actsByTpl[a.template_id] ||= []).push(a)
+
+  return (tplsRes.data || []).map(t => {
+    const activities = (actsByTpl[t.id] || []).map(a => mapActivityRow(a, equipByAct, itemsByAct, blocksByAct, stationsByBlock, stationEquipByStation))
+    return {
+      id: t.id, name: t.name, sport: t.sport, locationId: t.location_id || '',
+      organizationId: t.organization_id, ownerUserId: t.owner_user_id, sharedWithOrganizationId: t.shared_with_organization_id,
+      durMin: sumMinsLocal(activities), activities,
+    }
+  })
+}
+export async function saveTemplateTree(ownerUserId, existingId, { name, sport, locationId, activities }) {
+  const row = { name, sport: sport || 'General', location_id: locationId || null }
+  let tplId = existingId
+  if (isDbId(tplId)) {
+    await supabase.from('templates').update(row).eq('id', tplId)
+  } else {
+    const { data, error } = await supabase.from('templates').insert(Object.assign({ owner_user_id: ownerUserId }, row)).select().single()
+    if (error) { console.error('saveTemplateTree:', error); return { error } }
+    tplId = data.id
+  }
+  await saveActivityTree({
+    parentIdCol: 'template_id', parentId: tplId, activities,
+    activityTable: 'template_activities', equipTable: 'template_activity_equipment',
+    itemsTable: 'template_activity_checklist_items', blockTable: 'template_station_blocks',
+    stationTable: 'template_stations', stationEquipTable: 'template_station_equipment', teamScoped: false,
+  })
+  return { data: { id: tplId } }
+}
+export async function archiveTemplate(id) {
+  const { error } = await supabase.from('templates').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  if (error) console.error('archiveTemplate:', error)
+  return { error }
+}
+
 // ── Live sessions ─────────────────────────────────────────────────────────────
 export async function createSession(coachId, practiceId, state) {
   const sessionId = Math.random().toString(36).slice(2, 10)
