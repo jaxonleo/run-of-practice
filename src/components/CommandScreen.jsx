@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups } from "../constants.js";
-import { createSession, updateSession, endSession, getSession, subscribeToSession, createPreviewSession, updatePreviewWithLiveSession, getPreviewSession, subscribeToPreview } from "../supabase.js";
+import { getSession, subscribeToSession, getPreviewSession, subscribeToPreview, savePracticeTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, findOpenActivityLogId, createHelperShareToken } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
@@ -46,8 +46,8 @@ function PlayerChipLive({pid,team,onMove,onProfile}){
   </button>);
 }
 
-function ShareSheet({sessionId,onClose}){
-  const url=window.location.origin+"/live/"+sessionId;
+function ShareSheet({token,onClose}){
+  const url=window.location.origin+"/live/"+token;
   const [copied,setCopied]=useState(false);
   const copy=()=>{try{navigator.clipboard.writeText(url).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});}catch(e){}};
   const share=()=>{if(navigator.share)navigator.share({title:"Run of Practice - Live View",url});else copy();};
@@ -693,7 +693,7 @@ function LiveEditBuilder({data,update,liveActs,practice,team,loc,onSaveResume,on
           {expandedId===act.id&&(<div className="abbody">
             {act.type==="activity"&&<ActConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
             {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-            {act.type==="station_block"&&<StationConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport}/>}
+            {act.type==="station_block"&&<StationConfig assets={data.assets} update={update} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport} libraryDrills={data.activityLibrary}/>}
           </div>)}
         </div>
       </div>))}
@@ -715,11 +715,10 @@ function LiveEditBuilder({data,update,liveActs,practice,team,loc,onSaveResume,on
           const b={id:uid(),type:"station_block",rotate:true,stationDuration:10,transitionDuration:2,stations:[
             {id:uid(),name:"Station 1",activityName:"",coachId:headCoachId,sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
             {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
-            {id:uid(),name:"Station 3",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
           ]};
           setActs(p=>[...p,b]);setExpandedId(b.id);
         }}>
-          <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">3 stations</div></div>
+          <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">2 stations</div></div>
           <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
         </div>
         {filteredLib.length>0&&<div>
@@ -745,53 +744,60 @@ function LiveEditBuilder({data,update,liveActs,practice,team,loc,onSaveResume,on
 // ── CommandScreen ─────────────────────────────────────────────────────────────
 export { HelperView, HistoryViewer };
 
-export default function CommandScreen({data,update,liveId,setLiveId,coachId,setView}){
+function computeElapsed(session, nowMs) {
+  if (!session || !session.current_phase_started_at) return 0;
+  const started = new Date(session.current_phase_started_at).getTime();
+  const effectiveNow = session.paused_at ? new Date(session.paused_at).getTime() : nowMs;
+  return Math.max(0, Math.floor((effectiveNow - started) / 1000) - (session.total_paused_seconds || 0));
+}
+
+async function seedAllStationGroups(sessionId, activities, presentIds, mode, createdBy, allPlayers) {
+  for (const act of activities) {
+    if (act.type !== "station_block") continue;
+    const rebalanced = mode === "rebalance" ? rebalanceEven(act.stations, presentIds, allPlayers) : rebalanceKeep(act.stations, presentIds);
+    await saveSessionGroups(sessionId, act.id, createdBy, rebalanced.map(st => st.assignments || []));
+  }
+}
+
+export default function CommandScreen({data,update,liveId,setLiveId,coachId,setView,refreshPlanning}){
   const practice=liveId?data.practices.find(p=>p.id===liveId):null;
   const team=practice?data.teams.find(t=>t.id===practice.teamId):null;
   const loc=practice?data.locations.find(l=>l.id===practice.locationId):null;
+  const liveActs=practice?practice.activities:[];
+
   const [stage,setStage]=useState("pick");
-  useEffect(()=>{if(liveId&&stage==="pick")setStage("attend");},[liveId]);
+  const [session,setSession]=useState(null);
+  const [now,setNow]=useState(Date.now());
   const [presentIds,setPresentIds]=useState(new Set());
   const [coachPresentIds,setCoachPresentIds]=useState(new Set());
-  const [liveActs,setLiveActs]=useState([]);
   const [showAtt,setShowAtt]=useState(false);
-  const [practiceStart,setPracticeStart]=useState(null);
-  const [idx,setIdx]=useState(0);
-  const [stIdx,setStIdx]=useState(0);
-  const [inTrans,setInTrans]=useState(false);
-  const [inBlockIntro,setInBlockIntro]=useState(false);
-  const [elapsed,setElapsed]=useState(0);
-  const [running,setRunning]=useState(false);
-  const [audioOn,setAudioOn]=useState(false);
   const [liveGroups,setLiveGroups]=useState(null);
-  const audioCtxRef=useRef(null);
-  const unlockAudio=async()=>{try{if(!audioCtxRef.current){audioCtxRef.current=new(window.AudioContext||window.webkitAudioContext)();}const ctx=audioCtxRef.current;if(ctx.state!=="running"){await ctx.resume();}return ctx;}catch(e){return null;}};
+  const [audioOn,setAudioOn]=useState(false);
   const [noteText,setNoteText]=useState("");
   const [showROS,setShowROS]=useState(false);
   const [clState,setClState]=useState({});
   const [movePlayer,setMovePlayer]=useState(null);
   const [showEllipsis,setShowEllipsis]=useState(false);
   const [showEditBuilder,setShowEditBuilder]=useState(false);
-  const [tplPractice,setTplPractice]=useState(null);
-  const [livePracticeOverride,setLivePracticeOverride]=useState(null);
-  const [histPractice,setHistPractice]=useState(null);
   const [focusSt,setFocusSt]=useState(null);
   const [livePlayerProfile,setLivePlayerProfile]=useState(null);
-  const [sessionId,setSessionId]=useState(null);
+  const [shareToken,setShareToken]=useState(null);
   const [showShare,setShowShare]=useState(false);
-  const iref=useRef(null);
   const spoken=useRef({});
-  const sessionRef=useRef(null);
-  const startedAtRef=useRef(null);
-  const baseElapsedRef=useRef(0);
-  const writeSession=useCallback((newState)=>{
-    if(!sessionRef.current)return;
-    updateSession(sessionRef.current,newState);
-  },[]);
+  const activityLogIdRef=useRef(null);
+
+  const idx=session?Math.max(0,liveActs.findIndex(a=>a.id===session.current_practice_activity_id)):0;
   const cur=liveActs[idx]||null;
   const isBlock=cur&&cur.type==="station_block";
   const blockRotate=isBlock&&cur.rotate!==false;
   const isCl=cur&&cur.type==="checklist";
+  const stIdx=session?session.current_rotation_number||0:0;
+  const inTrans=session?!!session.in_transition:false;
+  const inBlockIntro=session?!!session.in_block_intro:false;
+  const running=session?!session.paused_at:false;
+  const elapsed=computeElapsed(session,now);
+  const isController=!!(session&&session.controller_user_id===coachId);
+  const controllerName=(()=>{if(!session||!team||isController)return null;const c=team.coaches.find(c=>c.userId===session.controller_user_id);return c?c.name:"another coach";})();
   const phaseSecs=isBlock?(inBlockIntro?(cur.transitionDuration||2)*60:blockRotate&&inTrans?cur.transitionDuration*60:cur.stationDuration*60):(cur?actSecs(cur):0);
   const isOver=elapsed>phaseSecs;
   const rem=phaseSecs-elapsed;
@@ -800,35 +806,21 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const pCount=presentIds.size;
   const pTotal=team?team.players.length:0;
   const completedMins=liveActs.slice(0,idx).reduce((s,a)=>s+Math.round(actSecs(a)/60),0);
+  const practiceStart=session?new Date(session.created_at).getTime():null;
   const schedDelta=(practiceStart&&practice&&practice.startTime&&practice.durMin)?(Math.floor((Date.now()-practiceStart)/60000)-completedMins-Math.floor(elapsed/60)):null;
-  const rotatedStations=isBlock&&cur.stations?(()=>{const n=cur.stations.length;return cur.stations.map((st,i)=>{const srcIdx=(i-stIdx%n+n)%n;return Object.assign({},cur.stations[i],{assignments:cur.stations[srcIdx].assignments});});})():null;
+  const n=isBlock&&cur.stations?cur.stations.length:1;
+  const rotatedStations=isBlock&&cur.stations&&liveGroups?cur.stations.map((st,i)=>{const srcIdx=(i-stIdx%n+n)%n;return Object.assign({},st,{assignments:liveGroups[srcIdx]||[]});}):null;
 
+  // ── Timer: derived from timestamps, only ticks locally while running ───────
   useEffect(()=>{
-    const act=liveActs[idx];
-    if(!act||act.type==="station_block")return;
-    const g=act.grouping||"whole";
-    if(g==="whole"){setLiveGroups(null);return;}
-    if(presentIds.size===0)return; // wait until attendance is confirmed
-    const present=[...presentIds];
-    const players=(team?team.players:[]).filter(p=>present.includes(p.id));
-    if(players.length===0)return;
-    const groups=assignGroups(players,g,act.numGroups||2);
-    setLiveGroups(groups);
-    // Write to session immediately - retry up to 3 times if session not ready yet
-    const writeGroups=(attempt)=>{
-      if(sessionRef.current){
-        updateSession(sessionRef.current,{idx,stIdx,inTrans,elapsed,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,liveGroups:groups,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],coaches:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).coaches||[]:[]:[],locations:data.locations,assets:data.assets||[]});
-      }else if(attempt<5){
-        setTimeout(()=>writeGroups(attempt+1),500);
-      }
-    };
-    writeGroups(0);
-  },[idx,liveActs,presentIds]);
+    if(!running)return;
+    const iv=setInterval(()=>setNow(Date.now()),500);
+    return()=>clearInterval(iv);
+  },[running]);
 
   const beep=useCallback(()=>{
     if(!audioOn)return;
     try{
-      // Use speechSynthesis as primary buzzer - Web Audio unreliable in Safari
       window.speechSynthesis.cancel();
       const u=new SpeechSynthesisUtterance("Next up!");
       u.rate=1.1;u.pitch=1.2;u.volume=1;
@@ -837,79 +829,11 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   },[audioOn]);
   const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
 
-  const applyAtt=useCallback((pIds,cIds,mode,baseActs)=>{const allPlayers=team?team.players:[];return baseActs.map(act=>{if(act.type!=="station_block")return Object.assign({},act,{assignments:(act.assignments||[]).filter(id=>pIds.has(id))});const newSt=mode==="rebalance"?rebalanceEven(act.stations,pIds,allPlayers):rebalanceKeep(act.stations,pIds);return Object.assign({},act,{stations:newSt});});},[team]);
-
-  const handleAttConfirm=useCallback(({presentIds:pIds,coachPresentIds:cIds,balanceMode})=>{
-    setPresentIds(pIds);setCoachPresentIds(cIds);
-    const newActs=applyAtt(pIds,cIds,balanceMode,practice.activities);
-    setLiveActs(newActs);setStage("live");setShowAtt(false);
-    setPracticeStart(Date.now());setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(true);spoken.current={};buzzedRef.current=false;warnedRef.current=false;
-    const firstAct=newActs[0];
-    const firstIsBlock=firstAct&&firstAct.type==="station_block";
-    if(firstIsBlock){setInBlockIntro(true);}else{setInBlockIntro(false);}
-    createSession(coachId||"anon",liveId,{idx:0,stIdx:0,inTrans:false,inBlockIntro:firstIsBlock,elapsed:0,running:true,runningAt:Date.now(),presentIds:[...pIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],coaches:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).coaches||[]:[]:[],locations:data.locations,assets:data.assets||[]}).then(sid=>{
-      if(sid){
-        sessionRef.current=sid;setSessionId(sid);
-        // If there's a preview session for this practice, link it to the live session
-        // so helpers on the preview URL auto-redirect to the live view
-        if(practice&&practice.previewId){
-          updatePreviewWithLiveSession(practice.previewId,sid);
-        }
-      }
-    });
-  },[practice,applyAtt,coachId,liveId]);
-  const handleAttUpdate=useCallback(({presentIds:pIds,coachPresentIds:cIds})=>{
-    setPresentIds(pIds);setCoachPresentIds(cIds);
-    const newActs=applyAtt(pIds,cIds,"keep",liveActs);
-    setLiveActs(newActs);setShowAtt(false);
-    if(sessionRef.current){
-      const roster2=practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[];
-      writeSession({idx,stIdx,inTrans,elapsed,running,runningAt:running?Date.now():null,presentIds:[...pIds],liveActs:newActs,roster:roster2,locations:data.locations,assets:data.assets||[]});
-    }
-  },[applyAtt,liveActs,idx,stIdx,inTrans,elapsed,running,practice,data,writeSession]);
-
-  const advance=useCallback(()=>{
-    if(!cur)return;
-    const base={liveActs,presentIds:[...presentIds],running:true,runningAt:Date.now(),elapsed:0,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],coaches:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).coaches||[]:[]:[],locations:data.locations,assets:data.assets||[]};
-    if(isBlock){
-      // If in intro, advance to Station 1
-      if(inBlockIntro){
-        baseElapsedRef.current=0;startedAtRef.current=Date.now();setInBlockIntro(false);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);setFocusSt(null);
-        writeSession({...base,idx,stIdx:0,inTrans:false,inBlockIntro:false});
-        return;
-      }
-      if(blockRotate&&!inTrans&&cur.transitionDuration>0&&stIdx<cur.stations.length-1){
-        baseElapsedRef.current=0;startedAtRef.current=Date.now();setInTrans(true);setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);
-        writeSession({...base,idx,stIdx,inTrans:true,inBlockIntro:false});
-      }else if(blockRotate&&stIdx<cur.stations.length-1){
-        const ns=stIdx+1;setStIdx(ns);setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);setFocusSt(null);
-        writeSession({...base,idx,stIdx:ns,inTrans:false,inBlockIntro:false});
-      }else if(idx<liveActs.length-1){
-        const ni=idx+1;const nextAct=liveActs[ni];const nextIsBlock=nextAct&&nextAct.type==="station_block";
-        setIdx(ni);setStIdx(0);setInTrans(false);setInBlockIntro(nextIsBlock);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);setFocusSt(null);
-        writeSession({...base,idx:ni,stIdx:0,inTrans:false,inBlockIntro:nextIsBlock});
-      }else{setStage("end");setRunning(false);writeSession({...base,idx,stIdx,inTrans,running:false,runningAt:null,inBlockIntro:false});}
-    }else{
-      if(idx<liveActs.length-1){
-        const ni=idx+1;const nextAct=liveActs[ni];const nextIsBlock=nextAct&&nextAct.type==="station_block";
-        setIdx(ni);setInBlockIntro(nextIsBlock);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);
-        writeSession({...base,idx:ni,stIdx:0,inTrans:false,inBlockIntro:nextIsBlock});
-      }else{setStage("end");setRunning(false);writeSession({...base,idx,stIdx,inTrans,running:false,runningAt:null,inBlockIntro:false});}
-    }
-  },[cur,isBlock,blockRotate,inTrans,inBlockIntro,stIdx,idx,liveActs,presentIds,writeSession]);
-
-  const goBack=useCallback(()=>{if(isBlock){if(inTrans){setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);}else if(stIdx>0){setStIdx(i=>i-1);setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);}else if(idx>0){setIdx(i=>i-1);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);}}else{if(idx>0){setIdx(i=>i-1);setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);}}},[isBlock,inTrans,stIdx,idx]);
-
-  const phaseSecsRef=useRef(phaseSecs);
-  useEffect(()=>{phaseSecsRef.current=phaseSecs;},[phaseSecs]);
-
   const beepRef=useRef(beep);
   useEffect(()=>{beepRef.current=beep;},[beep]);
-
   const speakRef=useRef(speak);
   useEffect(()=>{speakRef.current=speak;},[speak]);
 
-  // Dedicated effect: fires buzzer when elapsed crosses phaseSecs
   const buzzedRef=useRef(false);
   useEffect(()=>{
     if(elapsed>=phaseSecs&&phaseSecs>0&&!buzzedRef.current&&running){
@@ -917,44 +841,280 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
       beepRef.current();
     }
     if(elapsed<phaseSecs-5){
-      buzzedRef.current=false; // reset when clearly before zero
+      buzzedRef.current=false;
     }
   },[elapsed,phaseSecs,running]);
 
-  // Two minute warning
   const warnedRef=useRef(false);
   useEffect(()=>{
-    const rem=phaseSecs-elapsed;
-    if(rem<=122&&rem>=118&&!warnedRef.current&&running){
+    const rem2=phaseSecs-elapsed;
+    if(rem2<=122&&rem2>=118&&!warnedRef.current&&running){
       warnedRef.current=true;
       speakRef.current("Two minutes remaining.");
     }
-    if(rem>130){warnedRef.current=false;}
+    if(rem2>130){warnedRef.current=false;}
   },[elapsed,phaseSecs,running]);
 
+  // ── Mount / resume: find an existing active session before defaulting to attendance ──
   useEffect(()=>{
-    if(running){
-      startedAtRef.current=Date.now();
-      baseElapsedRef.current=elapsed;
-      iref.current=setInterval(()=>{
-        if(!startedAtRef.current)return;
-        const wallElapsed=baseElapsedRef.current+Math.floor((Date.now()-startedAtRef.current)/1000);
-        setElapsed(wallElapsed);
-      },500);
+    if(!liveId){setStage("pick");setSession(null);return;}
+    let cancelled=false;
+    (async()=>{
+      const existing=await findActiveLiveSession(liveId);
+      if(cancelled)return;
+      if(existing){
+        setSession(existing);
+        setStage("live");
+        const latest=await fetchLatestAttendance(existing.id);
+        if(cancelled)return;
+        setPresentIds(new Set(Object.keys(latest).filter(pid=>latest[pid]==="present")));
+        activityLogIdRef.current=await findOpenActivityLogId(existing.id);
+      }else{
+        setStage("attend");
+      }
+    })();
+    return()=>{cancelled=true;};
+  },[liveId]);
+
+  // Realtime: pick up control handoffs / phase changes from another device.
+  useEffect(()=>{
+    if(!session)return;
+    const sub=subscribeToLiveSession(session.id,updated=>{
+      setSession(updated);
+      if(updated.status!=="active")setStage("end");
+    });
+    return()=>{sub.unsubscribe();};
+  },[session?.id]);
+
+  const writeSession=useCallback(async(patch)=>{
+    if(!session)return null;
+    const updated=await updateLiveSession(session.id,session.version,patch);
+    if(updated){setSession(updated);return updated;}
+    const fresh=await findActiveLiveSession(practice.id);
+    setSession(fresh);
+    return null;
+  },[session,practice]);
+
+  const closeCurrentLog=useCallback(async()=>{
+    if(activityLogIdRef.current){await closeActivityLog(activityLogIdRef.current);activityLogIdRef.current=null;}
+  },[]);
+  const openLogFor=useCallback(async(sessionId,target,presentPlayerIds)=>{
+    activityLogIdRef.current=await openActivityLog(sessionId,coachId,target,presentPlayerIds);
+  },[coachId]);
+  const openLogForActivityEntry=useCallback(async(sessionRow,act,stationIdx,presentPlayerIds)=>{
+    if(!sessionRow||!act)return;
+    if(act.type==="station_block"){
+      if(act.rotate!==false)await openLogFor(sessionRow.id,{stationId:act.stations[stationIdx||0].id},presentPlayerIds);
+      else await openLogFor(sessionRow.id,{practiceActivityId:act.id},presentPlayerIds);
     }else{
-      clearInterval(iref.current);
-      startedAtRef.current=null;
+      await openLogFor(sessionRow.id,{practiceActivityId:act.id},presentPlayerIds);
     }
-    return()=>clearInterval(iref.current);
-  },[running]);
+  },[openLogFor]);
+  const transitionTo=useCallback(async(patch,logAct,logStIdx)=>{
+    await closeCurrentLog();
+    const updated=await writeSession(Object.assign({current_phase_started_at:new Date().toISOString(),paused_at:null,total_paused_seconds:0},patch));
+    if(updated&&logAct)await openLogForActivityEntry(updated,logAct,logStIdx,[...presentIds]);
+    spoken.current={};buzzedRef.current=false;warnedRef.current=false;setFocusSt(null);
+    return updated;
+  },[writeSession,closeCurrentLog,openLogForActivityEntry,presentIds]);
+
+  // ── Live-group sync: current activity's session_groups, fetched or (for
+  // regular sub-grouping) freshly reshuffled on every entry/attendance change.
+  // Station-block groups are seeded explicitly at attendance time via
+  // seedAllStationGroups -- this effect only fetches them, falling back to a
+  // one-time bootstrap for a block added mid-session via LiveEditBuilder. ──
+  useEffect(()=>{
+    if(!session||!cur){setLiveGroups(null);return;}
+    let cancelled=false;
+    (async()=>{
+      if(isBlock){
+        const existing=await fetchLatestGroups(session.id,cur.id);
+        if(cancelled)return;
+        if(existing&&existing.length){setLiveGroups(existing);return;}
+        const rebalanced=rebalanceKeep(cur.stations,presentIds);
+        const seeded=rebalanced.map(st=>st.assignments||[]);
+        setLiveGroups(seeded);
+        await saveSessionGroups(session.id,cur.id,coachId,seeded);
+      }else{
+        const g=cur.grouping||"whole";
+        if(g==="whole"){setLiveGroups(null);return;}
+        if(presentIds.size===0)return;
+        const present=[...presentIds];
+        const players=(team?team.players:[]).filter(p=>present.includes(p.id));
+        if(players.length===0)return;
+        const groups=assignGroups(players,g,cur.numGroups||2).map(g2=>g2.map(p=>p.id));
+        if(cancelled)return;
+        setLiveGroups(groups);
+        await saveSessionGroups(session.id,cur.id,coachId,groups);
+      }
+    })();
+    return()=>{cancelled=true;};
+  },[session?.id,cur?.id,presentIds]);
+
+  const handleAttConfirm=useCallback(async({presentIds:pIds,coachPresentIds:cIds,balanceMode})=>{
+    setPresentIds(pIds);setCoachPresentIds(cIds);
+    setStage("live");setShowAtt(false);
+    spoken.current={};buzzedRef.current=false;warnedRef.current=false;
+    const firstAct=liveActs[0]||null;
+    const firstIsBlock=firstAct&&firstAct.type==="station_block";
+    let sessionRow=session&&session.practice_id===practice.id?session:null;
+    if(sessionRow){
+      sessionRow=await writeSession({current_practice_activity_id:firstAct?firstAct.id:null,current_rotation_number:0,in_transition:false,in_block_intro:!!firstIsBlock,current_phase_started_at:new Date().toISOString(),paused_at:null,total_paused_seconds:0,status:"active"});
+    }else{
+      sessionRow=await createLiveSession(practice.id,coachId,{practiceActivityId:firstAct?firstAct.id:null,inBlockIntro:!!firstIsBlock});
+      if(sessionRow)setSession(sessionRow);
+    }
+    if(!sessionRow)return;
+    await submitOperation(sessionRow.id,coachId,"start_practice");
+    const allPlayerIds=team?team.players.map(p=>p.id):[];
+    await submitAttendanceSnapshot(sessionRow.id,coachId,pIds,allPlayerIds);
+    await seedAllStationGroups(sessionRow.id,liveActs,pIds,balanceMode,coachId,team?team.players:[]);
+    if(firstAct&&!firstIsBlock)await openLogFor(sessionRow.id,{practiceActivityId:firstAct.id},[...pIds]);
+  },[practice,liveActs,coachId,team,session,writeSession,openLogFor]);
+
+  const handleAttUpdate=useCallback(async({presentIds:pIds,coachPresentIds:cIds,balanceMode})=>{
+    if(!session)return;
+    await seedAllStationGroups(session.id,liveActs,pIds,balanceMode||"keep",coachId,team?team.players:[]);
+    await submitAttendanceSnapshot(session.id,coachId,pIds,team?team.players.map(p=>p.id):[]);
+    setPresentIds(pIds);setCoachPresentIds(cIds);setShowAtt(false);
+  },[session,liveActs,coachId,team]);
+
+  const startBlock=useCallback(async()=>{
+    if(!session||!cur||!isBlock)return;
+    await submitOperation(session.id,coachId,"start_block");
+    await transitionTo({current_rotation_number:0,in_transition:false,in_block_intro:false},cur,0);
+  },[session,cur,isBlock,coachId,transitionTo]);
+
+  const advance=useCallback(async()=>{
+    if(!session||!cur)return;
+    await submitOperation(session.id,coachId,"advance");
+    if(isBlock){
+      if(inBlockIntro){await transitionTo({current_rotation_number:0,in_transition:false,in_block_intro:false},cur,0);return;}
+      if(blockRotate&&!inTrans&&cur.transitionDuration>0&&stIdx<cur.stations.length-1){await transitionTo({in_transition:true},null);return;}
+      if(blockRotate&&stIdx<cur.stations.length-1){const ns=stIdx+1;await transitionTo({current_rotation_number:ns,in_transition:false},cur,ns);return;}
+    }
+    if(idx<liveActs.length-1){
+      const ni=idx+1;const nextAct=liveActs[ni];const nextIsBlock=nextAct.type==="station_block";
+      await transitionTo({current_practice_activity_id:nextAct.id,current_rotation_number:0,in_transition:false,in_block_intro:nextIsBlock},nextIsBlock?null:nextAct,0);
+    }else{
+      await closeCurrentLog();
+      await writeSession({status:"completed",ended_at:new Date().toISOString(),paused_at:null});
+      setStage("end");
+    }
+  },[session,cur,isBlock,inBlockIntro,blockRotate,inTrans,stIdx,idx,liveActs,coachId,transitionTo,writeSession,closeCurrentLog]);
+
+  const goBack=useCallback(async()=>{
+    if(!session||!cur)return;
+    await submitOperation(session.id,coachId,"go_back");
+    if(isBlock&&inTrans){await transitionTo({in_transition:false},cur,stIdx);return;}
+    if(isBlock&&stIdx>0){const ns=stIdx-1;await transitionTo({current_rotation_number:ns,in_transition:false},cur,ns);return;}
+    if(idx>0){const pi=idx-1;const prevAct=liveActs[pi];await transitionTo({current_practice_activity_id:prevAct.id,current_rotation_number:0,in_transition:false,in_block_intro:false},prevAct,0);}
+  },[session,cur,isBlock,inTrans,stIdx,idx,liveActs,coachId,transitionTo]);
+
+  const jumpTo=useCallback(async(i)=>{
+    if(!session)return;
+    const target=liveActs[i];if(!target)return;
+    await submitOperation(session.id,coachId,"jump_to");
+    await transitionTo({current_practice_activity_id:target.id,current_rotation_number:0,in_transition:false,in_block_intro:false},target,0);
+    setShowROS(false);
+  },[session,liveActs,coachId,transitionTo]);
+
+  const togglePlay=useCallback(async()=>{
+    if(!session)return;
+    await submitOperation(session.id,coachId,"toggle_play");
+    if(session.paused_at){
+      const pausedDelta=Math.floor((Date.now()-new Date(session.paused_at).getTime())/1000);
+      await writeSession({paused_at:null,total_paused_seconds:(session.total_paused_seconds||0)+pausedDelta});
+    }else{
+      await writeSession({paused_at:new Date().toISOString()});
+    }
+  },[session,coachId,writeSession]);
+
+  const nudge=useCallback(async(deltaSecs)=>{
+    if(!session)return;
+    const curElapsed=computeElapsed(session,Date.now());
+    const newElapsed=Math.max(0,curElapsed+deltaSecs);
+    const appliedDelta=curElapsed-newElapsed;
+    buzzedRef.current=false;warnedRef.current=false;
+    await writeSession({total_paused_seconds:(session.total_paused_seconds||0)+appliedDelta});
+  },[session,writeSession]);
+
+  const endPractice=useCallback(async()=>{
+    setShowEllipsis(false);
+    if(!session)return;
+    await submitOperation(session.id,coachId,"end_practice");
+    await closeCurrentLog();
+    await writeSession({status:"completed",ended_at:new Date().toISOString(),paused_at:null});
+    setStage("end");
+  },[session,coachId,writeSession,closeCurrentLog]);
+
+  const restartPractice=useCallback(async()=>{
+    setShowEllipsis(false);
+    if(!session)return;
+    await submitOperation(session.id,coachId,"restart_practice");
+    await closeCurrentLog();
+    const firstAct=liveActs[0]||null;const firstIsBlock=firstAct&&firstAct.type==="station_block";
+    await writeSession({current_practice_activity_id:firstAct?firstAct.id:null,current_rotation_number:0,in_transition:false,in_block_intro:!!firstIsBlock,current_phase_started_at:new Date().toISOString(),paused_at:new Date().toISOString(),total_paused_seconds:0});
+    spoken.current={};buzzedRef.current=false;warnedRef.current=false;
+    setStage("attend");
+  },[session,liveActs,coachId,writeSession,closeCurrentLog]);
+
+  const takeControlNow=useCallback(async()=>{
+    if(!session)return;
+    const updated=await takeControl(session.id,session.version,coachId);
+    if(updated)setSession(updated);
+    else{const fresh=await findActiveLiveSession(practice.id);setSession(fresh);}
+  },[session,coachId,practice]);
 
   const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
   const subName=id=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:null;};
   const pnames=ids=>(ids||[]).map(id=>{const p=team&&team.players.find(p=>p.id===id);return p?p.firstName:null;}).filter(Boolean).join(", ");
+  const pname=id=>{const p=team&&team.players.find(p=>p.id===id);return p?p.firstName:id;};
   const addNote=()=>{if(!noteText.trim())return;const ctx=isBlock&&cur.stations[stIdx]?cur.stations[stIdx].activityName||cur.stations[stIdx].name:(cur&&cur.name)||"Practice";update(d=>{d.notes.push({id:uid(),text:noteText,context:ctx,date:new Date().toISOString(),practiceId:liveId});return d;});setNoteText("");};
   const toggleCl=(actId,itemId)=>{setClState(s=>{const cur2=s[actId]||{};return Object.assign({},s,{[actId]:Object.assign({},cur2,{[itemId]:!cur2[itemId]})});});};
 
-  const handleTplRun=p=>{update(d=>{d.practices.push(p);return d;});setLivePracticeOverride(p);setLiveId(p.id);setTplPractice(null);setStage("attend");};
+  const reshuffleGroups=useCallback(async()=>{
+    if(!session||!cur)return;
+    const present=[...presentIds];
+    const players=(team?team.players:[]).filter(p=>present.includes(p.id));
+    const groups=assignGroups(players,cur.grouping,cur.numGroups||2).map(g=>g.map(p=>p.id));
+    setLiveGroups(groups);
+    await saveSessionGroups(session.id,cur.id,coachId,groups);
+  },[session,cur,presentIds,team,coachId]);
+
+  const reshuffleBlockIntro=useCallback(async()=>{
+    if(!session||!cur)return;
+    const present=[...presentIds];
+    const players=(team?team.players:[]).filter(p=>present.includes(p.id));
+    const n2=cur.stations.length;
+    const shuffled=[...players].sort(()=>Math.random()-.5);
+    const groups=Array.from({length:n2},()=>[]);
+    shuffled.forEach((p,i2)=>groups[i2%n2].push(p.id));
+    setLiveGroups(groups);
+    await saveSessionGroups(session.id,cur.id,coachId,groups);
+  },[session,cur,presentIds,team,coachId]);
+
+  const movePlayerToStation=useCallback(async(si)=>{
+    if(!session||!cur||!liveGroups||movePlayer==null)return;
+    const n2=cur.stations.length;
+    const fromGroupIdx=liveGroups.findIndex(g=>g.includes(movePlayer));
+    const toGroupIdx=((si-stIdx)%n2+n2)%n2;
+    if(fromGroupIdx===-1||fromGroupIdx===toGroupIdx){setMovePlayer(null);return;}
+    const newGroups=liveGroups.map((g,i)=>{
+      if(i===fromGroupIdx)return g.filter(id=>id!==movePlayer);
+      if(i===toGroupIdx)return [...g,movePlayer];
+      return g;
+    });
+    setLiveGroups(newGroups);
+    await saveSessionGroups(session.id,cur.id,coachId,newGroups);
+    setMovePlayer(null);
+  },[session,cur,liveGroups,movePlayer,stIdx,coachId]);
+
+  const shareLive=useCallback(async()=>{
+    if(!session)return;
+    const token=await createHelperShareToken(session.id,coachId);
+    if(token){setShareToken(token);setShowShare(true);}
+  },[session,coachId]);
 
   // ── In-session practice editor ─────────────────────────────────────────────
   if(showEditBuilder){
@@ -965,28 +1125,40 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
       practice={practice}
       team={team}
       loc={loc}
-      onSaveResume={(newActs)=>{
-        setLiveActs(newActs);
-        setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};buzzedRef.current=false;warnedRef.current=false;
-        // Write updated acts to session so helpers see it immediately
-        const sessionState={idx:0,stIdx:0,inTrans:false,elapsed:0,running:false,runningAt:null,presentIds:[...presentIds],liveActs:newActs,liveGroups:null,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]};
-        if(sessionRef.current)writeSession(sessionState);
+      onSaveResume={async(newActs)=>{
+        await savePracticeTree(practice.id,{teamId:practice.teamId,locationId:practice.locationId,date:practice.date,startTime:practice.startTime,activities:newActs});
+        await refreshPlanning();
+        const freshList=await fetchPracticesFull();
+        const freshPractice=freshList.find(p=>p.id===practice.id);
+        const freshActs=freshPractice?freshPractice.activities:[];
+        const firstAct=freshActs[0]||null;
+        const firstIsBlock=firstAct&&firstAct.type==="station_block";
+        if(session){
+          await closeCurrentLog();
+          const updated=await writeSession({current_practice_activity_id:firstAct?firstAct.id:null,current_rotation_number:0,in_transition:false,in_block_intro:!!firstIsBlock,current_phase_started_at:new Date().toISOString(),paused_at:new Date().toISOString(),total_paused_seconds:0});
+          if(updated&&firstAct&&!firstIsBlock)await openLogFor(updated.id,{practiceActivityId:firstAct.id},[...presentIds]);
+        }
+        spoken.current={};buzzedRef.current=false;warnedRef.current=false;
         setShowEditBuilder(false);
       }}
       onBack={()=>{setShowEditBuilder(false);}}
     />);
   }
 
-  if(histPractice)return (<div className="screen" style={{padding:"14px 14px calc(var(--tab) + 40px)"}}><HistoryViewer data={data} update={update} practice={histPractice} onRunAgain={()=>{const now=new Date();const newP={id:uid(),teamId:histPractice.teamId,locationId:histPractice.locationId,date:now.toISOString().slice(0,10),startTime:now.toTimeString().slice(0,5),durMin:sumMins(histPractice.activities),activities:JSON.parse(JSON.stringify(histPractice.activities)),rerunOf:histPractice.id};update(d=>{d.practices.push(newP);return d;});setLivePracticeOverride(newP);setLiveId(newP.id);setHistPractice(null);setStage("attend");}} onBack={()=>setHistPractice(null)}/></div>);
-
-  if(stage==="attend"||showAtt){const attendPractice=livePracticeOverride||(liveId?data.practices.find(p=>p.id===liveId):null);const attendTeam=attendPractice?data.teams.find(t=>t.id===attendPractice.teamId):null;const attBack=()=>{if(showAtt){setShowAtt(false);}else{setLiveId(null);setLivePracticeOverride(null);setStage("pick");setView("today");}};return (<AttendanceScreen key={showAtt?"upd":"init"} practice={attendPractice} team={attendTeam} isUpdate={showAtt} initialPresent={showAtt?[...presentIds]:null} initialCoachPresent={showAtt?[...coachPresentIds]:null} onConfirm={showAtt?handleAttUpdate:handleAttConfirm} onBack={attBack}/>);}
+  if(stage==="attend"||showAtt){const attBack=()=>{if(showAtt){setShowAtt(false);}else{setLiveId(null);setStage("pick");setView("today");}};return (<AttendanceScreen key={showAtt?"upd":"init"} practice={practice} team={team} isUpdate={showAtt} initialPresent={showAtt?[...presentIds]:null} initialCoachPresent={showAtt?[...coachPresentIds]:null} onConfirm={showAtt?handleAttUpdate:handleAttConfirm} onBack={attBack}/>);}
   if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--green)",marginBottom:4}}>Practice Complete</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{team&&team.name} practice complete.</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>setNoteText(e.target.value)}/><button className="btn primary bsm bfull mt6" onClick={()=>{if(noteText.trim()){update(d=>{d.notes.push({id:uid(),text:noteText,context:"End of Practice",date:new Date().toISOString(),practiceId:liveId});return d;});setNoteText("");}}} >Save Note</button></div><button className="btn primary bmd bfull" onClick={()=>{setLiveId(null);setStage("pick");setView("today");}}>Done</button></div></div>);
+
+  if(!cur)return null;
 
   const phaseLabel=isBlock?(inBlockIntro?"INTRODUCING STATIONS":blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+cur.stations.length):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
   const blockCount=liveActs.slice(0,idx).filter(a=>a.type==="station_block").length;
   const schedBadge=schedDelta===null?null:(Math.abs(schedDelta)<1?<span style={{background:"var(--gbg)",color:"var(--green)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>On time</span>:schedDelta>0?<span style={{background:"var(--ambg)",color:"var(--amber)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>+{schedDelta}m behind</span>:<span style={{background:"var(--gbg)",color:"var(--green)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>{Math.abs(schedDelta)}m ahead</span>);
 
   return (<div className="ccs">
+    {!isController&&<div style={{background:"var(--ambg)",borderBottom:"1px solid var(--ambb)",padding:"8px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+      <span style={{fontSize:12,color:"var(--amber)",fontWeight:600}}>Read-only — {controllerName} has control</span>
+      <button className="btn primary bxs" onClick={takeControlNow}>Take Control</button>
+    </div>}
     <div className="cc-header">
       <div>
         <div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span>{schedBadge}</div>
@@ -1014,17 +1186,17 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
         <div style={{position:"relative"}}>
           <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
           {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
-            <button className="mm-item" onClick={()=>{setShowEllipsis(false);setRunning(false);setShowEditBuilder(true);}}>Edit Practice</button>
+            {isController&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowEditBuilder(true);}}>Edit Practice</button>}
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);if(!audioOn){try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
-            {sessionId&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowShare(true);}}>Share Live View</button>}
-            <button className="mm-item" onClick={()=>{setShowEllipsis(false);setStage("end");setRunning(false);if(sessionRef.current){writeSession({idx,stIdx,inTrans,elapsed,running:false,runningAt:null,presentIds:[...presentIds],liveActs,ended:true,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});setTimeout(()=>{endSession(sessionRef.current);sessionRef.current=null;setSessionId(null);},500);}}}>End Practice</button>
-            <button className="mm-item" onClick={()=>{setShowEllipsis(false);setIdx(0);setStIdx(0);setInTrans(false);setElapsed(0);setRunning(false);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setStage("attend");}}>Restart Practice</button>
+            {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive();}}>Share Live View</button>}
+            {isController&&<button className="mm-item" onClick={endPractice}>End Practice</button>}
+            {isController&&<button className="mm-item" onClick={restartPractice}>Restart Practice</button>}
           </div>}
         </div>
       </div>
     </div>
     {showROS&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",maxHeight:200,overflowY:"auto",flexShrink:0}}>
-      {liveActs.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--b)",background:i===idx?"var(--gbg)":"#fff",cursor:"pointer",opacity:i<idx?0.5:1}} onClick={()=>{const ni=i;baseElapsedRef.current=0;startedAtRef.current=Date.now();setIdx(ni);setStIdx(0);setInTrans(false);setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);setShowROS(false);const base2={liveActs,presentIds:[...presentIds],running:true,runningAt:Date.now(),elapsed:0,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations};writeSession({...base2,idx:ni,stIdx:0,inTrans:false});}}>
+      {liveActs.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--b)",background:i===idx?"var(--gbg)":"#fff",cursor:isController?"pointer":"default",opacity:i<idx?0.5:1}} onClick={()=>{if(isController)jumpTo(i);}}>
         <div style={{flex:1,fontSize:14,color:i===idx?"var(--green)":i<idx?"var(--td)":"var(--black)",textDecoration:i<idx?"line-through":"none"}}>{i===idx?">> ":""}{a.type==="station_block"?"Station Block":a.name}</div>
         <span className="bs bdg" style={{fontSize:11}}>{a.type==="station_block"?(a.stations.length*a.stationDuration+(a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
       </div>))}
@@ -1032,21 +1204,21 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     </div>}
     <div className="cc-timer-row">
       <div className={"cc-timer"+(urg?" urg":"")+(isOver?" over":"")}>{fmt(rem)}</div>
-      <button onClick={()=>{const nr=!running;setRunning(nr);writeSession({idx,stIdx,inTrans,elapsed,running:nr,runningAt:nr?Date.now():null,presentIds:[...presentIds],liveActs});}} style={{width:52,height:52,borderRadius:"50%",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:isOver?"var(--red)":running?"var(--s3)":"var(--green)",color:isOver?"#fff":running?"var(--black2)":"#fff",boxShadow:running?"none":"0 2px 8px rgba(45,106,79,.35)"}}>
+      {isController&&<button onClick={togglePlay} style={{width:52,height:52,borderRadius:"50%",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:isOver?"var(--red)":running?"var(--s3)":"var(--green)",color:isOver?"#fff":running?"var(--black2)":"#fff",boxShadow:running?"none":"0 2px 8px rgba(45,106,79,.35)"}}>
         {running?<Ic.Pause/>:<Ic.Play/>}
-      </button>
+      </button>}
       <div style={{flex:1}}/>
       {schedBadge}
     </div>
-    <div style={{padding:"2px 14px 4px",display:"flex",gap:8,flexShrink:0}}>
-      <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=Math.max(0,elapsed-60);baseElapsedRef.current=ne;startedAtRef.current=running?Date.now():null;setElapsed(ne);buzzedRef.current=false;warnedRef.current=false;writeSession({idx,stIdx,inTrans,elapsed:ne,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});}}>+1m</button>
-      <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{const ne=elapsed+60;baseElapsedRef.current=ne;startedAtRef.current=running?Date.now():null;setElapsed(ne);buzzedRef.current=false;warnedRef.current=false;writeSession({idx,stIdx,inTrans,elapsed:ne,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations});}}>-1m</button>
-    </div>
+    {isController&&<div style={{padding:"2px 14px 4px",display:"flex",gap:8,flexShrink:0}}>
+      <button className="btn ghost bsm" style={{flex:1}} onClick={()=>nudge(-60)}>+1m</button>
+      <button className="btn ghost bsm" style={{flex:1}} onClick={()=>nudge(60)}>-1m</button>
+    </div>}
     <div className="cc-prog"><div className={"cc-prog-bar"+(isOver?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div>
-    <div className="cc-controls">
+    {isController&&<div className="cc-controls">
       <button className="btn ghost bmd" style={{minWidth:52}} onClick={goBack} disabled={idx===0&&stIdx===0&&!inTrans}>&lt;</button>
       <button className="btn primary blg" style={{flex:1}} onClick={advance}>{isBlock&&!blockRotate?"End Block":"Next >"}</button>
-    </div>
+    </div>}
     <div className="cc-body">
       {isCl&&cur&&<div className="cc-focus">
         <div className="cc-focus-lbl">{cur.name} - {Object.values(clState[cur.id]||{}).filter(Boolean).length}/{(cur.items||[]).length} covered</div>
@@ -1088,12 +1260,12 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
         {liveGroups&&liveGroups.length>0&&<div style={{borderLeft:"3px solid #7c3aed",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed"}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
-            <button className="btn ghost bxs" onClick={()=>{const present=[...presentIds];const players=(team?team.players:[]).filter(p=>present.includes(p.id));const groups=assignGroups(players,cur.grouping,cur.numGroups||2);setLiveGroups(groups);if(sessionRef.current)updateSession(sessionRef.current,{idx,stIdx,inTrans,elapsed,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs,liveGroups:groups,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]});}}>Reshuffle</button>
+            {isController&&<button className="btn ghost bxs" onClick={reshuffleGroups}>Reshuffle</button>}
           </div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
             {liveGroups.map((g,i)=>(<div key={i} style={{display:"inline-flex",alignItems:"center",gap:6,border:"1.5px solid #c4b5fd",borderRadius:20,padding:"5px 12px",background:"#fff"}}>
               <span style={{fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,color:"#7c3aed",flexShrink:0}}>{cur.grouping==="partners"?"P"+(i+1):"G"+(i+1)}</span>
-              <span style={{fontSize:13,fontWeight:600,color:"var(--black)"}}>{g.map(p=>p.jersey?"#"+p.jersey+" "+p.firstName:p.firstName).join(" · ")}</span>
+              <span style={{fontSize:13,fontWeight:600,color:"var(--black)"}}>{g.map(pid=>pname(pid)).join(" · ")}</span>
             </div>))}
           </div>
         </div>}
@@ -1102,6 +1274,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--td)",marginBottom:12}}>Get everyone to their station</div>
         {cur.stations.map((st,i)=>{
           const stEquip=(Array.isArray(st.equipment)?st.equipment:[]).map(id=>{const a=(data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
+          const assignments=liveGroups?(liveGroups[i]||[]):[];
           return(<div key={st.id} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
               <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Station {i+1}</div>
@@ -1114,29 +1287,14 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
               {st.playerGear&&<span style={{border:"1.5px solid #fdba74",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#fff"}}>Player Gear: {st.playerGear}</span>}
             </div>}
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {(st.assignments||[]).map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team}/>))}
+              {assignments.map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team}/>))}
             </div>
           </div>);
         })}
-        <div className="brow mt10">
-          <button className="btn outline bmd" style={{flex:1}} onClick={()=>{
-            const present=[...presentIds];
-            const players=(team?team.players:[]).filter(p=>present.includes(p.id));
-            const n2=cur.stations.length;
-            const shuffled=[...players].sort(()=>Math.random()-.5);
-            const groups=Array.from({length:n2},()=>[]);
-            shuffled.forEach((p,i2)=>groups[i2%n2].push(p.id));
-            const newSts=cur.stations.map((st,i2)=>Object.assign({},st,{assignments:groups[i2]||[]}));
-            const newActs=liveActs.map(a=>a.id===cur.id?Object.assign({},a,{stations:newSts}):a);
-            setLiveActs(newActs);
-            if(sessionRef.current)writeSession({idx,stIdx,inTrans,inBlockIntro:true,elapsed,running,runningAt:running?Date.now():null,presentIds:[...presentIds],liveActs:newActs,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations,assets:data.assets||[]});
-          }}>Reshuffle</button>
-          <button className="btn primary bmd" style={{flex:1}} onClick={()=>{
-            setInBlockIntro(false);setStIdx(0);setInTrans(false);baseElapsedRef.current=0;startedAtRef.current=Date.now();setElapsed(0);spoken.current={};buzzedRef.current=false;warnedRef.current=false;setRunning(true);setFocusSt(null);
-            const base2={liveActs,presentIds:[...presentIds],running:true,runningAt:Date.now(),elapsed:0,roster:practice?data.teams.find(t=>t.id===practice.teamId)?data.teams.find(t=>t.id===practice.teamId).players:[]:[],locations:data.locations};
-            writeSession({...base2,idx,stIdx:0,inTrans:false,inBlockIntro:false,assets:data.assets||[]});
-          }}>Start Block ▶</button>
-        </div>
+        {isController&&<div className="brow mt10">
+          <button className="btn outline bmd" style={{flex:1}} onClick={reshuffleBlockIntro}>Reshuffle</button>
+          <button className="btn primary bmd" style={{flex:1}} onClick={startBlock}>Start Block ▶</button>
+        </div>}
       </div>}
       {isBlock&&!inBlockIntro&&!inTrans&&rotatedStations&&<div>
         {focusSt!==null&&<div>
@@ -1159,7 +1317,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
           <div>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {(rotatedStations[focusSt].assignments||[]).map(pid=>(<PlayerChipLive key={pid} pid={pid} team={team} onMove={()=>setMovePlayer(pid)} onProfile={pl=>setLivePlayerProfile(pl)}/>))}
+              {(rotatedStations[focusSt].assignments||[]).map(pid=>(<PlayerChipLive key={pid} pid={pid} team={team} onMove={()=>{if(isController)setMovePlayer(pid);}} onProfile={pl=>setLivePlayerProfile(pl)}/>))}
             </div>
           </div>
         </div>}
@@ -1169,23 +1327,17 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
             const stEquip=Array.isArray(st.equipment)?st.equipment:[];
             const equipNames=stEquip.map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
             return (<div key={st.id} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
-              {/* Row 1: Station label + coach */}
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}}>
                 <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Station {i+1}</div>
                 {coachName(st.coachId)&&<div style={{fontSize:11,color:"var(--td)"}}>{coachName(st.coachId)}</div>}
               </div>
-              {/* Row 2: Drill name */}
               <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.activityName||st.name||"Station "+(i+1)}</div>
-              {/* Row 3: Area */}
               {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{subName(st.sublocationId)}</div>}
-              {/* Row 4: Coaching points */}
               {st.coachingPoints&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:6,lineHeight:1.4,borderLeft:"2px solid var(--green)",paddingLeft:8}}>{st.coachingPoints}</div>}
-              {/* Row 5: Equipment + Player gear pills */}
               {(equipNames.length>0||st.playerGear)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
                 {equipNames.length>0&&<span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600}}>Equipment: {equipNames.join(", ")}</span>}
                 {st.playerGear&&<span style={{background:"#fff7ed",border:"1px solid #fdba74",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#9a3412",fontWeight:600}}>Player Gear: {st.playerGear}</span>}
               </div>}
-              {/* Row 6: Players */}
               <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
                 {(st.assignments||[]).map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team}/>))}
               </div>
@@ -1198,9 +1350,15 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
             <div className="mhandle"/>
             <div className="mtitle">Move {(team&&team.players.find(p=>p.id===movePlayer)&&team.players.find(p=>p.id===movePlayer).firstName)||"Player"}</div>
             <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>Move to which station?</div>
-            {cur.stations.map((st,si)=>(<button key={st.id} className={"btn bmd bfull "+(si===stIdx?"ghost":"outline")} style={{marginBottom:8,opacity:si===stIdx?0.5:1}} disabled={si===stIdx} onClick={()=>{setLiveActs(prev=>prev.map(a=>{if(a.id!==cur.id)return a;const newSts=a.stations.map((s,i)=>{if(i===stIdx)return Object.assign({},s,{assignments:(s.assignments||[]).filter(id=>id!==movePlayer)});if(i===si)return Object.assign({},s,{assignments:[...(s.assignments||[]),movePlayer]});return s;});return Object.assign({},a,{stations:newSts});}));setMovePlayer(null);}}>
-              {st.name}{st.activityName?": "+st.activityName:""}{si===stIdx?" (current)":""}
-            </button>))}
+            {cur.stations.map((st,si)=>{
+              const n2=cur.stations.length;
+              const toGroupIdx=((si-stIdx)%n2+n2)%n2;
+              const fromGroupIdx=liveGroups?liveGroups.findIndex(g=>g.includes(movePlayer)):-1;
+              const isCurrent=toGroupIdx===fromGroupIdx;
+              return(<button key={st.id} className={"btn bmd bfull "+(isCurrent?"ghost":"outline")} style={{marginBottom:8,opacity:isCurrent?0.5:1}} disabled={isCurrent} onClick={()=>movePlayerToStation(si)}>
+                {st.name}{st.activityName?": "+st.activityName:""}{isCurrent?" (current)":""}
+              </button>);
+            })}
             <button className="btn ghost bmd bfull" style={{marginTop:4}} onClick={()=>setMovePlayer(null)}>Cancel</button>
           </div>
         </div>}
@@ -1224,7 +1382,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
               </div>}
               {(!livePlayerProfile.focusAreas||livePlayerProfile.focusAreas.length===0)&&<div style={{fontSize:14,color:"var(--td)",textAlign:"center",padding:"16px 0"}}>No focus areas added yet.</div>}
             </div>
-            <button className="btn outline bsm bfull mt8" onClick={()=>{setMovePlayer(livePlayerProfile.id);setLivePlayerProfile(null);}}>Move to Another Station</button>
+            {isController&&<button className="btn outline bsm bfull mt8" onClick={()=>{setMovePlayer(livePlayerProfile.id);setLivePlayerProfile(null);}}>Move to Another Station</button>}
           </div>
         </div>}
       </div>}
@@ -1235,11 +1393,8 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
           const fromLabel="Station "+(i+1)+(st.activityName?": "+st.activityName:"")+(coachName(st.coachId)?" · "+coachName(st.coachId):"");
           const toLabel="Station "+((i+1)%cur.stations.length+1)+(nextSt.activityName?": "+nextSt.activityName:"")+(coachName(nextSt.coachId)?" · "+coachName(nextSt.coachId):"");
           return (<div key={st.id} className="cc-trans-card">
-            {/* Player names — bold and prominent */}
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",lineHeight:1.2,marginBottom:6}}>{pnames(st.assignments)||"--"}</div>
-            {/* From line — grayed */}
             <div style={{fontSize:12,color:"var(--td)",marginBottom:3}}>from {fromLabel}</div>
-            {/* To line — bold and green */}
             <div style={{fontSize:13,fontWeight:700,color:"var(--black)"}}>→ {toLabel}</div>
             {subName(nextSt.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginTop:2}}>{subName(nextSt.sublocationId)}</div>}
           </div>);
@@ -1257,6 +1412,6 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
       <input className="inp" placeholder="Quick note..." value={noteText} onChange={e=>setNoteText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNote()} style={{fontSize:14}}/>
       <button className="btn primary bsm" onClick={addNote}>Save</button>
     </div>
-    {showShare&&sessionId&&<ShareSheet sessionId={sessionId} onClose={()=>setShowShare(false)}/>}
+    {showShare&&shareToken&&<ShareSheet token={shareToken} onClose={()=>setShowShare(false)}/>}
   </div>);
 }

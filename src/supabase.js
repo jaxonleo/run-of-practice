@@ -605,21 +605,147 @@ export async function archiveTemplate(id) {
   return { error }
 }
 
-// ── Live sessions ─────────────────────────────────────────────────────────────
-export async function createSession(coachId, practiceId, state) {
-  const sessionId = Math.random().toString(36).slice(2, 10)
-  const { error } = await supabase.from('live_sessions').insert({ session_id: sessionId, coach_id: coachId, practice_id: practiceId, state })
-  if (error) { console.error(error); return null }
-  return sessionId
+// ── Live sessions (practice_live_sessions + append-only history tables) ────────
+// Persistence model: current_phase_started_at/paused_at/total_paused_seconds
+// drive the timer -- elapsed is always derived client-side from these three
+// timestamps, never written per-tick. Every control-affecting write is
+// optimistic-concurrency gated (WHERE id=? AND version=?); RLS additionally
+// enforces controller_user_id=auth.uid() on update, so a stale/non-controller
+// write fails structurally, not just by convention. attendance/groups are
+// append-only inserts (current = latest batch by created_at), matching the
+// schema's own history-table pattern.
+
+export async function findActiveLiveSession(practiceId) {
+  const { data, error } = await supabase.from('practice_live_sessions').select('*')
+    .eq('practice_id', practiceId).eq('status', 'active')
+    .order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (error) { console.error('findActiveLiveSession:', error); return null }
+  return data
 }
-export async function updateSession(sessionId, state) {
-  const { error } = await supabase.from('live_sessions').update({ state }).eq('session_id', sessionId)
-  if (error) console.error(error)
+
+export async function createLiveSession(practiceId, controllerUserId, { practiceActivityId, inBlockIntro }) {
+  const row = {
+    practice_id: practiceId, status: 'active', controller_user_id: controllerUserId, version: 1,
+    current_practice_activity_id: practiceActivityId, current_rotation_number: 0,
+    in_transition: false, in_block_intro: !!inBlockIntro,
+    current_phase_started_at: new Date().toISOString(), paused_at: null, total_paused_seconds: 0,
+  }
+  const { data, error } = await supabase.from('practice_live_sessions').insert(row).select().single()
+  if (error) { console.error('createLiveSession:', error); return null }
+  return data
 }
-export async function endSession(sessionId) {
-  const { error } = await supabase.from('live_sessions').update({ ended_at: new Date().toISOString() }).eq('session_id', sessionId)
-  if (error) console.error(error)
+
+// Returns the updated row, or null if the version was stale (someone else
+// wrote first, or took control) -- caller should refetch and reconcile.
+export async function updateLiveSession(id, version, patch) {
+  const { data, error } = await supabase.from('practice_live_sessions')
+    .update(Object.assign({}, patch, { version: version + 1 }))
+    .eq('id', id).eq('version', version).select().maybeSingle()
+  if (error) { console.error('updateLiveSession:', error); return null }
+  return data
 }
+
+export async function takeControl(id, version, userId) {
+  return updateLiveSession(id, version, { controller_user_id: userId })
+}
+
+export function subscribeToLiveSession(id, onUpdate) {
+  return supabase.channel('live_session_' + id)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'practice_live_sessions', filter: 'id=eq.' + id }, payload => onUpdate(payload.new))
+    .subscribe()
+}
+
+export async function endLiveSession(id, version) {
+  return updateLiveSession(id, version, { status: 'completed', ended_at: new Date().toISOString(), paused_at: null })
+}
+
+// Best-effort audit log of control actions. Not yet wired to client-side
+// retry/offline-queue logic (that's stage 7) so duplicate suppression only
+// helps against double-submits within this session, not resumed retries.
+export async function submitOperation(sessionId, submittedBy, actionType) {
+  const { error } = await supabase.from('session_operations')
+    .insert({ session_id: sessionId, operation_id: crypto.randomUUID(), submitted_by: submittedBy, action_type: actionType })
+  if (error && error.code !== '23505') console.error('submitOperation:', error)
+}
+
+export async function submitAttendanceSnapshot(sessionId, markedBy, presentIds, allPlayerIds) {
+  const rows = allPlayerIds.map(id => ({ session_id: sessionId, player_id: id, status: presentIds.has(id) ? 'present' : 'absent', marked_by: markedBy }))
+  if (!rows.length) return
+  const { error } = await supabase.from('session_attendance').insert(rows)
+  if (error) console.error('submitAttendanceSnapshot:', error)
+}
+
+export async function fetchLatestAttendance(sessionId) {
+  const { data, error } = await supabase.from('session_attendance').select('player_id,status,created_at')
+    .eq('session_id', sessionId).order('created_at', { ascending: false })
+  if (error) { console.error('fetchLatestAttendance:', error); return {} }
+  const seen = {}
+  for (const row of data || []) if (!(row.player_id in seen)) seen[row.player_id] = row.status
+  return seen
+}
+
+// groups: array of arrays of player ids, index = group_number - 1. Used both
+// for regular-activity sub-grouping and for station-block per-station
+// assignment (group_number i = whoever starts at station i).
+export async function saveSessionGroups(sessionId, practiceActivityId, createdBy, groups) {
+  const rows = groups.map((g, i) => ({ session_id: sessionId, practice_activity_id: practiceActivityId, group_number: i + 1, created_by: createdBy }))
+  if (!rows.length) return
+  const { data: groupRows, error } = await supabase.from('session_groups').insert(rows).select()
+  if (error) { console.error('saveSessionGroups:', error); return }
+  const memberRows = []
+  groupRows.forEach((gr, i) => { (groups[i] || []).forEach(pid => memberRows.push({ group_id: gr.id, player_id: pid })) })
+  if (memberRows.length) {
+    const { error: mErr } = await supabase.from('session_group_members').insert(memberRows)
+    if (mErr) console.error('saveSessionGroups members:', mErr)
+  }
+}
+
+export async function fetchLatestGroups(sessionId, practiceActivityId) {
+  const { data: groups, error } = await supabase.from('session_groups').select('*')
+    .eq('session_id', sessionId).eq('practice_activity_id', practiceActivityId).order('created_at', { ascending: false })
+  if (error) { console.error('fetchLatestGroups:', error); return null }
+  if (!groups || !groups.length) return null
+  const latestTime = groups[0].created_at
+  const latestGroups = groups.filter(g => g.created_at === latestTime).sort((a, b) => a.group_number - b.group_number)
+  const { data: members } = await supabase.from('session_group_members').select('group_id,player_id').in('group_id', latestGroups.map(g => g.id))
+  return latestGroups.map(g => (members || []).filter(m => m.group_id === g.id).map(m => m.player_id))
+}
+
+// Reconstructs the in-memory "currently open log row" ref after a resume
+// (page reload, new device) -- the ref itself doesn't survive a remount.
+export async function findOpenActivityLogId(sessionId) {
+  const { data, error } = await supabase.from('session_activity_log').select('id')
+    .eq('session_id', sessionId).is('ended_at', null).order('started_at', { ascending: false }).limit(1).maybeSingle()
+  if (error) { console.error('findOpenActivityLogId:', error); return null }
+  return data ? data.id : null
+}
+
+export async function openActivityLog(sessionId, loggedBy, { practiceActivityId, stationId }, presentPlayerIds) {
+  const { data, error } = await supabase.from('session_activity_log').insert({
+    session_id: sessionId, practice_activity_id: practiceActivityId || null, station_id: stationId || null,
+    started_at: new Date().toISOString(), present_player_ids: presentPlayerIds || [], logged_by: loggedBy,
+  }).select().single()
+  if (error) { console.error('openActivityLog:', error); return null }
+  return data.id
+}
+
+export async function closeActivityLog(logId) {
+  if (!logId) return
+  const { error } = await supabase.from('session_activity_log').update({ ended_at: new Date().toISOString() }).eq('id', logId)
+  if (error) console.error('closeActivityLog:', error)
+}
+
+export async function createHelperShareToken(liveSessionId, createdBy) {
+  const { data, error } = await supabase.from('session_access_tokens')
+    .insert({ live_session_id: liveSessionId, scope: 'helper_read', created_by: createdBy }).select().single()
+  if (error) { console.error('createHelperShareToken:', error); return null }
+  return data.id
+}
+
+// ── Legacy POC live_sessions table -- still used by HelperView/PreviewView,
+// unrewired until stage 6 (their anon RPC surface is a separate, deliberately
+// privacy-minimized API: get_live_session_view/get_preview_view/
+// submit_helper_attendance). Do not point these at practice_live_sessions.
 export async function getSession(sessionId) {
   const { data, error } = await supabase.from('live_sessions').select('*').eq('session_id', sessionId).maybeSingle()
   if (error) return null
