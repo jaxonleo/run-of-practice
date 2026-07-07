@@ -1,7 +1,9 @@
 import React, { useState, useRef } from "react";
 import { uid } from "../constants.js";
+import { createTeam, updateTeam, createPlayer, updatePlayer, createStaff, updateStaff } from "../supabase.js";
 
 const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
+const STAFF_ROLES=["Head Coach","Assistant Coach","Helper"];
 
 function DurStepper({value,min,onChange,step}){
   const s=step||1;
@@ -16,7 +18,7 @@ function DurStepper({value,min,onChange,step}){
 
 const Ic_Check=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><polyline points="2 7 6 11 12 3"/></svg>;
 
-export default function ModalLayer({modal,data,update,closeModal}){
+export default function ModalLayer({modal,data,update,closeModal,refreshTeams,coachId}){
   const defaultSport=()=>{
     const lib=data.activityLibrary||[];
     if(lib.length>0)return lib[lib.length-1].sport||"Basketball";
@@ -33,7 +35,7 @@ export default function ModalLayer({modal,data,update,closeModal}){
   const coach=modal.type==="editCoach"?modal.payload.coach:null;
   const template=modal.type==="editTemplate"?modal.payload.template:null;
   const [f,setF]=useState(()=>{
-    if(player)return{firstName:player.firstName,lastName:player.lastName,jersey:player.jersey,notes:player.notes||""};
+    if(player)return{firstName:player.firstName,lastName:player.lastName,jersey:player.jersey,notes:player.notes||"",positions:(player.positions||[]).join(", ")};
     if(activity){
       lastSportRef.current=activity.sport||"Basketball";
       return{
@@ -50,20 +52,22 @@ export default function ModalLayer({modal,data,update,closeModal}){
     }
     if(location)return{name:location.name};
     if(asset)return{name:asset.name,locationTags:asset.locationTags||[]};
-    if(coach)return{name:coach.name,role:coach.role||""};
+    if(coach)return{name:coach.name,role:coach.role||"Assistant Coach",inviteEmail:coach.inviteEmail||""};
     if(template)return{name:template.name,sport:template.sport||"General"};
     if(editTeamData)return{name:editTeamData.name,sport:editTeamData.sport||"Basketball"};
     return{sport:lastSportRef.current||"Basketball"};
   });
   const set=(k,v)=>setF(p=>Object.assign({},p,{[k]:v}));
   const togTag=lid=>setF(p=>Object.assign({},p,{locationTags:p.locationTags&&p.locationTags.includes(lid)?p.locationTags.filter(x=>x!==lid):[...(p.locationTags||[]),lid]}));
-  const save=()=>{
+  const parsePositions=s=>(s||"").split(",").map(x=>x.trim()).filter(Boolean);
+  const save=async()=>{
     const t=modal.type,p=modal.payload;
-    if(t==="addTeam"){if(!f.name)return;update(d=>{d.teams.push({id:uid(),name:f.name,sport:f.sport||"Basketball",players:[],coaches:[]});return d;});}
-    if(t==="addPlayer"){if(!f.firstName)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.teamId);if(tm)tm.players.push({id:uid(),firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",notes:f.notes||"",focusAreas:[]});return d;});}
-    if(t==="editPlayer"){if(!f.firstName)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.teamId);if(tm){const pl=tm.players.find(pl=>pl.id===p.player.id);if(pl){pl.firstName=f.firstName;pl.lastName=f.lastName||"";pl.jersey=f.jersey||"";pl.notes=f.notes||"";}}return d;});}
-    if(t==="addCoach"){if(!f.name)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.teamId);if(tm)tm.coaches.push({id:uid(),name:f.name,role:f.role||"Assistant",notes:""});return d;});}
-    if(t==="editCoach"){if(!f.name)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.teamId);if(tm){const c=tm.coaches.find(c=>c.id===p.coach.id);if(c){c.name=f.name;c.role=f.role||"Assistant";}}return d;});}
+    if(t==="addTeam"){if(!f.name)return;await createTeam(coachId,{name:f.name,sport:f.sport||"Basketball"});await refreshTeams();}
+    if(t==="editTeam"){if(!f.name)return;await updateTeam(p.team.id,{name:f.name,sport:f.sport||"Basketball"});await refreshTeams();}
+    if(t==="addPlayer"){if(!f.firstName)return;await createPlayer(p.teamId,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:parsePositions(f.positions),notes:f.notes||""});await refreshTeams();}
+    if(t==="editPlayer"){if(!f.firstName)return;await updatePlayer(p.player.id,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:parsePositions(f.positions),notes:f.notes||""});await refreshTeams();}
+    if(t==="addCoach"){if(!f.name)return;await createStaff(p.teamId,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail||""});await refreshTeams();}
+    if(t==="editCoach"){if(!f.name)return;await updateStaff(p.coach.id,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail||""});await refreshTeams();}
     if(t==="addLocation"){if(!f.name)return;update(d=>{d.locations.push({id:uid(),name:f.name,sublocations:[]});return d;});}
     if(t==="editLocation"){if(!f.name)return;update(d=>{const l=d.locations.find(l=>l.id===p.location.id);if(l)l.name=f.name;return d;});}
     if(t==="addSublocation"){if(!f.name)return;update(d=>{const l=d.locations.find(l=>l.id===p.locationId);if(l)l.sublocations.push({id:uid(),name:f.name});return d;});}
@@ -104,7 +108,6 @@ export default function ModalLayer({modal,data,update,closeModal}){
       });
     }
     if(t==="editTemplate"){if(!f.name)return;update(d=>{const tpl=d.templates.find(t=>t.id===p.template.id);if(tpl){tpl.name=f.name;tpl.sport=f.sport||"General";}return d;});}
-    if(t==="editTeam"){if(!f.name)return;update(d=>{const tm=d.teams.find(tm=>tm.id===p.team.id);if(tm){tm.name=f.name;tm.sport=f.sport||"Basketball";}return d;});}
     closeModal();
   };
   const TITLES={addTemplate:"New Template",editTemplate:"Edit Template",addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",editPlayer:"Edit Player",addCoach:"Add Coach",editCoach:"Edit Coach",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
@@ -118,12 +121,19 @@ export default function ModalLayer({modal,data,update,closeModal}){
         {(modal.type==="addPlayer"||modal.type==="editPlayer")&&(<div>
             <div className="g2"><div className="fld"><label className="lbl">First Name</label><input className="inp" autoFocus value={f.firstName||""} onChange={e=>set("firstName",e.target.value)}/></div><div className="fld"><label className="lbl">Last Name</label><input className="inp" value={f.lastName||""} onChange={e=>set("lastName",e.target.value)}/></div></div>
             <div className="fld"><label className="lbl">Jersey #</label><input className="inp" type="number" inputMode="numeric" value={f.jersey||""} onChange={e=>set("jersey",e.target.value)}/></div>
+            <div className="fld"><label className="lbl">Positions</label><input className="inp" placeholder="e.g. 1B, OF" value={f.positions||""} onChange={e=>set("positions",e.target.value)}/></div>
             <div className="fld"><label className="lbl">Notes</label><textarea className="ta" value={f.notes||""} onChange={e=>set("notes",e.target.value)}/></div>
           </div>
         )}
-        {modal.type==="addCoach"&&(<div><div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus onChange={e=>set("name",e.target.value)}/></div><div className="fld"><label className="lbl">Role</label><input className="inp" placeholder="Assistant" onChange={e=>set("role",e.target.value)}/></div></div>
-        )}
-        {modal.type==="editCoach"&&(<div><div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div><div className="fld"><label className="lbl">Role</label><input className="inp" value={f.role||""} placeholder="Assistant" onChange={e=>set("role",e.target.value)}/></div></div>
+        {(modal.type==="addCoach"||modal.type==="editCoach")&&(<div>
+            <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
+            <div className="fld"><label className="lbl">Role</label>
+              <div className="brow">
+                {STAFF_ROLES.map(r=>(<button key={r} type="button" className={"btn bsm "+((f.role||"Assistant Coach")===r?"primary":"ghost")} onClick={()=>set("role",r)}>{r}</button>))}
+              </div>
+            </div>
+            <div className="fld"><label className="lbl">Invite Email (optional)</label><input className="inp" type="email" placeholder="For staff without an account yet" value={f.inviteEmail||""} onChange={e=>set("inviteEmail",e.target.value)}/></div>
+          </div>
         )}
         {(modal.type==="addLocation"||modal.type==="editLocation"||modal.type==="addSublocation")&&(<div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
         )}

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { loadData, saveData, flushSave, setCoachKey, sendMagicLink, getCurrentSession, onAuthStateChange, signOut } from "./supabase.js";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { loadData, saveData, flushSave, setCoachKey, sendMagicLink, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayerFocusAreas } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
@@ -270,12 +270,11 @@ function PracticeDetail({practice,data,update,setView,setLiveId,setEditPracticeI
   </div>);
 }
 
-function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPracticeId}){
+function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPracticeId,refreshTeams}){
   const [selectedTeam,setSelectedTeam]=useState(null);
   const [teamTab,setTeamTab]=useState("practices");
   const [selectedPractice,setSelectedPractice]=useState(null);
-  const coachTeams=data.teams.filter(t=>t.coaches.some(c=>c.id===coachId));
-  const myTeams=coachTeams.length>0?coachTeams:data.teams;
+  const myTeams=data.teams;
   const [practiceMenuId,setPracticeMenuId]=useState(null);
   const delPractice=id=>{update(d=>{d.practices=d.practices.filter(p=>p.id!==id);return d;});if(selectedPractice&&selectedPractice.id===id)setSelectedPractice(null);};
   const now=new Date();
@@ -318,7 +317,7 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
             </div>
           </div>))}
           </div>}
-        {teamTab==="roster"&&<div><RostersTab data={data} update={update} openModal={openModal} fixedTeamId={selectedTeam}/></div>}
+        {teamTab==="roster"&&<div><RostersTab data={data} update={update} openModal={openModal} fixedTeamId={selectedTeam} refreshTeams={refreshTeams}/></div>}
         {teamTab==="history"&&<div>
           {past.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No practice history yet.</div>}
           {past.map(p=>{
@@ -508,6 +507,13 @@ export default function App(){
       setLoaded(true);
     });
   },[coachId]);
+  const [teams,setTeams]=useState([]);
+  const refreshTeams=useCallback(async()=>{
+    if(!coachId)return;
+    setTeams(await fetchMyTeams());
+  },[coachId]);
+  useEffect(()=>{refreshTeams();},[refreshTeams]);
+  const fullData=useMemo(()=>Object.assign({},data,{teams}),[data,teams]);
   const openModal=(t,p)=>setModal({type:t,payload:p||{}});
   const closeModal=()=>setModal(null);
   const launchRun=id=>{if(id)setLiveId(id);setView("command");};
@@ -532,11 +538,11 @@ export default function App(){
   return (<div style={{display:"contents"}}>
     <div className="app">
       <div className="screen">
-        {view==="today"&&<TodayScreen data={data} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSignOut={signOut} setEditPracticeId={setEditPracticeId}/>}
-        {view==="teams"&&<TeamsScreen data={data} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId}/>}
-        {view==="library"&&<NewLibraryScreen data={data} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun} setEditPracticeId={setEditPracticeId}/>}
-        {view==="builder"&&<BuilderScreen data={data} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId}/>}
-        {view==="command"&&<CommandScreen data={data} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} setView={setView}/>}
+        {view==="today"&&<TodayScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSignOut={signOut} setEditPracticeId={setEditPracticeId}/>}
+        {view==="teams"&&<TeamsScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams}/>}
+        {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun} setEditPracticeId={setEditPracticeId}/>}
+        {view==="builder"&&<BuilderScreen data={fullData} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId}/>}
+        {view==="command"&&<CommandScreen data={fullData} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} setView={setView}/>}
       </div>
       {view!=="command"&&<nav className="tabbar">
         {TABS.map(({id,label,I})=>(<button key={id} className={"ti "+(view===id?"on":"")} onClick={()=>setView(id)}>
@@ -546,7 +552,7 @@ export default function App(){
         ))}
       </nav>}
     </div>
-    {modal&&<ModalLayer modal={modal} data={data} update={update} closeModal={closeModal}/>}
+    {modal&&<ModalLayer modal={modal} data={fullData} update={update} closeModal={closeModal} refreshTeams={refreshTeams} coachId={coachId}/>}
   </div>);
 }
 
@@ -789,18 +795,22 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   );
 }
 
-function PlayerProfile({player:playerInit,team:teamInit,data,update,onBack}){
+function PlayerProfile({player:playerInit,team:teamInit,data,update,refreshTeams,onBack}){
   const team=data.teams.find(t=>t.id===teamInit.id)||teamInit;
   const player=team.players.find(p=>p.id===playerInit.id)||playerInit;
   const [newArea,setNewArea]=useState("");
-  const addArea=()=>{
-    if(!newArea.trim())return;
-    if((player.focusAreas||[]).length>=10)return;
-    update(d=>{const t=d.teams.find(t=>t.id===team.id);if(t){const p=t.players.find(p=>p.id===player.id);if(p){if(!p.focusAreas)p.focusAreas=[];p.focusAreas.push({id:uid(),text:newArea.trim()});}}return d;});
-    setNewArea("");
-  };
-  const delArea=aId=>update(d=>{const t=d.teams.find(t=>t.id===team.id);if(t){const p=t.players.find(p=>p.id===player.id);if(p)p.focusAreas=(p.focusAreas||[]).filter(a=>a.id!==aId);}return d;});
   const areas=player.focusAreas||[];
+  const addArea=async()=>{
+    if(!newArea.trim())return;
+    if(areas.length>=10)return;
+    await updatePlayerFocusAreas(player.id,[...areas,newArea.trim()]);
+    setNewArea("");
+    await refreshTeams();
+  };
+  const delArea=async i=>{
+    await updatePlayerFocusAreas(player.id,areas.filter((_,idx)=>idx!==i));
+    await refreshTeams();
+  };
   return (<div style={{paddingBottom:80}}>
     <div className="row mb10" style={{justifyContent:"space-between"}}>
       <div>
@@ -812,10 +822,10 @@ function PlayerProfile({player:playerInit,team:teamInit,data,update,onBack}){
     <div className="card mb10">
       <div className="clbl mb8">Focus Areas ({areas.length}/10)</div>
       {!areas.length&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>No focus areas yet. Add what this player is working on.</div>}
-      {areas.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
+      {areas.map((text,i)=>(<div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
         <div style={{width:20,height:20,borderRadius:"50%",background:"var(--green)",color:"#fff",fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>{i+1}</div>
-        <div style={{flex:1,fontSize:14,lineHeight:1.5,color:"var(--black)"}}>{a.text}</div>
-        <button className="btn danger bxs" onClick={()=>delArea(a.id)}>x</button>
+        <div style={{flex:1,fontSize:14,lineHeight:1.5,color:"var(--black)"}}>{text}</div>
+        <button className="btn danger bxs" onClick={()=>delArea(i)}>x</button>
       </div>))}
       {areas.length<10&&(<div>
         <div className="fld"><textarea className="ta" style={{minHeight:58}} placeholder="e.g. Keep dribble low and eyes up. Tends to go right only." value={newArea} onChange={e=>setNewArea(e.target.value)}/></div>
@@ -826,19 +836,25 @@ function PlayerProfile({player:playerInit,team:teamInit,data,update,onBack}){
   </div>);
 }
 
-function RostersTab({data,update,openModal,fixedTeamId}){
+function RostersTab({data,update,openModal,fixedTeamId,refreshTeams}){
   const [teamId,setTeamId]=useState(fixedTeamId||(data.teams[0]?data.teams[0].id:""));
+  useEffect(()=>{
+    if(fixedTeamId){if(teamId!==fixedTeamId)setTeamId(fixedTeamId);return;}
+    if(!data.teams.some(t=>t.id===teamId))setTeamId(data.teams[0]?data.teams[0].id:"");
+  },[data.teams,fixedTeamId]);
   const [tab,setTab]=useState("players");
   const [confirmDel,setConfirmDel]=useState(false);
   const [openMenu,setOpenMenu]=useState(null);
   const [sort,setSort]=useState({by:"firstName",dir:"asc"});
   const [viewPlayer,setViewPlayer]=useState(null);
   const team=data.teams.find(t=>t.id===teamId)||null;
-  const delP=id=>update(d=>{const t=d.teams.find(t=>t.id===teamId);if(t)t.players=t.players.filter(p=>p.id!==id);return d;});
-  const delC=id=>update(d=>{const t=d.teams.find(t=>t.id===teamId);if(t)t.coaches=t.coaches.filter(c=>c.id!==id);return d;});
-  const delTeam=()=>{
+  const delP=async id=>{await archivePlayer(id);await refreshTeams();};
+  const delC=async id=>{await archiveStaff(id);await refreshTeams();};
+  const delTeam=async()=>{
     const rem=data.teams.filter(t=>t.id!==teamId);
-    update(d=>{d.teams=d.teams.filter(t=>t.id!==teamId);d.practices=d.practices.filter(p=>p.teamId!==teamId);d.templates=(d.templates||[]).filter(t=>t.teamId!==teamId);d.notes=d.notes.filter(n=>!n.practiceId||(d.practices.some(p=>p.id===n.practiceId)));return d;});
+    await archiveTeam(teamId);
+    update(d=>{d.practices=d.practices.filter(p=>p.teamId!==teamId);d.templates=(d.templates||[]).filter(t=>t.teamId!==teamId);d.notes=d.notes.filter(n=>!n.practiceId||(d.practices.some(p=>p.id===n.practiceId)));return d;});
+    await refreshTeams();
     setConfirmDel(false);setTeamId(rem[0]?rem[0].id:"");
   };
   const sorted=team?[...team.players].sort((a,b)=>{
@@ -851,7 +867,7 @@ function RostersTab({data,update,openModal,fixedTeamId}){
   }):[];
   if(viewPlayer)return(<div style={{paddingBottom:80}}>
     <div className="row mb10"><button className="btn ghost bxs" onClick={()=>setViewPlayer(null)}>&#8249; Roster</button></div>
-    <PlayerProfile player={viewPlayer} team={team} data={data} update={update} onBack={()=>setViewPlayer(null)}/>
+    <PlayerProfile player={viewPlayer} team={team} data={data} update={update} refreshTeams={refreshTeams} onBack={()=>setViewPlayer(null)}/>
   </div>);
   return (<div style={{paddingBottom:80}} onClick={()=>setOpenMenu(null)}>
     {!fixedTeamId&&(<div className="sechdr mb8">
@@ -897,7 +913,7 @@ function RostersTab({data,update,openModal,fixedTeamId}){
         </div>
         {sorted.map(p=>(<div key={p.id} className="li tap" style={{position:"relative"}} onClick={()=>setViewPlayer(p)}>
           <div className="lim">
-            <div className="lin">{p.jersey?"#"+p.jersey+" ":""}{p.firstName} {p.lastName}</div>
+            <div className="lin">{p.jersey?"#"+p.jersey+" ":""}{p.firstName} {p.lastName}{p.positions&&p.positions.length>0?" · "+p.positions.join("/"):""}</div>
             {(p.focusAreas&&p.focusAreas.length>0)&&<div className="limt">{p.focusAreas.length} focus area{p.focusAreas.length>1?"s":""}</div>}
             {(!p.focusAreas||!p.focusAreas.length)&&p.notes&&<div className="limt">{p.notes}</div>}
           </div>
@@ -909,7 +925,7 @@ function RostersTab({data,update,openModal,fixedTeamId}){
       {tab==="coaches"&&(<div>
         <div className="sechdr mb8"><span className="sectitle">{team.coaches.length} Coaches</span><button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addCoach",{teamId});}}>+ Add</button></div>
         {team.coaches.map(c=>(<div key={c.id} className="li" style={{position:"relative"}}>
-          <div className="lim"><div className="lin">{c.name}</div><div className="limt">{c.role}</div></div>
+          <div className="lim"><div className="lin">{c.name}</div><div className="limt">{c.role}{!c.userId&&c.inviteEmail?" · Invite pending ("+c.inviteEmail+")":""}</div></div>
           <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="coach_"+c.id?null:"coach_"+c.id);}}><span/><span/><span/></button>
           {openMenu==="coach_"+c.id&&<div className="mini-menu"><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editCoach",{teamId,coach:c});}}>Edit</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delC(c.id);}}>Remove</button></div>}
         </div>))}
