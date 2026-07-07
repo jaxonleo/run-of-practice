@@ -128,6 +128,172 @@ export async function archiveStaff(id) {
   return { error }
 }
 
+// ── Library (assets, skill tags, drills, sharing) ─────────────────────────────
+const EQUIP_TYPE_TO_OLD = { team_equipment: 'team', player_gear: 'player' }
+const OLD_TO_EQUIP_TYPE = { team: 'team_equipment', player: 'player_gear' }
+
+function mapAssetRow(a) {
+  return { id: a.id, name: a.name, type: EQUIP_TYPE_TO_OLD[a.type] || a.type, sport: a.sport, organizationId: a.organization_id, ownerUserId: a.owner_user_id }
+}
+function mapSkillTagRow(t) {
+  return { id: t.id, categoryId: t.category_id, scope: t.scope, organizationId: t.organization_id, ownerUserId: t.owner_user_id, name: t.name }
+}
+function mapDrillRow(a, equipmentByDrill, tagsByDrill) {
+  return {
+    id: a.id, name: a.name, sport: a.sport,
+    duration: a.duration_minutes || 10, description: a.description || '', coachingPoints: a.coaching_points || '',
+    grouping: a.grouping || 'whole', numGroups: a.num_groups || 2,
+    organizationId: a.organization_id, ownerUserId: a.owner_user_id, sharedWithOrganizationId: a.shared_with_organization_id,
+    updatedAt: a.updated_at,
+    equipment: equipmentByDrill[a.id] || [],
+    skillTagIds: tagsByDrill[a.id] || [],
+  }
+}
+
+export async function fetchLibraryData() {
+  const [assetsRes, categoriesRes, tagsRes, drillsRes, equipRes, drillTagsRes, orgsRes, profilesRes] = await Promise.all([
+    supabase.from('assets').select('*').is('archived_at', null),
+    supabase.from('skill_categories').select('*'),
+    supabase.from('skill_tags').select('*').is('archived_at', null),
+    supabase.from('activity_library').select('*').is('archived_at', null),
+    supabase.from('activity_library_equipment').select('*'),
+    supabase.from('drill_tags').select('*'),
+    supabase.from('organization_members').select('organization_id, role, organizations(id, name)').is('archived_at', null),
+    supabase.from('profiles').select('id, email, first_name, last_name'), // own row + org co-members, per RLS
+  ])
+  if (drillsRes.error) console.error('fetchLibraryData drills:', drillsRes.error)
+  if (assetsRes.error) console.error('fetchLibraryData assets:', assetsRes.error)
+
+  const equipmentByDrill = {}
+  for (const e of equipRes.data || []) (equipmentByDrill[e.activity_library_id] ||= []).push(e.asset_id)
+  const tagsByDrill = {}
+  for (const t of drillTagsRes.data || []) (tagsByDrill[t.activity_library_id] ||= []).push(t.skill_tag_id)
+  const profilesById = {}
+  for (const p of profilesRes.data || []) profilesById[p.id] = { name: (p.first_name && p.last_name) ? (p.first_name + ' ' + p.last_name) : (p.email || 'A coach') }
+
+  return {
+    assets: (assetsRes.data || []).map(mapAssetRow),
+    skillCategories: categoriesRes.data || [],
+    skillTags: (tagsRes.data || []).map(mapSkillTagRow),
+    activityLibrary: (drillsRes.data || []).map(a => mapDrillRow(a, equipmentByDrill, tagsByDrill)),
+    myOrgs: (orgsRes.data || []).map(m => ({ id: m.organization_id, name: m.organizations ? m.organizations.name : '', role: m.role })),
+    profilesById,
+  }
+}
+
+export async function createAsset(ownerUserId, { name, sport, type }) {
+  const { data, error } = await supabase.from('assets').insert({ name, sport: sport || 'General', type: OLD_TO_EQUIP_TYPE[type] || type || 'team_equipment', owner_user_id: ownerUserId }).select().single()
+  if (error) console.error('createAsset:', error)
+  return { data: data ? mapAssetRow(data) : null, error }
+}
+export async function updateAsset(id, { name, sport }) {
+  const { error } = await supabase.from('assets').update({ name, sport }).eq('id', id)
+  if (error) console.error('updateAsset:', error)
+  return { error }
+}
+export async function archiveAsset(id) {
+  const { error } = await supabase.from('assets').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  if (error) console.error('archiveAsset:', error)
+  return { error }
+}
+
+export async function createSkillTag(ownerUserId, { categoryId, name }) {
+  const { data, error } = await supabase.from('skill_tags').insert({ category_id: categoryId, scope: 'coach', owner_user_id: ownerUserId, name }).select().single()
+  if (error) console.error('createSkillTag:', error)
+  return { data: data ? mapSkillTagRow(data) : null, error }
+}
+export async function archiveSkillTag(id) {
+  const { error } = await supabase.from('skill_tags').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  if (error) console.error('archiveSkillTag:', error)
+  return { error }
+}
+
+async function syncDrillEquipment(drillId, assetIds) {
+  const { data: existing } = await supabase.from('activity_library_equipment').select('id, asset_id').eq('activity_library_id', drillId)
+  const existingIds = new Set((existing || []).map(e => e.asset_id))
+  const wantIds = new Set(assetIds)
+  const toAdd = assetIds.filter(id => !existingIds.has(id))
+  const toRemove = (existing || []).filter(e => !wantIds.has(e.asset_id)).map(e => e.id)
+  if (toAdd.length) await supabase.from('activity_library_equipment').insert(toAdd.map(asset_id => ({ activity_library_id: drillId, asset_id })))
+  if (toRemove.length) await supabase.from('activity_library_equipment').delete().in('id', toRemove)
+}
+async function syncDrillTags(drillId, tagIds) {
+  const { data: existing } = await supabase.from('drill_tags').select('id, skill_tag_id').eq('activity_library_id', drillId)
+  const existingIds = new Set((existing || []).map(e => e.skill_tag_id))
+  const wantIds = new Set(tagIds)
+  const toAdd = tagIds.filter(id => !existingIds.has(id))
+  const toRemove = (existing || []).filter(e => !wantIds.has(e.skill_tag_id)).map(e => e.id)
+  if (toAdd.length) await supabase.from('drill_tags').insert(toAdd.map(skill_tag_id => ({ activity_library_id: drillId, skill_tag_id })))
+  if (toRemove.length) await supabase.from('drill_tags').delete().in('id', toRemove)
+}
+
+export async function createDrill(ownerUserId, { name, sport, duration, description, coachingPoints, grouping, numGroups, equipment, skillTagIds }) {
+  const { data, error } = await supabase.from('activity_library').insert({
+    owner_user_id: ownerUserId, name, sport: sport || 'General', duration_minutes: duration || null,
+    description: description || null, coaching_points: coachingPoints || null,
+    grouping: grouping || 'whole', num_groups: numGroups || null,
+  }).select().single()
+  if (error) { console.error('createDrill:', error); return { error } }
+  if (equipment && equipment.length) await syncDrillEquipment(data.id, equipment)
+  if (skillTagIds && skillTagIds.length) await syncDrillTags(data.id, skillTagIds)
+  return { data }
+}
+export async function updateDrill(id, { name, sport, duration, description, coachingPoints, grouping, numGroups, equipment, skillTagIds }) {
+  const { error } = await supabase.from('activity_library').update({
+    name, sport: sport || 'General', duration_minutes: duration || null,
+    description: description || null, coaching_points: coachingPoints || null,
+    grouping: grouping || 'whole', num_groups: numGroups || null,
+  }).eq('id', id)
+  if (error) { console.error('updateDrill:', error); return { error } }
+  if (equipment) await syncDrillEquipment(id, equipment)
+  if (skillTagIds) await syncDrillTags(id, skillTagIds)
+  return {}
+}
+export async function archiveDrill(id) {
+  const { error } = await supabase.from('activity_library').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  if (error) console.error('archiveDrill:', error)
+  return { error }
+}
+export async function setDrillShare(id, organizationId) {
+  const { error } = await supabase.from('activity_library').update({ shared_with_organization_id: organizationId }).eq('id', id)
+  if (error) console.error('setDrillShare:', error)
+  return { error }
+}
+
+// Copy semantics (addendum, "recurring bug" section): copying a shared drill
+// into your own library must NOT reference the sharer's asset rows. Resolve
+// by name+type into the recipient's own pool -- match an existing asset, or
+// inline-create one, exactly like the "type a new one" picker behavior.
+export async function copyDrillToMyLibrary(ownerUserId, sourceDrill, sourceAssetsById) {
+  const { data: created, error } = await supabase.from('activity_library').insert({
+    owner_user_id: ownerUserId, name: sourceDrill.name, sport: sourceDrill.sport,
+    duration_minutes: sourceDrill.duration || null, description: sourceDrill.description || null,
+    coaching_points: sourceDrill.coachingPoints || null, grouping: sourceDrill.grouping || 'whole',
+    num_groups: sourceDrill.numGroups || null,
+  }).select().single()
+  if (error) { console.error('copyDrillToMyLibrary:', error); return { error } }
+
+  const equipmentIds = sourceDrill.equipment || []
+  if (equipmentIds.length) {
+    const { data: myAssets } = await supabase.from('assets').select('*').eq('owner_user_id', ownerUserId).is('archived_at', null)
+    const mine = (myAssets || []).map(mapAssetRow)
+    const resolvedIds = []
+    for (const assetId of equipmentIds) {
+      const source = sourceAssetsById[assetId]
+      if (!source) continue
+      const match = mine.find(a => a.name.toLowerCase() === source.name.toLowerCase() && a.type === source.type)
+      if (match) { resolvedIds.push(match.id); continue }
+      const { data: newAsset } = await createAsset(ownerUserId, { name: source.name, sport: source.sport, type: source.type })
+      if (newAsset) { resolvedIds.push(newAsset.id); mine.push(newAsset) }
+    }
+    if (resolvedIds.length) await syncDrillEquipment(created.id, resolvedIds)
+  }
+  // Tags deliberately not copied -- coach-scoped tags never transfer, and an
+  // org tag copied outside that org's context would be meaningless. Recipient
+  // re-tags manually if they want to.
+  return { data: created }
+}
+
 // ── Live sessions ─────────────────────────────────────────────────────────────
 export async function createSession(coachId, practiceId, state) {
   const sessionId = Math.random().toString(36).slice(2, 10)

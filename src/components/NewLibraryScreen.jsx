@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid, sumMins } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
+import { createAsset, updateAsset, archiveAsset, archiveDrill, setDrillShare, copyDrillToMyLibrary } from "../supabase.js";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -10,12 +11,13 @@ const Ic_Chev=({up})=><svg width="16" height="16" viewBox="0 0 16 16" fill="none
 // (kept here since they are only used inside Library/Builder/TemplateWorkspace)
 
 // ── GearEditRow — inline edit for a player gear item ─────────────────────────
-function GearEditRow({asset,update,onDone}){
+function GearEditRow({asset,refreshLibrary,onDone}){
   const [name,setName]=useState(asset.name);
   const [sport,setSport]=useState(asset.sport||"General");
-  const save=()=>{
+  const save=async()=>{
     if(!name.trim())return;
-    update(d=>{const a=d.assets.find(a=>a.id===asset.id);if(a){a.name=name.trim();a.sport=sport;}return d;});
+    await updateAsset(asset.id,{name:name.trim(),sport});
+    await refreshLibrary();
     onDone();
   };
   return(<div style={{padding:"10px 12px",background:"var(--s2)",borderBottom:"1px solid var(--b)"}}>
@@ -32,7 +34,7 @@ function GearEditRow({asset,update,onDone}){
 }
 
 // ── EquipmentTab ──────────────────────────────────────────────────────────────
-function EquipmentTab({data,update,openModal}){
+function EquipmentTab({data,coachId,refreshLibrary,openModal}){
   const [equipTab,setEquipTab]=useState("team");
   const [openMenu,setOpenMenu]=useState(null);
   const [newName,setNewName]=useState("");
@@ -41,17 +43,17 @@ function EquipmentTab({data,update,openModal}){
   const [collapsed,setCollapsed]=useState({});
   const teamAssets=(data.assets||[]).filter(a=>!a.type||a.type==="team");
   const playerAssets=(data.assets||[]).filter(a=>a.type==="player");
-  const addNew=()=>{
+  const addNew=async()=>{
     if(!newName.trim())return;
-    const newId=uid();
-    update(d=>{d.assets.push({id:newId,name:newName.trim(),type:equipTab,sport:equipTab==="player"?newSport:"General",locationTags:[]});return d;});
+    await createAsset(coachId,{name:newName.trim(),type:equipTab,sport:equipTab==="player"?newSport:"General"});
+    await refreshLibrary();
     setNewName("");setShowAdd(false);
   };
-  const del=id=>update(d=>{d.assets=d.assets.filter(a=>a.id!==id);return d;});
+  const del=async id=>{await archiveAsset(id);await refreshLibrary();};
   return(<div onClick={()=>setOpenMenu(null)}>
     {/* Toggle */}
     <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:16}}>
-      {["team","player"].map(t=>(<button key={t} onClick={()=>{setEquipTab(t);setSportFilter("All");setShowAdd(false);}} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:equipTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:equipTab===t?"var(--black)":"var(--td)"}}>{t==="team"?"Team Equipment":"Player Gear"}</button>))}
+      {["team","player"].map(t=>(<button key={t} onClick={()=>{setEquipTab(t);setShowAdd(false);}} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:equipTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:equipTab===t?"var(--black)":"var(--td)"}}>{t==="team"?"Team Equipment":"Player Gear"}</button>))}
     </div>
 
     {/* Team Equipment */}
@@ -68,7 +70,6 @@ function EquipmentTab({data,update,openModal}){
       {teamAssets.map(a=>(<div key={a.id} className="li" style={{position:"relative",marginBottom:6}}>
         <div className="lim">
           <div className="lin">{a.name}</div>
-          {a.locationTags&&a.locationTags.length>0&&<div className="limt">{a.locationTags.map(lid=>{const l=data.locations.find(l=>l.id===lid);return l?l.name:null;}).filter(Boolean).join(", ")}</div>}
         </div>
         <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
         {openMenu===a.id&&<div className="mini-menu">
@@ -124,7 +125,7 @@ function EquipmentTab({data,update,openModal}){
                       <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
                     </div>}
                   </div>}
-                  {isEditing&&<GearEditRow asset={a} update={update} onDone={()=>setOpenMenu(null)}/>}
+                  {isEditing&&<GearEditRow asset={a} refreshLibrary={refreshLibrary} onDone={()=>setOpenMenu(null)}/>}
                 </div>);
               })}
             </div>}
@@ -379,7 +380,7 @@ function TemplateWorkspace({data,update,template,onRun,onBack,openModal}){
 }
 
 // ── NewLibraryScreen ──────────────────────────────────────────────────────────
-export default function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,setEditPracticeId}){
+export default function NewLibraryScreen({data,update,openModal,setView,setLiveId,launchRun,setEditPracticeId,refreshLibrary,coachId}){
   const [libTab,setLibTab]=useState("drills");
   useEffect(()=>{window.__ropLibTab=setLibTab;return()=>{delete window.__ropLibTab;};},[]);
   const [openMenu,setOpenMenu]=useState(null);
@@ -387,8 +388,24 @@ export default function NewLibraryScreen({data,update,openModal,setView,setLiveI
   const [confirmDel,setConfirmDel]=useState(null);
   const [collapsed,setCollapsed]=useState({});
   const [drillMenu,setDrillMenu]=useState(null);
+  const [shelf,setShelf]=useState("mine");
+  const [shareMenuId,setShareMenuId]=useState(null);
+  const [copyingId,setCopyingId]=useState(null);
   const toggle=sport=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}));
-  const sports=[...new Set(data.activityLibrary.map(a=>a.sport||"General").filter(Boolean))].sort();
+  const myOrgs=data.myOrgs||[];
+  const shelves=[{key:"mine",label:"My Library"},...myOrgs.flatMap(org=>[{key:"orgLib:"+org.id,label:org.name+" Library",org},{key:"shared:"+org.id,label:"From "+org.name,org}])];
+  const shelfDrills=(()=>{
+    if(shelf==="mine")return (data.activityLibrary||[]).filter(a=>a.ownerUserId===coachId);
+    if(shelf.startsWith("orgLib:")){const orgId=shelf.slice(7);return (data.activityLibrary||[]).filter(a=>a.organizationId===orgId);}
+    if(shelf.startsWith("shared:")){const orgId=shelf.slice(7);return (data.activityLibrary||[]).filter(a=>a.sharedWithOrganizationId===orgId&&a.ownerUserId!==coachId);}
+    return [];
+  })();
+  const isMine=shelf==="mine";
+  const sports=[...new Set(shelfDrills.map(a=>a.sport||"General").filter(Boolean))].sort();
+  const assetsById=Object.fromEntries((data.assets||[]).map(a=>[a.id,a]));
+  const equipNames=ids=>(ids||[]).map(id=>assetsById[id]?assetsById[id].name:null).filter(Boolean);
+  const doShare=async(drillId,orgId)=>{await setDrillShare(drillId,orgId);setShareMenuId(null);await refreshLibrary();};
+  const doCopy=async(drill)=>{setCopyingId(drill.id);await copyDrillToMyLibrary(coachId,drill,assetsById);await refreshLibrary();setCopyingId(null);};
   const templates=data.templates||[];
   const LTABS=["drills","templates","locations","equipment"];
   if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} update={update} template={editingTpl} openModal={openModal} onRun={p=>{update(d=>{if(!d.practices.find(pr=>pr.id===p.id))d.practices.push(p);return d;});setLiveId(p.id);setView("command");}} onBack={()=>setEditingTpl(null)}/></div>);
@@ -402,38 +419,44 @@ export default function NewLibraryScreen({data,update,openModal,setView,setLiveI
         {LTABS.map(t=>(<button key={t} onClick={()=>setLibTab(t)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:libTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:libTab===t?"var(--black)":"var(--td)"}}>{t}</button>))}
       </div>
     </div>
-    {libTab==="drills"&&<div style={{padding:"0 16px"}}>
-      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn primary bsm" onClick={()=>openModal("addActivity")}>+ Add Drill</button></div>
-      {data.activityLibrary.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No drills yet. Tap + Add Drill.</div>}
+    {libTab==="drills"&&<div style={{padding:"0 16px"}} onClick={()=>{setDrillMenu(null);setShareMenuId(null);}}>
+      {shelves.length>1&&<div style={{display:"flex",gap:6,overflowX:"auto",marginBottom:12,paddingBottom:2}}>
+        {shelves.map(s=>(<button key={s.key} onClick={()=>setShelf(s.key)} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:shelf===s.key?"var(--green)":"var(--s1)",color:shelf===s.key?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{s.label}</button>))}
+      </div>}
+      {isMine&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn primary bsm" onClick={()=>openModal("addActivity")}>+ Add Drill</button></div>}
+      {shelfDrills.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>{isMine?"No drills yet. Tap + Add Drill.":"Nothing here yet."}</div>}
       {sports.map(sport=>(<div key={sport} style={{marginBottom:8}}>
         <button onClick={()=>toggle(sport)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
           <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700}}>{sport}</span>
-          <span style={{fontSize:12,color:"var(--td)"}}>{data.activityLibrary.filter(a=>a.sport===sport).length} drills {collapsed[sport]?"":"v"}</span>
+          <span style={{fontSize:12,color:"var(--td)"}}>{shelfDrills.filter(a=>(a.sport||"General")===sport).length} drills {collapsed[sport]?"":"v"}</span>
         </button>
         {!collapsed[sport]&&(()=>{
-          const sportDrills=data.activityLibrary.map((a,gi)=>({...a,_gi:gi,sport:a.sport||"General"})).filter(a=>a.sport===sport);
-          const moveUp=act=>{const si=sportDrills.findIndex(a=>a.id===act.id);if(si===0)return;const pi=sportDrills[si-1]._gi;const ci=act._gi;update(d=>{const tmp=d.activityLibrary[ci];d.activityLibrary[ci]=d.activityLibrary[pi];d.activityLibrary[pi]=tmp;return d;});};
-          const moveDown=act=>{const si=sportDrills.findIndex(a=>a.id===act.id);if(si===sportDrills.length-1)return;const ni=sportDrills[si+1]._gi;const ci=act._gi;update(d=>{const tmp=d.activityLibrary[ci];d.activityLibrary[ci]=d.activityLibrary[ni];d.activityLibrary[ni]=tmp;return d;});};
-          return sportDrills.map((act,si)=>(<div key={act.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderBottom:"1px solid var(--b)",background:"#fff"}}>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"center",paddingTop:2,gap:1,flexShrink:0,width:20}}>
-              {si>0&&<button onClick={()=>moveUp(act)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"var(--td)",padding:0,lineHeight:1}}>▲</button>}
-              {si<sportDrills.length-1&&<button onClick={()=>moveDown(act)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"var(--td)",padding:0,lineHeight:1}}>▼</button>}
-            </div>
+          const sportDrills=shelfDrills.filter(a=>(a.sport||"General")===sport).slice().sort((a,b)=>a.name.localeCompare(b.name));
+          return sportDrills.map(act=>(<div key={act.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderBottom:"1px solid var(--b)",background:"#fff"}}>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:700,fontSize:14,marginBottom:2}}>{act.name}</div>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                <span style={{fontWeight:700,fontSize:14}}>{act.name}</span>
+                {isMine&&act.sharedWithOrganizationId&&<span className="bdg bp" style={{fontSize:10}}>Shared</span>}
+              </div>
               {act.description&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2,lineHeight:1.4}}>{act.description}</div>}
               {act.coachingPoints&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.coachingPoints}</div>}
-              {act.playerGear&&<div style={{fontSize:11,color:"#92400e",marginTop:2}}>Player gear: {act.playerGear}</div>}
-              {act.equipment&&Array.isArray(act.equipment)&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>Needs: {act.equipment.map(id=>{const a=data.assets.find(x=>x.id===id);return a?a.name:id;}).join(", ")}</div>}
+              {act.equipment&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>Needs: {equipNames(act.equipment).join(", ")}</div>}
               {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>{act.grouping==="partners"?"Partners":act.numGroups+" groups"}</div>}
+              {!isMine&&<div style={{fontSize:11,color:"var(--green2)",marginTop:4}}>Shared by {(data.profilesById&&data.profilesById[act.ownerUserId]&&data.profilesById[act.ownerUserId].name)||"a coach"}</div>}
+              {!isMine&&shelf.startsWith("shared:")&&<button className="btn outline bxs" style={{marginTop:6}} onClick={()=>doCopy(act)} disabled={copyingId===act.id}>{copyingId===act.id?"Copying...":"Copy to My Library"}</button>}
             </div>
-            <div style={{position:"relative",flexShrink:0}}>
-              <button className="ell-btn" onClick={e=>{e.stopPropagation();setDrillMenu(drillMenu===act.id?null:act.id);}}><span/><span/><span/></button>
-              {drillMenu===act.id&&<div className="mini-menu" style={{right:0,minWidth:120}}>
+            {isMine&&<div style={{position:"relative",flexShrink:0}}>
+              <button className="ell-btn" onClick={e=>{e.stopPropagation();setDrillMenu(drillMenu===act.id?null:act.id);setShareMenuId(null);}}><span/><span/><span/></button>
+              {drillMenu===act.id&&<div className="mini-menu" style={{right:0,minWidth:140}}>
                 <button className="mm-item" onClick={()=>{setDrillMenu(null);openModal("editActivity",{activity:act});}}>Edit</button>
-                <button className="mm-item mm-danger" onClick={()=>{setDrillMenu(null);update(d=>{d.activityLibrary=d.activityLibrary.filter(a=>a.id!==act.id);return d;});}}>Delete</button>
+                {myOrgs.length>0&&<button className="mm-item" onClick={e=>{e.stopPropagation();setDrillMenu(null);setShareMenuId(shareMenuId===act.id?null:act.id);}}>{act.sharedWithOrganizationId?"Change Sharing":"Share..."}</button>}
+                {act.sharedWithOrganizationId&&<button className="mm-item" onClick={()=>doShare(act.id,null)}>Make Private</button>}
+                <button className="mm-item mm-danger" onClick={async()=>{setDrillMenu(null);await archiveDrill(act.id);await refreshLibrary();}}>Delete</button>
               </div>}
-            </div>
+              {shareMenuId===act.id&&<div className="mini-menu" style={{right:0,top:"100%",minWidth:160}} onClick={e=>e.stopPropagation()}>
+                {myOrgs.map(org=>(<button key={org.id} className="mm-item" onClick={()=>doShare(act.id,org.id)}>{act.sharedWithOrganizationId===org.id?"✓ ":""}{org.name}</button>))}
+              </div>}
+            </div>}
           </div>));
         })()}
       </div>))}
@@ -480,7 +503,7 @@ export default function NewLibraryScreen({data,update,openModal,setView,setLiveI
       </div>))}
     </div>}
     {libTab==="equipment"&&<div style={{padding:"0 16px"}} onClick={()=>setOpenMenu(null)}>
-      <EquipmentTab data={data} update={update} openModal={openModal}/>
+      <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal}/>
     </div>}
   </div>);
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { loadData, saveData, flushSave, setCoachKey, sendMagicLink, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayerFocusAreas } from "./supabase.js";
+import { loadData, saveData, flushSave, setCoachKey, sendMagicLink, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayerFocusAreas, fetchLibraryData } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
@@ -513,7 +513,13 @@ export default function App(){
     setTeams(await fetchMyTeams());
   },[coachId]);
   useEffect(()=>{refreshTeams();},[refreshTeams]);
-  const fullData=useMemo(()=>Object.assign({},data,{teams}),[data,teams]);
+  const [library,setLibrary]=useState({assets:[],skillCategories:[],skillTags:[],activityLibrary:[],myOrgs:[],profilesById:{}});
+  const refreshLibrary=useCallback(async()=>{
+    if(!coachId)return;
+    setLibrary(await fetchLibraryData());
+  },[coachId]);
+  useEffect(()=>{refreshLibrary();},[refreshLibrary]);
+  const fullData=useMemo(()=>Object.assign({},data,{teams},library),[data,teams,library]);
   const openModal=(t,p)=>setModal({type:t,payload:p||{}});
   const closeModal=()=>setModal(null);
   const launchRun=id=>{if(id)setLiveId(id);setView("command");};
@@ -540,7 +546,7 @@ export default function App(){
       <div className="screen">
         {view==="today"&&<TodayScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSignOut={signOut} setEditPracticeId={setEditPracticeId}/>}
         {view==="teams"&&<TeamsScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams}/>}
-        {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun} setEditPracticeId={setEditPracticeId}/>}
+        {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun} setEditPracticeId={setEditPracticeId} refreshLibrary={refreshLibrary} coachId={coachId}/>}
         {view==="builder"&&<BuilderScreen data={fullData} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId}/>}
         {view==="command"&&<CommandScreen data={fullData} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} setView={setView}/>}
       </div>
@@ -552,7 +558,7 @@ export default function App(){
         ))}
       </nav>}
     </div>
-    {modal&&<ModalLayer modal={modal} data={fullData} update={update} closeModal={closeModal} refreshTeams={refreshTeams} coachId={coachId}/>}
+    {modal&&<ModalLayer modal={modal} data={fullData} update={update} closeModal={closeModal} refreshTeams={refreshTeams} refreshLibrary={refreshLibrary} coachId={coachId}/>}
   </div>);
 }
 
