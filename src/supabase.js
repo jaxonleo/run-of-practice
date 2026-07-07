@@ -735,66 +735,72 @@ export async function closeActivityLog(logId) {
   if (error) console.error('closeActivityLog:', error)
 }
 
+// expires_at is NOT NULL with no default -- 24h covers same-day overrun
+// without leaving a share link valid indefinitely.
 export async function createHelperShareToken(liveSessionId, createdBy) {
   const { data, error } = await supabase.from('session_access_tokens')
-    .insert({ live_session_id: liveSessionId, scope: 'helper_read', created_by: createdBy }).select().single()
+    .insert({ live_session_id: liveSessionId, scope: 'helper_read', created_by: createdBy, expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString() })
+    .select().single()
   if (error) { console.error('createHelperShareToken:', error); return null }
   return data.id
 }
 
-// ── Legacy POC live_sessions table -- still used by HelperView/PreviewView,
-// unrewired until stage 6 (their anon RPC surface is a separate, deliberately
-// privacy-minimized API: get_live_session_view/get_preview_view/
-// submit_helper_attendance). Do not point these at practice_live_sessions.
-export async function getSession(sessionId) {
-  const { data, error } = await supabase.from('live_sessions').select('*').eq('session_id', sessionId).maybeSingle()
-  if (error) return null
-  return data
-}
-export function subscribeToSession(sessionId, onUpdate) {
-  return supabase.channel('session_' + sessionId).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_sessions', filter: 'session_id=eq.' + sessionId }, payload => { onUpdate(payload.new) }).subscribe()
-}
+// ── Anon-facing views (coach-authenticated half) ────────────────────────────
+// Everything an anonymous helper/preview viewer sees goes through three
+// security-definer RPCs (get_preview_view/get_live_session_view/
+// submit_helper_attendance) -- deliberately not direct table reads, since
+// anon has zero table grants. These wrappers are the coach-authenticated
+// side: creating/reusing the preview_sessions + session_access_tokens rows
+// those RPCs read from.
 
-// ── Preview sessions ──────────────────────────────────────────────────────────
-// Reuses live_sessions table with type:"preview" in state.
-// preview_id is stored as practice_id so we can query it.
-// The state object contains full practice data for helpers to see setup info.
-
-export async function createPreviewSession(coachId, practice, teamData, locationData, assetData) {
-  const previewId = 'prev_' + Math.random().toString(36).slice(2, 10)
-  const state = {
-    type: 'preview',
-    practice,
-    team: teamData || null,
-    locations: locationData || [],
-    assets: assetData || [],
-    liveSessionId: null, // filled when coach starts practice
+// Reuses an existing, not-yet-live preview session for this practice
+// (matching the old "don't regenerate the link every time" UX), and reuses
+// a still-valid preview-scope token for it rather than minting a new one
+// on every Share tap.
+export async function findOrCreatePreviewToken(practiceId, createdBy) {
+  let { data: existing } = await supabase.from('preview_sessions').select('id')
+    .eq('practice_id', practiceId).is('live_session_id', null)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle()
+  let previewSessionId = existing ? existing.id : null
+  if (!previewSessionId) {
+    const { data: created, error } = await supabase.from('preview_sessions').insert({ practice_id: practiceId }).select().single()
+    if (error) { console.error('findOrCreatePreviewToken:', error); return null }
+    previewSessionId = created.id
   }
-  const { error } = await supabase.from('live_sessions').insert({
-    session_id: previewId,
-    coach_id: coachId,
-    practice_id: practice.id,
-    state,
-  })
-  if (error) { console.error('createPreviewSession:', error); return null }
-  return previewId
+  const { data: existingToken } = await supabase.from('session_access_tokens').select('id')
+    .eq('preview_session_id', previewSessionId).eq('scope', 'preview').is('revoked_at', null)
+    .gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (existingToken) return existingToken.id
+  const { data: token, error: tErr } = await supabase.from('session_access_tokens')
+    .insert({ preview_session_id: previewSessionId, scope: 'preview', created_by: createdBy, expires_at: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString() })
+    .select().single()
+  if (tErr) { console.error('findOrCreatePreviewToken token:', tErr); return null }
+  return token.id
 }
 
-export async function updatePreviewWithLiveSession(previewId, liveSessionId) {
-  const { data } = await supabase.from('live_sessions').select('state').eq('session_id', previewId).maybeSingle()
-  if (!data) return
-  const newState = Object.assign({}, data.state, { liveSessionId })
-  await supabase.from('live_sessions').update({ state: newState }).eq('session_id', previewId)
+// Links a not-yet-live preview session (if one exists for this practice) to
+// the live session just created, and mints the helper_read token the
+// preview viewer needs to redirect -- see migration
+// 20260707220000_preview_view_live_handoff.sql.
+export async function linkPreviewToLiveSession(practiceId, liveSessionId) {
+  const { error } = await supabase.rpc('link_preview_to_live_session', { p_practice_id: practiceId, p_live_session_id: liveSessionId })
+  if (error) console.error('linkPreviewToLiveSession:', error)
 }
 
-export async function getPreviewSession(previewId) {
-  const { data, error } = await supabase.from('live_sessions').select('*').eq('session_id', previewId).maybeSingle()
-  if (error) return null
+export async function getPreviewByToken(token) {
+  const { data, error } = await supabase.rpc('get_preview_view', { p_token: token })
+  if (error) { console.error('getPreviewByToken:', error); return { error: 'request_failed' } }
   return data
 }
 
-export function subscribeToPreview(previewId, onUpdate) {
-  return supabase.channel('preview_' + previewId)
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_sessions', filter: 'session_id=eq.' + previewId }, payload => { onUpdate(payload.new) })
-    .subscribe()
+export async function getLiveSessionByToken(token) {
+  const { data, error } = await supabase.rpc('get_live_session_view', { p_token: token })
+  if (error) { console.error('getLiveSessionByToken:', error); return { error: 'request_failed' } }
+  return data
+}
+
+export async function submitHelperAttendanceByToken(token, playerId, status) {
+  const { data, error } = await supabase.rpc('submit_helper_attendance', { p_token: token, p_player_id: playerId, p_status: status })
+  if (error) { console.error('submitHelperAttendanceByToken:', error); return { error: 'request_failed' } }
+  return data
 }

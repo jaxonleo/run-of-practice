@@ -5,7 +5,7 @@ import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView } from "./components/CommandScreen.jsx";
-import { createPreviewSession } from "./supabase.js";
+import { findOrCreatePreviewToken } from "./supabase.js";
 
 // INIT, DEMO_INIT, migrateData, uid, fmt, sumMins, etc. imported from constants.js
 
@@ -181,7 +181,7 @@ function PracticeDetail({practice,data,update,setView,setLiveId,setEditPracticeI
   const now=new Date();
   const todayStr=now.toISOString().slice(0,10);
   const [sharing,setSharing]=useState(false);
-  const [previewUrl,setPreviewUrl]=useState(practice.previewId?window.location.origin+"/preview/"+practice.previewId:null);
+  const [previewUrl,setPreviewUrl]=useState(null);
   const [expandedId,setExpandedId]=useState(null);
   const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
   const actMins=a=>{if(a.type==="station_block")return a.stations.length*(a.stationDuration||0)+Math.max(0,a.stations.length-1)*(a.transitionDuration||0);return a.duration||0;};
@@ -193,9 +193,8 @@ function PracticeDetail({practice,data,update,setView,setLiveId,setEditPracticeI
   const shareSetup=async()=>{
     setSharing(true);
     try{
-      let pid=practice.previewId;
-      if(!pid){pid=await createPreviewSession(coachId||"anon",practice,team||null,data.locations,data.assets||[]);if(pid){update(d=>{const p=d.practices.find(p=>p.id===practice.id);if(p)p.previewId=pid;return d;});}}
-      if(pid){const url=window.location.origin+"/preview/"+pid;setPreviewUrl(url);if(navigator.share){navigator.share({title:"Practice Setup - "+(team?team.name:"Practice"),url});}else{navigator.clipboard.writeText(url).catch(()=>{});}}
+      const token=await findOrCreatePreviewToken(practice.id,coachId);
+      if(token){const url=window.location.origin+"/preview/"+token;setPreviewUrl(url);if(navigator.share){navigator.share({title:"Practice Setup - "+(team?team.name:"Practice"),url});}else{navigator.clipboard.writeText(url).catch(()=>{});}}
     }catch(e){console.error(e);}
     setSharing(false);
   };
@@ -551,10 +550,10 @@ export default function App(){
     {id:"library",label:"Library",I:Ic.Run},
   ];
   const coachName=session?(session.user.email||"Coach"):"Coach";
-  const liveMatch=window.location.pathname.match(/^\/live\/([a-z0-9_]+)$/i);
-  if(liveMatch)return (<HelperView sessionId={liveMatch[1]}/>);
-  const previewMatch=window.location.pathname.match(/^\/preview\/([a-z0-9_]+)$/i);
-  if(previewMatch)return (<PreviewView previewId={previewMatch[1]}/>);
+  const liveMatch=window.location.pathname.match(/^\/live\/([a-z0-9-]+)$/i);
+  if(liveMatch)return (<HelperView token={liveMatch[1]}/>);
+  const previewMatch=window.location.pathname.match(/^\/preview\/([a-z0-9-]+)$/i);
+  if(previewMatch)return (<PreviewView token={previewMatch[1]}/>);
   // Loading initial session
   if(session===undefined)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
   // Show magic-link sign-in if not authenticated
