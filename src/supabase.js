@@ -2,6 +2,23 @@ import { createClient } from '@supabase/supabase-js'
 const SUPABASE_URL = 'https://bepoojcbizxhqadrytjq.supabase.co'
 const SUPABASE_ANON_KEY = 'sb_publishable_z0atQT9uv4_9OZSlGe_awg_d07YcC7v'
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+// ── Auth (magic link) ──────────────────────────────────────────────────────────
+export async function sendMagicLink(email) {
+  return supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
+}
+export async function getCurrentSession() {
+  const { data } = await supabase.auth.getSession()
+  return data.session
+}
+export function onAuthStateChange(cb) {
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => cb(session))
+  return data.subscription
+}
+export async function signOut() {
+  return supabase.auth.signOut()
+}
+
 let _coachKey = null
 export function setCoachKey(id) { _coachKey = 'coach_' + id }
 let saveTimer = null

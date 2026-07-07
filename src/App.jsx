@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { loadData, saveData, flushSave, setCoachKey, getCoaches, registerCoach } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, DEMO_INIT, migrateData } from "./constants.js";
+import { loadData, saveData, flushSave, setCoachKey, sendMagicLink, getCurrentSession, onAuthStateChange, signOut } from "./supabase.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig } from "./components/ActivityConfigs.jsx";
@@ -354,17 +354,20 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
   </div>);
 }
 
-function SplashScreen({onSelect,coaches}){
-  const [adding,setAdding]=useState(false);
-  const [newName,setNewName]=useState("");
-  const save=()=>{
-    if(!newName.trim())return;
-    const nm=newName.trim();
-    const cid="coach_"+nm.toLowerCase().replace(/[^a-z0-9]/g,"")+"_"+Math.random().toString(36).slice(2,6);
-    onSelect(cid,nm);
+function AuthScreen(){
+  const [email,setEmail]=useState("");
+  const [sent,setSent]=useState(false);
+  const [sending,setSending]=useState(false);
+  const [error,setError]=useState("");
+  const send=async()=>{
+    if(!email.trim()||sending)return;
+    setSending(true);setError("");
+    const { error }=await sendMagicLink(email.trim());
+    setSending(false);
+    if(error){setError(error.message||"Something went wrong. Try again.");return;}
+    setSent(true);
   };
   return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
-    
     <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
       <div style={{width:96,height:96,borderRadius:22,overflow:"hidden",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
         <img src="/apple-touch-icon.png" style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Run of Practice"/>
@@ -374,31 +377,25 @@ function SplashScreen({onSelect,coaches}){
     </div>
     <div style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
       <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
-      {!adding&&<div>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>{coaches.length>0?"Who's coaching today?":"Welcome, Coach"}</div>
-        <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>{coaches.length>0?"Select your name to continue.":"Get started by entering your name."}</div>
-        {coaches.map(c=>(<button key={c.id} onClick={()=>onSelect(c.id,c.name)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:"var(--s1)",cursor:"pointer",marginBottom:8}}><span style={{fontSize:16,fontWeight:600}}>{c.name}</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700}}>&#8594;</span></button>))}
-        <button onClick={()=>setAdding(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderRadius:"var(--r)",border:"1.5px dashed var(--gb)",background:"transparent",cursor:"pointer",marginBottom:8}}>
-          <span style={{width:28,height:28,borderRadius:"50%",background:"var(--gbg)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--green)",fontSize:20,fontWeight:700,flexShrink:0}}>+</span>
-          <span style={{fontSize:16,fontWeight:600,color:"var(--green)"}}>{coaches.length>0?"New Coach":"Get Started"}</span>
-        </button>
-      </div>}
-      {adding&&<div>
+      {!sent&&<div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Welcome, Coach</div>
-        <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Enter your name to get started.</div>
+        <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Enter your email — we'll send a sign-in link.</div>
         <div className="fld mb10">
-          <label className="lbl">Your Name</label>
-          <input className="inp" autoFocus placeholder="e.g. Coach Johnson" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")save();}}/>
+          <label className="lbl">Email</label>
+          <input className="inp" autoFocus type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")send();}}/>
         </div>
-        <div className="brow">
-          {coaches.length>0&&<button className="btn ghost bmd" onClick={()=>setAdding(false)}>Back</button>}
-          <button className="btn primary bmd" style={{flex:1}} onClick={save} disabled={!newName.trim()}>Get Started</button>
-        </div>
+        {error&&<div style={{fontSize:13,color:"var(--red)",marginBottom:10}}>{error}</div>}
+        <button className="btn primary bmd bfull" onClick={send} disabled={!email.trim()||sending}>{sending?"Sending...":"Send Sign-In Link"}</button>
+      </div>}
+      {sent&&<div>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Check your email</div>
+        <div style={{fontSize:14,color:"var(--td)",marginBottom:20,lineHeight:1.5}}>We sent a sign-in link to <strong>{email}</strong>. Tap it on this device to continue.</div>
+        <button className="btn ghost bmd bfull" onClick={()=>{setSent(false);setError("");}}>Use a different email</button>
       </div>}
     </div>
   </div>);
 }
-function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSwitchCoach,setEditPracticeId}){
+function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSignOut,setEditPracticeId}){
   const now=new Date();
   const todayStr=now.toISOString().slice(0,10);
   const hour=now.getHours();
@@ -429,8 +426,8 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSwitchCo
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,lineHeight:1}}>{greeting},</div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,color:"var(--green)",lineHeight:1}}>{coachName}</div>
       </div>
-      <button onClick={()=>{if(onSwitchCoach)onSwitchCoach();}} style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"50%",width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <button onClick={()=>{if(onSignOut)onSignOut();}} style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"50%",width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       </button>
     </div>
     <div style={{padding:"0 16px"}}>
@@ -494,20 +491,19 @@ export default function App(){
   const [modal,setModal]=useState(null);
   const [liveId,setLiveId]=useState(null);
   const [editPracticeId,setEditPracticeId]=useState(null);
-  const [coachId,setCoachId]=useState(null);
-  const [coaches,setCoaches]=useState([]);
-  const [coachesLoaded,setCoachesLoaded]=useState(false);
-  const [showCoachSelect,setShowCoachSelect]=useState(false);
+  const [session,setSession]=useState(undefined); // undefined=loading, null=signed out, object=signed in
   const update=useCallback(fn=>{setData(d=>{const nx=fn(JSON.parse(JSON.stringify(d)));saveData(nx);return nx;});},[]);
   useEffect(()=>{
-    if(typeof window!=="undefined"&&window.localStorage){localStorage.removeItem("rop_coach_id");localStorage.removeItem("rop_coach_name");}
-    getCoaches().then(list=>{setCoaches(list);setCoachesLoaded(true);});
+    getCurrentSession().then(setSession);
+    const sub=onAuthStateChange(s=>setSession(s));
+    return ()=>sub.unsubscribe();
   },[]);
+  const coachId=session?session.user.id:null;
   useEffect(()=>{
-    if(!coachId)return;
+    if(!coachId){setLoaded(false);return;}
     setCoachKey(coachId);
     loadData().then(raw=>{
-      if(raw===null){const template=coachId==="coach_demo"?DEMO_INIT:INIT;const seeded=migrateData(JSON.parse(JSON.stringify(template)));setData(seeded);flushSave(seeded);}
+      if(raw===null){const seeded=migrateData(JSON.parse(JSON.stringify(INIT)));setData(seeded);flushSave(seeded);}
       else{setData(migrateData(raw));}
       setLoaded(true);
     });
@@ -521,24 +517,22 @@ export default function App(){
     {id:"teams",label:"Teams",I:Ic.Build},
     {id:"library",label:"Library",I:Ic.Run},
   ];
-  // needsCoach handled by full-screen SplashScreen route above
-  const selectCoach=(id,name)=>{setCoachKey(id);setCoachId(id);setShowCoachSelect(false);if(name){registerCoach(id,name).then(()=>getCoaches().then(list=>setCoaches(list)));}setLoaded(false);loadData().then(raw=>{if(raw===null){const template=coachId==="coach_demo"?DEMO_INIT:INIT;const seeded=migrateData(JSON.parse(JSON.stringify(template)));setData(seeded);flushSave(seeded);}else{setData(migrateData(raw));}setLoaded(true);});};
-  const coachName=(coaches.find(c=>c.id===coachId)||{}).name||"Coach";
+  const coachName=session?(session.user.email||"Coach"):"Coach";
   const liveMatch=window.location.pathname.match(/^\/live\/([a-z0-9_]+)$/i);
   if(liveMatch)return (<HelperView sessionId={liveMatch[1]}/>);
   const previewMatch=window.location.pathname.match(/^\/preview\/([a-z0-9_]+)$/i);
   if(previewMatch)return (<PreviewView previewId={previewMatch[1]}/>);
-  // Show splash until coaches are loaded
-  if(!coachesLoaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
-  // Show splash if no coach selected
-  if(!coachId)return (<SplashScreen coaches={coaches} onSelect={selectCoach}/>);
-  // Show data loading spinner after coach selected but data not loaded yet
+  // Loading initial session
+  if(session===undefined)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
+  // Show magic-link sign-in if not authenticated
+  if(!session)return (<AuthScreen/>);
+  // Show data loading spinner after auth but before data loaded
   if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div></div>);
 
   return (<div style={{display:"contents"}}>
     <div className="app">
       <div className="screen">
-        {view==="today"&&<TodayScreen data={data} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSwitchCoach={()=>setShowCoachSelect(true)} setEditPracticeId={setEditPracticeId}/>}
+        {view==="today"&&<TodayScreen data={data} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSignOut={signOut} setEditPracticeId={setEditPracticeId}/>}
         {view==="teams"&&<TeamsScreen data={data} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId}/>}
         {view==="library"&&<NewLibraryScreen data={data} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun} setEditPracticeId={setEditPracticeId}/>}
         {view==="builder"&&<BuilderScreen data={data} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId}/>}
@@ -553,7 +547,6 @@ export default function App(){
       </nav>}
     </div>
     {modal&&<ModalLayer modal={modal} data={data} update={update} closeModal={closeModal}/>}
-    {showCoachSelect&&<div style={{position:"fixed",inset:0,zIndex:300}}><SplashScreen coaches={coaches} onSelect={(id,name)=>{selectCoach(id,name);setShowCoachSelect(false);}}/></div>}
   </div>);
 }
 
