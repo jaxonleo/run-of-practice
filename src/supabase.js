@@ -19,6 +19,23 @@ export async function signOut() {
   return supabase.auth.signOut()
 }
 
+// Soft, reversible account close -- data stays intact, coach just vanishes
+// from teammates' rosters until they sign back in.
+export async function deactivateOwnAccount(userId) {
+  const { error } = await supabase.from('profiles').update({ deactivated_at: new Date().toISOString() }).eq('id', userId)
+  if (error) console.error('deactivateOwnAccount:', error)
+  return { error }
+}
+// Called right after a successful sign-in -- if this account was
+// deactivated, silently clear it so "come back" really is just signing in
+// again, no separate reactivation step.
+export async function reactivateIfNeeded(userId) {
+  const { data } = await supabase.from('profiles').select('deactivated_at').eq('id', userId).maybeSingle()
+  if (data && data.deactivated_at) {
+    await supabase.from('profiles').update({ deactivated_at: null }).eq('id', userId)
+  }
+}
+
 let _coachKey = null
 export function setCoachKey(id) { _coachKey = 'coach_' + id }
 let saveTimer = null
@@ -44,7 +61,7 @@ const ROLE_LABELS = { head_coach: 'Head Coach', assistant_coach: 'Assistant Coac
 const ROLE_VALUES = { 'Head Coach': 'head_coach', 'Assistant Coach': 'assistant_coach', 'Helper': 'helper' }
 
 function mapPlayerRow(p) {
-  return { id: p.id, firstName: p.first_name, lastName: p.last_name, jersey: p.jersey_number || '', positions: p.positions || [], notes: p.notes || '', focusAreas: p.focus_areas || [] }
+  return { id: p.id, firstName: p.first_name, lastName: p.last_name, jersey: p.jersey_number || '', positions: p.positions || [], notes: p.notes || '' }
 }
 function mapStaffRow(s) {
   return { id: s.id, name: (s.first_name + ' ' + s.last_name).trim(), role: ROLE_LABELS[s.role] || s.role, inviteEmail: s.invite_email, userId: s.user_id }
@@ -63,12 +80,29 @@ export async function fetchMyTeams() {
   if (teamsRes.error) { console.error('fetchMyTeams:', teamsRes.error); return [] }
   const players = playersRes.data || []
   const staff = staffRes.data || []
+  const teamIds = (teamsRes.data || []).map(t => t.id)
+
+  const [focusRes, tagsRes, deactivatedRes] = await Promise.all([
+    players.length ? supabase.from('player_focus_areas').select('*').in('player_id', players.map(p => p.id)) : Promise.resolve({ data: [] }),
+    supabase.from('skill_tags').select('id, category_id, name').is('archived_at', null),
+    teamIds.length ? supabase.rpc('get_deactivated_staff_user_ids', { p_team_ids: teamIds }) : Promise.resolve({ data: [] }),
+  ])
+  const tagsById = {}
+  for (const t of tagsRes.data || []) tagsById[t.id] = t
+  const focusByPlayer = {}
+  for (const fa of focusRes.data || []) {
+    const tag = tagsById[fa.skill_tag_id]
+    if (!tag) continue
+    ;(focusByPlayer[fa.player_id] ||= []).push({ id: fa.id, skillTagId: fa.skill_tag_id, name: tag.name, categoryId: tag.category_id })
+  }
+  const deactivatedUserIds = new Set(deactivatedRes.data || [])
+
   return (teamsRes.data || []).map(t => ({
     id: t.id,
     name: t.name,
     sport: t.sport,
-    players: players.filter(p => p.team_id === t.id).map(mapPlayerRow),
-    coaches: staff.filter(s => s.team_id === t.id).map(mapStaffRow),
+    players: players.filter(p => p.team_id === t.id).map(p => Object.assign(mapPlayerRow(p), { focusAreas: focusByPlayer[p.id] || [] })),
+    coaches: staff.filter(s => s.team_id === t.id && !(s.user_id && deactivatedUserIds.has(s.user_id))).map(mapStaffRow),
   }))
 }
 
@@ -104,9 +138,18 @@ export async function archivePlayer(id) {
   if (error) console.error('archivePlayer:', error)
   return { error }
 }
-export async function updatePlayerFocusAreas(id, focusAreas) {
-  const { error } = await supabase.from('players').update({ focus_areas: focusAreas }).eq('id', id)
-  if (error) console.error('updatePlayerFocusAreas:', error)
+// Structured focus areas -- a player <-> skill_tags join, replacing the old
+// freeform text[]. skillTagId is either an existing tag (global/org/coach)
+// or one just created via createSkillTag for a coach's own detail under a
+// category.
+export async function addPlayerFocusArea(playerId, skillTagId, createdBy) {
+  const { error } = await supabase.from('player_focus_areas').insert({ player_id: playerId, skill_tag_id: skillTagId, created_by: createdBy })
+  if (error) console.error('addPlayerFocusArea:', error)
+  return { error }
+}
+export async function removePlayerFocusArea(id) {
+  const { error } = await supabase.from('player_focus_areas').delete().eq('id', id)
+  if (error) console.error('removePlayerFocusArea:', error)
   return { error }
 }
 
@@ -144,7 +187,7 @@ function mapDrillRow(a, equipmentByDrill, tagsByDrill) {
     duration: a.duration_minutes || 10, description: a.description || '', coachingPoints: a.coaching_points || '',
     grouping: a.grouping || 'whole', numGroups: a.num_groups || 2,
     organizationId: a.organization_id, ownerUserId: a.owner_user_id, sharedWithOrganizationId: a.shared_with_organization_id,
-    updatedAt: a.updated_at,
+    updatedAt: a.updated_at, position: a.position || 0,
     equipment: equipmentByDrill[a.id] || [],
     skillTagIds: tagsByDrill[a.id] || [],
   }
@@ -155,7 +198,7 @@ export async function fetchLibraryData() {
     supabase.from('assets').select('*').is('archived_at', null),
     supabase.from('skill_categories').select('*'),
     supabase.from('skill_tags').select('*').is('archived_at', null),
-    supabase.from('activity_library').select('*').is('archived_at', null),
+    supabase.from('activity_library').select('*').is('archived_at', null).order('position'),
     supabase.from('activity_library_equipment').select('*'),
     supabase.from('drill_tags').select('*'),
     supabase.from('organization_members').select('organization_id, role, organizations(id, name)').is('archived_at', null),
@@ -227,16 +270,33 @@ async function syncDrillTags(drillId, tagIds) {
   if (toRemove.length) await supabase.from('drill_tags').delete().in('id', toRemove)
 }
 
+async function nextDrillPosition(ownerUserId) {
+  const { data } = await supabase.from('activity_library').select('position').eq('owner_user_id', ownerUserId).order('position', { ascending: false }).limit(1)
+  return data && data.length ? data[0].position + 1 : 0
+}
 export async function createDrill(ownerUserId, { name, sport, duration, description, coachingPoints, grouping, numGroups, equipment, skillTagIds }) {
+  const position = await nextDrillPosition(ownerUserId)
   const { data, error } = await supabase.from('activity_library').insert({
     owner_user_id: ownerUserId, name, sport: sport || 'General', duration_minutes: duration || null,
     description: description || null, coaching_points: coachingPoints || null,
-    grouping: grouping || 'whole', num_groups: numGroups || null,
+    grouping: grouping || 'whole', num_groups: numGroups || null, position,
   }).select().single()
   if (error) { console.error('createDrill:', error); return { error } }
   if (equipment && equipment.length) await syncDrillEquipment(data.id, equipment)
   if (skillTagIds && skillTagIds.length) await syncDrillTags(data.id, skillTagIds)
   return { data }
+}
+// Swaps two drills' position values -- used for the My Library up/down
+// reorder buttons (adjacent-swap, matching the pattern already used for
+// activities within a practice/template).
+export async function swapDrillPositions(idA, idB) {
+  const { data } = await supabase.from('activity_library').select('id, position').in('id', [idA, idB])
+  if (!data || data.length !== 2) return
+  const [a, b] = data
+  await Promise.all([
+    supabase.from('activity_library').update({ position: b.position }).eq('id', a.id),
+    supabase.from('activity_library').update({ position: a.position }).eq('id', b.id),
+  ])
 }
 export async function updateDrill(id, { name, sport, duration, description, coachingPoints, grouping, numGroups, equipment, skillTagIds }) {
   const { error } = await supabase.from('activity_library').update({
@@ -761,10 +821,12 @@ export async function closeActivityLog(logId) {
 }
 
 // expires_at is NOT NULL with no default -- 24h covers same-day overrun
-// without leaving a share link valid indefinitely.
-export async function createHelperShareToken(liveSessionId, createdBy) {
+// without leaving a share link valid indefinitely. scope: 'helper_read'
+// (follow-along, default) or 'helper_attendance' (also lets the link mark
+// players present/absent via submit_helper_attendance).
+export async function createHelperShareToken(liveSessionId, createdBy, scope) {
   const { data, error } = await supabase.from('session_access_tokens')
-    .insert({ live_session_id: liveSessionId, scope: 'helper_read', created_by: createdBy, expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString() })
+    .insert({ live_session_id: liveSessionId, scope: scope || 'helper_read', created_by: createdBy, expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString() })
     .select().single()
   if (error) { console.error('createHelperShareToken:', error); return null }
   return data.id

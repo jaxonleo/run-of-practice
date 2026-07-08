@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups } from "../constants.js";
-import { savePracticeTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession } from "../supabase.js";
+import { savePracticeTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
@@ -46,12 +46,13 @@ function PlayerChipLive({pid,team,onMove,onProfile}){
   </button>);
 }
 
-function ShareSheet({token,onClose}){
+function ShareSheet({token,scope,onClose}){
   const url=window.location.origin+"/live/"+token;
+  const isAttendance=scope==="helper_attendance";
   const [copied,setCopied]=useState(false);
   const copy=()=>{try{navigator.clipboard.writeText(url).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});}catch(e){}};
   const share=()=>{if(navigator.share)navigator.share({title:"Run of Practice - Live View",url});else copy();};
-  return (<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:200,display:"flex",alignItems:"flex-end"}}><div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"24px 20px 40px"}}><div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 20px"}}/><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Share Live View</div><div style={{fontSize:13,color:"var(--td)",marginBottom:20}}>Anyone with this link can follow along in real time.</div><div style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:12,wordBreak:"break-all",fontSize:13,color:"var(--black2)",fontFamily:"DM Mono,monospace"}}>{url}</div><div className="brow"><button className="btn outline bmd" style={{flex:1}} onClick={copy}>{copied?"Copied!":"Copy Link"}</button><button className="btn primary bmd" style={{flex:1}} onClick={share}>Share</button></div><button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={onClose}>Done</button></div></div>);
+  return (<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:200,display:"flex",alignItems:"flex-end"}}><div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"24px 20px 40px"}}><div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 20px"}}/><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>{isAttendance?"Share for Attendance":"Share Live View"}</div><div style={{fontSize:13,color:"var(--td)",marginBottom:20}}>{isAttendance?"Anyone with this link can follow along AND mark players present/absent.":"Anyone with this link can follow along in real time."}</div><div style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:12,wordBreak:"break-all",fontSize:13,color:"var(--black2)",fontFamily:"DM Mono,monospace"}}>{url}</div><div className="brow"><button className="btn outline bmd" style={{flex:1}} onClick={copy}>{copied?"Copied!":"Copy Link"}</button><button className="btn primary bmd" style={{flex:1}} onClick={share}>Share</button></div><button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={onClose}>Done</button></div></div>);
 }
 
 function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPresent,onConfirm,onBack}){
@@ -407,6 +408,9 @@ function HelperView({token}){
   const [focusSt,setFocusSt]=useState(null);
   const [audioOn,setAudioOn]=useState(false);
   const [now,setNow]=useState(Date.now());
+  const [showAtt,setShowAtt]=useState(false);
+  const [showROS,setShowROS]=useState(false);
+  const [markingId,setMarkingId]=useState(null);
   const spokenRef=useRef({});
   const buzzedRef=useRef(false);
 
@@ -423,6 +427,14 @@ function HelperView({token}){
     const iv=setInterval(poll,3000);
     return()=>{cancelled=true;clearInterval(iv);};
   },[token]);
+
+  const markAttendance=async(playerId,status)=>{
+    setMarkingId(playerId);
+    await submitHelperAttendanceByToken(token,playerId,status);
+    const fresh=await getLiveSessionByToken(token);
+    setSession(fresh);
+    setMarkingId(null);
+  };
 
   const speak=txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){}};
   const beep=()=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Next up!");u.rate=1.1;u.pitch=1.2;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}};
@@ -463,6 +475,12 @@ function HelperView({token}){
     return Object.assign({},st,{players:g?g.players:[]});
   }):null;
   const phaseLabel=isBlock?(inBlockIntro?"INTRODUCING STATIONS":blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+n):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
+  const roster=session.roster||[];
+  const upcoming=session.upcoming_activities||[];
+  const pCount=roster.filter(p=>p.status==="present").length;
+  const pTotal=roster.length;
+  const canMark=!!session.can_mark_attendance;
+  const upcomingMins=a=>a.type==="station_block"?(a.station_count||0)*Math.round((a.station_duration_seconds||0)/60)+Math.max(0,(a.station_count||0)-1)*(a.rotate!==false?Math.round((a.transition_duration_seconds||0)/60):0):(a.duration_minutes||0);
 
   return(<div className="ccs">
     <div className="cc-header">
@@ -472,9 +490,36 @@ function HelperView({token}){
         <div className="cc-act-name">{phaseLabel}</div>
       </div>
       <div className="row" style={{gap:6}}>
+        {pTotal>0&&<button onClick={()=>setShowAtt(s=>!s)} style={{background:pCount<pTotal?"var(--ambg)":"var(--gbg)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--ambb)":"var(--gb)",borderRadius:20,padding:"4px 10px",cursor:"pointer"}}>
+          <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
+        </button>}
+        <button className="btn ghost bxs" onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}</button>
         <button onClick={()=>{if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}spokenRef.current={};buzzedRef.current=false;setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊":"🔇"}</button>
       </div>
     </div>
+    {showAtt&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",padding:"12px 14px",maxHeight:280,overflowY:"auto",flexShrink:0}}>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Attendance ({pCount}/{pTotal}){canMark?"":" — view only"}</div>
+      {!canMark&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
+        {roster.map(p=>(<span key={p.id} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid",borderColor:p.status==="present"?"var(--green)":"var(--b)",background:p.status==="present"?"var(--gbg)":"var(--s2)",color:p.status==="present"?"var(--green)":"var(--td)",fontSize:13,fontWeight:600}}>{p.jersey_number?"#"+p.jersey_number+" ":""}{p.first_name} {p.last_initial}.</span>))}
+      </div>}
+      {canMark&&roster.map(p=>(<div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--b)"}}>
+        <span style={{fontSize:14,fontWeight:600,color:"var(--black)"}}>{p.jersey_number?"#"+p.jersey_number+" ":""}{p.first_name} {p.last_initial}.</span>
+        <div className="row" style={{gap:4}}>
+          <button disabled={markingId===p.id} onClick={()=>markAttendance(p.id,"present")} className={"btn bxs "+(p.status==="present"?"primary":"ghost")}>Present</button>
+          <button disabled={markingId===p.id} onClick={()=>markAttendance(p.id,"absent")} className={"btn bxs "+(p.status==="absent"?"danger":"ghost")}>Absent</button>
+          <button disabled={markingId===p.id} onClick={()=>markAttendance(p.id,"left_early")} className={"btn bxs "+(p.status==="left_early"?"danger":"ghost")}>Left</button>
+        </div>
+      </div>))}
+      <button className="btn ghost bxs" style={{marginTop:8}} onClick={()=>setShowAtt(false)}>Close</button>
+    </div>}
+    {showROS&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",maxHeight:200,overflowY:"auto",flexShrink:0}}>
+      {!upcoming.length&&<div style={{padding:"12px 14px",fontSize:13,color:"var(--td)"}}>Nothing left after this.</div>}
+      {upcoming.map((a,i)=>(<div key={i} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--b)"}}>
+        <div style={{flex:1,fontSize:14,color:"var(--black)"}}>{a.type==="station_block"?"Station Block":a.name}</div>
+        <span className="bdg bs">{upcomingMins(a)}m</span>
+      </div>))}
+      <div style={{padding:"8px 14px"}}><button className="btn ghost bxs" onClick={()=>setShowROS(false)}>Close</button></div>
+    </div>}
     <div className="cc-timer-row"><div className={"cc-timer"+(urg?" urg":(elapsed>phaseSecs?" over":""))}>{fmt(rem)}</div></div>
     <div className="cc-prog"><div className={"cc-prog-bar"+(elapsed>phaseSecs?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div>
     <div className="cc-body">
@@ -620,6 +665,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const [focusSt,setFocusSt]=useState(null);
   const [livePlayerProfile,setLivePlayerProfile]=useState(null);
   const [shareToken,setShareToken]=useState(null);
+  const [shareScope,setShareScope]=useState("helper_read");
   const [showShare,setShowShare]=useState(false);
   const spoken=useRef({});
   const activityLogIdRef=useRef(null);
@@ -1001,10 +1047,10 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     setMovePlayer(null);
   },[session,cur,liveGroups,movePlayer,stIdx,coachId]);
 
-  const shareLive=useCallback(async()=>{
+  const shareLive=useCallback(async(scope)=>{
     if(!session)return;
-    const token=await createHelperShareToken(session.id,coachId);
-    if(token){setShareToken(token);setShowShare(true);}
+    const token=await createHelperShareToken(session.id,coachId,scope);
+    if(token){setShareToken(token);setShareScope(scope||"helper_read");setShowShare(true);}
   },[session,coachId]);
 
   // ── In-session practice editor ─────────────────────────────────────────────
@@ -1083,7 +1129,8 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
           {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
             {isController&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowEditBuilder(true);}}>Edit Practice</button>}
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);if(!audioOn){try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
-            {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive();}}>Share Live View</button>}
+            {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_read");}}>Share Live View</button>}
+            {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_attendance");}}>Share for Attendance</button>}
             {isController&&<button className="mm-item" onClick={endPractice}>End Practice</button>}
             {isController&&<button className="mm-item" onClick={restartPractice}>Restart Practice</button>}
           </div>}
@@ -1270,10 +1317,12 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
             <div>
               {(livePlayerProfile.focusAreas&&livePlayerProfile.focusAreas.length>0)&&<div>
                 <div className="clbl mb8">Focus Areas</div>
-                {livePlayerProfile.focusAreas.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
-                  <div style={{width:20,height:20,borderRadius:"50%",background:"var(--green)",color:"#fff",fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>{i+1}</div>
-                  <div style={{flex:1,fontSize:14,lineHeight:1.5}}>{a.text}</div>
-                </div>))}
+                {livePlayerProfile.focusAreas.map(a=>{
+                  const cat=(data.skillCategories||[]).find(c=>c.id===a.categoryId);
+                  return(<div key={a.id} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
+                    <div style={{flex:1,fontSize:14,lineHeight:1.5}}><span style={{color:"var(--td)",fontWeight:600}}>{cat?cat.name+": ":""}</span>{a.name}</div>
+                  </div>);
+                })}
               </div>}
               {(!livePlayerProfile.focusAreas||livePlayerProfile.focusAreas.length===0)&&<div style={{fontSize:14,color:"var(--td)",textAlign:"center",padding:"16px 0"}}>No focus areas added yet.</div>}
             </div>
@@ -1307,6 +1356,6 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
       <input className="inp" placeholder="Quick note..." value={noteText} onChange={e=>setNoteText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNote()} style={{fontSize:14}}/>
       <button className="btn primary bsm" onClick={addNote}>Save</button>
     </div>
-    {showShare&&shareToken&&<ShareSheet token={shareToken} onClose={()=>setShowShare(false)}/>}
+    {showShare&&shareToken&&<ShareSheet token={shareToken} scope={shareScope} onClose={()=>setShowShare(false)}/>}
   </div>);
 }

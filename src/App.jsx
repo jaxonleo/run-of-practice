@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { loadData, saveData, flushSave, setCoachKey, sendMagicLink, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayerFocusAreas, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree } from "./supabase.js";
+import { loadData, saveData, flushSave, setCoachKey, sendMagicLink, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
@@ -283,7 +283,7 @@ function PracticeDetail({practice,data,update,setView,setLiveId,setEditPracticeI
   </div>);
 }
 
-function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPracticeId,refreshTeams,refreshPlanning}){
+function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPracticeId,refreshTeams,refreshPlanning,refreshLibrary}){
   const [selectedTeam,setSelectedTeam]=useState(null);
   const [teamTab,setTeamTab]=useState("practices");
   const [selectedPractice,setSelectedPractice]=useState(null);
@@ -330,7 +330,7 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
             </div>
           </div>))}
           </div>}
-        {teamTab==="roster"&&<div><RostersTab data={data} update={update} openModal={openModal} fixedTeamId={selectedTeam} refreshTeams={refreshTeams}/></div>}
+        {teamTab==="roster"&&<div><RostersTab data={data} update={update} openModal={openModal} fixedTeamId={selectedTeam} refreshTeams={refreshTeams} coachId={coachId} refreshLibrary={refreshLibrary}/></div>}
         {teamTab==="history"&&<div>
           {past.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No practice history yet.</div>}
           {past.map(p=>{
@@ -407,7 +407,7 @@ function AuthScreen(){
     </div>
   </div>);
 }
-function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSignOut,setEditPracticeId,refreshPlanning}){
+function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSignOut,onDeactivate,setEditPracticeId,refreshPlanning}){
   const now=new Date();
   const todayStr=now.toISOString().slice(0,10);
   const hour=now.getHours();
@@ -430,6 +430,8 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSignOut,
   const greeting=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
   const [practiceMenuId,setPracticeMenuId]=useState(null);
   const [viewPractice,setViewPractice]=useState(null);
+  const [showAccountMenu,setShowAccountMenu]=useState(false);
+  const [confirmDeactivate,setConfirmDeactivate]=useState(false);
   const delPractice=async id=>{await archivePractice(id);await refreshPlanning();if(viewPractice&&viewPractice.id===id)setViewPractice(null);};
   if(viewPractice)return (<div style={{padding:"0 0 calc(var(--tab) + 20px)"}}><PracticeDetail practice={viewPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} coachId={coachId} onBack={()=>setViewPractice(null)}/></div>);
   return (<div style={{padding:"0 0 calc(var(--tab) + 20px)"}}>
@@ -438,10 +440,21 @@ function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSignOut,
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,lineHeight:1}}>{greeting},</div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,color:"var(--green)",lineHeight:1}}>{coachName}</div>
       </div>
-      <button onClick={()=>{if(onSignOut)onSignOut();}} style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"50%",width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      </button>
+      <div style={{position:"relative"}}>
+        <button onClick={()=>setShowAccountMenu(s=>!s)} style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"50%",width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+        {showAccountMenu&&<div className="mini-menu" style={{minWidth:180}}>
+          <button className="mm-item" onClick={()=>{setShowAccountMenu(false);if(onSignOut)onSignOut();}}>Sign Out</button>
+          <button className="mm-item mm-danger" onClick={()=>{setShowAccountMenu(false);setConfirmDeactivate(true);}}>Deactivate Account</button>
+        </div>}
+      </div>
     </div>
+    {confirmDeactivate&&<div style={{margin:"0 16px 12px"}}><div className="confirm-box">
+      <div className="confirm-title">Deactivate your account?</div>
+      <div className="confirm-body">You'll be signed out and hidden from your teammates' rosters. All your teams, practices, and data stay exactly as they are -- just sign back in any time to pick up right where you left off.</div>
+      <div className="brow"><button className="btn ghost bsm" onClick={()=>setConfirmDeactivate(false)}>Cancel</button><button className="btn danger bsm" onClick={()=>{if(onDeactivate)onDeactivate();}}>Deactivate</button></div>
+    </div></div>}
     <div style={{padding:"0 16px"}}>
       {todayPractices.length===0&&<div className="card" style={{marginBottom:12,textAlign:"center",padding:"28px 20px"}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,marginBottom:4}}>Nothing scheduled today</div>
@@ -511,6 +524,13 @@ export default function App(){
     return ()=>sub.unsubscribe();
   },[]);
   const coachId=session?session.user.id:null;
+  // "Come back and everything's still there" -- signing in again is the
+  // entire reactivation flow, no separate confirmation step.
+  useEffect(()=>{if(coachId)reactivateIfNeeded(coachId);},[coachId]);
+  const handleDeactivate=useCallback(async()=>{
+    await deactivateOwnAccount(coachId);
+    await signOut();
+  },[coachId]);
   useEffect(()=>{
     if(!coachId){setLoaded(false);return;}
     setCoachKey(coachId);
@@ -564,8 +584,8 @@ export default function App(){
   return (<div style={{display:"contents"}}>
     <div className="app">
       <div className="screen">
-        {view==="today"&&<TodayScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSignOut={signOut} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning}/>}
-        {view==="teams"&&<TeamsScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning}/>}
+        {view==="today"&&<TodayScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSignOut={signOut} onDeactivate={handleDeactivate} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning}/>}
+        {view==="teams"&&<TeamsScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
         {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun} setEditPracticeId={setEditPracticeId} refreshLibrary={refreshLibrary} coachId={coachId} refreshPlanning={refreshPlanning}/>}
         {view==="builder"&&<BuilderScreen data={fullData} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
         {view==="command"&&<CommandScreen data={fullData} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} setView={setView} refreshPlanning={refreshPlanning}/>}
@@ -804,20 +824,37 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   );
 }
 
-function PlayerProfile({player:playerInit,team:teamInit,data,update,refreshTeams,onBack}){
+function PlayerProfile({player:playerInit,team:teamInit,data,update,refreshTeams,coachId,refreshLibrary,onBack}){
   const team=data.teams.find(t=>t.id===teamInit.id)||teamInit;
   const player=team.players.find(p=>p.id===playerInit.id)||playerInit;
-  const [newArea,setNewArea]=useState("");
+  const [picking,setPicking]=useState(false);
+  const [pickedCategoryId,setPickedCategoryId]=useState(null);
+  const [customName,setCustomName]=useState("");
+  const [busy,setBusy]=useState(false);
   const areas=player.focusAreas||[];
-  const addArea=async()=>{
-    if(!newArea.trim())return;
-    if(areas.length>=10)return;
-    await updatePlayerFocusAreas(player.id,[...areas,newArea.trim()]);
-    setNewArea("");
+  const categories=(data.skillCategories||[]).filter(c=>c.sport===team.sport).sort((a,b)=>a.sort_order-b.sort_order);
+  const catName=id=>{const c=(data.skillCategories||[]).find(c=>c.id===id);return c?c.name:"";};
+  const tagsForCategory=cid=>(data.skillTags||[]).filter(t=>t.categoryId===cid&&(t.scope==="global"||t.scope==="org"||t.ownerUserId===coachId));
+  const alreadyAddedTagIds=new Set(areas.map(a=>a.skillTagId));
+  const startAdd=()=>{setPicking(true);setPickedCategoryId(null);setCustomName("");};
+  const cancelAdd=()=>{setPicking(false);setPickedCategoryId(null);setCustomName("");};
+  const pickTag=async tagId=>{
+    setBusy(true);
+    await addPlayerFocusArea(player.id,tagId,coachId);
     await refreshTeams();
+    setBusy(false);cancelAdd();
   };
-  const delArea=async i=>{
-    await updatePlayerFocusAreas(player.id,areas.filter((_,idx)=>idx!==i));
+  const addCustomTag=async()=>{
+    if(!customName.trim()||!pickedCategoryId)return;
+    setBusy(true);
+    const{data:tag}=await createSkillTag(coachId,{categoryId:pickedCategoryId,name:customName.trim()});
+    if(refreshLibrary)await refreshLibrary();
+    if(tag)await addPlayerFocusArea(player.id,tag.id,coachId);
+    await refreshTeams();
+    setBusy(false);cancelAdd();
+  };
+  const delArea=async id=>{
+    await removePlayerFocusArea(id);
     await refreshTeams();
   };
   return (<div style={{paddingBottom:80}}>
@@ -829,23 +866,38 @@ function PlayerProfile({player:playerInit,team:teamInit,data,update,refreshTeams
       <button className="btn ghost bxs" onClick={onBack}>Done</button>
     </div>
     <div className="card mb10">
-      <div className="clbl mb8">Focus Areas ({areas.length}/10)</div>
+      <div className="clbl mb8">Focus Areas</div>
       {!areas.length&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>No focus areas yet. Add what this player is working on.</div>}
-      {areas.map((text,i)=>(<div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
-        <div style={{width:20,height:20,borderRadius:"50%",background:"var(--green)",color:"#fff",fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>{i+1}</div>
-        <div style={{flex:1,fontSize:14,lineHeight:1.5,color:"var(--black)"}}>{text}</div>
-        <button className="btn danger bxs" onClick={()=>delArea(i)}>x</button>
+      {areas.map(a=>(<div key={a.id} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
+        <div style={{flex:1,fontSize:14,lineHeight:1.5,color:"var(--black)"}}><span style={{color:"var(--td)",fontWeight:600}}>{catName(a.categoryId)}: </span>{a.name}</div>
+        <button className="btn danger bxs" onClick={()=>delArea(a.id)}>x</button>
       </div>))}
-      {areas.length<10&&(<div>
-        <div className="fld"><textarea className="ta" style={{minHeight:58}} placeholder="e.g. Keep dribble low and eyes up. Tends to go right only." value={newArea} onChange={e=>setNewArea(e.target.value)}/></div>
-        <button className="btn primary bsm bfull" onClick={addArea} disabled={!newArea.trim()}>Add Focus Area</button>
+      {!picking&&<button className="btn primary bsm bfull" onClick={startAdd}>Add Focus Area</button>}
+      {picking&&!pickedCategoryId&&(<div>
+        <div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>Pick a category</div>
+        {!categories.length&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>No skill categories set up yet for {team.sport}.</div>}
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+          {categories.map(c=>(<button key={c.id} className="btn ghost bsm" onClick={()=>setPickedCategoryId(c.id)}>{c.name}</button>))}
+        </div>
+        <button className="btn ghost bsm bfull" onClick={cancelAdd}>Cancel</button>
+      </div>)}
+      {picking&&pickedCategoryId&&(<div>
+        <div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>{catName(pickedCategoryId)} — pick a tag or add your own</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+          {tagsForCategory(pickedCategoryId).filter(t=>!alreadyAddedTagIds.has(t.id)).map(t=>(<button key={t.id} className="btn ghost bsm" disabled={busy} onClick={()=>pickTag(t.id)}>{t.name}</button>))}
+        </div>
+        <div className="fld"><input className="inp" placeholder="Add your own tag under this category" value={customName} onChange={e=>setCustomName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustomTag()}/></div>
+        <div className="brow">
+          <button className="btn ghost bsm" onClick={cancelAdd}>Cancel</button>
+          <button className="btn primary bsm" onClick={addCustomTag} disabled={!customName.trim()||busy}>Add</button>
+        </div>
       </div>)}
     </div>
     {player.notes&&(<div className="card"><div className="clbl mb6">Notes</div><div style={{fontSize:14,color:"var(--black)",lineHeight:1.6}}>{player.notes}</div></div>)}
   </div>);
 }
 
-function RostersTab({data,update,openModal,fixedTeamId,refreshTeams}){
+function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refreshLibrary}){
   const [teamId,setTeamId]=useState(fixedTeamId||(data.teams[0]?data.teams[0].id:""));
   useEffect(()=>{
     if(fixedTeamId){if(teamId!==fixedTeamId)setTeamId(fixedTeamId);return;}
@@ -875,7 +927,7 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams}){
   }):[];
   if(viewPlayer)return(<div style={{paddingBottom:80}}>
     <div className="row mb10"><button className="btn ghost bxs" onClick={()=>setViewPlayer(null)}>&#8249; Roster</button></div>
-    <PlayerProfile player={viewPlayer} team={team} data={data} update={update} refreshTeams={refreshTeams} onBack={()=>setViewPlayer(null)}/>
+    <PlayerProfile player={viewPlayer} team={team} data={data} update={update} refreshTeams={refreshTeams} coachId={coachId} refreshLibrary={refreshLibrary} onBack={()=>setViewPlayer(null)}/>
   </div>);
   return (<div style={{paddingBottom:80}} onClick={()=>setOpenMenu(null)}>
     {!fixedTeamId&&(<div className="sechdr mb8">

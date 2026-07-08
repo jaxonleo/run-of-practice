@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid, sumMins } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
-import { createAsset, updateAsset, archiveAsset, archiveDrill, setDrillShare, copyDrillToMyLibrary, archiveLocation, savePracticeTree, saveTemplateTree, archiveTemplate } from "../supabase.js";
+import { createAsset, updateAsset, archiveAsset, archiveDrill, setDrillShare, copyDrillToMyLibrary, archiveLocation, savePracticeTree, saveTemplateTree, archiveTemplate, swapDrillPositions } from "../supabase.js";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -409,8 +409,12 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
           <span style={{fontSize:12,color:"var(--td)"}}>{shelfDrills.filter(a=>(a.sport||"General")===sport).length} drills {collapsed[sport]?"":"v"}</span>
         </button>
         {!collapsed[sport]&&(()=>{
-          const sportDrills=shelfDrills.filter(a=>(a.sport||"General")===sport).slice().sort((a,b)=>a.name.localeCompare(b.name));
-          return sportDrills.map(act=>(<div key={act.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderBottom:"1px solid var(--b)",background:"#fff"}}>
+          const sportDrills=shelfDrills.filter(a=>(a.sport||"General")===sport).slice().sort((a,b)=>isMine?a.position-b.position:a.name.localeCompare(b.name));
+          return sportDrills.map((act,idx)=>(<div key={act.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderBottom:"1px solid var(--b)",background:"#fff"}}>
+            {isMine&&<div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
+              <button onClick={async()=>{if(idx>0){await swapDrillPositions(act.id,sportDrills[idx-1].id);await refreshLibrary();}}} disabled={idx===0} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:idx===0?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8593;</button>
+              <button onClick={async()=>{if(idx<sportDrills.length-1){await swapDrillPositions(act.id,sportDrills[idx+1].id);await refreshLibrary();}}} disabled={idx===sportDrills.length-1} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:idx===sportDrills.length-1?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8595;</button>
+            </div>}
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
                 <span style={{fontWeight:700,fontSize:14}}>{act.name}</span>
