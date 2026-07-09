@@ -59,7 +59,17 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
   const parsePositions=s=>(s||"").split(",").map(x=>x.trim()).filter(Boolean);
   const [newTagName,setNewTagName]=useState("");
   const [newTagCategoryId,setNewTagCategoryId]=useState("");
+  const [saving,setSaving]=useState(false);
+  const savingRef=useRef(false);
   const save=async()=>{
+    // useState alone isn't a safe reentrancy guard here: rapid synchronous
+    // double-clicks/taps all fire before React re-renders with the updated
+    // `saving` value, so they'd all read the same stale `false`. A ref
+    // mutates immediately, so the second call sees the block right away.
+    if(savingRef.current)return;
+    savingRef.current=true;
+    setSaving(true);
+    try{
     const t=modal.type,p=modal.payload;
     if(t==="addTeam"){if(!f.name)return;await createTeam(coachId,{name:f.name,sport:f.sport||"Basketball"});await refreshTeams();}
     if(t==="editTeam"){if(!f.name)return;await updateTeam(p.team.id,{name:f.name,sport:f.sport||"Basketball"});await refreshTeams();}
@@ -94,6 +104,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     }
     if(t==="editTemplate"){if(!f.name)return;update(d=>{const tpl=d.templates.find(t=>t.id===p.template.id);if(tpl){tpl.name=f.name;tpl.sport=f.sport||"General";}return d;});}
     closeModal();
+    }finally{savingRef.current=false;setSaving(false);}
   };
   const TITLES={addTemplate:"New Template",editTemplate:"Edit Template",addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",editPlayer:"Edit Player",addCoach:"Add Coach",editCoach:"Edit Coach",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
   return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget)closeModal();}}>
@@ -233,7 +244,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
             })()}
           </div>
         )}
-        <div className="mfooter"><button className="btn ghost bmd" onClick={closeModal}>Cancel</button><button className="btn primary bmd" onClick={save}>Save</button></div>
+        <div className="mfooter"><button className="btn ghost bmd" onClick={closeModal} disabled={saving}>Cancel</button><button className="btn primary bmd" onClick={save} disabled={saving}>{saving?"Saving...":"Save"}</button></div>
       </div>
     </div>
   );

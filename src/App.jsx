@@ -289,6 +289,9 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
   const [selectedPractice,setSelectedPractice]=useState(null);
   const myTeams=data.teams;
   const [practiceMenuId,setPracticeMenuId]=useState(null);
+  // If the selected team was just deleted (e.g. via the Roster tab's
+  // Delete Team), fall back to the team list instead of rendering blank.
+  useEffect(()=>{if(selectedTeam&&!data.teams.some(t=>t.id===selectedTeam))setSelectedTeam(null);},[selectedTeam,data.teams]);
   const delPractice=async id=>{await archivePractice(id);await refreshPlanning();if(selectedPractice&&selectedPractice.id===id)setSelectedPractice(null);};
   const now=new Date();
   const todayStr=now.toISOString().slice(0,10);
