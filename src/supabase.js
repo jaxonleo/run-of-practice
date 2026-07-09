@@ -3,9 +3,18 @@ const SUPABASE_URL = 'https://bepoojcbizxhqadrytjq.supabase.co'
 const SUPABASE_ANON_KEY = 'sb_publishable_z0atQT9uv4_9OZSlGe_awg_d07YcC7v'
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-// ── Auth (magic link) ──────────────────────────────────────────────────────────
-export async function sendMagicLink(email) {
-  return supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
+// ── Auth (email OTP code) ────────────────────────────────────────────────────
+// Interim primary method -- magic links kept breaking for coaches using the
+// homescreen-installed PWA (link opens in Safari, not the installed app, so
+// the PKCE code_verifier from the requesting context is never found). A
+// typed code has no cross-context requirement. No emailRedirectTo: the
+// email template shows only the code, not a clickable link, so there's
+// nothing for a coach to tap into the wrong context.
+export async function sendEmailOtp(email) {
+  return supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })
+}
+export async function verifyEmailOtp(email, token) {
+  return supabase.auth.verifyOtp({ email, token, type: 'email' })
 }
 export async function getCurrentSession() {
   const { data } = await supabase.auth.getSession()
@@ -17,6 +26,20 @@ export function onAuthStateChange(cb) {
 }
 export async function signOut() {
   return supabase.auth.signOut()
+}
+// Name collection: profiles.first_name/last_name exist in the schema but are
+// never populated by the auth trigger, so every coach greeting fell back to
+// their raw email. Fetched once per session and cached in App state; caller
+// treats a null first_name as "needs the one-time name prompt."
+export async function fetchOwnProfile(userId) {
+  const { data, error } = await supabase.from('profiles').select('first_name,last_name,email').eq('id', userId).maybeSingle()
+  if (error) console.error('fetchOwnProfile:', error)
+  return data
+}
+export async function updateOwnProfile(userId, { firstName, lastName }) {
+  const { error } = await supabase.from('profiles').update({ first_name: firstName, last_name: lastName || null }).eq('id', userId)
+  if (error) console.error('updateOwnProfile:', error)
+  return { error }
 }
 
 // Soft, reversible account close -- data stays intact, coach just vanishes

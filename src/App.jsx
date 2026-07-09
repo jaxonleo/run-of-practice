@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { loadData, saveData, flushSave, setCoachKey, sendMagicLink, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded } from "./supabase.js";
+import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, fetchOwnProfile, updateOwnProfile } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
@@ -368,16 +368,26 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
 
 function AuthScreen(){
   const [email,setEmail]=useState("");
+  const [code,setCode]=useState("");
   const [sent,setSent]=useState(false);
   const [sending,setSending]=useState(false);
+  const [verifying,setVerifying]=useState(false);
   const [error,setError]=useState("");
   const send=async()=>{
     if(!email.trim()||sending)return;
     setSending(true);setError("");
-    const { error }=await sendMagicLink(email.trim());
+    const { error }=await sendEmailOtp(email.trim());
     setSending(false);
     if(error){setError(error.message||"Something went wrong. Try again.");return;}
     setSent(true);
+  };
+  const verify=async()=>{
+    if(!code.trim()||verifying)return;
+    setVerifying(true);setError("");
+    const { error }=await verifyEmailOtp(email.trim(),code.trim());
+    setVerifying(false);
+    if(error){setError(error.message||"That code didn't work. Check it and try again.");return;}
+    // onAuthStateChange picks up the new session automatically.
   };
   return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
     <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
@@ -391,19 +401,57 @@ function AuthScreen(){
       <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
       {!sent&&<div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Welcome, Coach</div>
-        <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Enter your email — we'll send a sign-in link.</div>
+        <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Enter your email — we'll send you a sign-in code.</div>
         <div className="fld mb10">
           <label className="lbl">Email</label>
           <input className="inp" autoFocus type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")send();}}/>
         </div>
         {error&&<div style={{fontSize:13,color:"var(--red)",marginBottom:10}}>{error}</div>}
-        <button className="btn primary bmd bfull" onClick={send} disabled={!email.trim()||sending}>{sending?"Sending...":"Send Sign-In Link"}</button>
+        <button className="btn primary bmd bfull" onClick={send} disabled={!email.trim()||sending}>{sending?"Sending...":"Send Code"}</button>
       </div>}
       {sent&&<div>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Check your email</div>
-        <div style={{fontSize:14,color:"var(--td)",marginBottom:20,lineHeight:1.5}}>We sent a sign-in link to <strong>{email}</strong>. Tap it on this device to continue.</div>
-        <button className="btn ghost bmd bfull" onClick={()=>{setSent(false);setError("");}}>Use a different email</button>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Enter your code</div>
+        <div style={{fontSize:14,color:"var(--td)",marginBottom:20,lineHeight:1.5}}>We sent a 6-digit code to <strong>{email}</strong>.</div>
+        <div className="fld mb10">
+          <label className="lbl">Code</label>
+          <input className="inp" autoFocus type="text" inputMode="numeric" placeholder="123456" value={code} onChange={e=>setCode(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")verify();}}/>
+        </div>
+        {error&&<div style={{fontSize:13,color:"var(--red)",marginBottom:10}}>{error}</div>}
+        <button className="btn primary bmd bfull" onClick={verify} disabled={!code.trim()||verifying} style={{marginBottom:10}}>{verifying?"Verifying...":"Verify & Sign In"}</button>
+        <button className="btn ghost bmd bfull" onClick={()=>{setSent(false);setCode("");setError("");}}>Use a different email</button>
       </div>}
+    </div>
+  </div>);
+}
+function NameScreen({onSave}){
+  const [firstName,setFirstName]=useState("");
+  const [lastName,setLastName]=useState("");
+  const [saving,setSaving]=useState(false);
+  const save=async()=>{
+    if(!firstName.trim()||saving)return;
+    setSaving(true);
+    await onSave(firstName.trim(),lastName.trim());
+    setSaving(false);
+  };
+  return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
+    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
+      <div style={{width:96,height:96,borderRadius:22,overflow:"hidden",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
+        <img src="/apple-touch-icon.png" style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Run of Practice"/>
+      </div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,color:"#fff",letterSpacing:"-.01em",lineHeight:1,marginBottom:6,textAlign:"center"}}>What should we call you?</div>
+    </div>
+    <div style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
+      <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
+      <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>We'll use this to greet you instead of your email.</div>
+      <div className="fld mb10">
+        <label className="lbl">First name</label>
+        <input className="inp" autoFocus type="text" placeholder="Alex" value={firstName} onChange={e=>setFirstName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")save();}}/>
+      </div>
+      <div className="fld mb10">
+        <label className="lbl">Last name (optional)</label>
+        <input className="inp" type="text" placeholder="Rivera" value={lastName} onChange={e=>setLastName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")save();}}/>
+      </div>
+      <button className="btn primary bmd bfull" onClick={save} disabled={!firstName.trim()||saving}>{saving?"Saving...":"Continue"}</button>
     </div>
   </div>);
 }
@@ -527,6 +575,15 @@ export default function App(){
   // "Come back and everything's still there" -- signing in again is the
   // entire reactivation flow, no separate confirmation step.
   useEffect(()=>{if(coachId)reactivateIfNeeded(coachId);},[coachId]);
+  const [profile,setProfile]=useState(null);
+  useEffect(()=>{
+    if(!coachId){setProfile(null);return;}
+    fetchOwnProfile(coachId).then(setProfile);
+  },[coachId]);
+  const saveName=useCallback(async(firstName,lastName)=>{
+    await updateOwnProfile(coachId,{firstName,lastName});
+    setProfile(p=>Object.assign({},p,{first_name:firstName,last_name:lastName||null}));
+  },[coachId]);
   const handleDeactivate=useCallback(async()=>{
     await deactivateOwnAccount(coachId);
     await signOut();
@@ -569,15 +626,18 @@ export default function App(){
     {id:"teams",label:"Teams",I:Ic.Build},
     {id:"library",label:"Library",I:Ic.Run},
   ];
-  const coachName=session?(session.user.email||"Coach"):"Coach";
+  const coachName=profile&&profile.first_name?profile.first_name:(session?(session.user.email||"Coach"):"Coach");
   const liveMatch=window.location.pathname.match(/^\/live\/([a-z0-9-]+)$/i);
   if(liveMatch)return (<HelperView token={liveMatch[1]}/>);
   const previewMatch=window.location.pathname.match(/^\/preview\/([a-z0-9-]+)$/i);
   if(previewMatch)return (<PreviewView token={previewMatch[1]}/>);
   // Loading initial session
   if(session===undefined)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
-  // Show magic-link sign-in if not authenticated
+  // Show sign-in if not authenticated
   if(!session)return (<AuthScreen/>);
+  // One-time name prompt -- covers both fresh signups and pre-existing
+  // accounts created before name collection existed.
+  if(profile&&!profile.first_name)return (<NameScreen onSave={saveName}/>);
   // Show data loading spinner after auth but before data loaded
   if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div></div>);
 
