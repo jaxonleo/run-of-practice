@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, fetchOwnProfile, updateOwnProfile } from "./supabase.js";
+import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView } from "./components/CommandScreen.jsx";
-import { findOrCreatePreviewToken } from "./supabase.js";
+import HomeScreen from "./components/HomeScreen.jsx";
+import PracticeDetail from "./components/PracticeDetail.jsx";
+import ScheduleScreen from "./components/ScheduleScreen.jsx";
+import AbsencePicker from "./components/AbsencePicker.jsx";
 
 // INIT, DEMO_INIT, migrateData, uid, fmt, sumMins, etc. imported from constants.js
 
@@ -173,115 +176,9 @@ const Ic={
   Restart:()=><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>,
   Sort:()=><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="10" y2="8"/><line x1="2" y1="12" x2="6" y2="12"/></svg>,
   Home:()=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+  Cal:()=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>,
 };
 
-function PracticeDetail({practice,data,update,setView,setLiveId,setEditPracticeId,onBack,coachId}){
-  const team=data.teams.find(t=>t.id===practice.teamId);
-  const loc=data.locations.find(l=>l.id===practice.locationId);
-  const now=new Date();
-  const todayStr=now.toISOString().slice(0,10);
-  const [sharing,setSharing]=useState(false);
-  const [previewUrl,setPreviewUrl]=useState(null);
-  const [expandedId,setExpandedId]=useState(null);
-  const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
-  const actMins=a=>{if(a.type==="station_block")return a.stations.length*(a.stationDuration||0)+Math.max(0,a.stations.length-1)*(a.transitionDuration||0);return a.duration||0;};
-  const totalMins=(practice.activities||[]).reduce((s,a)=>s+actMins(a),0);
-  const resolveEquip=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
-  const allEquipNames=[...new Set([...(practice.activities||[]).flatMap(a=>{if(a.type==="station_block")return(a.stations||[]).flatMap(st=>resolveEquip(st.equipment));return resolveEquip(a.equipment);})])];
-  const subName=id=>{const l=loc&&loc.sublocations.find(s=>s.id===id);return l?l.name:null;};
-  const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
-  const shareSetup=async()=>{
-    setSharing(true);
-    try{
-      const token=await findOrCreatePreviewToken(practice.id,coachId);
-      if(token){const url=window.location.origin+"/preview/"+token;setPreviewUrl(url);if(navigator.share){navigator.share({title:"Practice Setup - "+(team?team.name:"Practice"),url});}else{navigator.clipboard.writeText(url).catch(()=>{});}}
-    }catch(e){console.error(e);}
-    setSharing(false);
-  };
-  const copyUrl=()=>{if(previewUrl){navigator.clipboard.writeText(previewUrl).catch(()=>{});if(navigator.share)navigator.share({title:"Practice Setup",url:previewUrl});}};
-  return (<div style={{paddingBottom:80}}>
-    <div style={{padding:"12px 14px 0",display:"flex",alignItems:"center",gap:8}}><button className="btn ghost bxs" onClick={onBack}>Back</button></div>
-    <div style={{padding:"12px 16px 0"}}>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:2}}>{practice.date===todayStr?"TODAY":"PRACTICE"} {practice.date&&new Date(practice.date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2}}>{team?team.name:"Practice"}</div>
-      <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>{timeLbl(practice)}{loc?" · "+loc.name:""} · {totalMins}min</div>
-      <div className="brow" style={{marginBottom:8}}>
-        <button className="btn primary bmd bfull" onClick={()=>{setLiveId(practice.id);setView("command");}}>{practice.date>=todayStr?"Run Now":"Run Again"}</button>
-      </div>
-      {!previewUrl&&<button className="btn outline bmd bfull" style={{marginBottom:12}} onClick={shareSetup} disabled={sharing}>{sharing?"Creating link...":"Share Setup Link"}</button>}
-      {previewUrl&&<div style={{background:"var(--gbg)",border:"1.5px solid var(--gb)",borderRadius:"var(--r)",padding:"10px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:10,fontWeight:700,color:"var(--green)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Setup Link Active</div>
-          <div style={{fontSize:12,color:"var(--td)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{previewUrl}</div>
-        </div>
-        <button className="btn primary bxs" onClick={copyUrl}>Share</button>
-      </div>}
-      {allEquipNames.length>0&&<div className="card" style={{marginBottom:12,background:"var(--ambg)",border:"1.5px solid var(--ambb)"}}>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--amber)",marginBottom:6}}>Equipment Needed</div>
-        {allEquipNames.map((n,i)=>(<div key={i} style={{fontSize:14,color:"var(--black)",marginBottom:2}}>· {n}</div>))}
-      </div>}
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Run Order</div>
-      {(practice.activities||[]).map((a,i)=>{
-        const isExp=expandedId===a.id;
-        const mins=actMins(a);
-        return(<div key={a.id} style={{border:"1.5px solid var(--b)",borderRadius:"var(--r)",marginBottom:6,overflow:"hidden"}}>
-          <div style={{display:"flex",alignItems:"center",padding:"10px 12px",background:isExp?"var(--gbg)":"var(--s1)",cursor:"pointer"}} onClick={()=>setExpandedId(isExp?null:a.id)}>
-            <div style={{width:24,height:24,borderRadius:"50%",background:"var(--s2)",border:"1px solid var(--b)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"var(--td)",flexShrink:0,marginRight:10}}>{i+1}</div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:14,fontWeight:600,color:"var(--black)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                {a.type==="station_block"?"Station Block · "+a.stations.length+" stations":a.type==="checklist"?a.name:a.name}
-              </div>
-              {a.type==="activity"&&a.coachingPoints&&!isExp&&<div style={{fontSize:11,color:"var(--td)",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.coachingPoints}</div>}
-              {a.type==="station_block"&&<div style={{fontSize:11,color:"var(--td)",marginTop:1}}>{a.stations.map(s=>s.activityName||s.name).join(" / ")}</div>}
-            </div>
-            <span style={{fontFamily:"DM Mono,monospace",fontSize:12,fontWeight:600,color:"var(--td)",flexShrink:0,marginLeft:8}}>{mins}m</span>
-            <span style={{color:"var(--td)",fontSize:11,marginLeft:6}}>{isExp?"▲":"▼"}</span>
-          </div>
-          {isExp&&<div style={{padding:"10px 12px",borderTop:"1px solid var(--b)",background:"#fff"}}>
-            {a.type==="activity"&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
-              {(subName(a.sublocationId)||coachName(a.coachId))&&<div style={{fontSize:13}}>
-                {subName(a.sublocationId)&&<span style={{fontWeight:600,color:"var(--green2)"}}>{subName(a.sublocationId)}</span>}
-                {subName(a.sublocationId)&&coachName(a.coachId)&&<span style={{color:"var(--td)"}}> · </span>}
-                {coachName(a.coachId)&&<span style={{color:"var(--td)"}}>Coach: {coachName(a.coachId)}</span>}
-              </div>}
-              {a.description&&<div style={{fontSize:13,color:"var(--black)",lineHeight:1.5}}>{a.description}</div>}
-              {a.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:8}}>
-                <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
-                <div style={{fontSize:13,lineHeight:1.5}}>{a.coachingPoints}</div>
-              </div>}
-              {resolveEquip(a.equipment).length>0&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Equipment: </span>{resolveEquip(a.equipment).join(", ")}</div>}
-              {a.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Player Gear: </span>{a.playerGear}</div>}
-              {a.grouping&&a.grouping!=="whole"&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Grouping: </span>{a.grouping==="partners"?"Partners":a.numGroups+" Groups"}</div>}
-            </div>}
-            {a.type==="checklist"&&<div>
-              {(a.items||[]).map(it=>(<div key={it.id} style={{fontSize:13,padding:"3px 0",borderBottom:"1px solid var(--s2)"}}>{it.text}</div>))}
-              {a.notes&&<div style={{fontSize:12,color:"var(--td)",marginTop:6,fontStyle:"italic"}}>{a.notes}</div>}
-            </div>}
-            {a.type==="station_block"&&<div>
-              {a.stations.map((st,si)=>{
-                const stEquip=resolveEquip(st.equipment);
-                return(<div key={st.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--s2)"}}>
-                  <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:"var(--green)",marginBottom:4}}>Station {si+1}{st.activityName?" · "+st.activityName:""}</div>
-                  {(coachName(st.coachId)||subName(st.sublocationId))&&<div style={{fontSize:12,marginBottom:3}}>
-                    {subName(st.sublocationId)&&<span style={{fontWeight:600,color:"var(--green2)"}}>{subName(st.sublocationId)}</span>}
-                    {subName(st.sublocationId)&&coachName(st.coachId)&&<span style={{color:"var(--td)"}}> · </span>}
-                    {coachName(st.coachId)&&<span style={{color:"var(--td)"}}>Coach: {coachName(st.coachId)}</span>}
-                  </div>}
-                  {st.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:8,marginBottom:4}}>
-                    <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
-                    <div style={{fontSize:12,lineHeight:1.4}}>{st.coachingPoints}</div>
-                  </div>}
-                  {stEquip.length>0&&<div style={{fontSize:12,color:"var(--td)"}}>Equipment: {stEquip.join(", ")}</div>}
-                  {st.playerGear&&<div style={{fontSize:12,color:"var(--td)"}}>Player Gear: {st.playerGear}</div>}
-                </div>);
-              })}
-            </div>}
-          </div>}
-        </div>);
-      })}
-    </div>
-  </div>);
-}
 
 function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPracticeId,refreshTeams,refreshPlanning,refreshLibrary}){
   const [selectedTeam,setSelectedTeam]=useState(null);
@@ -299,7 +196,7 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
   if(selectedPractice){
     const isPast=selectedPractice.date<new Date().toISOString().slice(0,10);
     if(isPast)return(<div style={{padding:"14px 14px calc(var(--tab)+40px)"}}><HistoryViewer data={data} update={update} practice={selectedPractice} onRunAgain={async()=>{const now=new Date();const {data:saved}=await savePracticeTree(null,{teamId:selectedPractice.teamId,locationId:selectedPractice.locationId,date:now.toISOString().slice(0,10),startTime:now.toTimeString().slice(0,5),activities:stripIdsForCopy(selectedPractice.activities)});await refreshPlanning();setSelectedPractice(null);if(saved){setLiveId(saved.id);setView("command");}}} onBack={()=>setSelectedPractice(null)}/></div>);
-    return (<PracticeDetail practice={selectedPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} coachId={coachId} onBack={()=>setSelectedPractice(null)}/>);
+    return (<PracticeDetail practice={selectedPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} coachId={coachId} refreshPlanning={refreshPlanning} onBack={()=>setSelectedPractice(null)}/>);
   }
   if(selectedTeam){
     const team=data.teams.find(t=>t.id===selectedTeam);
@@ -458,107 +355,6 @@ function NameScreen({onSave}){
     </div>
   </div>);
 }
-function TodayScreen({data,update,setView,setLiveId,coachId,coachName,onSignOut,onDeactivate,setEditPracticeId,refreshPlanning}){
-  const now=new Date();
-  const todayStr=now.toISOString().slice(0,10);
-  const hour=now.getHours();
-  const myPractices=data.practices;
-  const todayPractices=myPractices.filter(p=>{
-    if(p.date!==todayStr)return false;
-    if(!p.startTime)return true;
-    const pts=p.startTime.split(":");
-    const pm=parseInt(pts[0])*60+parseInt(pts[1]);
-    const nm=now.getHours()*60+now.getMinutes();
-    return pm-nm<=480&&pm-nm>=-180;
-  }).sort((a,b)=>a.startTime>b.startTime?1:-1);
-  const myTemplates=data.templates||[];
-  const upcoming=myPractices.filter(p=>p.date>todayStr).sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:0).slice(0,3);
-  const recent=myPractices.filter(p=>p.date<todayStr).sort((a,b)=>b.date>a.date?1:-1).slice(0,3);
-  const getTeam=id=>data.teams.find(t=>t.id===id);
-  const getLoc=id=>data.locations.find(l=>l.id===id);
-  const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
-  const isSoon=p=>{if(!p.startTime||p.date!==todayStr)return false;const pts=p.startTime.split(":");const pm=parseInt(pts[0])*60+parseInt(pts[1]);const nm=now.getHours()*60+now.getMinutes();return pm-nm<=120&&pm-nm>=-90;};
-  const greeting=hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
-  const [practiceMenuId,setPracticeMenuId]=useState(null);
-  const [viewPractice,setViewPractice]=useState(null);
-  const [showAccountMenu,setShowAccountMenu]=useState(false);
-  const [confirmDeactivate,setConfirmDeactivate]=useState(false);
-  const delPractice=async id=>{await archivePractice(id);await refreshPlanning();if(viewPractice&&viewPractice.id===id)setViewPractice(null);};
-  if(viewPractice)return (<div style={{padding:"0 0 calc(var(--tab) + 20px)"}}><PracticeDetail practice={viewPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} coachId={coachId} onBack={()=>setViewPractice(null)}/></div>);
-  return (<div style={{padding:"0 0 calc(var(--tab) + 20px)"}}>
-    <div style={{padding:"20px 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-      <div>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,lineHeight:1}}>{greeting},</div>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:26,fontWeight:900,color:"var(--green)",lineHeight:1}}>{coachName}</div>
-      </div>
-      <div style={{position:"relative"}}>
-        <button onClick={()=>setShowAccountMenu(s=>!s)} style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"50%",width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        </button>
-        {showAccountMenu&&<div className="mini-menu" style={{minWidth:180}}>
-          <button className="mm-item" onClick={()=>{setShowAccountMenu(false);if(onSignOut)onSignOut();}}>Sign Out</button>
-          <button className="mm-item mm-danger" onClick={()=>{setShowAccountMenu(false);setConfirmDeactivate(true);}}>Deactivate Account</button>
-        </div>}
-      </div>
-    </div>
-    {confirmDeactivate&&<div style={{margin:"0 16px 12px"}}><div className="confirm-box">
-      <div className="confirm-title">Deactivate your account?</div>
-      <div className="confirm-body">You'll be signed out and hidden from your teammates' rosters. All your teams, practices, and data stay exactly as they are -- just sign back in any time to pick up right where you left off.</div>
-      <div className="brow"><button className="btn ghost bsm" onClick={()=>setConfirmDeactivate(false)}>Cancel</button><button className="btn danger bsm" onClick={()=>{if(onDeactivate)onDeactivate();}}>Deactivate</button></div>
-    </div></div>}
-    <div style={{padding:"0 16px"}}>
-      {todayPractices.length===0&&<div className="card" style={{marginBottom:12,textAlign:"center",padding:"28px 20px"}}>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,marginBottom:4}}>Nothing scheduled today</div>
-        <div style={{fontSize:13,color:"var(--td)",marginBottom:16}}>Build a practice or schedule one for later.</div>
-        <button className="btn primary bmd bfull" onClick={()=>setView("builder")}>+ Build a Practice</button>
-      </div>}
-      {todayPractices.map(p=>{const team=getTeam(p.teamId);const loc=getLoc(p.locationId);const soon=isSoon(p);return (<div key={p.id} className="card" style={{marginBottom:12,borderColor:soon?"var(--green)":"var(--b)",borderWidth:soon?2:1.5,cursor:"pointer"}} onClick={()=>setViewPractice(p)}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-          <div style={{display:"flex",alignItems:"center",gap:6}}>
-            {soon&&<span style={{background:"var(--green)",color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".08em",padding:"2px 8px",borderRadius:20}}>TODAY</span>}
-            <span style={{fontSize:13,color:"var(--td)",fontWeight:600}}>{timeLbl(p)}</span>
-          </div>
-          <div style={{position:"relative"}} onClick={e=>e.stopPropagation()}>
-            <button className="ell-btn" onClick={e=>{e.stopPropagation();setPracticeMenuId(practiceMenuId===p.id?null:p.id);}}><span/><span/><span/></button>
-            {practiceMenuId===p.id&&<div className="mini-menu" style={{right:0,minWidth:140}}>
-              <button className="mm-item" onClick={()=>{setPracticeMenuId(null);if(setEditPracticeId)setEditPracticeId(p.id);setView("builder");}}>Edit</button>
-              <button className="mm-item mm-danger" onClick={()=>{delPractice(p.id);setPracticeMenuId(null);}}>Delete</button>
-            </div>}
-          </div>
-        </div>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,lineHeight:1,marginBottom:2}}>{team?team.name:"Practice"}</div>
-        {loc&&<div style={{fontSize:13,color:"var(--td)",marginBottom:4}}>{loc.name}</div>}
-        <div style={{fontSize:12,color:"var(--td)",marginBottom:soon?10:0}}>{(p.activities||[]).length} activities · {sumMins(p.activities||[])}min · Tap to view &amp; share</div>
-        {soon&&<button className="btn primary bxl bfull" style={{marginTop:8}} onClick={e=>{e.stopPropagation();setLiveId(p.id);setView("command");}}>Start Practice &#8594;</button>}
-      </div>);})} 
-      {upcoming.length>0&&<div>
-        <div className="sechdr" style={{marginBottom:8}}><span className="sectitle">Coming Up</span></div>
-        {upcoming.map(p=>{const team=getTeam(p.teamId);const d=new Date(p.date+"T12:00:00");const dl=d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});return (<div key={p.id} className="li" style={{marginBottom:6}}>
-          <div className="lim"><div className="lin">{team?team.name:"Practice"}</div><div className="limt">{dl}{p.startTime?" - "+timeLbl(p):""}</div></div>
-          <button className="btn ghost bxs" onClick={()=>setViewPractice(p)}>View</button>
-        </div>);})}
-      </div>}
-      {recent.length>0&&<div style={{marginTop:16}}>
-        <div className="sechdr" style={{marginBottom:8}}><span className="sectitle">Recent</span></div>
-        {recent.map(p=>{const team=getTeam(p.teamId);const d=new Date(p.date+"T12:00:00");const dl=d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});return (<div key={p.id} className="li" style={{marginBottom:6,position:"relative"}}>
-          <div className="lim"><div className="lin">{team?team.name:"Practice"}</div><div className="limt">{dl} - {(p.activities||[]).length} activities</div></div>
-          <div style={{position:"relative"}}>
-            <button className="ell-btn" onClick={e=>{e.stopPropagation();setPracticeMenuId(practiceMenuId===p.id?null:p.id);}}><span/><span/><span/></button>
-            {practiceMenuId===p.id&&<div className="mini-menu" style={{right:0,minWidth:160}}>
-              <button className="mm-item" onClick={async()=>{setPracticeMenuId(null);const now=new Date();const {data:saved}=await savePracticeTree(null,{teamId:p.teamId,locationId:p.locationId,date:now.toISOString().slice(0,10),startTime:now.toTimeString().slice(0,5),activities:stripIdsForCopy(p.activities)});await refreshPlanning();if(saved){if(setEditPracticeId)setEditPracticeId(saved.id);setView("builder");}}}>Run Again</button>
-              <button className="mm-item mm-danger" onClick={()=>{delPractice(p.id);setPracticeMenuId(null);}}>Delete</button>
-            </div>}
-          </div>
-        </div>);})}
-      </div>}
-      <div style={{marginTop:20,display:"flex",gap:8}}>
-        <button className="btn outline bmd" style={{flex:1}} onClick={()=>{if(setEditPracticeId)setEditPracticeId(null);setView("builder");}}>+ Build Practice</button>
-        <button className="btn ghost bmd" style={{flex:1}} onClick={()=>{setView("library");setTimeout(()=>{window.__ropLibTab&&window.__ropLibTab("templates");},50);}}>Use Template</button>
-      </div>
-    </div>
-  </div>);
-}
-
 export default function App(){
   const [data,setData]=useState(INIT);
   useEffect(()=>{let el=document.getElementById('rop-css');if(!el){el=document.createElement('style');el.id='rop-css';document.head.appendChild(el);}el.textContent=CSS;},[]);
@@ -625,7 +421,8 @@ export default function App(){
   const launchRun=id=>{if(id)setLiveId(id);setView("command");};
   useEffect(()=>{window.__cbSetView=setView;return()=>{delete window.__cbSetView;};},[]);
   const TABS=[
-    {id:"today",label:"Today",I:Ic.Home},
+    {id:"today",label:"Home",I:Ic.Home},
+    {id:"schedule",label:"Schedule",I:Ic.Cal},
     {id:"teams",label:"Teams",I:Ic.Build},
     {id:"library",label:"Library",I:Ic.Run},
   ];
@@ -647,7 +444,8 @@ export default function App(){
   return (<div style={{display:"contents"}}>
     <div className="app">
       <div className="screen">
-        {view==="today"&&<TodayScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSignOut={signOut} onDeactivate={handleDeactivate} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning}/>}
+        {view==="today"&&<HomeScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSignOut={signOut} onDeactivate={handleDeactivate} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning}/>}
+        {view==="schedule"&&<ScheduleScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning}/>}
         {view==="teams"&&<TeamsScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
         {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun} setEditPracticeId={setEditPracticeId} refreshLibrary={refreshLibrary} coachId={coachId} refreshPlanning={refreshPlanning}/>}
         {view==="builder"&&<BuilderScreen data={fullData} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
@@ -735,16 +533,24 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const headCoach=(team&&(team.coaches.find(c=>c.role==="Head Coach")||team.coaches[0]))||null;
   const headCoachId=(headCoach&&headCoach.id)||"";
   const allPlayerIds=team?team.players.map(p=>p.id):[];
+  const [absentPlayerIds,setAbsentPlayerIds]=useState(new Set());
+  useEffect(()=>{
+    if(!existingId){setAbsentPlayerIds(new Set());return;}
+    fetchPlannedAbsences([existingId]).then(rows=>setAbsentPlayerIds(new Set(rows.map(r=>r.player_id))));
+  },[existingId]);
+  // Default assignment for newly-added activities excludes players marked
+  // out in advance -- the coach can still tap them back in per-activity.
+  const defaultAssignIds=allPlayerIds.filter(id=>!absentPlayerIds.has(id));
   const totalMins=sumMins(acts);
   const addAct=lib=>{
-    setActs(p=>[...p,{id:uid(),type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:allPlayerIds,coachId:headCoachId,sublocationId:"",notes:"",description:lib.description||"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);
+    setActs(p=>[...p,{id:uid(),type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:defaultAssignIds,coachId:headCoachId,sublocationId:"",notes:"",description:lib.description||"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);
   };
   const addChecklist=isClose=>{
-    const a={id:uid(),type:"checklist",name:isClose?"Closer":"Intro",duration:5,assignments:allPlayerIds,coachId:headCoachId,items:[],notes:""};
+    const a={id:uid(),type:"checklist",name:isClose?"Closer":"Intro",duration:5,assignments:defaultAssignIds,coachId:headCoachId,items:[],notes:""};
     setActs(p=>[...p,a]);setExpandedId(a.id);
   };
   const addBlock=()=>{
-    const n=2;const groups=mkGroups(allPlayerIds,n);
+    const n=2;const groups=mkGroups(defaultAssignIds,n);
     const b={id:uid(),type:"station_block",rotate:true,stationDuration:10,transitionDuration:2,stations:[
       {id:uid(),name:"Station 1",activityName:"",coachId:headCoachId,sublocationId:"",assignments:groups[0]||[],coachingPoints:"",equipment:[],playerGear:""},
       {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:groups[1]||[],coachingPoints:"",equipment:[],playerGear:""},
@@ -760,7 +566,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const onDE=()=>{dragIdx.current=null;};
   const doSchedule=async(dateVal,timeVal)=>{
     if(!dateVal)return;
-    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:dateVal,startTime:timeVal||"",activities:acts});
+    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:dateVal,startTime:timeVal||"",timezone:team&&team.timezone,activities:acts});
     if(saved)setExistingId(saved.id);
     await refreshPlanning();
     setBottomMode("done_sched");
@@ -773,13 +579,13 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
     setTimeout(()=>setBottomMode(null),2000);
   };
   const handleSave=async()=>{
-    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,activities:acts});
+    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,activities:acts});
     if(saved)setExistingId(saved.id);
     await refreshPlanning();
     if(existingId&&setEditPracticeId)setEditPracticeId(null);
   };
   const handleRun=async()=>{
-    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,activities:acts});
+    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,activities:acts});
     await refreshPlanning();
     if(saved)launchRun(saved.id);
   };
@@ -890,6 +696,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
 function PlayerProfile({player:playerInit,team:teamInit,data,update,refreshTeams,coachId,refreshLibrary,onBack}){
   const team=data.teams.find(t=>t.id===teamInit.id)||teamInit;
   const player=team.players.find(p=>p.id===playerInit.id)||playerInit;
+  const [markingOut,setMarkingOut]=useState(false);
   const [picking,setPicking]=useState(false);
   const [pickedCategoryId,setPickedCategoryId]=useState(null);
   const [customName,setCustomName]=useState("");
@@ -928,6 +735,8 @@ function PlayerProfile({player:playerInit,team:teamInit,data,update,refreshTeams
       </div>
       <button className="btn ghost bxs" onClick={onBack}>Done</button>
     </div>
+    <button className="btn outline bsm bfull" style={{marginBottom:10}} onClick={()=>setMarkingOut(true)}>Mark Out For...</button>
+    {markingOut&&<AbsencePicker data={data} coachId={coachId} mode="pickPlayerThenPractices" presetPlayer={Object.assign({},player,{teamId:team.id})} onClose={()=>setMarkingOut(false)}/>}
     <div className="card mb10">
       <div className="clbl mb8">Focus Areas</div>
       {!areas.length&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>No focus areas yet. Add what this player is working on.</div>}

@@ -124,19 +124,27 @@ export async function fetchMyTeams() {
     id: t.id,
     name: t.name,
     sport: t.sport,
+    timezone: t.timezone,
+    startDate: t.start_date,
+    endDate: t.end_date,
+    colorPrimary: t.color_primary,
+    colorSecondary: t.color_secondary,
     players: players.filter(p => p.team_id === t.id).map(p => Object.assign(mapPlayerRow(p), { focusAreas: focusByPlayer[p.id] || [] })),
     coaches: staff.filter(s => s.team_id === t.id && !(s.user_id && deactivatedUserIds.has(s.user_id))).map(mapStaffRow),
   }))
 }
 
-export async function createTeam(ownerUserId, { name, sport }) {
+export async function createTeam(ownerUserId, { name, sport, colorPrimary, colorSecondary }) {
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
-  const { error } = await supabase.from('teams').insert({ name, sport: sport || 'Basketball', owner_user_id: ownerUserId, timezone })
+  const { error } = await supabase.from('teams').insert({ name, sport: sport || 'Basketball', owner_user_id: ownerUserId, timezone, color_primary: colorPrimary || null, color_secondary: colorSecondary || null })
   if (error) console.error('createTeam:', error)
   return { error }
 }
-export async function updateTeam(id, { name, sport }) {
-  const { error } = await supabase.from('teams').update({ name, sport: sport || 'Basketball' }).eq('id', id)
+export async function updateTeam(id, { name, sport, colorPrimary, colorSecondary }) {
+  const row = { name, sport: sport || 'Basketball' }
+  if (colorPrimary !== undefined) row.color_primary = colorPrimary || null
+  if (colorSecondary !== undefined) row.color_secondary = colorSecondary || null
+  const { error } = await supabase.from('teams').update(row).eq('id', id)
   if (error) console.error('updateTeam:', error)
   return { error }
 }
@@ -420,19 +428,33 @@ export async function createSublocation(locationId, name) {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const isDbId = id => UUID_RE.test(id || '')
 
-function localToScheduledAt(date, time) {
+const browserTz = () => Intl.DateTimeFormat().resolvedOptions().timeZone
+
+// Practice times must always read as the TEAM's local wall-clock time, not
+// the viewing device's -- a coach traveling shouldn't see practice times
+// shift. teams.timezone is nullable (older rows), so both directions fall
+// back to the browser's zone when unset.
+function teamLocalToScheduledAt(date, time, timeZone) {
   if (!date) return null
-  const d = new Date(date + 'T' + (time || '00:00'))
-  return d.toISOString()
+  const tz = timeZone || browserTz()
+  const [y, mo, d] = date.split('-').map(Number)
+  const [hh, mm] = (time || '00:00').split(':').map(Number)
+  // Double-conversion trick: format a UTC guess in the target zone, measure
+  // how far off that reading is from the guess, then correct by that delta.
+  // Intl resolves the real offset for this specific date, so DST just works.
+  const utcGuess = new Date(Date.UTC(y, mo - 1, d, hh, mm))
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(utcGuess)
+  const get = t => parseInt(parts.find(p => p.type === t).value, 10)
+  const tzAsUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'))
+  const offset = tzAsUtc - utcGuess.getTime()
+  return new Date(utcGuess.getTime() - offset).toISOString()
 }
-function scheduledAtToLocal(iso) {
+function scheduledAtToTeamLocal(iso, timeZone) {
   if (!iso) return { date: '', startTime: '' }
-  const d = new Date(iso)
-  const pad = n => String(n).padStart(2, '0')
-  return {
-    date: d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()),
-    startTime: pad(d.getHours()) + ':' + pad(d.getMinutes()),
-  }
+  const tz = timeZone || browserTz()
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: tz, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date(iso))
+  const get = t => parts.find(p => p.type === t).value
+  return { date: `${get('year')}-${get('month')}-${get('day')}`, startTime: `${get('hour')}:${get('minute')}` }
 }
 
 function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsByBlock, stationEquipByStation) {
@@ -466,7 +488,7 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
 }
 
 export async function fetchPracticesFull() {
-  const [practicesRes, actsRes, equipRes, itemsRes, blocksRes, stationsRes, stationEquipRes] = await Promise.all([
+  const [practicesRes, actsRes, equipRes, itemsRes, blocksRes, stationsRes, stationEquipRes, teamsRes] = await Promise.all([
     supabase.from('practices').select('*').is('archived_at', null),
     supabase.from('practice_activities').select('*').is('archived_at', null),
     supabase.from('practice_activity_equipment').select('*'),
@@ -474,8 +496,11 @@ export async function fetchPracticesFull() {
     supabase.from('station_blocks').select('*'),
     supabase.from('stations').select('*').is('archived_at', null).order('position'),
     supabase.from('station_equipment').select('*'),
+    supabase.from('teams').select('id,timezone'),
   ])
   if (practicesRes.error) console.error('fetchPracticesFull:', practicesRes.error)
+  const tzByTeam = {}
+  for (const t of teamsRes.data || []) tzByTeam[t.id] = t.timezone
   const equipByAct = {}
   for (const e of equipRes.data || []) (equipByAct[e.practice_activity_id] ||= []).push(e.asset_id)
   const itemsByAct = {}
@@ -491,9 +516,13 @@ export async function fetchPracticesFull() {
   for (const a of (actsRes.data || []).sort((x, y) => x.position - y.position)) (actsByPractice[a.practice_id] ||= []).push(a)
 
   return (practicesRes.data || []).map(p => {
-    const { date, startTime } = scheduledAtToLocal(p.scheduled_at)
+    const { date, startTime } = scheduledAtToTeamLocal(p.scheduled_at, tzByTeam[p.team_id])
     const activities = (actsByPractice[p.id] || []).map(a => mapActivityRow(a, equipByAct, itemsByAct, blocksByAct, stationsByBlock, stationEquipByStation))
-    return { id: p.id, teamId: p.team_id, locationId: p.location_id || '', date, startTime, durMin: sumMinsLocal(activities), activities }
+    return {
+      id: p.id, teamId: p.team_id, locationId: p.location_id || '', sublocationId: p.sublocation_id || '',
+      date, startTime, status: p.status, scheduledDurationMinutes: p.scheduled_duration_minutes || null,
+      seriesId: p.series_id || null, durMin: sumMinsLocal(activities), activities,
+    }
   })
 }
 
@@ -606,8 +635,12 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
   }
 }
 
-export async function savePracticeTree(existingId, { teamId, locationId, date, startTime, activities }) {
-  const row = { team_id: teamId, location_id: locationId || null, scheduled_at: localToScheduledAt(date, startTime), status: date ? 'scheduled' : 'draft' }
+export async function savePracticeTree(existingId, { teamId, locationId, sublocationId, date, startTime, timezone, scheduledDurationMinutes, activities }) {
+  const row = {
+    team_id: teamId, location_id: locationId || null, sublocation_id: sublocationId || null,
+    scheduled_at: teamLocalToScheduledAt(date, startTime, timezone), status: date ? 'scheduled' : 'draft',
+    scheduled_duration_minutes: scheduledDurationMinutes || null,
+  }
   let practiceId = existingId
   if (isDbId(practiceId)) {
     await supabase.from('practices').update(row).eq('id', practiceId)
@@ -628,6 +661,124 @@ export async function archivePractice(id) {
   const { error } = await supabase.from('practices').update({ archived_at: new Date().toISOString() }).eq('id', id)
   if (error) console.error('archivePractice:', error)
   return { error }
+}
+
+// ── Recurring schedules ──────────────────────────────────────────────────
+export async function createPracticeSeries(teamId, { daysOfWeek, startTime, durationMinutes, locationId, sublocationId, rangeStart, rangeEnd, deselectedDates }) {
+  const { data, error } = await supabase.rpc('create_practice_series', {
+    p_team_id: teamId, p_days_of_week: daysOfWeek, p_start_time: startTime, p_duration_minutes: durationMinutes,
+    p_range_start: rangeStart, p_range_end: rangeEnd, p_location_id: locationId || null, p_sublocation_id: sublocationId || null,
+    p_deselected_dates: deselectedDates && deselectedDates.length ? deselectedDates : [],
+  })
+  if (error) { console.error('createPracticeSeries:', error); return { error } }
+  return { data: { seriesId: data.series_id, count: data.count } }
+}
+export async function fetchPracticeSeries(teamId) {
+  const { data, error } = await supabase.from('practice_series').select('*').eq('team_id', teamId).is('archived_at', null)
+  if (error) console.error('fetchPracticeSeries:', error)
+  return data || []
+}
+export async function archivePracticeSeries(id) {
+  const { error } = await supabase.from('practice_series').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  if (error) console.error('archivePracticeSeries:', error)
+  return { error }
+}
+
+// "This only" vs "this and all future" (§6) -- future never touches
+// completed occurrences, matching standard calendar-app semantics.
+export async function cancelPractice(id, { scope } = {}) {
+  if (scope !== 'future') {
+    const { error } = await supabase.from('practices').update({ status: 'cancelled' }).eq('id', id)
+    if (error) console.error('cancelPractice:', error)
+    return { error }
+  }
+  const { data: p, error: fetchErr } = await supabase.from('practices').select('series_id,scheduled_at').eq('id', id).single()
+  if (fetchErr) { console.error('cancelPractice:', fetchErr); return { error: fetchErr } }
+  if (!p.series_id) {
+    const { error } = await supabase.from('practices').update({ status: 'cancelled' }).eq('id', id)
+    if (error) console.error('cancelPractice:', error)
+    return { error }
+  }
+  const { error } = await supabase.from('practices').update({ status: 'cancelled' })
+    .eq('series_id', p.series_id).gte('scheduled_at', p.scheduled_at).not('status', 'eq', 'completed')
+  if (error) console.error('cancelPractice:', error)
+  return { error }
+}
+export async function restorePractice(id) {
+  const { error } = await supabase.from('practices').update({ status: 'scheduled' }).eq('id', id)
+  if (error) console.error('restorePractice:', error)
+  return { error }
+}
+
+// scope:'future' shifts each future, not-yet-completed occurrence's
+// time-of-day/location to match, while preserving each occurrence's own
+// date -- i.e. "we moved start time to 6:30, starting now," not collapsing
+// every future date onto this one. Changing the days-of-week pattern
+// itself isn't supported here (that's a new series, per the wizard).
+export async function reschedulePractice(id, { date, startTime, timezone, locationId, sublocationId, scope } = {}) {
+  const row = { location_id: locationId || null, sublocation_id: sublocationId || null, scheduled_at: teamLocalToScheduledAt(date, startTime, timezone), status: 'scheduled' }
+  if (scope !== 'future') {
+    const { error } = await supabase.from('practices').update(row).eq('id', id)
+    if (error) console.error('reschedulePractice:', error)
+    return { error }
+  }
+  const { data: p, error: fetchErr } = await supabase.from('practices').select('series_id,scheduled_at').eq('id', id).single()
+  if (fetchErr) { console.error('reschedulePractice:', fetchErr); return { error: fetchErr } }
+  if (!p.series_id) {
+    const { error } = await supabase.from('practices').update(row).eq('id', id)
+    if (error) console.error('reschedulePractice:', error)
+    return { error }
+  }
+  const { data: future, error: futureErr } = await supabase.from('practices').select('id,scheduled_at')
+    .eq('series_id', p.series_id).gte('scheduled_at', p.scheduled_at).not('status', 'eq', 'completed')
+  if (futureErr) { console.error('reschedulePractice:', futureErr); return { error: futureErr } }
+  for (const occ of future || []) {
+    const { date: occDate } = scheduledAtToTeamLocal(occ.scheduled_at, timezone)
+    const { error } = await supabase.from('practices').update({ location_id: row.location_id, sublocation_id: row.sublocation_id, scheduled_at: teamLocalToScheduledAt(occDate, startTime, timezone), status: 'scheduled' }).eq('id', occ.id)
+    if (error) console.error('reschedulePractice:', error)
+  }
+  return { error: null }
+}
+
+// ── Planned absences (§7) -- the coach recording what they were told in
+// advance; the historical record of who actually attended lives in
+// session_attendance. Persistence into the live run happens by excluding
+// these players from AttendanceScreen's default present-set (see
+// CommandScreen.jsx) so the normal submitAttendanceSnapshot flow already
+// records them absent -- no separate seed/insert, which would race against
+// that same snapshot write and get silently overwritten.
+export async function fetchPlannedAbsences(practiceIds) {
+  if (!practiceIds || !practiceIds.length) return []
+  const { data, error } = await supabase.from('planned_absences').select('*').in('practice_id', practiceIds)
+  if (error) console.error('fetchPlannedAbsences:', error)
+  return data || []
+}
+// ON CONFLICT DO NOTHING (ignoreDuplicates), not DO UPDATE -- the table
+// only grants select/insert/delete to authenticated (no update policy,
+// matching the addendum's spec), so a plain upsert would 403.
+export async function createPlannedAbsence(practiceId, playerId, notedBy, note) {
+  const { error } = await supabase.from('planned_absences').upsert({ practice_id: practiceId, player_id: playerId, noted_by: notedBy, note: note || null }, { onConflict: 'practice_id,player_id', ignoreDuplicates: true })
+  if (error) console.error('createPlannedAbsence:', error)
+  return { error }
+}
+export async function deletePlannedAbsence(practiceId, playerId) {
+  const { error } = await supabase.from('planned_absences').delete().eq('practice_id', practiceId).eq('player_id', playerId)
+  if (error) console.error('deletePlannedAbsence:', error)
+  return { error }
+}
+// "Pick player, pick practice(s)" capture flow -- sets the exact set of
+// practices this player is marked out for among the given candidates
+// (adds new rows, removes any no longer selected), rather than only adding.
+export async function setPlannedAbsences(playerId, notedBy, selectedPracticeIds, candidatePracticeIds, note) {
+  const selected = new Set(selectedPracticeIds)
+  const toRemove = (candidatePracticeIds || []).filter(id => !selected.has(id))
+  if (toRemove.length) await supabase.from('planned_absences').delete().eq('player_id', playerId).in('practice_id', toRemove)
+  if (selectedPracticeIds.length) {
+    await supabase.from('planned_absences').upsert(
+      selectedPracticeIds.map(practiceId => ({ practice_id: practiceId, player_id: playerId, noted_by: notedBy, note: note || null })),
+      { onConflict: 'practice_id,player_id', ignoreDuplicates: true }
+    )
+  }
 }
 
 export async function fetchTemplatesFull() {

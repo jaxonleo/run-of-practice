@@ -17,6 +17,13 @@ export function assignGroups(players,grouping,numGroups){
 
 // ── Constants ────────────────────────────────────────────────────────────────
 export const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
+// Curated, contrast-safe team palette -- each color must work as a dot, as
+// a badge background with white text, and as an accent on a white card.
+export const TEAM_COLORS=["#2563EB","#DC2626","#16A34A","#D97706","#7C3AED","#0891B2","#DB2777","#65A30D","#EA580C","#4338CA","#0D9488","#9333EA","#B91C1C","#0369A1","#A16207","#BE185D"];
+export function nextTeamColor(existingTeams){
+  const used=new Set((existingTeams||[]).map(t=>t.colorPrimary).filter(Boolean));
+  return TEAM_COLORS.find(c=>!used.has(c))||TEAM_COLORS[Math.floor(Math.random()*TEAM_COLORS.length)];
+}
 export const INIT={
   teams:[],
   locations:[],

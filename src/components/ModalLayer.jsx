@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { uid } from "../constants.js";
+import { uid, TEAM_COLORS, nextTeamColor } from "../constants.js";
 import { createTeam, updateTeam, createPlayer, updatePlayer, createStaff, updateStaff, createAsset, updateAsset, createDrill, updateDrill, createSkillTag, createLocation, updateLocation, createSublocation } from "../supabase.js";
 
 const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
@@ -52,7 +52,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     if(asset)return{name:asset.name};
     if(coach)return{name:coach.name,role:coach.role||"Assistant Coach",inviteEmail:coach.inviteEmail||""};
     if(template)return{name:template.name,sport:template.sport||"General"};
-    if(editTeamData)return{name:editTeamData.name,sport:editTeamData.sport||"Basketball"};
+    if(editTeamData)return{name:editTeamData.name,sport:editTeamData.sport||"Basketball",colorPrimary:editTeamData.colorPrimary||""};
     return{sport:lastSportRef.current||"Basketball"};
   });
   const set=(k,v)=>setF(p=>Object.assign({},p,{[k]:v}));
@@ -71,8 +71,8 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     setSaving(true);
     try{
     const t=modal.type,p=modal.payload;
-    if(t==="addTeam"){if(!f.name)return;await createTeam(coachId,{name:f.name,sport:f.sport||"Basketball"});await refreshTeams();}
-    if(t==="editTeam"){if(!f.name)return;await updateTeam(p.team.id,{name:f.name,sport:f.sport||"Basketball"});await refreshTeams();}
+    if(t==="addTeam"){if(!f.name)return;await createTeam(coachId,{name:f.name,sport:f.sport||"Basketball",colorPrimary:nextTeamColor(data.teams)});await refreshTeams();}
+    if(t==="editTeam"){if(!f.name)return;await updateTeam(p.team.id,{name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||p.team.colorPrimary});await refreshTeams();}
     if(t==="addPlayer"){if(!f.firstName)return;await createPlayer(p.teamId,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:parsePositions(f.positions),notes:f.notes||""});await refreshTeams();}
     if(t==="editPlayer"){if(!f.firstName)return;await updatePlayer(p.player.id,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:parsePositions(f.positions),notes:f.notes||""});await refreshTeams();}
     if(t==="addCoach"){if(!f.name||!f.inviteEmail)return;await createStaff(p.teamId,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail});await refreshTeams();}
@@ -140,6 +140,12 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
         {(modal.type==="editTeam")&&(<div>
             <div className="fld"><label className="lbl">Team Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
             <div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||"Basketball"} onChange={e=>set("sport",e.target.value)}>{["General","Baseball","Basketball","Football","Soccer","Softball","Volleyball","Other"].map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+            <div className="fld">
+              <label className="lbl">Team Color</label>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {TEAM_COLORS.map(c=>(<button key={c} type="button" onClick={()=>set("colorPrimary",c)} style={{width:32,height:32,borderRadius:"50%",background:c,border:(f.colorPrimary||editTeamData.colorPrimary)===c?"3px solid var(--black)":"3px solid transparent",cursor:"pointer",padding:0}}/>))}
+              </div>
+            </div>
           </div>
         )}
         {(modal.type==="editTemplate")&&(<div>

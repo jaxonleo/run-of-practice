@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups } from "../constants.js";
-import { savePracticeTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken } from "../supabase.js";
+import { savePracticeTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ function ShareSheet({token,scope,onClose}){
 function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPresent,onConfirm,onBack}){
   const allIds=team?team.players.map(p=>p.id):[];
   const [present,setPresent]=useState(()=>{
-    if(initialPresent&&initialPresent.length>0)return new Set(initialPresent);
+    if(initialPresent!==null&&initialPresent!==undefined)return new Set(initialPresent);
     return new Set(allIds);
   });
   const [coachPresent,setCoachPresent]=useState(()=>{
@@ -651,6 +651,11 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const [stage,setStage]=useState("pick");
   const [session,setSession]=useState(null);
   const [now,setNow]=useState(Date.now());
+  const [plannedAbsentIds,setPlannedAbsentIds]=useState(new Set());
+  useEffect(()=>{
+    if(!practice){setPlannedAbsentIds(new Set());return;}
+    fetchPlannedAbsences([practice.id]).then(rows=>setPlannedAbsentIds(new Set(rows.map(r=>r.player_id))));
+  },[practice&&practice.id]);
   const [presentIds,setPresentIds]=useState(new Set());
   const [coachPresentIds,setCoachPresentIds]=useState(new Set());
   const [showAtt,setShowAtt]=useState(false);
@@ -1082,7 +1087,14 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     />);
   }
 
-  if(stage==="attend"||showAtt){const attBack=()=>{if(showAtt){setShowAtt(false);}else{setLiveId(null);setStage("pick");setView("today");}};return (<AttendanceScreen key={showAtt?"upd":"init"} practice={practice} team={team} isUpdate={showAtt} initialPresent={showAtt?[...presentIds]:null} initialCoachPresent={showAtt?[...coachPresentIds]:null} onConfirm={showAtt?handleAttUpdate:handleAttConfirm} onBack={attBack}/>);}
+  if(stage==="attend"||showAtt){const attBack=()=>{if(showAtt){setShowAtt(false);}else{setLiveId(null);setStage("pick");setView("today");}};
+    // Fresh session start: default present-set excludes players marked out
+    // in advance (§7) -- the coach can still tap them back in if they show
+    // up anyway. This is the only place planned absences feed the live run;
+    // the normal submitAttendanceSnapshot call then records them correctly,
+    // no separate seed step.
+    const freshPresent=team?team.players.map(p=>p.id).filter(id=>!plannedAbsentIds.has(id)):[];
+    return (<AttendanceScreen key={showAtt?"upd":"init"} practice={practice} team={team} isUpdate={showAtt} initialPresent={showAtt?[...presentIds]:freshPresent} initialCoachPresent={showAtt?[...coachPresentIds]:null} onConfirm={showAtt?handleAttUpdate:handleAttConfirm} onBack={attBack}/>);}
   if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--green)",marginBottom:4}}>Practice Complete</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{team&&team.name} practice complete.</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>setNoteText(e.target.value)}/><button className="btn primary bsm bfull mt6" onClick={()=>{if(noteText.trim()){update(d=>{d.notes.push({id:uid(),text:noteText,context:"End of Practice",date:new Date().toISOString(),practiceId:liveId});return d;});setNoteText("");}}} >Save Note</button></div><button className="btn primary bmd bfull" onClick={()=>{setLiveId(null);setStage("pick");setView("today");}}>Done</button></div></div>);
 
   if(!cur)return null;
