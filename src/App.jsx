@@ -411,10 +411,10 @@ function AuthScreen(){
       </div>}
       {sent&&<div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Enter your code</div>
-        <div style={{fontSize:14,color:"var(--td)",marginBottom:20,lineHeight:1.5}}>We sent a 6-digit code to <strong>{email}</strong>.</div>
+        <div style={{fontSize:14,color:"var(--td)",marginBottom:20,lineHeight:1.5}}>We sent a code to <strong>{email}</strong>. Enter the full code exactly as it appears in the email.</div>
         <div className="fld mb10">
           <label className="lbl">Code</label>
-          <input className="inp" autoFocus type="text" inputMode="numeric" placeholder="123456" value={code} onChange={e=>setCode(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")verify();}}/>
+          <input className="inp" autoFocus type="text" inputMode="numeric" placeholder="Enter code" value={code} onChange={e=>setCode(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")verify();}}/>
         </div>
         {error&&<div style={{fontSize:13,color:"var(--red)",marginBottom:10}}>{error}</div>}
         <button className="btn primary bmd bfull" onClick={verify} disabled={!code.trim()||verifying} style={{marginBottom:10}}>{verifying?"Verifying...":"Verify & Sign In"}</button>
