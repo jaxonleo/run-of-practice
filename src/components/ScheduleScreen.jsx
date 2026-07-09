@@ -93,7 +93,7 @@ export default function ScheduleScreen({ data, update, setView, setLiveId, coach
       </button>))}
     </div>}
 
-    <div style={{ padding: "0 16px 12px", display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", margin: "0 16px 12px" }}>
+    <div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3, margin: "0 16px 12px" }}>
       {["agenda", "month"].map(m => (<button key={m} onClick={() => setMode(m)} style={{ flex: 1, padding: "8px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: mode === m ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: mode === m ? "var(--black)" : "var(--td)" }}>{m}</button>))}
     </div>
 

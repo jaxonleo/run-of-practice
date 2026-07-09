@@ -53,7 +53,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     if(coach)return{name:coach.name,role:coach.role||"Assistant Coach",inviteEmail:coach.inviteEmail||""};
     if(template)return{name:template.name,sport:template.sport||"General"};
     if(editTeamData)return{name:editTeamData.name,sport:editTeamData.sport||"Basketball",colorPrimary:editTeamData.colorPrimary||""};
-    return{sport:lastSportRef.current||"Basketball"};
+    return{sport:lastSportRef.current||"Basketball",colorPrimary:nextTeamColor(data.teams)};
   });
   const set=(k,v)=>setF(p=>Object.assign({},p,{[k]:v}));
   const parsePositions=s=>(s||"").split(",").map(x=>x.trim()).filter(Boolean);
@@ -71,7 +71,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     setSaving(true);
     try{
     const t=modal.type,p=modal.payload;
-    if(t==="addTeam"){if(!f.name)return;await createTeam(coachId,{name:f.name,sport:f.sport||"Basketball",colorPrimary:nextTeamColor(data.teams)});await refreshTeams();}
+    if(t==="addTeam"){if(!f.name)return;await createTeam(coachId,{name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||nextTeamColor(data.teams)});await refreshTeams();}
     if(t==="editTeam"){if(!f.name)return;await updateTeam(p.team.id,{name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||p.team.colorPrimary});await refreshTeams();}
     if(t==="addPlayer"){if(!f.firstName)return;await createPlayer(p.teamId,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:parsePositions(f.positions),notes:f.notes||""});await refreshTeams();}
     if(t==="editPlayer"){if(!f.firstName)return;await updatePlayer(p.player.id,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:parsePositions(f.positions),notes:f.notes||""});await refreshTeams();}
@@ -112,7 +112,14 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
         <div className="mhandle"/>
         <div className="mtitle">{TITLES[modal.type]||"Add"}</div>
         {modal.type==="addTeam"&&(<div><div className="fld"><label className="lbl">Team Name</label><input className="inp" autoFocus placeholder="e.g. Peoria Eagles 10U" onChange={e=>set("name",e.target.value)}/></div>
-          <div className="fld"><label className="lbl">Sport</label><select className="sel" onChange={e=>{set("sport",e.target.value);lastSportRef.current=e.target.value;}}>{SPORTS.map(s=><option key={s}>{s}</option>)}</select></div></div>
+          <div className="fld"><label className="lbl">Sport</label><select className="sel" onChange={e=>{set("sport",e.target.value);lastSportRef.current=e.target.value;}}>{SPORTS.map(s=><option key={s}>{s}</option>)}</select></div>
+          <div className="fld">
+            <label className="lbl">Team Color</label>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              {TEAM_COLORS.map(c=>(<button key={c} type="button" onClick={()=>set("colorPrimary",c)} style={{width:32,height:32,borderRadius:"50%",background:c,border:f.colorPrimary===c?"3px solid var(--black)":"3px solid transparent",cursor:"pointer",padding:0}}/>))}
+            </div>
+          </div>
+        </div>
         )}
         {(modal.type==="addPlayer"||modal.type==="editPlayer")&&(<div>
             <div className="g2"><div className="fld"><label className="lbl">First Name</label><input className="inp" autoFocus value={f.firstName||""} onChange={e=>set("firstName",e.target.value)}/></div><div className="fld"><label className="lbl">Last Name</label><input className="inp" value={f.lastName||""} onChange={e=>set("lastName",e.target.value)}/></div></div>
