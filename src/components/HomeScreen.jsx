@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { sumMins, isHeadCoach, planningState } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, markTeamStaffWelcomed, leaveTeam, hasCompletedSession } from "../supabase.js";
+import { archivePractice, fetchPlannedAbsences, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 
@@ -41,6 +41,44 @@ function ChecklistModal({ data, hasCompleted, onClose }) {
   </div>);
 }
 
+// Landing-page addendum §4: fold feedback into the existing "?" menu rather
+// than a second persistent icon -- one entry point, page_context hardcoded
+// to "Home" since that's the only surface this opens from (same reasoning
+// that already ruled out per-screen help buttons).
+function FeedbackModal({ coachId, coachEmail, onClose }) {
+  const [contact, setContact] = useState(coachEmail || "");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [done, setDone] = useState(false);
+  const send = async () => {
+    if (!message.trim() || sending) return;
+    setSending(true);
+    await submitFeedback(coachId, { contactEmail: contact.trim() || null, message: message.trim(), pageContext: "Home" });
+    setSending(false);
+    setDone(true);
+  };
+  return (<div className="movly" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="modal">
+      <div className="mhandle" />
+      <div className="mtitle">Send Feedback</div>
+      {done ? (<div>
+        <div style={{ fontSize: 14, color: "var(--black2)", marginBottom: 16 }}>Thanks — got it.</div>
+        <button className="btn ghost bmd bfull" onClick={onClose}>Close</button>
+      </div>) : (<div>
+        <div className="fld mb10">
+          <label className="lbl">What's on your mind?</label>
+          <textarea className="ta" rows={4} autoFocus placeholder="Ideas, bugs, questions..." value={message} onChange={e => setMessage(e.target.value)} />
+        </div>
+        <div className="fld mb10">
+          <label className="lbl">Contact (optional, or a different way to reach you)</label>
+          <input className="inp" type="email" value={contact} onChange={e => setContact(e.target.value)} />
+        </div>
+        <button className="btn primary bmd bfull" onClick={send} disabled={!message.trim() || sending}>{sending ? "Sending..." : "Send Feedback"}</button>
+      </div>)}
+    </div>
+  </div>);
+}
+
 const timeLbl = p => { if (!p.startTime) return ""; const [h, m] = p.startTime.split(":").map(Number); return (h % 12 || 12) + ":" + (m < 10 ? "0" + m : m) + (h >= 12 ? " PM" : " AM"); };
 const dayLbl = (dateStr, todayStr, tomorrowStr) => {
   if (dateStr === todayStr) return "Today";
@@ -48,7 +86,7 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 };
 
-export default function HomeScreen({ data, update, setView, setLiveId, coachId, coachName, onSignOut, onDeactivate, setEditPracticeId, refreshPlanning, refreshTeams }) {
+export default function HomeScreen({ data, update, setView, setLiveId, coachId, coachName, coachEmail, onSignOut, onDeactivate, setEditPracticeId, refreshPlanning, refreshTeams }) {
   const now = new Date();
   const todayStr = now.toISOString().slice(0, 10);
   const tomorrowStr = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
@@ -62,7 +100,9 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
   const [viewPractice, setViewPractice] = useState(null);
   const [showAbsencePicker, setShowAbsencePicker] = useState(false);
   const [absenceCounts, setAbsenceCounts] = useState({});
+  const [showHelpMenu, setShowHelpMenu] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [hasCompleted, setHasCompleted] = useState(false);
   const practiceIdsKey = JSON.stringify(data.practices.map(p => p.id));
   useEffect(() => { hasCompletedSession(data.practices.map(p => p.id)).then(setHasCompleted); }, [practiceIdsKey]);
@@ -125,10 +165,16 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, color: "var(--green)", lineHeight: 1 }}>{coachName}</div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <button onClick={() => setShowChecklist(true)} style={{ position: "relative", background: "var(--s2)", border: "1.5px solid var(--b)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, color: "var(--green)" }}>
-          ?
-          {!checklistDone && <span style={{ position: "absolute", top: 2, right: 2, width: 8, height: 8, borderRadius: "50%", background: "var(--green)" }} />}
-        </button>
+        <div style={{ position: "relative" }}>
+          <button onClick={() => setShowHelpMenu(s => !s)} style={{ position: "relative", background: "var(--s2)", border: "1.5px solid var(--b)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, color: "var(--green)" }}>
+            ?
+            {!checklistDone && <span style={{ position: "absolute", top: 2, right: 2, width: 8, height: 8, borderRadius: "50%", background: "var(--green)" }} />}
+          </button>
+          {showHelpMenu && <div className="mini-menu" style={{ minWidth: 170 }}>
+            <button className="mm-item" onClick={() => { setShowHelpMenu(false); setShowChecklist(true); }}>Getting Started</button>
+            <button className="mm-item" onClick={() => { setShowHelpMenu(false); setShowFeedback(true); }}>Send Feedback</button>
+          </div>}
+        </div>
         <div style={{ position: "relative" }}>
           <button onClick={() => setShowAccountMenu(s => !s)} style={{ background: "var(--s2)", border: "1.5px solid var(--b)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
@@ -141,6 +187,7 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
       </div>
     </div>
     {showChecklist && <ChecklistModal data={data} hasCompleted={hasCompleted} onClose={() => setShowChecklist(false)} />}
+    {showFeedback && <FeedbackModal coachId={coachId} coachEmail={coachEmail} onClose={() => setShowFeedback(false)} />}
     {confirmDeactivate && <div style={{ margin: "0 16px 12px" }}><div className="confirm-box">
       <div className="confirm-title">Deactivate your account?</div>
       <div className="confirm-body">You'll be signed out and hidden from your teammates' rosters. All your teams, practices, and data stay exactly as they are -- just sign back in any time to pick up right where you left off.</div>

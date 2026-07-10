@@ -9,6 +9,8 @@ import HomeScreen from "./components/HomeScreen.jsx";
 import PracticeDetail from "./components/PracticeDetail.jsx";
 import ScheduleScreen from "./components/ScheduleScreen.jsx";
 import AbsencePicker from "./components/AbsencePicker.jsx";
+import LandingPage from "./components/LandingPage.jsx";
+import { TermsPage, PrivacyPage } from "./components/LegalPages.jsx";
 
 // INIT, DEMO_INIT, migrateData, uid, fmt, sumMins, etc. imported from constants.js
 
@@ -269,7 +271,7 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
   </div>);
 }
 
-function AuthScreen(){
+function AuthScreen({onBack}){
   const [email,setEmail]=useState("");
   const [code,setCode]=useState("");
   const [sent,setSent]=useState(false);
@@ -293,6 +295,7 @@ function AuthScreen(){
     // onAuthStateChange picks up the new session automatically.
   };
   return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
+    {onBack&&<button onClick={onBack} style={{position:"absolute",top:16,left:16,background:"rgba(255,255,255,.08)",border:"none",borderRadius:"50%",width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#fff",fontSize:18,zIndex:10}}>&#8249;</button>}
     <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
       <div style={{width:96,height:96,borderRadius:22,overflow:"hidden",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
         <img src="/apple-touch-icon.png" style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Run of Practice"/>
@@ -311,6 +314,7 @@ function AuthScreen(){
         </div>
         {error&&<div style={{fontSize:13,color:"var(--red)",marginBottom:10}}>{error}</div>}
         <button className="btn primary bmd bfull" onClick={send} disabled={!email.trim()||sending}>{sending?"Sending...":"Send Code"}</button>
+        <div style={{fontSize:11,color:"var(--td)",marginTop:12,textAlign:"center",lineHeight:1.5}}>By continuing you agree to our <a href="/terms" style={{color:"var(--green)"}}>Terms</a> and <a href="/privacy" style={{color:"var(--green)"}}>Privacy Policy</a>.</div>
       </div>}
       {sent&&<div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Enter your code</div>
@@ -367,6 +371,7 @@ export default function App(){
   const [liveId,setLiveId]=useState(null);
   const [editPracticeId,setEditPracticeId]=useState(null);
   const [session,setSession]=useState(undefined); // undefined=loading, null=signed out, object=signed in
+  const [wantsAuth,setWantsAuth]=useState(false);
   const update=useCallback(fn=>{setData(d=>{const nx=fn(JSON.parse(JSON.stringify(d)));saveData(nx);return nx;});},[]);
   useEffect(()=>{
     getCurrentSession().then(setSession);
@@ -430,14 +435,22 @@ export default function App(){
     {id:"library",label:"Library",I:Ic.Run},
   ];
   const coachName=profile&&profile.first_name?profile.first_name:(session?(session.user.email||"Coach"):"Coach");
-  const liveMatch=window.location.pathname.match(/^\/live\/([a-z0-9-]+)$/i);
+  const path=window.location.pathname;
+  const liveMatch=path.match(/^\/live\/([a-z0-9-]+)$/i);
   if(liveMatch)return (<HelperView token={liveMatch[1]}/>);
-  const previewMatch=window.location.pathname.match(/^\/preview\/([a-z0-9-]+)$/i);
+  const previewMatch=path.match(/^\/preview\/([a-z0-9-]+)$/i);
   if(previewMatch)return (<PreviewView token={previewMatch[1]}/>);
+  if(path==="/terms")return (<TermsPage/>);
+  if(path==="/privacy")return (<PrivacyPage/>);
   // Loading initial session
   if(session===undefined)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
-  // Show sign-in if not authenticated
-  if(!session)return (<AuthScreen/>);
+  // Landing-page addendum §1: "/" is adaptive on session state, checked
+  // client-side before rendering -- an installed PWA icon's start_url stays
+  // "/" and keeps launching straight into the app for a signed-in user,
+  // while a signed-out visitor sees the marketing pitch instead of a
+  // dead-end sign-in form. Both CTAs on the landing page lead to the same
+  // AuthScreen (wantsAuth), just weighted differently.
+  if(!session)return wantsAuth?(<AuthScreen onBack={()=>setWantsAuth(false)}/>):(<LandingPage onGetStarted={()=>setWantsAuth(true)}/>);
   // One-time name prompt -- covers both fresh signups and pre-existing
   // accounts created before name collection existed.
   if(profile&&!profile.first_name)return (<NameScreen onSave={saveName}/>);
@@ -447,7 +460,7 @@ export default function App(){
   return (<div style={{display:"contents"}}>
     <div className="app">
       <div className="screen">
-        {view==="today"&&<HomeScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSignOut={signOut} onDeactivate={handleDeactivate} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>}
+        {view==="today"&&<HomeScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} coachEmail={profile&&profile.email?profile.email:(session?session.user.email:"")} onSignOut={signOut} onDeactivate={handleDeactivate} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>}
         {view==="schedule"&&<ScheduleScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning}/>}
         {view==="teams"&&<TeamsScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
         {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun} setEditPracticeId={setEditPracticeId} refreshLibrary={refreshLibrary} coachId={coachId} refreshPlanning={refreshPlanning}/>}

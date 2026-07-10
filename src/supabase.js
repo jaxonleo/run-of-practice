@@ -1100,3 +1100,15 @@ export async function submitHelperAttendanceByToken(token, playerId, status) {
   if (error) { console.error('submitHelperAttendanceByToken:', error); return { error: 'request_failed' } }
   return data
 }
+
+export async function submitFeedback(userId, { contactEmail, message, pageContext }) {
+  const { error } = await supabase.from('feedback').insert({ user_id: userId, contact_email: contactEmail || null, message, page_context: pageContext || null })
+  if (error) console.error('submitFeedback:', error)
+  return { error }
+}
+
+export async function submitPublicFeedback({ email, message, pageContext }) {
+  const { data, error } = await supabase.rpc('submit_public_feedback', { p_email: email, p_message: message, p_page_context: pageContext || null })
+  if (error) { console.error('submitPublicFeedback:', error); return { error: 'request_failed' } }
+  return data
+}
