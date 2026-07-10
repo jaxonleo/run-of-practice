@@ -1,25 +1,29 @@
 import React, { useState, useMemo } from "react";
 import { createPracticeSeries } from "../supabase.js";
+import { isHeadCoach } from "../constants.js";
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const toStr = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 
 export default function SeriesWizard({ data, coachId, onClose, onDone }) {
   const today = new Date();
+  // §3: only teams this user manages -- an assistant should never be able
+  // to schedule for a team they don't head-coach, even via this wizard's
+  // own team picker (the ScheduleScreen entry point only hides the button
+  // when NO team is manageable; a mixed-role user still needs this filter).
+  const myTeams = useMemo(() => data.teams.filter(t => isHeadCoach(t, coachId)), [data.teams, coachId]);
   const [step, setStep] = useState("team");
-  const [teamId, setTeamId] = useState(data.teams[0] ? data.teams[0].id : "");
-  const team = data.teams.find(t => t.id === teamId) || null;
+  const [teamId, setTeamId] = useState(myTeams[0] ? myTeams[0].id : "");
+  const team = myTeams.find(t => t.id === teamId) || null;
   const [days, setDays] = useState(new Set());
   const [startTime, setStartTime] = useState("18:00");
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [rangeStart, setRangeStart] = useState(toStr(today));
   const [rangeEnd, setRangeEnd] = useState(() => { const d = new Date(today); d.setDate(d.getDate() + 56); return toStr(d); });
   const [locationId, setLocationId] = useState("");
-  const [sublocationId, setSublocationId] = useState("");
   const [deselected, setDeselected] = useState(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const loc = data.locations.find(l => l.id === locationId) || null;
 
   const toggleDay = d => setDays(s => { const n = new Set(s); if (n.has(d)) n.delete(d); else n.add(d); return n; });
 
@@ -53,7 +57,7 @@ export default function SeriesWizard({ data, coachId, onClose, onDone }) {
     if (saving) return;
     setSaving(true); setError("");
     const { data: result, error: err } = await createPracticeSeries(teamId, {
-      daysOfWeek: [...days], startTime, durationMinutes, locationId: locationId || null, sublocationId: sublocationId || null,
+      daysOfWeek: [...days], startTime, durationMinutes, locationId: locationId || null, sublocationId: null,
       rangeStart, rangeEnd, deselectedDates: [...deselected],
     });
     setSaving(false);
@@ -67,7 +71,7 @@ export default function SeriesWizard({ data, coachId, onClose, onDone }) {
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, marginBottom: 12 }}>Set up a schedule</div>
         <div className="fld mb10"><label className="lbl">Team</label>
           <select className="sel" value={teamId} onChange={e => setTeamId(e.target.value)}>
-            {data.teams.map(t => (<option key={t.id} value={t.id}>{t.name}</option>))}
+            {myTeams.map(t => (<option key={t.id} value={t.id}>{t.name}</option>))}
           </select>
         </div>
         <div className="brow"><button className="btn ghost bsm" onClick={onClose}>Cancel</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={() => setStep("pattern")} disabled={!teamId}>Next</button></div>
@@ -93,17 +97,11 @@ export default function SeriesWizard({ data, coachId, onClose, onDone }) {
       {step === "location" && <div>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, marginBottom: 12 }}>Location <span style={{ color: "var(--td)", fontWeight: 400, fontSize: 13 }}>(optional)</span></div>
         <div className="fld mb10"><label className="lbl">Location</label>
-          <select className="sel" value={locationId} onChange={e => { setLocationId(e.target.value); setSublocationId(""); }}>
+          <select className="sel" value={locationId} onChange={e => setLocationId(e.target.value)}>
             <option value="">None</option>
             {data.locations.map(l => (<option key={l.id} value={l.id}>{l.name}</option>))}
           </select>
         </div>
-        {loc && loc.sublocations && loc.sublocations.length > 0 && <div className="fld mb10"><label className="lbl">Area</label>
-          <select className="sel" value={sublocationId} onChange={e => setSublocationId(e.target.value)}>
-            <option value="">None</option>
-            {loc.sublocations.map(s => (<option key={s.id} value={s.id}>{s.name}</option>))}
-          </select>
-        </div>}
         <div className="brow"><button className="btn ghost bsm" onClick={() => setStep("range")}>Back</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={() => setStep("preview")}>Next</button></div>
       </div>}
 

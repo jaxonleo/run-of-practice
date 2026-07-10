@@ -1,7 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { fetchPlannedAbsences } from "../supabase.js";
+import { isHeadCoach, sumMins, planningState } from "../constants.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import SeriesWizard from "./SeriesWizard.jsx";
+
+// §1: same "35/60 min" pill as HomeScreen -- duplicated per this codebase's
+// existing convention (timeLbl/dayLbl are likewise redefined per file
+// rather than shared) rather than factored into a new shared component.
+function PlanPill({ practice }) {
+  const st = planningState(practice);
+  if (!st) return null;
+  const total = sumMins(practice.activities || []);
+  const style = { partial: { color: "var(--amber)", icon: "◐" }, overplanned: { color: "var(--red)", icon: "⚠" }, complete: { color: "var(--green)", icon: "✓" } }[st];
+  return <span style={{ color: style.color, fontWeight: 600 }}>{style.icon} {total}/{practice.scheduledDurationMinutes} min</span>;
+}
 
 const timeLbl = p => { if (!p.startTime) return ""; const [h, m] = p.startTime.split(":").map(Number); return (h % 12 || 12) + ":" + (m < 10 ? "0" + m : m) + (h >= 12 ? " PM" : " AM"); };
 const dayLbl = (dateStr, todayStr, tomorrowStr) => {
@@ -21,7 +33,7 @@ function DaySheet({ date, practices, data, onPick, onClose }) {
         return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer", opacity: cancelled ? .6 : 1 }} onClick={() => onPick(p)}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", background: team.colorPrimary, flexShrink: 0 }} />}
-            <div className="lim"><div className="lin" style={{ textDecoration: cancelled ? "line-through" : "none" }}>{team ? team.name : "Practice"}</div><div className="limt">{timeLbl(p)}{!planned && !cancelled && " · Needs plan"}{cancelled && " · Cancelled"}</div></div>
+            <div className="lim"><div className="lin" style={{ textDecoration: cancelled ? "line-through" : "none" }}>{team ? team.name : "Practice"}</div><div className="limt">{timeLbl(p)}{!planned && !cancelled && " · Needs plan"}{planned && !cancelled && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{cancelled && " · Cancelled"}</div></div>
           </div>
           <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>
         </div>);
@@ -45,6 +57,7 @@ export default function ScheduleScreen({ data, update, setView, setLiveId, coach
   const [showWizard, setShowWizard] = useState(false);
   const [absenceCounts, setAbsenceCounts] = useState({});
 
+  const canScheduleAny = data.teams.some(t => isHeadCoach(t, coachId));
   const toggleTeam = id => setTeamFilter(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const passesFilter = p => teamFilter.size === 0 || teamFilter.has(p.teamId);
   const filtered = data.practices.filter(passesFilter);
@@ -83,7 +96,7 @@ export default function ScheduleScreen({ data, update, setView, setLiveId, coach
   return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}>
     <div style={{ padding: "20px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 28, fontWeight: 900 }}>Schedule</div>
-      <button className="btn primary bsm" onClick={() => setShowWizard(true)}>+ Schedule</button>
+      {canScheduleAny && <button className="btn primary bsm" onClick={() => setShowWizard(true)}>+ Schedule</button>}
     </div>
 
     {data.teams.length > 0 && <div style={{ padding: "0 16px 12px", display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -107,14 +120,14 @@ export default function ScheduleScreen({ data, update, setView, setLiveId, coach
               {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", background: team.colorPrimary, flexShrink: 0 }} />}
               <div className="lim" style={{ minWidth: 0 }}>
                 <div className="lin" style={{ textDecoration: cancelled ? "line-through" : "none" }}>{team ? team.name : "Practice"}</div>
-                <div className="limt">{timeLbl(p)}{!planned && !cancelled && " · Needs plan"}{cancelled && " · Cancelled"}{count > 0 && " · " + count + " out"}</div>
+                <div className="limt">{timeLbl(p)}{!planned && !cancelled && " · Needs plan"}{planned && !cancelled && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{cancelled && " · Cancelled"}{count > 0 && " · " + count + " out"}</div>
               </div>
             </div>
             <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>
           </div>);
         })}
       </div>))}
-      {upcoming.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>Nothing scheduled. Tap + Schedule to set up recurring practices.</div>}
+      {upcoming.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>{canScheduleAny ? "Nothing scheduled. Tap + Schedule to set up recurring practices." : "Nothing scheduled yet."}</div>}
       {past.length > 0 && <div style={{ marginTop: 8 }}>
         <button className="btn ghost bsm bfull" onClick={() => setShowPast(s => !s)}>{showPast ? "Hide" : "Show"} Completed / History</button>
         {showPast && groupByDay(past).map(g => (<div key={g.date} style={{ marginTop: 12 }}>

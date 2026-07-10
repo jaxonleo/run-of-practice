@@ -4,6 +4,32 @@ export const fmt12=(t)=>{if(!t)return"";const[h,m]=t.split(":").map(Number);cons
 export const fmt=(s)=>{const neg=s<0;const abs=Math.abs(s);const m=Math.floor(abs/60),sec=abs%60;return(neg?"-":"")+String(m).padStart(2,"0")+":"+String(sec).padStart(2,"0");};
 export const actSecs=(a)=>{if(a.type==="station_block"){const n=(a.stations?a.stations.length:0);return(n*(a.stationDuration||0)+Math.max(0,n-1)*(a.transitionDuration||0))*60;}return(a.duration||0)*60;};
 export const sumMins=(acts)=>Math.round(acts.reduce((s,a)=>s+actSecs(a),0)/60);
+// Testing-round-1 addendum §1: planning-depth indicators, derived only,
+// never stored. Only meaningful for a practice that already has a plan and
+// a scheduled duration -- an empty plan stays "unplanned", not "partial".
+export function planningState(practice){
+  const acts=practice.activities||[];
+  if(!acts.length||!practice.scheduledDurationMinutes)return null;
+  const total=sumMins(acts);
+  const target=practice.scheduledDurationMinutes;
+  const tolerance=Math.max(10,target*0.15);
+  if(total<target-tolerance)return "partial";
+  if(total>target+5)return "overplanned";
+  return "complete";
+}
+// §3: assistants/helpers view + run live but don't edit. Falls back to
+// Head Coach when ownerUserId matches but no team_staff row exists yet
+// (shouldn't happen post-backfill, but the owner already has power via
+// RLS regardless). Per-team, not global -- a user can be head coach on
+// one team and assistant on another.
+export function myTeamRole(team,coachId){
+  if(!team||!coachId)return null;
+  const mine=(team.coaches||[]).find(c=>c.userId===coachId);
+  if(mine)return mine.role;
+  if(team.ownerUserId===coachId)return "Head Coach";
+  return null;
+}
+export function isHeadCoach(team,coachId){return myTeamRole(team,coachId)==="Head Coach";}
 export const shuffle=(arr)=>[...arr].sort(()=>Math.random()-.5);
 export function mkGroups(ids,n){const s=shuffle(ids),g=Array.from({length:n},()=>[]);s.forEach((id,i)=>g[i%n].push(id));return g;}
 export function rebalanceKeep(stations,presentIds){return stations.map(st=>Object.assign({},st,{assignments:(st.assignments||[]).filter(id=>presentIds.has(id))}));}

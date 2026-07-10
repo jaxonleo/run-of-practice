@@ -87,7 +87,7 @@ function mapPlayerRow(p) {
   return { id: p.id, firstName: p.first_name, lastName: p.last_name, jersey: p.jersey_number || '', positions: p.positions || [], notes: p.notes || '' }
 }
 function mapStaffRow(s) {
-  return { id: s.id, name: (s.first_name + ' ' + s.last_name).trim(), role: ROLE_LABELS[s.role] || s.role, inviteEmail: s.invite_email, userId: s.user_id }
+  return { id: s.id, name: (s.first_name + ' ' + s.last_name).trim(), role: ROLE_LABELS[s.role] || s.role, inviteEmail: s.invite_email, userId: s.user_id, addedBy: s.added_by, welcomedAt: s.welcomed_at }
 }
 function splitName(name) {
   const parts = (name || '').trim().split(/\s+/)
@@ -124,6 +124,7 @@ export async function fetchMyTeams() {
     id: t.id,
     name: t.name,
     sport: t.sport,
+    ownerUserId: t.owner_user_id,
     timezone: t.timezone,
     startDate: t.start_date,
     endDate: t.end_date,
@@ -186,7 +187,7 @@ export async function removePlayerFocusArea(id) {
 
 export async function createStaff(teamId, { name, role, inviteEmail }) {
   const { firstName, lastName } = splitName(name)
-  const { error } = await supabase.from('team_staff').insert({ team_id: teamId, first_name: firstName, last_name: lastName, role: ROLE_VALUES[role] || 'assistant_coach', invite_email: inviteEmail || null })
+  const { error } = await supabase.rpc('add_team_staff', { p_team_id: teamId, p_email: inviteEmail, p_first_name: firstName, p_last_name: lastName, p_role: ROLE_VALUES[role] || 'assistant_coach' })
   if (error) console.error('createStaff:', error)
   return { error }
 }
@@ -200,6 +201,40 @@ export async function archiveStaff(id) {
   const { error } = await supabase.from('team_staff').update({ archived_at: new Date().toISOString() }).eq('id', id)
   if (error) console.error('archiveStaff:', error)
   return { error }
+}
+export async function markTeamStaffWelcomed(teamStaffId) {
+  const { error } = await supabase.rpc('mark_team_staff_welcomed', { p_team_staff_id: teamStaffId })
+  if (error) console.error('markTeamStaffWelcomed:', error)
+  return { error }
+}
+export async function leaveTeam(teamId) {
+  const { error } = await supabase.rpc('leave_team', { p_team_id: teamId })
+  if (error) console.error('leaveTeam:', error)
+  return { error }
+}
+// §5: staff the current user has already added on their OTHER teams, so
+// they can tap-to-fill instead of re-typing. Deduped by email; excludes
+// the team currently being added to.
+// §6: getting-started checklist's last derived step -- has this coach ever
+// completed a live session, across any of their teams' practices.
+export async function hasCompletedSession(practiceIds) {
+  if (!practiceIds || !practiceIds.length) return false
+  const { data, error } = await supabase.from('practice_live_sessions').select('id').eq('status', 'completed').in('practice_id', practiceIds).limit(1)
+  if (error) { console.error('hasCompletedSession:', error); return false }
+  return (data || []).length > 0
+}
+export async function fetchStaffSuggestions(coachId, excludeTeamId) {
+  const { data, error } = await supabase.from('team_staff').select('first_name, last_name, invite_email, team_id').eq('added_by', coachId).not('invite_email', 'is', null)
+  if (error) { console.error('fetchStaffSuggestions:', error); return [] }
+  const seen = new Set(), out = []
+  for (const r of data || []) {
+    if (r.team_id === excludeTeamId) continue
+    const email = (r.invite_email || '').toLowerCase()
+    if (!email || seen.has(email)) continue
+    seen.add(email)
+    out.push({ name: (r.first_name + ' ' + r.last_name).trim(), email: r.invite_email })
+  }
+  return out
 }
 
 // ── Library (assets, skill tags, drills, sharing) ─────────────────────────────

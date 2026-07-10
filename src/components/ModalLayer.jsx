@@ -1,6 +1,6 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { uid, TEAM_COLORS, nextTeamColor } from "../constants.js";
-import { createTeam, updateTeam, createPlayer, updatePlayer, createStaff, updateStaff, createAsset, updateAsset, createDrill, updateDrill, createSkillTag, createLocation, updateLocation, createSublocation } from "../supabase.js";
+import { createTeam, updateTeam, createPlayer, updatePlayer, createStaff, updateStaff, createAsset, updateAsset, createDrill, updateDrill, createSkillTag, createLocation, updateLocation, createSublocation, fetchStaffSuggestions } from "../supabase.js";
 
 const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
 const STAFF_ROLES=["Head Coach","Assistant Coach","Helper"];
@@ -61,6 +61,11 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
   const [newTagCategoryId,setNewTagCategoryId]=useState("");
   const [saving,setSaving]=useState(false);
   const savingRef=useRef(false);
+  const [addedCoachInfo,setAddedCoachInfo]=useState(null);
+  const [staffSuggestions,setStaffSuggestions]=useState([]);
+  useEffect(()=>{
+    if(modal.type==="addCoach")fetchStaffSuggestions(coachId,modal.payload.teamId).then(setStaffSuggestions);
+  },[modal.type]);
   const save=async()=>{
     // useState alone isn't a safe reentrancy guard here: rapid synchronous
     // double-clicks/taps all fire before React re-renders with the updated
@@ -103,15 +108,16 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
       await refreshLibrary();
     }
     if(t==="editTemplate"){if(!f.name)return;update(d=>{const tpl=d.templates.find(t=>t.id===p.template.id);if(tpl){tpl.name=f.name;tpl.sport=f.sport||"General";}return d;});}
-    closeModal();
+    if(t==="addCoach"){setAddedCoachInfo({name:f.name,email:f.inviteEmail});}else{closeModal();}
     }finally{savingRef.current=false;setSaving(false);}
   };
   const TITLES={addTemplate:"New Template",editTemplate:"Edit Template",addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",editPlayer:"Edit Player",addCoach:"Add Coach",editCoach:"Edit Coach",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
   return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget)closeModal();}}>
       <div className="modal">
         <div className="mhandle"/>
-        <div className="mtitle">{TITLES[modal.type]||"Add"}</div>
-        {modal.type==="addTeam"&&(<div><div className="fld"><label className="lbl">Team Name</label><input className="inp" autoFocus placeholder="e.g. Peoria Eagles 10U" onChange={e=>set("name",e.target.value)}/></div>
+        <div className="mtitle">{addedCoachInfo?"Added":(TITLES[modal.type]||"Add")}</div>
+        {addedCoachInfo&&<div className="fld"><div style={{fontSize:14,lineHeight:1.5}}>{addedCoachInfo.name} will get an email at {addedCoachInfo.email}, and you can also just tell them: sign in at runofpractice.com with {addedCoachInfo.email}.</div></div>}
+        {!addedCoachInfo&&modal.type==="addTeam"&&(<div><div className="fld"><label className="lbl">Team Name</label><input className="inp" autoFocus placeholder="e.g. Peoria Eagles 10U" onChange={e=>set("name",e.target.value)}/></div>
           <div className="fld"><label className="lbl">Sport</label><select className="sel" onChange={e=>{set("sport",e.target.value);lastSportRef.current=e.target.value;}}>{SPORTS.map(s=><option key={s}>{s}</option>)}</select></div>
           <div className="fld">
             <label className="lbl">Team Color</label>
@@ -128,7 +134,14 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
             <div className="fld"><label className="lbl">Notes</label><textarea className="ta" value={f.notes||""} onChange={e=>set("notes",e.target.value)}/></div>
           </div>
         )}
-        {(modal.type==="addCoach"||modal.type==="editCoach")&&(<div>
+        {!addedCoachInfo&&modal.type==="addCoach"&&staffSuggestions.length>0&&(
+          <div className="fld"><label className="lbl">From your other teams</label>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {staffSuggestions.map(s=>(<button key={s.email} type="button" className="btn bxs ghost" onClick={()=>{set("name",s.name);set("inviteEmail",s.email);}}>{s.name}</button>))}
+            </div>
+          </div>
+        )}
+        {!addedCoachInfo&&(modal.type==="addCoach"||modal.type==="editCoach")&&(<div>
             <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
             <div className="fld"><label className="lbl">Role</label>
               <div className="brow">
@@ -257,7 +270,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
             })()}
           </div>
         )}
-        <div className="mfooter"><button className="btn ghost bmd" onClick={closeModal} disabled={saving}>Cancel</button><button className="btn primary bmd" onClick={save} disabled={saving}>{saving?"Saving...":"Save"}</button></div>
+        <div className="mfooter">{addedCoachInfo?<button className="btn primary bmd" style={{flex:1}} onClick={closeModal}>Got it</button>:(<React.Fragment><button className="btn ghost bmd" onClick={closeModal} disabled={saving}>Cancel</button><button className="btn primary bmd" onClick={save} disabled={saving}>{saving?"Saving...":"Save"}</button></React.Fragment>)}</div>
       </div>
     </div>
   );

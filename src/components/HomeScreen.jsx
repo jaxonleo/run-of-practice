@@ -1,8 +1,45 @@
 import React, { useState, useEffect } from "react";
-import { sumMins } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences } from "../supabase.js";
+import { sumMins, isHeadCoach, planningState } from "../constants.js";
+import { archivePractice, fetchPlannedAbsences, markTeamStaffWelcomed, leaveTeam, hasCompletedSession } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
+
+// §1: "35/60 min" pill -- half-filled/amber for partial, warning-tinted for
+// overplanned, filled+check when within tolerance. Returns null (renders
+// nothing) for unplanned practices or practices with no scheduled duration
+// -- the existing binary "Needs plan" language covers those cases already.
+function PlanPill({ practice }) {
+  const st = planningState(practice);
+  if (!st) return null;
+  const total = sumMins(practice.activities || []);
+  const style = { partial: { color: "var(--amber)", icon: "◐" }, overplanned: { color: "var(--red)", icon: "⚠" }, complete: { color: "var(--green)", icon: "✓" } }[st];
+  return <span style={{ color: style.color, fontWeight: 600 }}>{style.icon} {total}/{practice.scheduledDurationMinutes} min</span>;
+}
+
+// §6: getting-started checklist, completion fully derived from existing
+// client state (no stored progress flags to drift) except the "run a
+// practice" step, which needs one lightweight query since nothing else on
+// Home already tracks completed-session history.
+function ChecklistModal({ data, hasCompleted, onClose }) {
+  const steps = [
+    { label: "Create a team", done: data.teams.length > 0 },
+    { label: "Add players", done: data.teams.some(t => t.players.length > 0) },
+    { label: "Set your practice schedule", done: data.practices.length > 0 },
+    { label: "Plan your first practice", done: data.practices.some(p => (p.activities || []).length > 0) },
+    { label: "Run it live", done: hasCompleted },
+  ];
+  return (<div className="movly" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="modal">
+      <div className="mhandle" />
+      <div className="mtitle">Getting Started</div>
+      {steps.map((s, i) => (<div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < steps.length - 1 ? "1px solid var(--s2)" : "none" }}>
+        <span style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, background: s.done ? "var(--green)" : "var(--s2)", color: s.done ? "#fff" : "var(--td)" }}>{s.done ? "✓" : i + 1}</span>
+        <span style={{ fontSize: 14, color: s.done ? "var(--td)" : "var(--black)", textDecoration: s.done ? "line-through" : "none" }}>{s.label}</span>
+      </div>))}
+      <button className="btn ghost bmd bfull" style={{ marginTop: 12 }} onClick={onClose}>Close</button>
+    </div>
+  </div>);
+}
 
 const timeLbl = p => { if (!p.startTime) return ""; const [h, m] = p.startTime.split(":").map(Number); return (h % 12 || 12) + ":" + (m < 10 ? "0" + m : m) + (h >= 12 ? " PM" : " AM"); };
 const dayLbl = (dateStr, todayStr, tomorrowStr) => {
@@ -11,7 +48,7 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 };
 
-export default function HomeScreen({ data, update, setView, setLiveId, coachId, coachName, onSignOut, onDeactivate, setEditPracticeId, refreshPlanning }) {
+export default function HomeScreen({ data, update, setView, setLiveId, coachId, coachName, onSignOut, onDeactivate, setEditPracticeId, refreshPlanning, refreshTeams }) {
   const now = new Date();
   const todayStr = now.toISOString().slice(0, 10);
   const tomorrowStr = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
@@ -25,6 +62,11 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
   const [viewPractice, setViewPractice] = useState(null);
   const [showAbsencePicker, setShowAbsencePicker] = useState(false);
   const [absenceCounts, setAbsenceCounts] = useState({});
+  const [showChecklist, setShowChecklist] = useState(false);
+  const [hasCompleted, setHasCompleted] = useState(false);
+  const practiceIdsKey = JSON.stringify(data.practices.map(p => p.id));
+  useEffect(() => { hasCompletedSession(data.practices.map(p => p.id)).then(setHasCompleted); }, [practiceIdsKey]);
+  const checklistDone = data.teams.length > 0 && data.teams.some(t => t.players.length > 0) && data.practices.length > 0 && data.practices.some(p => (p.activities || []).length > 0) && hasCompleted;
 
   const teamById = id => data.teams.find(t => t.id === id);
   const locById = id => data.locations.find(l => l.id === id);
@@ -54,8 +96,25 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
     const pm = h * 60 + m, nm = now.getHours() * 60 + now.getMinutes();
     return pm - nm <= 120 && pm - nm >= -180;
   };
-  const needsPlanning = agendaWindow.filter(p => !isPlanned(p));
+  // §3: the nudge strip is a to-do list for whoever can act on it -- filter
+  // to practices on teams this user actually head-coaches, per-team (not a
+  // global assistant/head-coach flag, since roles can differ by team).
+  const needsPlanning = agendaWindow.filter(p => !isPlanned(p) && isHeadCoach(teamById(p.teamId), coachId));
+  const canManageAnyTeam = data.teams.some(t => isHeadCoach(t, coachId));
   const delPractice = async id => { await archivePractice(id); await refreshPlanning(); if (viewPractice && viewPractice.id === id) setViewPractice(null); };
+
+  // §2(f): one-time welcome card for a staff row someone else added (addedBy
+  // set) that this user hasn't seen yet. Excludes self-created head_coach
+  // rows (addedBy null there) -- you don't need to be welcomed to your own team.
+  const pendingWelcome = data.teams.map(t => {
+    const mine = (t.coaches || []).find(c => c.userId === coachId);
+    return mine && mine.addedBy && !mine.welcomedAt ? { team: t, staff: mine } : null;
+  }).filter(Boolean)[0] || null;
+  const adderName = pendingWelcome ? ((pendingWelcome.team.coaches || []).find(c => c.userId === pendingWelcome.staff.addedBy)?.name || "a coach") : null;
+  const pendingWelcomeStaffId = pendingWelcome ? pendingWelcome.staff.id : null;
+  useEffect(() => { if (pendingWelcomeStaffId) markTeamStaffWelcomed(pendingWelcomeStaffId); }, [pendingWelcomeStaffId]);
+  const [leavingTeamId, setLeavingTeamId] = useState(null);
+  const handleLeave = async teamId => { setLeavingTeamId(teamId); await leaveTeam(teamId); if (refreshTeams) await refreshTeams(); setLeavingTeamId(null); };
 
   if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} coachId={coachId} onBack={() => setViewPractice(null)} /></div>);
 
@@ -65,35 +124,48 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{greeting},</div>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, color: "var(--green)", lineHeight: 1 }}>{coachName}</div>
       </div>
-      <div style={{ position: "relative" }}>
-        <button onClick={() => setShowAccountMenu(s => !s)} style={{ background: "var(--s2)", border: "1.5px solid var(--b)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <button onClick={() => setShowChecklist(true)} style={{ position: "relative", background: "var(--s2)", border: "1.5px solid var(--b)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, color: "var(--green)" }}>
+          ?
+          {!checklistDone && <span style={{ position: "absolute", top: 2, right: 2, width: 8, height: 8, borderRadius: "50%", background: "var(--green)" }} />}
         </button>
-        {showAccountMenu && <div className="mini-menu" style={{ minWidth: 180 }}>
-          <button className="mm-item" onClick={() => { setShowAccountMenu(false); if (onSignOut) onSignOut(); }}>Sign Out</button>
-          <button className="mm-item mm-danger" onClick={() => { setShowAccountMenu(false); setConfirmDeactivate(true); }}>Deactivate Account</button>
-        </div>}
+        <div style={{ position: "relative" }}>
+          <button onClick={() => setShowAccountMenu(s => !s)} style={{ background: "var(--s2)", border: "1.5px solid var(--b)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+          </button>
+          {showAccountMenu && <div className="mini-menu" style={{ minWidth: 180 }}>
+            <button className="mm-item" onClick={() => { setShowAccountMenu(false); if (onSignOut) onSignOut(); }}>Sign Out</button>
+            <button className="mm-item mm-danger" onClick={() => { setShowAccountMenu(false); setConfirmDeactivate(true); }}>Deactivate Account</button>
+          </div>}
+        </div>
       </div>
     </div>
+    {showChecklist && <ChecklistModal data={data} hasCompleted={hasCompleted} onClose={() => setShowChecklist(false)} />}
     {confirmDeactivate && <div style={{ margin: "0 16px 12px" }}><div className="confirm-box">
       <div className="confirm-title">Deactivate your account?</div>
       <div className="confirm-body">You'll be signed out and hidden from your teammates' rosters. All your teams, practices, and data stay exactly as they are -- just sign back in any time to pick up right where you left off.</div>
       <div className="brow"><button className="btn ghost bsm" onClick={() => setConfirmDeactivate(false)}>Cancel</button><button className="btn danger bsm" onClick={() => { if (onDeactivate) onDeactivate(); }}>Deactivate</button></div>
     </div></div>}
 
+    {pendingWelcome && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
+      <div style={{ fontSize: 14, marginBottom: 6 }}>You've been added to <strong>{pendingWelcome.team.name}</strong> by {adderName}.</div>
+      <button style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 12, color: "var(--td)", textDecoration: "underline" }} disabled={leavingTeamId === pendingWelcome.team.id} onClick={() => handleLeave(pendingWelcome.team.id)}>Not your team? Leave</button>
+    </div></div>}
+
     <div style={{ padding: "0 16px" }}>
       {!nextPractice && <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px" }}>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{data.teams.length === 0 ? "Set up your practice schedule" : "Nothing on the schedule"}</div>
-        <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 16 }}>{data.teams.length === 0 ? "Add a team, then set up a recurring schedule to get started." : "Build a practice or set up a recurring schedule."}</div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 16 }}>{!canManageAnyTeam ? "Nothing planned yet." : data.teams.length === 0 ? "Add a team, then set up a recurring schedule to get started." : "Build a practice or set up a recurring schedule."}</div>
+        {canManageAnyTeam && <div style={{ display: "flex", gap: 8 }}>
           <button className="btn primary bmd" style={{ flex: 1 }} onClick={() => { if (setEditPracticeId) setEditPracticeId(null); setView("builder"); }}>+ Build a Practice</button>
           <button className="btn outline bmd" style={{ flex: 1 }} onClick={() => setView("schedule")}>Set Up Schedule</button>
-        </div>
+        </div>}
       </div>}
 
       {nextPractice && (() => {
         const team = teamById(nextPractice.teamId), loc = locById(nextPractice.locationId);
         const planned = isPlanned(nextPractice), soon = isSoonOrLive(nextPractice);
+        const canManage = isHeadCoach(team, coachId);
         const count = absenceCounts[nextPractice.id] || 0;
         const headcount = team ? Math.max(0, team.players.length - count) : null;
         return (<div className="card" style={{ marginBottom: 16, borderColor: soon ? "var(--green)" : "var(--b)", borderWidth: soon ? 2 : 1.5 }}>
@@ -105,8 +177,10 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
           <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>
             {loc ? loc.name : "Location TBD"}
             {headcount !== null && <span> · {headcount} of {team.players.length} expected</span>}
+            {planned && planningState(nextPractice) && <span> · <PlanPill practice={nextPractice} /></span>}
           </div>
-          {!planned && <button className="btn primary bxl bfull" onClick={() => { if (setEditPracticeId) setEditPracticeId(nextPractice.id); setView("builder"); }}>Plan Practice</button>}
+          {!planned && canManage && <button className="btn primary bxl bfull" onClick={() => { if (setEditPracticeId) setEditPracticeId(nextPractice.id); setView("builder"); }}>Plan Practice</button>}
+          {!planned && !canManage && <div className="btn outline bxl bfull" style={{ textAlign: "center", cursor: "default" }}>Not planned yet</div>}
           {planned && !soon && <button className="btn primary bxl bfull" onClick={() => setViewPractice(nextPractice)}>Review Plan</button>}
           {planned && soon && <button className="btn primary bxl bfull" onClick={() => { setLiveId(nextPractice.id); setView("command"); }}>Start Practice &#8594;</button>}
         </div>);
@@ -126,7 +200,7 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
             {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", background: team.colorPrimary, flexShrink: 0 }} />}
             <div className="lim" style={{ minWidth: 0 }}>
               <div className="lin">{team ? team.name : "Practice"}</div>
-              <div className="limt">{dayLbl(p.date, todayStr, tomorrowStr)}{p.startTime ? " · " + timeLbl(p) : ""}{loc ? " · " + loc.name : ""}{!planned && " · Needs plan"}{count > 0 && " · " + count + " out"}</div>
+              <div className="limt">{dayLbl(p.date, todayStr, tomorrowStr)}{p.startTime ? " · " + timeLbl(p) : ""}{loc ? " · " + loc.name : ""}{!planned && " · Needs plan"}{planned && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{count > 0 && " · " + count + " out"}</div>
             </div>
           </div>
           <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
@@ -140,7 +214,7 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
       })}
 
       <div style={{ marginTop: 20, display: "flex", gap: 8 }}>
-        <button className="btn outline bmd" style={{ flex: 1 }} onClick={() => { if (setEditPracticeId) setEditPracticeId(null); setView("builder"); }}>+ Practice</button>
+        {canManageAnyTeam && <button className="btn outline bmd" style={{ flex: 1 }} onClick={() => { if (setEditPracticeId) setEditPracticeId(null); setView("builder"); }}>+ Practice</button>}
         <button className="btn ghost bmd" style={{ flex: 1 }} onClick={() => setShowAbsencePicker(true)}>Player Out</button>
       </div>
     </div>

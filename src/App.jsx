@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData } from "./constants.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig } from "./components/ActivityConfigs.jsx";
@@ -205,28 +205,31 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
     const upcoming=teamPractices.filter(p=>p.date>=todayStr).sort((a,b)=>a.date>b.date?1:-1);
     const past=teamPractices.filter(p=>p.date<todayStr).sort((a,b)=>b.date>a.date?1:-1);
     const TTABS=["practices","roster","history"];
+    const canManageTeam=isHeadCoach(team,coachId);
     return (<div style={{paddingBottom:80}}>
       <div style={{padding:"12px 14px 0",display:"flex",alignItems:"center",gap:8}}><button className="btn ghost bxs" onClick={()=>setSelectedTeam(null)}>Teams</button></div>
       <div style={{padding:"8px 16px 12px"}}>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2}}>{team.name}</div>
-        <div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>{team.sport} - {team.players.length} players</div>
+        <div style={{borderLeft:"4px solid "+(team.colorPrimary||"transparent"),paddingLeft:10,marginBottom:14}}>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2}}>{team.name}</div>
+          <div style={{fontSize:13,color:"var(--td)"}}>{team.sport} - {team.players.length} players</div>
+        </div>
         <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:16}}>
           {TTABS.map(t=>(<button key={t} onClick={()=>setTeamTab(t)} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:teamTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",color:teamTab===t?"var(--black)":"var(--td)"}}>{t}</button>))}
         </div>
         {teamTab==="practices"&&<div>
-          <div className="sechdr" style={{marginBottom:8}}><span className="sectitle">{upcoming.length>0?"Upcoming":"Practices"}</span><button className="btn primary bxs" onClick={()=>{setEditPracticeId(null);setView("builder");}}>+ Build</button></div>
-          {upcoming.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No upcoming practices. Tap + Build.</div>}
+          <div className="sechdr" style={{marginBottom:8}}><span className="sectitle">{upcoming.length>0?"Upcoming":"Practices"}</span>{canManageTeam&&<button className="btn primary bxs" onClick={()=>{setEditPracticeId(null);setView("builder");}}>+ Build</button>}</div>
+          {upcoming.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>{canManageTeam?"No upcoming practices. Tap + Build.":"No upcoming practices."}</div>}
           {upcoming.map(p=>(<div key={p.id} className="li" style={{marginBottom:6,cursor:"pointer",position:"relative"}} onClick={()=>setSelectedPractice(p)}>
             <div className="lim"><div className="lin">{new Date(p.date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}{p.startTime?" - "+timeLbl(p):""}</div><div className="limt">{(p.activities||[]).length} activities</div></div>
             <div style={{display:"flex",alignItems:"center",gap:4}}>
               <span style={{color:"var(--green)",fontSize:18}}>&#8250;</span>
-              <div style={{position:"relative"}}>
+              {canManageTeam&&<div style={{position:"relative"}}>
                 <button className="ell-btn" onClick={e=>{e.stopPropagation();setPracticeMenuId(practiceMenuId===p.id?null:p.id);}}><span/><span/><span/></button>
                 {practiceMenuId===p.id&&<div className="mini-menu" style={{right:0,minWidth:140}}>
                   <button className="mm-item" onClick={e=>{e.stopPropagation();setPracticeMenuId(null);setEditPracticeId(p.id);setView("builder");}}>Edit</button>
                   <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();delPractice(p.id);setPracticeMenuId(null);}}>Delete</button>
                 </div>}
-              </div>
+              </div>}
             </div>
           </div>))}
           </div>}
@@ -256,7 +259,7 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
     </div>
     <div style={{padding:"0 16px"}}>
       {myTeams.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No teams yet. Tap + Team to get started.</div>}
-      {myTeams.map(t=>(<div key={t.id} className="card" style={{marginBottom:10,cursor:"pointer"}} onClick={()=>{setSelectedTeam(t.id);setTeamTab("practices");}}>
+      {myTeams.map(t=>(<div key={t.id} className="card" style={{marginBottom:10,cursor:"pointer",borderLeft:"4px solid "+(t.colorPrimary||"transparent")}} onClick={()=>{setSelectedTeam(t.id);setTeamTab("practices");}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,lineHeight:1,marginBottom:2}}>{t.name}</div><div style={{fontSize:13,color:"var(--td)"}}>{t.sport} - {t.players.length} players</div></div>
           <span style={{color:"var(--green)",fontSize:22}}>›</span>
@@ -444,7 +447,7 @@ export default function App(){
   return (<div style={{display:"contents"}}>
     <div className="app">
       <div className="screen">
-        {view==="today"&&<HomeScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSignOut={signOut} onDeactivate={handleDeactivate} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning}/>}
+        {view==="today"&&<HomeScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} onSignOut={signOut} onDeactivate={handleDeactivate} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>}
         {view==="schedule"&&<ScheduleScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning}/>}
         {view==="teams"&&<TeamsScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
         {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun} setEditPracticeId={setEditPracticeId} refreshLibrary={refreshLibrary} coachId={coachId} refreshPlanning={refreshPlanning}/>}
@@ -781,6 +784,7 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refr
   const [sort,setSort]=useState({by:"firstName",dir:"asc"});
   const [viewPlayer,setViewPlayer]=useState(null);
   const team=data.teams.find(t=>t.id===teamId)||null;
+  const canManage=isHeadCoach(team,coachId);
   const delP=async id=>{await archivePlayer(id);await refreshTeams();};
   const delC=async id=>{await archiveStaff(id);await refreshTeams();};
   const delTeam=async()=>{
@@ -810,9 +814,9 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refr
       <div className="card mb8" style={{position:"relative"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900}}>{team.name}</div><div className="td" style={{fontSize:12}}>{team.sport}</div></div>
-          <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="__team__"?null:"__team__");}}><span/><span/><span/></button>
+          {canManage&&<button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="__team__"?null:"__team__");}}><span/><span/><span/></button>}
         </div>
-        {openMenu==="__team__"&&(<div className="mini-menu" style={{right:8,top:44}}>
+        {canManage&&openMenu==="__team__"&&(<div className="mini-menu" style={{right:8,top:44}}>
           <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editTeam",{team});}}>Edit Team</button>
           <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);setConfirmDel(c=>!c);}}>Delete Team</button>
         </div>)}
@@ -841,7 +845,7 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refr
               </div>)}
             </div>
           </div>
-          <button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addPlayer",{teamId});}}>+ Add</button>
+          {canManage&&<button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addPlayer",{teamId});}}>+ Add</button>}
         </div>
         {sorted.map(p=>(<div key={p.id} className="li tap" style={{position:"relative"}} onClick={()=>setViewPlayer(p)}>
           <div className="lim">
@@ -849,17 +853,17 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refr
             {(p.focusAreas&&p.focusAreas.length>0)&&<div className="limt">{p.focusAreas.length} focus area{p.focusAreas.length>1?"s":""}</div>}
             {(!p.focusAreas||!p.focusAreas.length)&&p.notes&&<div className="limt">{p.notes}</div>}
           </div>
-          <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===p.id?null:p.id);}}><span/><span/><span/></button>
-          {openMenu===p.id&&<div className="mini-menu"><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setViewPlayer(p);}}>View Profile</button><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editPlayer",{teamId,player:p});}}>Edit</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delP(p.id);}}>Remove</button></div>}
+          {canManage&&<button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===p.id?null:p.id);}}><span/><span/><span/></button>}
+          {canManage&&openMenu===p.id&&<div className="mini-menu"><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setViewPlayer(p);}}>View Profile</button><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editPlayer",{teamId,player:p});}}>Edit</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delP(p.id);}}>Remove</button></div>}
         </div>))}
-        {!team.players.length&&<div className="empty"><div className="emtx">No players yet</div></div>}
+        {!team.players.length&&<div className="empty"><div className="emtx">No players yet{canManage?" -- tap + Add.":"."}</div></div>}
       </div>)}
       {tab==="coaches"&&(<div>
-        <div className="sechdr mb8"><span className="sectitle">{team.coaches.length} Coaches</span><button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addCoach",{teamId});}}>+ Add</button></div>
+        <div className="sechdr mb8"><span className="sectitle">{team.coaches.length} Coaches</span>{canManage&&<button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addCoach",{teamId});}}>+ Add</button>}</div>
         {team.coaches.map(c=>(<div key={c.id} className="li" style={{position:"relative"}}>
           <div className="lim"><div className="lin">{c.name}</div><div className="limt">{c.role}{!c.userId&&c.inviteEmail?" · Invite pending ("+c.inviteEmail+")":""}</div></div>
-          <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="coach_"+c.id?null:"coach_"+c.id);}}><span/><span/><span/></button>
-          {openMenu==="coach_"+c.id&&<div className="mini-menu"><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editCoach",{teamId,coach:c});}}>Edit</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delC(c.id);}}>Remove</button></div>}
+          {canManage&&<button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="coach_"+c.id?null:"coach_"+c.id);}}><span/><span/><span/></button>}
+          {canManage&&openMenu==="coach_"+c.id&&<div className="mini-menu"><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editCoach",{teamId,coach:c});}}>Edit</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delC(c.id);}}>Remove</button></div>}
         </div>))}
       </div>)}
     </div>)}

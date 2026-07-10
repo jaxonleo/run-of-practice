@@ -1,9 +1,21 @@
 import React, { useState, useEffect } from "react";
 import { findOrCreatePreviewToken, cancelPractice, restorePractice, fetchPlannedAbsences } from "../supabase.js";
+import { isHeadCoach, planningState } from "../constants.js";
 import AbsencePicker from "./AbsencePicker.jsx";
+
+// §1: same "35/60 min" pill as HomeScreen/ScheduleScreen -- duplicated per
+// this codebase's existing convention rather than factored into a shared
+// component.
+function PlanPill({ practice, total }) {
+  const st = planningState(practice);
+  if (!st) return null;
+  const style = { partial: { color: "var(--amber)", icon: "◐" }, overplanned: { color: "var(--red)", icon: "⚠" }, complete: { color: "var(--green)", icon: "✓" } }[st];
+  return <span style={{ color: style.color, fontWeight: 600 }}>{style.icon} {total}/{practice.scheduledDurationMinutes} min</span>;
+}
 
 export default function PracticeDetail({practice,data,update,setView,setLiveId,setEditPracticeId,onBack,coachId,refreshPlanning}){
   const team=data.teams.find(t=>t.id===practice.teamId);
+  const canManage=isHeadCoach(team,coachId);
   const loc=data.locations.find(l=>l.id===practice.locationId);
   const now=new Date();
   const todayStr=now.toISOString().slice(0,10);
@@ -61,9 +73,9 @@ export default function PracticeDetail({practice,data,update,setView,setLiveId,s
       {isMissed&&!isCancelled&&<div style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"8px 12px",marginBottom:12,fontSize:12,color:"var(--td)"}}>This practice's time has passed and it was never run.</div>}
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:2}}>{practice.date===todayStr?"TODAY":"PRACTICE"} {practice.date&&new Date(practice.date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2,textDecoration:isCancelled?"line-through":"none",color:isCancelled?"var(--td)":"inherit"}}>{team?team.name:"Practice"}</div>
-      <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>{timeLbl(practice)}{loc?" · "+loc.name:""} · {totalMins}min</div>
+      <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>{timeLbl(practice)}{loc?" · "+loc.name:""} · {planningState(practice)?<PlanPill practice={practice} total={totalMins}/>:totalMins+"min"}</div>
       {absentPlayers.length>0&&<div style={{fontSize:13,color:"var(--red)",marginBottom:12}}>Out: {absentPlayers.map(p=>p.firstName+" "+(p.lastName||"").slice(0,1)).join(", ")}</div>}
-      {!isCancelled&&!isPlanned&&<div className="brow" style={{marginBottom:8}}>
+      {!isCancelled&&!isPlanned&&canManage&&<div className="brow" style={{marginBottom:8}}>
         <button className="btn primary bmd bfull" onClick={()=>{if(setEditPracticeId)setEditPracticeId(practice.id);setView("builder");}}>Plan Practice</button>
       </div>}
       {!isCancelled&&isPlanned&&<div className="brow" style={{marginBottom:8}}>
@@ -71,9 +83,9 @@ export default function PracticeDetail({practice,data,update,setView,setLiveId,s
       </div>}
       {!isCancelled&&<div style={{display:"flex",gap:8,marginBottom:12}}>
         <button className="btn outline bmd" style={{flex:1}} onClick={()=>setShowAbsencePicker(true)}>Who's Out?</button>
-        {isPlanned&&<button className="btn outline bmd" style={{flex:1}} onClick={()=>{if(setEditPracticeId)setEditPracticeId(practice.id);setView("builder");}}>Edit</button>}
+        {isPlanned&&canManage&&<button className="btn outline bmd" style={{flex:1}} onClick={()=>{if(setEditPracticeId)setEditPracticeId(practice.id);setView("builder");}}>Edit</button>}
       </div>}
-      {!isCancelled&&!confirmCancel&&<button className="btn ghost bsm bfull" style={{marginBottom:12,color:"var(--red)"}} onClick={()=>setConfirmCancel(true)}>Cancel Practice</button>}
+      {!isCancelled&&!confirmCancel&&canManage&&<button className="btn ghost bsm bfull" style={{marginBottom:12,color:"var(--red)"}} onClick={()=>setConfirmCancel(true)}>Cancel Practice</button>}
       {confirmCancel&&<div className="confirm-box" style={{marginBottom:12}}>
         <div className="confirm-title">Cancel this practice?</div>
         <div className="confirm-body">The plan stays saved -- this just marks the slot as cancelled.</div>
