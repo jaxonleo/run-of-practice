@@ -1,5 +1,4 @@
-import React, { useState } from "react";
-import { submitPublicFeedback } from "../supabase.js";
+import React from "react";
 
 const CONTACT_EMAIL = "contact@runofpractice.com";
 
@@ -11,43 +10,11 @@ const LIc = {
 };
 
 const CAPS = [
-  { I: LIc.Plan, title: "Plan practices worth the minutes.", body: "Drills, stations, timing, groups — built in minutes on your phone." },
-  { I: LIc.Run, title: "Run it live.", body: "A shared timer and rotation system keeps the whole practice moving, station to station." },
-  { I: LIc.Share, title: "Put a plan in every helper's hand.", body: "Anyone helping opens a link — no app, no account — and sees exactly what to run and what to coach, right now." },
+  { I: LIc.Plan, title: "Plan practices worth the minutes.", body: "Drills, stations, timing, groups, all built in minutes from your phone." },
+  { I: LIc.Run, title: "Run it live.", body: "One shared timer keeps the whole practice moving, station to station." },
+  { I: LIc.Share, title: "Put a plan in every helper's hand.", body: "Anyone helping just opens a link, no app or account needed, and sees exactly what to run and coach right now." },
   { I: LIc.Track, title: "Keep the record.", body: "Attendance, notes, and what actually happened, saved with every practice." },
 ];
-
-function FeedbackBlock() {
-  const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
-  const [sending, setSending] = useState(false);
-  const [done, setDone] = useState(false);
-  const [error, setError] = useState("");
-  const send = async () => {
-    if (!email.trim() || !message.trim() || sending) return;
-    setSending(true); setError("");
-    const res = await submitPublicFeedback({ email: email.trim(), message: message.trim(), pageContext: "landing" });
-    setSending(false);
-    if (res && res.error) { setError("Something went wrong. Try again."); return; }
-    setDone(true);
-  };
-  if (done) return (<div className="card" style={{ textAlign: "center", padding: "24px 16px" }}>
-    <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, color: "var(--green)", marginBottom: 4 }}>Thanks — got it.</div>
-    <div style={{ fontSize: 14, color: "var(--td)" }}>We read every note.</div>
-  </div>);
-  return (<div className="card">
-    <div className="fld mb10">
-      <label className="lbl">Your email</label>
-      <input className="inp" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
-    </div>
-    <div className="fld mb10">
-      <label className="lbl">What's on your mind?</label>
-      <textarea className="ta" rows={4} placeholder="Ideas, questions, what you'd want to see..." value={message} onChange={e => setMessage(e.target.value)} />
-    </div>
-    {error && <div style={{ fontSize: 13, color: "var(--red)", marginBottom: 10 }}>{error}</div>}
-    <button className="btn primary bmd bfull" onClick={send} disabled={!email.trim() || !message.trim() || sending}>{sending ? "Sending..." : "Send Feedback"}</button>
-  </div>);
-}
 
 export default function LandingPage({ onGetStarted }) {
   return (<div style={{ minHeight: "100dvh", background: "var(--bg)", overflowY: "auto" }}>
@@ -59,7 +26,7 @@ export default function LandingPage({ onGetStarted }) {
         Make every minute of practice count.
       </div>
       <div style={{ fontSize: 15, color: "var(--td)", lineHeight: 1.5, maxWidth: 320, marginBottom: 28 }}>
-        Plan it once. Run it live. Everyone — assistant coaches, helpers, players — knows exactly what to do.
+        Plan it once, run it live, and everyone on your staff, from assistant coaches to helpers to players, knows exactly what to do.
       </div>
       <button className="btn primary blg bfull" style={{ maxWidth: 320 }} onClick={onGetStarted}>Try it free</button>
       <button className="btn ghost bmd bfull" style={{ maxWidth: 320, marginTop: 10, background: "transparent", color: "var(--td)", border: "1.5px solid rgba(255,255,255,.2)" }} onClick={onGetStarted}>Already have an account? Sign in</button>
@@ -67,13 +34,10 @@ export default function LandingPage({ onGetStarted }) {
 
     <div style={{ padding: "36px 20px", maxWidth: 480, margin: "0 auto" }}>
       <div style={{ fontSize: 15, lineHeight: 1.6, color: "var(--black2)", marginBottom: 12 }}>
-        You put in the hours to prepare. Then practice starts.
-      </div>
-      <div style={{ fontSize: 15, lineHeight: 1.6, color: "var(--black2)", marginBottom: 12 }}>
-        Players wait in lines. Helpers aren't sure what to coach. Assistant coaches emphasize different things. Transitions take longer than expected. You spend more time managing logistics than developing players.
+        Players end up waiting in line. Helpers aren't always sure what they're supposed to be running. Assistant coaches all emphasize something different, and transitions eat up more time than you planned for. Before long you're spending more time managing logistics than actually developing players.
       </div>
       <div style={{ fontSize: 15, lineHeight: 1.6, color: "var(--black2)", marginBottom: 32 }}>
-        Run of Practice keeps everyone aligned — so coaches can spend more time coaching, and players can spend more time improving.
+        Run of Practice keeps everyone aligned, so coaches spend more time coaching and players spend more time improving.
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 32 }}>
@@ -88,24 +52,20 @@ export default function LandingPage({ onGetStarted }) {
 
       <div className="card" style={{ marginBottom: 32 }}>
         <div style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--black2)" }}>
-          Run of Practice is a coaching operations platform: it connects your preparation to what actually happens at practice. It's not another scheduling app, and it's not a group chat. It's the plan, live, in everyone's hands.
+          Run of Practice is a coaching operations platform. It connects the plan you build ahead of time to what actually happens once practice starts, so it's not another scheduling app and it's not a group chat. It's the plan itself, live, in everyone's hands.
         </div>
       </div>
 
       <div style={{ marginBottom: 32 }}>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Built by a coach who still coaches.</div>
         <div style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--black2)" }}>
-          Run of Practice is in early access. The coaches using it now are shaping what it becomes. Try it — and when something would make your practices better, <a href="#feedback" style={{ color: "var(--green)" }}>tell us</a>. We read everything.
+          Run of Practice is in early access, and the coaches using it now are shaping what it becomes. Try it out, and if something would make your practices better, <a href={"mailto:" + CONTACT_EMAIL} style={{ color: "var(--green)" }}>tell us</a>. We read everything.
         </div>
-      </div>
-
-      <div id="feedback" style={{ marginBottom: 32 }}>
-        <FeedbackBlock />
       </div>
 
       <div style={{ textAlign: "center", marginBottom: 40 }}>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, lineHeight: 1.3, marginBottom: 18, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>
-          If you forget you're using software because practice just runs better — that's the goal.
+          If you forget you're even using software because practice just runs better, that's the goal.
         </div>
         <button className="btn primary blg bfull" style={{ maxWidth: 320, margin: "0 auto" }} onClick={onGetStarted}>Try it free</button>
       </div>
