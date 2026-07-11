@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid, sumMins } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
-import { createAsset, updateAsset, archiveAsset, archiveDrill, setDrillShare, copyDrillToMyLibrary, archiveLocation, savePracticeTree, saveTemplateTree, archiveTemplate, swapDrillPositions } from "../supabase.js";
+import { createAsset, updateAsset, archiveAsset, archiveDrill, setDrillShare, copyDrillToMyLibrary, archiveLocation, savePracticeTree, saveTemplateTree, archiveTemplate, swapDrillPositions, createSkillTag, archiveSkillTag } from "../supabase.js";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -133,6 +133,61 @@ function EquipmentTab({data,coachId,refreshLibrary,openModal}){
         });
       })()}
     </div>}
+  </div>);
+}
+
+// ── SkillsTab ─────────────────────────────────────────────────────────────────
+// skill_categories are curated/read-only (no coach-writable INSERT policy),
+// but skill_tags underneath each category are per-coach (scope='coach') --
+// seeded with starter tags on signup, fully add/removable here after that.
+// Broken out by sport since a category name like "Team Play" exists under
+// both Baseball and Basketball with different tags underneath.
+function SkillsTab({data,coachId,refreshLibrary}){
+  const [collapsed,setCollapsed]=useState({});
+  const [drafts,setDrafts]=useState({});
+  const cats=data.skillCategories||[];
+  const tags=data.skillTags||[];
+  const sports=[...new Set(cats.map(c=>c.sport))].sort();
+  const del=async id=>{await archiveSkillTag(id);await refreshLibrary();};
+  const add=async categoryId=>{
+    const name=(drafts[categoryId]||"").trim();
+    if(!name)return;
+    await createSkillTag(coachId,{categoryId,name});
+    setDrafts(p=>Object.assign({},p,{[categoryId]:""}));
+    await refreshLibrary();
+  };
+  if(sports.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No skill categories set up yet.</div>;
+  return(<div>
+    {sports.map(sport=>{
+      const isCollapsed=collapsed[sport];
+      const sportCats=cats.filter(c=>c.sport===sport).slice().sort((a,b)=>a.sort_order-b.sort_order);
+      const tagCount=tags.filter(t=>sportCats.some(c=>c.id===t.categoryId)).length;
+      return(<div key={sport} style={{marginBottom:8}}>
+        <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:isCollapsed?"var(--r)":"var(--r) var(--r) 0 0",cursor:"pointer"}}>
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--black)"}}>{sport}</span>
+          <span style={{fontSize:12,color:"var(--td)"}}>{tagCount} tag{tagCount!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
+        </button>
+        {!isCollapsed&&<div style={{border:"1px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)",padding:"12px"}}>
+          {sportCats.map((cat,i)=>{
+            const catTags=tags.filter(t=>t.categoryId===cat.id);
+            return(<div key={cat.id} style={{marginBottom:i<sportCats.length-1?16:0}}>
+              <div style={{fontSize:11,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>{cat.name}</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
+                {catTags.map(t=>(<span key={t.id} className="bdg bs" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 6px 4px 10px"}}>
+                  {t.name}
+                  <button type="button" onClick={()=>del(t.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--td)",fontSize:14,lineHeight:1,padding:"0 2px"}}>×</button>
+                </span>))}
+                {catTags.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No tags yet</span>}
+              </div>
+              <div style={{display:"flex",gap:6}}>
+                <input className="inp" placeholder={"Add a "+cat.name.toLowerCase()+" tag..."} style={{flex:1}} value={drafts[cat.id]||""} onChange={e=>setDrafts(p=>Object.assign({},p,{[cat.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&add(cat.id)}/>
+                <button type="button" className="btn ghost bxs" onClick={()=>add(cat.id)}>Add</button>
+              </div>
+            </div>);
+          })}
+        </div>}
+      </div>);
+    })}
   </div>);
 }
 
@@ -385,7 +440,7 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
   const doShare=async(drillId,orgId)=>{await setDrillShare(drillId,orgId);setShareMenuId(null);await refreshLibrary();};
   const doCopy=async(drill)=>{setCopyingId(drill.id);await copyDrillToMyLibrary(coachId,drill,assetsById);await refreshLibrary();setCopyingId(null);};
   const templates=data.templates||[];
-  const LTABS=["drills","templates","locations","equipment"];
+  const LTABS=["drills","templates","locations","equipment","skills"];
   if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onRun={practiceId=>{setLiveId(practiceId);setView("command");}} onBack={()=>setEditingTpl(null)}/></div>);
   return (<div style={{paddingBottom:80}}>
     <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -486,6 +541,9 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
     </div>}
     {libTab==="equipment"&&<div style={{padding:"0 16px"}} onClick={()=>setOpenMenu(null)}>
       <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal}/>
+    </div>}
+    {libTab==="skills"&&<div style={{padding:"0 16px"}}>
+      <SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary}/>
     </div>}
   </div>);
 }

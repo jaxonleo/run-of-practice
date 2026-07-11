@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences } from "./supabase.js";
+import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
@@ -62,7 +62,7 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .brow{display:flex;gap:8px;}.brow .btn{flex:1;}.bfull{width:100%;}
 .fld{margin-bottom:10px;}
 .lbl{display:block;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--td);margin-bottom:4px;}
-.inp,.sel,.ta{width:100%;background:#fff;border:1.5px solid var(--b);border-radius:var(--rs);color:var(--black);padding:10px 12px;font-family:'Barlow',sans-serif;font-size:15px;-webkit-appearance:none;}
+.inp,.sel,.ta{width:100%;background:#fff;border:1.5px solid var(--b);border-radius:var(--rs);color:var(--black);padding:10px 12px;font-family:'Barlow',sans-serif;font-size:16px;-webkit-appearance:none;}
 .inp:focus,.sel:focus,.ta:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px var(--gbg);}
 .ta{resize:vertical;min-height:58px;}
 .sel{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath fill='%238a9e94' d='M5 7L0 0h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:30px;}
@@ -289,9 +289,26 @@ function AuthScreen({onBack}){
   const verify=async()=>{
     if(!code.trim()||verifying)return;
     setVerifying(true);setError("");
-    const { error }=await verifyEmailOtp(email.trim(),code.trim());
+    let { error }=await verifyEmailOtp(email.trim(),code.trim());
+    if(error){
+      // Observed in the wild: the very first verify of an otherwise-correct
+      // code fails, and resubmitting the identical code immediately after
+      // succeeds -- a transient hiccup on that first call, not a wrong or
+      // stale code (same string both times). One silent retry means the
+      // coach never has to notice or resubmit by hand.
+      await new Promise(r=>setTimeout(r,800));
+      ({ error }=await verifyEmailOtp(email.trim(),code.trim()));
+    }
     setVerifying(false);
-    if(error){setError(error.message||"That code didn't work. Check it and try again.");return;}
+    if(error){
+      // If the first attempt actually succeeded server-side and only the
+      // response was lost, the retry above would fail with "already used"
+      // even though we're signed in -- don't show an error in that case.
+      const existing=await getCurrentSession();
+      if(existing)return;
+      setError(error.message||"That code didn't work. Check it and try again.");
+      return;
+    }
     // onAuthStateChange picks up the new session automatically.
   };
   return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
@@ -310,7 +327,7 @@ function AuthScreen({onBack}){
         <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Enter your email — we'll send you a sign-in code.</div>
         <div className="fld mb10">
           <label className="lbl">Email</label>
-          <input className="inp" autoFocus type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")send();}}/>
+          <input className="inp" autoFocus type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")send();}}/>
         </div>
         {error&&<div style={{fontSize:13,color:"var(--red)",marginBottom:10}}>{error}</div>}
         <button className="btn primary bmd bfull" onClick={send} disabled={!email.trim()||sending}>{sending?"Sending...":"Send Code"}</button>
@@ -321,7 +338,7 @@ function AuthScreen({onBack}){
         <div style={{fontSize:14,color:"var(--td)",marginBottom:20,lineHeight:1.5}}>We sent a code to <strong>{email}</strong>. Enter the full code exactly as it appears in the email.</div>
         <div className="fld mb10">
           <label className="lbl">Code</label>
-          <input className="inp" autoFocus type="text" inputMode="numeric" placeholder="Enter code" value={code} onChange={e=>setCode(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")verify();}}/>
+          <input className="inp" autoFocus type="text" inputMode="numeric" autoComplete="one-time-code" placeholder="Enter code" value={code} onChange={e=>setCode(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")verify();}}/>
         </div>
         {error&&<div style={{fontSize:13,color:"var(--red)",marginBottom:10}}>{error}</div>}
         <button className="btn primary bmd bfull" onClick={verify} disabled={!code.trim()||verifying} style={{marginBottom:10}}>{verifying?"Verifying...":"Verify & Sign In"}</button>
@@ -382,6 +399,10 @@ export default function App(){
   // "Come back and everything's still there" -- signing in again is the
   // entire reactivation flow, no separate confirmation step.
   useEffect(()=>{if(coachId)reactivateIfNeeded(coachId);},[coachId]);
+  // Idempotent server-side, so re-running on every sign-in is cheap and
+  // means a coach picks up starter skill tags for any sport/category added
+  // after their account was first created, not just at signup.
+  useEffect(()=>{if(coachId)ensureDefaultSkillTags(coachId);},[coachId]);
   const [profile,setProfile]=useState(null);
   useEffect(()=>{
     if(!coachId){setProfile(null);return;}
@@ -844,7 +865,7 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refr
           <div className="row"><span className="sectitle">{team.players.length} Players</span>
             <div style={{position:"relative"}}>
               <button className="sort-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="__sort__"?null:"__sort__");}}><Ic.Sort/></button>
-              {openMenu==="__sort__"&&(<div className="mini-menu" style={{right:0,left:"auto",minWidth:160}}>
+              {openMenu==="__sort__"&&(<div className="mini-menu" style={{left:0,minWidth:160}}>
                 {[
                   {by:"firstName",dir:"asc",label:"First Name A-Z"},
                   {by:"firstName",dir:"desc",label:"First Name Z-A"},

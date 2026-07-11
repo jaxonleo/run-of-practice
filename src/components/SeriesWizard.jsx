@@ -57,7 +57,7 @@ export default function SeriesWizard({ data, coachId, onClose, onDone }) {
     if (saving) return;
     setSaving(true); setError("");
     const { data: result, error: err } = await createPracticeSeries(teamId, {
-      daysOfWeek: [...days], startTime, durationMinutes, locationId: locationId || null, sublocationId: null,
+      daysOfWeek: [...days], startTime, durationMinutes: durationMinutes || 60, locationId: locationId || null, sublocationId: null,
       rangeStart, rangeEnd, deselectedDates: [...deselected],
     });
     setSaving(false);
@@ -83,7 +83,7 @@ export default function SeriesWizard({ data, coachId, onClose, onDone }) {
           {DOW.map((d, i) => (<button key={i} onClick={() => toggleDay(i)} style={{ flex: 1, padding: "8px 0", borderRadius: "var(--rs)", border: "1.5px solid " + (days.has(i) ? "var(--green)" : "var(--b)"), background: days.has(i) ? "var(--green)" : "#fff", color: days.has(i) ? "#fff" : "var(--black)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{d}</button>))}
         </div>
         <div className="fld mb10"><label className="lbl">Start Time</label><input className="inp" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} /></div>
-        <div className="fld mb10"><label className="lbl">Duration (minutes)</label><input className="inp" type="number" min="1" value={durationMinutes} onChange={e => setDurationMinutes(+e.target.value || 60)} /></div>
+        <div className="fld mb10"><label className="lbl">Duration (minutes)</label><input className="inp" type="number" min="1" value={durationMinutes} onChange={e => { const v = e.target.value; setDurationMinutes(v === "" ? "" : +v); }} onBlur={() => { if (!durationMinutes || durationMinutes < 1) setDurationMinutes(60); }} /></div>
         <div className="brow"><button className="btn ghost bsm" onClick={() => setStep("team")}>Back</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={enterRange} disabled={days.size === 0}>Next</button></div>
       </div>}
 

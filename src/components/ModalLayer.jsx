@@ -188,6 +188,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
               <div className="fld"><label className="lbl">Default Duration (min)</label><DurStepper value={f.duration||10} min={1} onChange={v=>set("duration",v)}/></div>
             </div>
             <div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:50}} value={f.description||""} onChange={e=>set("description",e.target.value)}/></div>
+            <div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" style={{minHeight:50}} value={f.coachingPoints||""} onChange={e=>set("coachingPoints",e.target.value)}/></div>
             <div className="fld"><label className="lbl">Player Grouping</label>
               <div style={{display:"flex",gap:6}}>
                 {[{v:"whole",l:"Whole Team",sub:"All players together"},{v:"partners",l:"Partners",sub:"Paired in groups of 2"},{v:"groups",l:"Groups",sub:"Split into groups"}].map(({v,l,sub})=>(
@@ -204,7 +205,6 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
                 </div>
               </div>}
             </div>
-            <div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" style={{minHeight:50}} value={f.coachingPoints||""} onChange={e=>set("coachingPoints",e.target.value)}/></div>
             {(()=>{
               const drillSport=f.sport||"General";
               const toggleEquip=id=>{const cur=(f.equipment||[]);const has=cur.includes(id);set("equipment",has?cur.filter(x=>x!==id):[...cur,id]);};
@@ -263,7 +263,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
                   return(<div key={cat.id} style={{marginBottom:8}}>
                     <div style={{fontSize:11,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>{cat.name}</div>
                     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                      {tags.map(t=>(<button key={t.id} type="button" onClick={()=>toggleTag(t.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:(f.skillTagIds||[]).includes(t.id)?"var(--green)":"var(--s1)",color:(f.skillTagIds||[]).includes(t.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{t.name}{t.scope==="coach"?" (mine)":t.scope==="org"?" (org)":""}</button>))}
+                      {tags.map(t=>(<button key={t.id} type="button" onClick={()=>toggleTag(t.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:(f.skillTagIds||[]).includes(t.id)?"var(--green)":"var(--s1)",color:(f.skillTagIds||[]).includes(t.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{t.name}</button>))}
                     </div>
                   </div>);
                 })}

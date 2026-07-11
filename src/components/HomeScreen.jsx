@@ -24,6 +24,7 @@ function ChecklistModal({ data, hasCompleted, onClose }) {
   const steps = [
     { label: "Create a team", done: data.teams.length > 0 },
     { label: "Add players", done: data.teams.some(t => t.players.length > 0) },
+    { label: "Build out your library", done: (data.activityLibrary || []).length > 0 },
     { label: "Set your practice schedule", done: data.practices.length > 0 },
     { label: "Plan your first practice", done: data.practices.some(p => (p.activities || []).length > 0) },
     { label: "Run it live", done: hasCompleted },
@@ -106,7 +107,7 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
   const [hasCompleted, setHasCompleted] = useState(false);
   const practiceIdsKey = JSON.stringify(data.practices.map(p => p.id));
   useEffect(() => { hasCompletedSession(data.practices.map(p => p.id)).then(setHasCompleted); }, [practiceIdsKey]);
-  const checklistDone = data.teams.length > 0 && data.teams.some(t => t.players.length > 0) && data.practices.length > 0 && data.practices.some(p => (p.activities || []).length > 0) && hasCompleted;
+  const checklistDone = data.teams.length > 0 && data.teams.some(t => t.players.length > 0) && (data.activityLibrary || []).length > 0 && data.practices.length > 0 && data.practices.some(p => (p.activities || []).length > 0) && hasCompleted;
 
   const teamById = id => data.teams.find(t => t.id === id);
   const locById = id => data.locations.find(l => l.id === id);

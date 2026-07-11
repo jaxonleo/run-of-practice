@@ -316,6 +316,14 @@ export async function archiveSkillTag(id) {
   if (error) console.error('archiveSkillTag:', error)
   return { error }
 }
+// Idempotent (checked server-side) -- safe to call on every sign-in so a
+// coach picks up starter tags for any sport/category added after their
+// account was created, not just the ones seeded at signup.
+export async function ensureDefaultSkillTags(coachId) {
+  const { error } = await supabase.rpc('seed_default_skill_tags_for_coach', { p_coach_id: coachId })
+  if (error) console.error('ensureDefaultSkillTags:', error)
+  return { error }
+}
 
 async function syncDrillEquipment(drillId, assetIds) {
   const { data: existing } = await supabase.from('activity_library_equipment').select('id, asset_id').eq('activity_library_id', drillId)
