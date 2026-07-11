@@ -60,6 +60,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
   const [newTagName,setNewTagName]=useState("");
   const [newTagCategoryId,setNewTagCategoryId]=useState("");
   const [saving,setSaving]=useState(false);
+  const [saveError,setSaveError]=useState("");
   const savingRef=useRef(false);
   const [addedCoachInfo,setAddedCoachInfo]=useState(null);
   const [staffSuggestions,setStaffSuggestions]=useState([]);
@@ -74,8 +75,10 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     if(savingRef.current)return;
     savingRef.current=true;
     setSaving(true);
+    setSaveError("");
     try{
     const t=modal.type,p=modal.payload;
+    let res=null;
     if(t==="addTeam"){if(!f.name)return;await createTeam(coachId,{name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||nextTeamColor(data.teams)});await refreshTeams();}
     if(t==="editTeam"){if(!f.name)return;await updateTeam(p.team.id,{name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||p.team.colorPrimary});await refreshTeams();}
     if(t==="addPlayer"){if(!f.firstName)return;await createPlayer(p.teamId,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:parsePositions(f.positions),notes:f.notes||""});await refreshTeams();}
@@ -89,7 +92,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     if(t==="editAsset"){if(!f.name)return;await updateAsset(p.asset.id,{name:f.name,sport:p.asset.sport||"General"});await refreshLibrary();}
     if(t==="addActivity"){
       if(!f.name)return;
-      await createDrill(coachId,{
+      res=await createDrill(coachId,{
         name:f.name,sport:f.sport||"General",duration:+(f.duration||10),
         description:f.description||"",coachingPoints:f.coachingPoints||"",
         grouping:f.grouping||"whole",numGroups:f.numGroups||2,
@@ -99,7 +102,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     }
     if(t==="editActivity"){
       if(!f.name)return;
-      await updateDrill(p.activity.id,{
+      res=await updateDrill(p.activity.id,{
         name:f.name,sport:f.sport||"General",duration:+(f.duration||10),
         description:f.description||"",coachingPoints:f.coachingPoints||"",
         grouping:f.grouping||"whole",numGroups:f.numGroups||2,
@@ -108,6 +111,11 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
       await refreshLibrary();
     }
     if(t==="editTemplate"){if(!f.name)return;update(d=>{const tpl=d.templates.find(t=>t.id===p.template.id);if(tpl){tpl.name=f.name;tpl.sport=f.sport||"General";}return d;});}
+    // addActivity/editActivity are the only callers that populate `res` --
+    // a failed drill/tag/equipment write (e.g. an RLS rejection) used to
+    // close the modal silently, same as a successful save, so the user had
+    // no way to tell their change hadn't actually persisted.
+    if(res&&res.error){setSaveError("Something went wrong saving. Try again.");return;}
     if(t==="addCoach"){setAddedCoachInfo({name:f.name,email:f.inviteEmail});}else{closeModal();}
     }finally{savingRef.current=false;setSaving(false);}
   };
@@ -270,6 +278,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
             })()}
           </div>
         )}
+        {saveError&&<div style={{fontSize:13,color:"var(--red)",marginTop:4}}>{saveError}</div>}
         <div className="mfooter">{addedCoachInfo?<button className="btn primary bmd" style={{flex:1}} onClick={closeModal}>Got it</button>:(<React.Fragment><button className="btn ghost bmd" onClick={closeModal} disabled={saving}>Cancel</button><button className="btn primary bmd" onClick={save} disabled={saving}>{saving?"Saving...":"Save"}</button></React.Fragment>)}</div>
       </div>
     </div>

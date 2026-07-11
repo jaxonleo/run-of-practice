@@ -323,17 +323,37 @@ async function syncDrillEquipment(drillId, assetIds) {
   const wantIds = new Set(assetIds)
   const toAdd = assetIds.filter(id => !existingIds.has(id))
   const toRemove = (existing || []).filter(e => !wantIds.has(e.asset_id)).map(e => e.id)
-  if (toAdd.length) await supabase.from('activity_library_equipment').insert(toAdd.map(asset_id => ({ activity_library_id: drillId, asset_id })))
-  if (toRemove.length) await supabase.from('activity_library_equipment').delete().in('id', toRemove)
+  if (toAdd.length) {
+    const { error } = await supabase.from('activity_library_equipment').insert(toAdd.map(asset_id => ({ activity_library_id: drillId, asset_id })))
+    if (error) { console.error('syncDrillEquipment insert:', error); return { error } }
+  }
+  if (toRemove.length) {
+    const { error } = await supabase.from('activity_library_equipment').delete().in('id', toRemove)
+    if (error) { console.error('syncDrillEquipment delete:', error); return { error } }
+  }
+  return {}
 }
+// Multiple skill tags per drill: activity_library has no skill_tag_id column
+// at all, it's exclusively the drill_tags join table (mirrors player focus
+// areas), so this already syncs an arbitrary-length array both ways. What
+// was actually silently broken here was errors on the insert/delete going
+// unchecked -- a rejected write (RLS, bad id, etc.) looked identical to a
+// successful save, so the modal closed as if the tags had persisted.
 async function syncDrillTags(drillId, tagIds) {
   const { data: existing } = await supabase.from('drill_tags').select('id, skill_tag_id').eq('activity_library_id', drillId)
   const existingIds = new Set((existing || []).map(e => e.skill_tag_id))
   const wantIds = new Set(tagIds)
   const toAdd = tagIds.filter(id => !existingIds.has(id))
   const toRemove = (existing || []).filter(e => !wantIds.has(e.skill_tag_id)).map(e => e.id)
-  if (toAdd.length) await supabase.from('drill_tags').insert(toAdd.map(skill_tag_id => ({ activity_library_id: drillId, skill_tag_id })))
-  if (toRemove.length) await supabase.from('drill_tags').delete().in('id', toRemove)
+  if (toAdd.length) {
+    const { error } = await supabase.from('drill_tags').insert(toAdd.map(skill_tag_id => ({ activity_library_id: drillId, skill_tag_id })))
+    if (error) { console.error('syncDrillTags insert:', error); return { error } }
+  }
+  if (toRemove.length) {
+    const { error } = await supabase.from('drill_tags').delete().in('id', toRemove)
+    if (error) { console.error('syncDrillTags delete:', error); return { error } }
+  }
+  return {}
 }
 
 async function nextDrillPosition(ownerUserId) {
@@ -348,8 +368,8 @@ export async function createDrill(ownerUserId, { name, sport, duration, descript
     grouping: grouping || 'whole', num_groups: numGroups || null, position,
   }).select().single()
   if (error) { console.error('createDrill:', error); return { error } }
-  if (equipment && equipment.length) await syncDrillEquipment(data.id, equipment)
-  if (skillTagIds && skillTagIds.length) await syncDrillTags(data.id, skillTagIds)
+  if (equipment && equipment.length) { const r = await syncDrillEquipment(data.id, equipment); if (r.error) return { data, error: r.error } }
+  if (skillTagIds && skillTagIds.length) { const r = await syncDrillTags(data.id, skillTagIds); if (r.error) return { data, error: r.error } }
   return { data }
 }
 // Swaps two drills' position values -- used for the My Library up/down
@@ -371,8 +391,8 @@ export async function updateDrill(id, { name, sport, duration, description, coac
     grouping: grouping || 'whole', num_groups: numGroups || null,
   }).eq('id', id)
   if (error) { console.error('updateDrill:', error); return { error } }
-  if (equipment) await syncDrillEquipment(id, equipment)
-  if (skillTagIds) await syncDrillTags(id, skillTagIds)
+  if (equipment) { const r = await syncDrillEquipment(id, equipment); if (r.error) return { error: r.error } }
+  if (skillTagIds) { const r = await syncDrillTags(id, skillTagIds); if (r.error) return { error: r.error } }
   return {}
 }
 export async function archiveDrill(id) {
