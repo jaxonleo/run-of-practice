@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { submitPublicFeedback } from "../supabase.js";
 
+const CONTACT_EMAIL = "contact@runofpractice.com";
+
 const LIc = {
   Plan: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M8 2v4M16 2v4M3 10h18" /><path d="M7 14h4M7 17h7" /></svg>,
   Run: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>,
@@ -9,10 +11,10 @@ const LIc = {
 };
 
 const CAPS = [
-  { I: LIc.Plan, title: "Plan the practice", body: "Drills, stations, rotations, timing — built in minutes, not a notebook page." },
-  { I: LIc.Run, title: "Run it live", body: "A timer that drives the practice: what's next, who's where, how long's left." },
-  { I: LIc.Share, title: "Share a helper view", body: "Send a link to a parent helper or assistant — no login, just what they need to run their station." },
-  { I: LIc.Track, title: "Track attendance & absences", body: "Mark who's out ahead of time, and it flows into groupings automatically." },
+  { I: LIc.Plan, title: "Plan practices worth the minutes.", body: "Drills, stations, timing, groups — built in minutes on your phone." },
+  { I: LIc.Run, title: "Run it live.", body: "A shared timer and rotation system keeps the whole practice moving, station to station." },
+  { I: LIc.Share, title: "Put a plan in every helper's hand.", body: "Anyone helping opens a link — no app, no account — and sees exactly what to run and what to coach, right now." },
+  { I: LIc.Track, title: "Keep the record.", body: "Attendance, notes, and what actually happened, saved with every practice." },
 ];
 
 function FeedbackBlock() {
@@ -54,29 +56,26 @@ export default function LandingPage({ onGetStarted }) {
         <img src="/apple-touch-icon.png" style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="Run of Practice" />
       </div>
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 34, fontWeight: 900, color: "#fff", letterSpacing: "-.01em", lineHeight: 1.05, marginBottom: 14, maxWidth: 340 }}>
-        Live practice execution for youth sports coaches.
+        Make every minute of practice count.
       </div>
       <div style={{ fontSize: 15, color: "var(--td)", lineHeight: 1.5, maxWidth: 320, marginBottom: 28 }}>
-        Not another scheduling app — TeamSnap already does that. Run of Practice is about running the practice itself.
+        Plan it once. Run it live. Everyone — assistant coaches, helpers, players — knows exactly what to do.
       </div>
       <button className="btn primary blg bfull" style={{ maxWidth: 320 }} onClick={onGetStarted}>Try it free</button>
       <button className="btn ghost bmd bfull" style={{ maxWidth: 320, marginTop: 10, background: "transparent", color: "var(--td)", border: "1.5px solid rgba(255,255,255,.2)" }} onClick={onGetStarted}>Already have an account? Sign in</button>
     </div>
 
     <div style={{ padding: "36px 20px", maxWidth: 480, margin: "0 auto" }}>
-      <div className="clbl">Built by coaches, for coaches</div>
+      <div style={{ fontSize: 15, lineHeight: 1.6, color: "var(--black2)", marginBottom: 12 }}>
+        You put in the hours to prepare. Then practice starts.
+      </div>
+      <div style={{ fontSize: 15, lineHeight: 1.6, color: "var(--black2)", marginBottom: 12 }}>
+        Players wait in lines. Helpers aren't sure what to coach. Assistant coaches emphasize different things. Transitions take longer than expected. You spend more time managing logistics than developing players.
+      </div>
       <div style={{ fontSize: 15, lineHeight: 1.6, color: "var(--black2)", marginBottom: 32 }}>
-        Run of Practice started because running a practice off a notes app and a stopwatch got old. It's built by a coach, for the actual job of standing on a field with a group of kids and a plan you need to execute — not just print out.
+        Run of Practice keeps everyone aligned — so coaches can spend more time coaching, and players can spend more time improving.
       </div>
 
-      <div className="card" style={{ background: "var(--gbg)", borderColor: "var(--gb)", marginBottom: 32 }}>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 6 }}>Founding Coach — Early Access</div>
-        <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--black2)" }}>
-          We're early, and building this out in the open with the coaches who use it. Sign up now and you're helping shape what this becomes — your feedback goes straight into what gets built next.
-        </div>
-      </div>
-
-      <div className="clbl" style={{ marginBottom: 14 }}>What it does</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 32 }}>
         {CAPS.map((c, i) => (<div key={i} className="card" style={{ padding: "16px 14px" }}>
           <div style={{ width: 34, height: 34, borderRadius: 8, background: "var(--gbg)", color: "var(--green)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
@@ -87,16 +86,38 @@ export default function LandingPage({ onGetStarted }) {
         </div>))}
       </div>
 
-      <div className="clbl" style={{ marginBottom: 6 }}>Tell us what you think</div>
-      <div style={{ fontSize: 13.5, color: "var(--tm)", marginBottom: 12 }}>We're actively building this — tell us what's working, what's missing, or what you'd want next.</div>
-      <FeedbackBlock />
-
-      <div style={{ marginTop: 40, paddingTop: 20, borderTop: "1px solid var(--b)", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-        <button className="btn outline bsm" onClick={onGetStarted}>Sign In</button>
-        <div style={{ display: "flex", gap: 16, fontSize: 12, color: "var(--td)" }}>
-          <a href="/terms" style={{ color: "var(--td)" }}>Terms of Use</a>
-          <a href="/privacy" style={{ color: "var(--td)" }}>Privacy Policy</a>
+      <div className="card" style={{ marginBottom: 32 }}>
+        <div style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--black2)" }}>
+          Run of Practice is a coaching operations platform: it connects your preparation to what actually happens at practice. It's not another scheduling app, and it's not a group chat. It's the plan, live, in everyone's hands.
         </div>
+      </div>
+
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Built by a coach who still coaches.</div>
+        <div style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--black2)" }}>
+          Run of Practice is in early access. The coaches using it now are shaping what it becomes. Try it — and when something would make your practices better, <a href="#feedback" style={{ color: "var(--green)" }}>tell us</a>. We read everything.
+        </div>
+      </div>
+
+      <div id="feedback" style={{ marginBottom: 32 }}>
+        <FeedbackBlock />
+      </div>
+
+      <div style={{ textAlign: "center", marginBottom: 40 }}>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, lineHeight: 1.3, marginBottom: 18, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>
+          If you forget you're using software because practice just runs better — that's the goal.
+        </div>
+        <button className="btn primary blg bfull" style={{ maxWidth: 320, margin: "0 auto" }} onClick={onGetStarted}>Try it free</button>
+      </div>
+
+      <div style={{ paddingTop: 20, borderTop: "1px solid var(--b)", display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 8, fontSize: 12, color: "var(--td)" }}>
+        <a href="/terms" style={{ color: "var(--td)" }}>Terms of Use</a>
+        <span>·</span>
+        <a href="/privacy" style={{ color: "var(--td)" }}>Privacy Policy</a>
+        <span>·</span>
+        <a href={"mailto:" + CONTACT_EMAIL} style={{ color: "var(--td)" }}>{CONTACT_EMAIL}</a>
+        <span>·</span>
+        <a href="#" onClick={e => { e.preventDefault(); onGetStarted(); }} style={{ color: "var(--td)" }}>Sign in</a>
       </div>
     </div>
   </div>);
