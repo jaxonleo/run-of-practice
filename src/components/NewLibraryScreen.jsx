@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid, sumMins, localDateStr } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
-import { createAsset, updateAsset, archiveAsset, archiveDrill, setDrillShare, copyDrillToMyLibrary, archiveLocation, savePracticeTree, saveTemplateTree, archiveTemplate, swapDrillPositions, createSkillTag, archiveSkillTag } from "../supabase.js";
+import { archiveDrill, setDrillShare, copyDrillToMyLibrary, savePracticeTree, saveTemplateTree, archiveTemplate, swapDrillPositions, createSkillTag, archiveSkillTag } from "../supabase.js";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -9,132 +9,6 @@ const Ic_Chev=({up})=><svg width="16" height="16" viewBox="0 0 16 16" fill="none
 
 // ── ActConfig, ChecklistConfig, StationConfig ─────────────────────────────────
 // (kept here since they are only used inside Library/Builder/TemplateWorkspace)
-
-// ── GearEditRow — inline edit for a player gear item ─────────────────────────
-function GearEditRow({asset,refreshLibrary,onDone}){
-  const [name,setName]=useState(asset.name);
-  const [sport,setSport]=useState(asset.sport||"General");
-  const save=async()=>{
-    if(!name.trim())return;
-    await updateAsset(asset.id,{name:name.trim(),sport});
-    await refreshLibrary();
-    onDone();
-  };
-  return(<div style={{padding:"10px 12px",background:"var(--s2)",borderBottom:"1px solid var(--b)"}}>
-    <div className="g2" style={{marginBottom:8}}>
-      <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}/></div>
-      <div className="fld"><label className="lbl">Sport</label>
-        <select className="sel" value={sport} onChange={e=>setSport(e.target.value)}>
-          {["General","Baseball","Basketball","Football","Soccer","Softball","Lacrosse","Hockey","Volleyball","Tennis","Swimming","Other"].map(s=><option key={s} value={s}>{s}</option>)}
-        </select>
-      </div>
-    </div>
-    <div className="brow"><button className="btn ghost bxs" onClick={onDone}>Cancel</button><button className="btn primary bxs" onClick={save} disabled={!name.trim()}>Save</button></div>
-  </div>);
-}
-
-// ── EquipmentTab ──────────────────────────────────────────────────────────────
-function EquipmentTab({data,coachId,refreshLibrary,openModal}){
-  const [equipTab,setEquipTab]=useState("team");
-  const [openMenu,setOpenMenu]=useState(null);
-  const [newName,setNewName]=useState("");
-  const [newSport,setNewSport]=useState("General");
-  const [showAdd,setShowAdd]=useState(false);
-  const [collapsed,setCollapsed]=useState({});
-  const teamAssets=(data.assets||[]).filter(a=>!a.type||a.type==="team");
-  const playerAssets=(data.assets||[]).filter(a=>a.type==="player");
-  const addNew=async()=>{
-    if(!newName.trim())return;
-    await createAsset(coachId,{name:newName.trim(),type:equipTab,sport:equipTab==="player"?newSport:"General"});
-    await refreshLibrary();
-    setNewName("");setShowAdd(false);
-  };
-  const del=async id=>{await archiveAsset(id);await refreshLibrary();};
-  return(<div onClick={()=>setOpenMenu(null)}>
-    {/* Toggle */}
-    <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:16}}>
-      {["team","player"].map(t=>(<button key={t} onClick={()=>{setEquipTab(t);setShowAdd(false);}} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:equipTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:equipTab===t?"var(--black)":"var(--td)"}}>{t==="team"?"Team Equipment":"Player Gear"}</button>))}
-    </div>
-
-    {/* Team Equipment */}
-    {equipTab==="team"&&<div>
-      <div className="sechdr mb10">
-        <span className="sectitle">{teamAssets.length} items</span>
-        <button className="btn primary bsm" onClick={()=>setShowAdd(s=>!s)}>+ Add</button>
-      </div>
-      {showAdd&&<div className="card mb10">
-        <div className="fld"><label className="lbl">Equipment Name</label><input className="inp" autoFocus placeholder="e.g. Ball Rack" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNew()}/></div>
-        <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowAdd(false)}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
-      </div>}
-      {teamAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No team equipment yet.</div>}
-      {teamAssets.map(a=>(<div key={a.id} className="li" style={{position:"relative",marginBottom:6}}>
-        <div className="lim">
-          <div className="lin">{a.name}</div>
-        </div>
-        <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
-        {openMenu===a.id&&<div className="mini-menu">
-          <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editAsset",{asset:a});}}>Edit</button>
-          <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
-        </div>}
-      </div>))}
-    </div>}
-
-    {/* Player Gear */}
-    {equipTab==="player"&&<div>
-      <div className="sechdr mb10">
-        <span className="sectitle">{playerAssets.length} items</span>
-        <button className="btn primary bsm" onClick={()=>setShowAdd(s=>!s)}>+ Add Gear</button>
-      </div>
-      {showAdd&&<div className="card mb12">
-        <div className="g2">
-          <div className="fld"><label className="lbl">Gear Name</label><input className="inp" autoFocus placeholder="e.g. Batting Helmet" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNew()}/></div>
-          <div className="fld"><label className="lbl">Sport</label>
-            <select className="sel" value={newSport} onChange={e=>setNewSport(e.target.value)}>
-              {["General","Baseball","Basketball","Football","Soccer","Softball","Lacrosse","Hockey","Volleyball","Tennis","Swimming","Other"].map(s=><option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-        </div>
-        <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowAdd(false);setNewName("");}}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
-      </div>}
-      {playerAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>
-        <div style={{marginBottom:8}}>No player gear yet.</div>
-        <div style={{fontSize:12}}>Add gear here and it will appear as chips when building drills for that sport. Basketball coaches may not need this at all.</div>
-      </div>}
-      {(()=>{
-        // Group by sport
-        const bySport={};
-        playerAssets.forEach(a=>{const s=a.sport||"General";if(!bySport[s])bySport[s]=[];bySport[s].push(a);});
-        const sportKeys=Object.keys(bySport).sort();
-        return sportKeys.map(sport=>{
-          const isCollapsed=collapsed["pg_"+sport];
-          const items=bySport[sport];
-          return(<div key={sport} style={{marginBottom:8}}>
-            <button onClick={()=>setCollapsed(c=>Object.assign({},c,{["pg_"+sport]:!c["pg_"+sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:isCollapsed?"var(--r)":"var(--r) var(--r) 0 0",cursor:"pointer"}}>
-              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--black)"}}>{sport}</span>
-              <span style={{fontSize:12,color:"var(--td)"}}>{items.length} item{items.length!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
-            </button>
-            {!isCollapsed&&<div style={{border:"1px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)"}}>
-              {items.map((a,i)=>{
-                const isEditing=openMenu==="edit_"+a.id;
-                return(<div key={a.id}>
-                  {!isEditing&&<div className="li" style={{position:"relative",borderBottom:i<items.length-1?"1px solid var(--b)":"none",borderRadius:0}}>
-                    <div className="lim"><div className="lin">{a.name}</div></div>
-                    <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
-                    {openMenu===a.id&&<div className="mini-menu">
-                      <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu("edit_"+a.id);}}>Edit</button>
-                      <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
-                    </div>}
-                  </div>}
-                  {isEditing&&<GearEditRow asset={a} refreshLibrary={refreshLibrary} onDone={()=>setOpenMenu(null)}/>}
-                </div>);
-              })}
-            </div>}
-          </div>);
-        });
-      })()}
-    </div>}
-  </div>);
-}
 
 // ── SkillsTab ─────────────────────────────────────────────────────────────────
 // skill_categories are curated/read-only (no coach-writable INSERT policy),
@@ -424,23 +298,60 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
   const [shelf,setShelf]=useState("mine");
   const [shareMenuId,setShareMenuId]=useState(null);
   const [copyingId,setCopyingId]=useState(null);
+  const [tagFilter,setTagFilter]=useState([]);
+  const [tagSearch,setTagSearch]=useState("");
+  const [newTplPrompt,setNewTplPrompt]=useState(false);
+  const [newTplNameDraft,setNewTplNameDraft]=useState("");
   const toggle=sport=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}));
   const myOrgs=data.myOrgs||[];
   const shelves=[{key:"mine",label:"My Library"},...myOrgs.flatMap(org=>[{key:"orgLib:"+org.id,label:org.name+" Library",org},{key:"shared:"+org.id,label:"From "+org.name,org}])];
-  const shelfDrills=(()=>{
+  const shelfDrillsAll=(()=>{
     if(shelf==="mine")return (data.activityLibrary||[]).filter(a=>a.ownerUserId===coachId);
     if(shelf.startsWith("orgLib:")){const orgId=shelf.slice(7);return (data.activityLibrary||[]).filter(a=>a.organizationId===orgId);}
     if(shelf.startsWith("shared:")){const orgId=shelf.slice(7);return (data.activityLibrary||[]).filter(a=>a.sharedWithOrganizationId===orgId&&a.ownerUserId!==coachId);}
     return [];
   })();
   const isMine=shelf==="mine";
+  const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
+  const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
+  // Only offer tags that at least one drill on this shelf actually has --
+  // filtering by a tag with zero drills would just be a dead end.
+  const tagCounts={};
+  shelfDrillsAll.forEach(a=>(a.skillTagIds||[]).forEach(id=>{tagCounts[id]=(tagCounts[id]||0)+1;}));
+  const availableTags=Object.keys(tagCounts).map(id=>skillTagsById[id]).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  const tagSearchQ=tagSearch.trim().toLowerCase();
+  const visibleTagChips=tagSearchQ?availableTags.filter(t=>t.name.toLowerCase().includes(tagSearchQ)):availableTags;
+  const toggleTagFilter=id=>setTagFilter(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
+  const shelfDrills=tagFilter.length===0?shelfDrillsAll:shelfDrillsAll.filter(a=>(a.skillTagIds||[]).some(id=>tagFilter.includes(id)));
   const sports=[...new Set(shelfDrills.map(a=>a.sport||"General").filter(Boolean))].sort();
   const assetsById=Object.fromEntries((data.assets||[]).map(a=>[a.id,a]));
   const equipNames=ids=>(ids||[]).map(id=>assetsById[id]?assetsById[id].name:null).filter(Boolean);
   const doShare=async(drillId,orgId)=>{await setDrillShare(drillId,orgId);setShareMenuId(null);await refreshLibrary();};
   const doCopy=async(drill)=>{setCopyingId(drill.id);await copyDrillToMyLibrary(coachId,drill,assetsById);await refreshLibrary();setCopyingId(null);};
   const templates=data.templates||[];
-  const LTABS=["drills","templates","locations","equipment","skills"];
+  const fmtShort=iso=>iso?new Date(iso).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):null;
+  // Templates snapshot drill fields at add-time and don't carry their own
+  // skillTagIds -- same lookup-through-libraryId approach as the drill rows
+  // above, just aggregated with a count across every activity (including
+  // station-block stations) so the coach can tell what a template actually
+  // develops without opening it.
+  const skillBreakdown=activities=>{
+    const counts={};
+    (activities||[]).forEach(act=>{
+      const libIds=act.type==="station_block"?(act.stations||[]).map(st=>st.libraryId):[act.libraryId];
+      libIds.filter(Boolean).forEach(libId=>{
+        const drill=(data.activityLibrary||[]).find(a=>a.id===libId);
+        (drill&&drill.skillTagIds||[]).forEach(id=>{counts[id]=(counts[id]||0)+1;});
+      });
+    });
+    return Object.keys(counts).map(id=>({id,name:skillTagsById[id]?skillTagsById[id].name:null,count:counts[id]})).filter(t=>t.name).sort((a,b)=>b.count-a.count);
+  };
+  const createNewTpl=()=>{
+    if(!newTplNameDraft.trim())return;
+    setEditingTpl({id:uid(),name:newTplNameDraft.trim(),activities:[],durMin:0});
+    setNewTplPrompt(false);
+  };
+  const LTABS=["drills","templates","skills"];
   if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onRun={practiceId=>{setLiveId(practiceId);setView("command");}} onBack={()=>setEditingTpl(null)}/></div>);
   return (<div style={{paddingBottom:80}}>
     <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -454,10 +365,19 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
     </div>
     {libTab==="drills"&&<div style={{padding:"0 16px"}} onClick={()=>{setDrillMenu(null);setShareMenuId(null);}}>
       {shelves.length>1&&<div style={{display:"flex",gap:6,overflowX:"auto",marginBottom:12,paddingBottom:2}}>
-        {shelves.map(s=>(<button key={s.key} onClick={()=>setShelf(s.key)} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:shelf===s.key?"var(--green)":"var(--s1)",color:shelf===s.key?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{s.label}</button>))}
+        {shelves.map(s=>(<button key={s.key} onClick={()=>{setShelf(s.key);setTagFilter([]);setTagSearch("");}} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:shelf===s.key?"var(--green)":"var(--s1)",color:shelf===s.key?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{s.label}</button>))}
       </div>}
       {isMine&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn primary bsm" onClick={()=>openModal("addActivity")}>+ Add Drill</button></div>}
-      {shelfDrills.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>{isMine?"No drills yet. Tap + Add Drill.":shelf.startsWith("orgLib:")?"No drills shared to this org yet -- share one from My Library.":"No drills shared by other coaches yet."}</div>}
+      {availableTags.length>0&&<div style={{marginBottom:14}} onClick={e=>e.stopPropagation()}>
+        {availableTags.length>8&&<input className="inp" placeholder="Search skill tags..." value={tagSearch} onChange={e=>setTagSearch(e.target.value)} style={{marginBottom:8}}/>}
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {visibleTagChips.map(t=>(<button key={t.id} type="button" onClick={()=>toggleTagFilter(t.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:tagFilter.includes(t.id)?"var(--green)":"var(--s1)",color:tagFilter.includes(t.id)?"#fff":"var(--black)",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t.name} <span style={{opacity:.7}}>{tagCounts[t.id]}</span></button>))}
+          {visibleTagChips.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No skill tags match "{tagSearch}"</span>}
+          {tagFilter.length>0&&<button type="button" onClick={()=>setTagFilter([])} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:"#fff",color:"var(--td)",fontSize:12,fontWeight:600,cursor:"pointer"}}>Clear ×</button>}
+        </div>
+      </div>}
+      {shelfDrillsAll.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>{isMine?"No drills yet. Tap + Add Drill.":shelf.startsWith("orgLib:")?"No drills shared to this org yet -- share one from My Library.":"No drills shared by other coaches yet."}</div>}
+      {shelfDrillsAll.length>0&&shelfDrills.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No drills match the selected skill tags.</div>}
       {sports.map(sport=>(<div key={sport} style={{marginBottom:8}}>
         <button onClick={()=>toggle(sport)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
           <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700}}>{sport}</span>
@@ -479,6 +399,9 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
               {act.coachingPoints&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.coachingPoints}</div>}
               {act.equipment&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>Needs: {equipNames(act.equipment).join(", ")}</div>}
               {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>{act.grouping==="partners"?"Partners":act.numGroups+" groups"}</div>}
+              {act.skillTagIds&&act.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                {tagNames(act.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+              </div>}
               {!isMine&&<div style={{fontSize:11,color:"var(--green2)",marginTop:4}}>Shared by {(data.profilesById&&data.profilesById[act.ownerUserId]&&data.profilesById[act.ownerUserId].name)||"a coach"}</div>}
               {!isMine&&shelf.startsWith("shared:")&&<button className="btn outline bxs" style={{marginTop:6}} onClick={()=>doCopy(act)} disabled={copyingId===act.id}>{copyingId===act.id?"Copying...":"Copy to My Library"}</button>}
             </div>
@@ -499,11 +422,29 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
       </div>))}
     </div>}
     {libTab==="templates"&&<div style={{padding:"0 16px"}}>
-      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn primary bsm" onClick={()=>setEditingTpl({id:uid(),name:"New Template",activities:[],durMin:0})}>+ New Template</button></div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn primary bsm" onClick={()=>{setNewTplNameDraft("");setNewTplPrompt(true);}}>+ New Template</button></div>
+      {newTplPrompt&&<div className="movly" onClick={()=>setNewTplPrompt(false)}><div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="mtitle">Name your template</div>
+        <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder="e.g. Tuesday Skills Day" value={newTplNameDraft} onChange={e=>setNewTplNameDraft(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createNewTpl()}/></div>
+        <div className="brow"><button className="btn ghost bmd" onClick={()=>setNewTplPrompt(false)}>Cancel</button><button className="btn primary bmd" disabled={!newTplNameDraft.trim()} onClick={createNewTpl}>Create</button></div>
+      </div></div>}
       {templates.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No templates yet.<br/>Build a practice and save it as a template.</div>}
-      {templates.map(tpl=>(<div key={tpl.id} className="card" style={{marginBottom:10}}>
+      {templates.map(tpl=>{
+        const breakdown=skillBreakdown(tpl.activities);
+        return(<div key={tpl.id} className="card" style={{marginBottom:10}}>
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:6}}>
-          <div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,lineHeight:1}}>{tpl.name}</div><div style={{fontSize:12,color:"var(--td)",marginTop:2}}>{(tpl.activities||[]).length} activities - {tpl.durMin||0}min</div></div>
+          <div>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,lineHeight:1}}>{tpl.name}</div>
+            <div style={{fontSize:12,color:"var(--td)",marginTop:2}}>{(tpl.activities||[]).length} activities - {tpl.durMin||0}min</div>
+            {(tpl.createdAt||tpl.updatedAt)&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>
+              {tpl.createdAt&&<span>Created {fmtShort(tpl.createdAt)}</span>}
+              {tpl.updatedAt&&tpl.createdAt&&fmtShort(tpl.updatedAt)!==fmtShort(tpl.createdAt)&&<span> - Updated {fmtShort(tpl.updatedAt)}</span>}
+            </div>}
+            {breakdown.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>
+              {breakdown.slice(0,6).map(t=>(<span key={t.id} className="bdg bs" style={{fontSize:10}}>{t.name}</span>))}
+              {breakdown.length>6&&<span style={{fontSize:10,color:"var(--td)",alignSelf:"center"}}>+{breakdown.length-6} more</span>}
+            </div>}
+          </div>
           <div style={{position:"relative"}}>
             <button className="ell-btn" onClick={()=>setOpenMenu(openMenu===tpl.id?null:tpl.id)}><span/><span/><span/></button>
             {openMenu===tpl.id&&<div className="mini-menu" style={{right:0}}>
@@ -515,32 +456,8 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
         <div className="brow">
           <button className="btn primary bmd bfull" onClick={()=>setEditingTpl(tpl)}>View / Edit</button>
         </div>
-      </div>))}
+      </div>);})}
       {confirmDel&&<div className="movly" onClick={()=>setConfirmDel(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="mtitle">Delete template?</div><div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This cannot be undone.</div><div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDel(null)}>Cancel</button><button className="btn primary bmd" onClick={async()=>{await archiveTemplate(confirmDel);await refreshPlanning();setConfirmDel(null);}}>Delete</button></div></div></div>}
-    </div>}
-    {libTab==="locations"&&<div style={{padding:"0 16px"}} onClick={()=>setOpenMenu(null)}>
-      <div className="sechdr mb10"><span className="sectitle">{data.locations.length} Locations</span><button className="btn primary bsm" onClick={()=>openModal("addLocation")}>+ Add</button></div>
-      {data.locations.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No locations yet.</div>}
-      {data.locations.map(loc=>(<div key={loc.id} className="card" style={{position:"relative",marginBottom:10}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{loc.name}</span>
-          <div className="row">
-            <button className="btn ghost bxs" onClick={()=>openModal("addSublocation",{locationId:loc.id})}>+ Area</button>
-            <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===loc.id?null:loc.id);}}><span/><span/><span/></button>
-          </div>
-        </div>
-        {openMenu===loc.id&&<div className="mini-menu" style={{right:8,top:44}}>
-          <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editLocation",{location:loc});}}>Edit</button>
-          <button className="mm-item mm-danger" onClick={async e=>{e.stopPropagation();setOpenMenu(null);await archiveLocation(loc.id);await refreshPlanning();}}>Delete</button>
-        </div>}
-        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-          {loc.sublocations.map(sl=>(<span key={sl.id} className="bdg bs">{sl.name}</span>))}
-          {!loc.sublocations.length&&<span style={{fontSize:12,color:"var(--td)"}}>No areas yet</span>}
-        </div>
-      </div>))}
-    </div>}
-    {libTab==="equipment"&&<div style={{padding:"0 16px"}} onClick={()=>setOpenMenu(null)}>
-      <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal}/>
     </div>}
     {libTab==="skills"&&<div style={{padding:"0 16px"}}>
       <SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary}/>

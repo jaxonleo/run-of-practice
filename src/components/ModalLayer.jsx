@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { uid, TEAM_COLORS, nextTeamColor } from "../constants.js";
 import { createTeam, updateTeam, createPlayer, updatePlayer, createStaff, updateStaff, createAsset, updateAsset, createDrill, updateDrill, createSkillTag, createLocation, updateLocation, createSublocation, fetchStaffSuggestions } from "../supabase.js";
+import { AutoTextarea } from "./ActivityConfigs.jsx";
 
 const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
 const STAFF_ROLES=["Head Coach","Assistant Coach","Helper"];
@@ -245,13 +246,13 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
           </div>
         )}
         {(modal.type==="addActivity"||modal.type==="editActivity")&&(<div>
-            <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
+            <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus={!activity} value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
             <div className="g2">
               <div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||"General"} onChange={e=>set("sport",e.target.value)}>{SPORTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
               <div className="fld"><label className="lbl">Default Duration (min)</label><DurStepper value={f.duration||10} min={1} onChange={v=>set("duration",v)}/></div>
             </div>
-            <div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:50}} value={f.description||""} onChange={e=>set("description",e.target.value)}/></div>
-            <div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" style={{minHeight:50}} value={f.coachingPoints||""} onChange={e=>set("coachingPoints",e.target.value)}/></div>
+            <div className="fld"><label className="lbl">Description</label><AutoTextarea minHeight={50} value={f.description||""} onChange={e=>set("description",e.target.value)}/></div>
+            <div className="fld"><label className="lbl">Coaching Points</label><AutoTextarea minHeight={50} value={f.coachingPoints||""} onChange={e=>set("coachingPoints",e.target.value)}/></div>
             <div className="fld"><label className="lbl">Player Grouping</label>
               <div style={{display:"flex",gap:6}}>
                 {[{v:"whole",l:"Whole Team",sub:"All players together"},{v:"partners",l:"Partners",sub:"Paired in groups of 2"},{v:"groups",l:"Groups",sub:"Split into groups"}].map(({v,l,sub})=>(

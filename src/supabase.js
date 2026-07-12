@@ -874,6 +874,7 @@ export async function fetchTemplatesFull() {
     return {
       id: t.id, name: t.name, sport: t.sport, locationId: t.location_id || '',
       organizationId: t.organization_id, ownerUserId: t.owner_user_id, sharedWithOrganizationId: t.shared_with_organization_id,
+      createdAt: t.created_at, updatedAt: t.updated_at,
       durMin: sumMinsLocal(activities), activities,
     }
   })

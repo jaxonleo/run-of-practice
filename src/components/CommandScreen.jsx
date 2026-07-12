@@ -1012,6 +1012,18 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const subName=id=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:null;};
   const pnames=ids=>(ids||[]).map(id=>{const p=team&&team.players.find(p=>p.id===id);return p?p.firstName:null;}).filter(Boolean).join(", ");
   const pname=id=>{const p=team&&team.players.find(p=>p.id===id);return p?p.firstName:id;};
+  // Practice/station rows don't carry their own skillTagIds (they're a
+  // snapshot copy of the drill at add-time) -- look the tags up on the
+  // source library drill instead, same as the Library screen does.
+  const tagNamesForLibraryId=libraryId=>{
+    if(!libraryId)return [];
+    const drill=(data.activityLibrary||[]).find(a=>a.id===libraryId);
+    if(!drill||!drill.skillTagIds||!drill.skillTagIds.length)return [];
+    return drill.skillTagIds.map(id=>{const t=(data.skillTags||[]).find(t=>t.id===id);return t?t.name:null;}).filter(Boolean);
+  };
+  const SkillTagRow=({names})=>names.length?(<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+    {names.map(n=>(<span key={n} className="bdg bs" style={{fontSize:10}}>{n}</span>))}
+  </div>):null;
   const addNote=()=>{if(!noteText.trim())return;const ctx=isBlock&&cur.stations[stIdx]?cur.stations[stIdx].activityName||cur.stations[stIdx].name:(cur&&cur.name)||"Practice";update(d=>{d.notes.push({id:uid(),text:noteText,context:ctx,date:new Date().toISOString(),practiceId:liveId});return d;});setNoteText("");};
   const toggleCl=(actId,itemId)=>{setClState(s=>{const cur2=s[actId]||{};return Object.assign({},s,{[actId]:Object.assign({},cur2,{[itemId]:!cur2[itemId]})});});};
 
@@ -1191,6 +1203,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
           <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{cur.coachingPoints}</div>
         </div>}
+        <SkillTagRow names={tagNamesForLibraryId(cur.libraryId)}/>
         {subName(cur.sublocationId)&&<div style={{borderLeft:"3px solid #2563eb",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#2563eb",marginBottom:3}}>📍 Location</div>
           <div style={{fontSize:14,color:"var(--black)",fontWeight:600}}>{subName(cur.sublocationId)}</div>
@@ -1264,6 +1277,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
             <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coachingPoints}</div>
           </div>}
+          <div style={{marginBottom:10}}><SkillTagRow names={tagNamesForLibraryId(rotatedStations[focusSt].libraryId)}/></div>
           {(()=>{const stEquip=Array.isArray(rotatedStations[focusSt].equipment)?rotatedStations[focusSt].equipment:[];const names=stEquip.map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(names.length>0||rotatedStations[focusSt].playerGear)?(<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
             {names.length>0&&<span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#854d0e",fontWeight:600}}>Equipment: {names.join(", ")}</span>}
             {rotatedStations[focusSt].playerGear&&<span style={{background:"#fff7ed",border:"1px solid #fdba74",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#9a3412",fontWeight:600}}>Player Gear: {rotatedStations[focusSt].playerGear}</span>}

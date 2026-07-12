@@ -1,6 +1,20 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { uid } from "../constants.js";
 import { createAsset } from "../supabase.js";
+
+// Grows to fit its content instead of scrolling internally -- coaches were
+// hitting the fixed-height "ta" box on long descriptions/coaching points and
+// having to scroll a tiny window to see what they'd written.
+export function AutoTextarea({className,value,onChange,style,minHeight,...rest}){
+  const ref=useRef(null);
+  useEffect(()=>{
+    const el=ref.current;
+    if(!el)return;
+    el.style.height="auto";
+    el.style.height=el.scrollHeight+"px";
+  },[value]);
+  return <textarea ref={ref} className={className||"ta"} value={value} onChange={onChange} style={Object.assign({resize:"none",overflow:"hidden",minHeight:minHeight||58},style)} {...rest}/>;
+}
 
 function DurStepper({value,min,onChange,step}){
   const s=step||1;const mn=min||1;
@@ -31,8 +45,8 @@ export function ActConfig({act,team,loc,onChange,onDone,assets,coachId,refreshLi
   return (<div>
     <div className="fld"><label className="lbl">Name</label><input className="inp" value={act.name} onChange={e=>onChange({name:e.target.value})}/></div>
     <div className="fld"><label className="lbl">Duration (min)</label><DurStepper value={act.duration||10} min={1} onChange={v=>onChange({duration:v})}/></div>
-    <div className="fld"><label className="lbl">Description</label><textarea className="ta" style={{minHeight:48}} value={act.description||""} onChange={e=>onChange({description:e.target.value})}/></div>
-    <div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" value={act.coachingPoints||""} onChange={e=>onChange({coachingPoints:e.target.value})}/></div>
+    <div className="fld"><label className="lbl">Description</label><AutoTextarea value={act.description||""} onChange={e=>onChange({description:e.target.value})}/></div>
+    <div className="fld"><label className="lbl">Coaching Points</label><AutoTextarea value={act.coachingPoints||""} onChange={e=>onChange({coachingPoints:e.target.value})}/></div>
     {team&&<div className="fld"><label className="lbl">Coach</label><select className="sel" value={act.coachId||""} onChange={e=>onChange({coachId:e.target.value})}><option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
     {loc&&loc.sublocations&&loc.sublocations.length>0&&<div className="fld"><label className="lbl">Area</label><select className="sel" value={act.sublocationId||""} onChange={e=>onChange({sublocationId:e.target.value})}><option value="">Any</option>{loc.sublocations.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>}
     {/* Player Grouping */}
@@ -189,7 +203,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
             <option value="">Any</option>{loc.sublocations.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>}
-        <div className="fld"><label className="lbl">Coaching Points</label><textarea className="ta" style={{minHeight:40}} value={st.coachingPoints||""} onChange={e=>onSt(st.id,{coachingPoints:e.target.value})}/></div>
+        <div className="fld"><label className="lbl">Coaching Points</label><AutoTextarea minHeight={40} value={st.coachingPoints||""} onChange={e=>onSt(st.id,{coachingPoints:e.target.value})}/></div>
         <div className="fld"><label className="lbl">Equipment</label>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
             {teamEquipAssets.map(a=>(<button key={a.id} type="button" onClick={()=>{const has=stEquip.includes(a.id);onSt(st.id,{equipment:has?stEquip.filter(x=>x!==a.id):[...stEquip,a.id]});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:stEquip.includes(a.id)?"var(--green)":"#fff",color:stEquip.includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
