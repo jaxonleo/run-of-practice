@@ -1,83 +1,409 @@
-import React from "react";
+import React, { useState } from "react";
 
 const CONTACT_EMAIL = "contact@runofpractice.com";
 
-const LIc = {
-  Plan: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M8 2v4M16 2v4M3 10h18" /><path d="M7 14h4M7 17h7" /></svg>,
-  Run: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>,
-  Share: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 10.6l6.8-3.8M8.6 13.4l6.8 3.8" /></svg>,
-  Track: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>,
-};
+// Scoped to this page only -- the app's own CSS (App.jsx's CSS block) is
+// injected globally and already defines .btn/.card/.pill/.bdg/.cc-* etc, so
+// section visuals below reuse those real component classes instead of
+// inventing look-alikes. This block only adds the marketing-page-specific
+// layout (header, alternating rows, responsive breakpoint) under an
+// `.lp-` prefix so nothing here can collide with the app's own classes.
+const LP_CSS = `
+.lp{background:var(--bg);}
+.lp-header{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between;padding:10px 20px;}
+.lp-brand{display:flex;align-items:center;gap:10px;}
+.lp-brand img{width:32px;height:32px;border-radius:8px;flex-shrink:0;}
+.lp-brand span{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:-.01em;color:var(--black);}
+.lp-nav{display:flex;align-items:center;gap:22px;}
+.lp-navlink{font-size:13px;font-weight:600;color:var(--black2);text-decoration:none;white-space:nowrap;}
+.lp-navlink.hideonsm{display:none;}
+.lp-signin{font-size:13px;font-weight:600;color:var(--black2);text-decoration:underline;white-space:nowrap;background:none;border:none;cursor:pointer;}
+.lp-wrap{max-width:1120px;margin:0 auto;padding:0 20px;}
+.lp-section{padding:56px 0;}
+.lp-section.dark{background:var(--black);color:#fff;}
+.lp-section.tight{padding:34px 0;}
+.lp-eyebrow{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--green2);margin-bottom:8px;}
+.lp-section.dark .lp-eyebrow{color:var(--gb);}
+.lp-title{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;line-height:1.15;letter-spacing:-.01em;margin-bottom:14px;color:var(--black);}
+.lp-section.dark .lp-title{color:#fff;}
+.lp-body{font-size:15.5px;line-height:1.65;color:var(--black2);margin-bottom:12px;}
+.lp-section.dark .lp-body{color:#c9d6cf;}
+.lp-row{display:flex;flex-direction:column;gap:28px;align-items:center;}
+.lp-copy{flex:1;min-width:0;width:100%;}
+.lp-visual{flex:1;min-width:0;width:100%;display:flex;justify-content:center;}
+.lp-visual-inner{width:100%;max-width:400px;}
+@media (min-width:860px){
+  .lp-row{flex-direction:row;gap:56px;align-items:center;}
+  .lp-row.rev{flex-direction:row-reverse;}
+  .lp-title{font-size:32px;}
+  .lp-navlink.hideonsm{display:inline;}
+}
+.lp-phone{background:#fff;border:1px solid var(--b);border-radius:20px;padding:16px;box-shadow:0 20px 50px rgba(0,0,0,.14);}
+.lp-phone.dark{background:var(--black);border-color:#2a352e;}
+.lp-hero{background:var(--black);padding:52px 20px 60px;text-align:center;}
+.lp-hero h1{font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:900;color:#fff;letter-spacing:-.01em;line-height:1.08;margin:14px auto 16px;max-width:640px;}
+.lp-hero-sub{font-size:16px;color:var(--td);line-height:1.6;max-width:520px;margin:0 auto 26px;}
+@media (min-width:640px){.lp-hero h1{font-size:46px;}}
+.lp-btnrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+.lp-outcome{display:grid;grid-template-columns:1fr;gap:10px;}
+@media (min-width:640px){.lp-outcome{grid-template-columns:1fr 1fr;}}
+.lp-outcome-item{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid var(--b);border-radius:var(--r);padding:12px 14px;font-size:14px;color:var(--black2);}
+.lp-faq-q{width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--b);padding:16px 0;font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;color:var(--black);cursor:pointer;display:flex;justify-content:space-between;gap:12px;align-items:center;}
+.lp-faq-a{font-size:14.5px;line-height:1.6;color:var(--black2);padding:0 0 16px;max-width:720px;}
+.lp-footer{background:var(--black);color:#c9d6cf;padding:36px 20px 28px;}
+.lp-footer a{color:#c9d6cf;}
+.lp-footer-links{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:13px;}
+`;
 
-const CAPS = [
-  { I: LIc.Plan, title: "Plan practices worth the minutes.", body: "Drills, stations, timing, groups, all built in minutes from your phone." },
-  { I: LIc.Run, title: "Run it live.", body: "One shared timer keeps the whole practice moving, station to station." },
-  { I: LIc.Share, title: "Put a plan in every helper's hand.", body: "Anyone helping just opens a link, no app or account needed, and sees exactly what to run and coach right now." },
-  { I: LIc.Track, title: "Keep the record.", body: "Attendance, notes, and what actually happened, saved with every practice." },
+function Header({ onGetStarted }) {
+  return (<div className="lp-header">
+    <a href="#top" className="lp-brand"><img src="/apple-touch-icon.png" alt="" /><span>Run of Practice</span></a>
+    <div className="lp-nav">
+      <a className="lp-navlink hideonsm" href="#how-it-works">How It Works</a>
+      <a className="lp-navlink hideonsm" href="#features">Features</a>
+      <a className="lp-navlink hideonsm" href="#early-access">Early Access</a>
+      <button className="lp-signin" onClick={onGetStarted}>Sign In</button>
+      <button className="btn primary bsm" onClick={onGetStarted}>Try It Free</button>
+    </div>
+  </div>);
+}
+
+// ── Small realistic product representations, built from the app's actual
+// component classes (.li/.pill/.bdg/.cc-*/.card) rather than icons or
+// stylized illustrations, per the addendum's "use the actual product" rule.
+// These aren't screenshots -- swap in real ones whenever they're ready --
+// but they render with the exact same design tokens as the live app.
+function StatusPill({ label, tone }) {
+  const map = { ready: { bg: "var(--gbg)", b: "var(--gb)", c: "var(--green)" }, draft: { bg: "var(--ambg)", b: "var(--ambb)", c: "var(--amber)" }, needs: { bg: "var(--s2)", b: "var(--b)", c: "var(--tm)" }, done: { bg: "var(--s2)", b: "var(--b)", c: "var(--td)" } }[tone];
+  return <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, background: map.bg, border: "1px solid " + map.b, color: map.c }}>{label}</span>;
+}
+
+function ScheduleVisual() {
+  const rows = [
+    { d: "Mon · 4:00 PM", t: "Varsity Practice", s: "ready", l: "Plan Ready" },
+    { d: "Wed · 4:00 PM", t: "Varsity Practice", s: "draft", l: "Draft Started" },
+    { d: "Thu · 5:30 PM", t: "JV Practice", s: "needs", l: "Needs Planning" },
+    { d: "Sat · 9:00 AM", t: "Varsity Practice", s: "done", l: "Completed" },
+  ];
+  return (<div className="lp-phone"><div className="clbl">This Week</div>
+    {rows.map((r, i) => (<div key={i} className="li"><div className="lim"><div className="lin">{r.t}</div><div className="limt">{r.d}</div></div><StatusPill label={r.l} tone={r.s} /></div>))}
+  </div>);
+}
+
+function LibraryVisual() {
+  return (<div className="lp-phone">
+    <input className="inp" placeholder="Search drills..." style={{ marginBottom: 10 }} readOnly />
+    <div className="card" style={{ marginBottom: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+        <div className="lin">3-Man Weave</div>
+        <span className="bdg bp">10 min</span>
+      </div>
+      <div className="limt" style={{ marginBottom: 8 }}>Finish every rep at full speed, no walking back.</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <span className="bdg bs">Ball Handling</span><span className="bdg bs">Finishing</span><span className="bdg bs">Whole Team</span>
+      </div>
+    </div>
+  </div>);
+}
+
+function BuilderVisual() {
+  const rows = ["Warmup · 10 min", "3-Man Weave · 10 min", "Station Block · 20 min", "Team Scrimmage · 15 min"];
+  return (<div className="lp-phone">
+    <div className="sechdr"><span className="sectitle">Practice Flow</span><span className="bdg bp">55 / 60 min</span></div>
+    {rows.map((r, i) => (<div key={i} className="li" style={{ cursor: "default" }}><div className="dh">&#8942;&#8942;</div><div className="lim"><div className="lin">{r}</div></div></div>))}
+    <button className="btn ghost bsm bfull mt8">+ Add Drill</button>
+  </div>);
+}
+
+function StationsVisual() {
+  return (<div className="lp-phone">
+    <div className="sechdr"><span className="sectitle">Groups · 14 Present</span><button className="btn ghost bxs">Generate Groups</button></div>
+    <div className="gpreview">
+      <div className="gcard"><div className="gcardtitle">Station 1 · Cage 1</div><div className="gplayer">Ava · Jordan · Sam</div></div>
+      <div className="gcard"><div className="gcardtitle">Station 2 · Cage 2</div><div className="gplayer">Max · Riley · Kai</div></div>
+      <div className="gcard"><div className="gcardtitle">Station 3 · Infield</div><div className="gplayer">Noah · Ellie</div></div>
+      <div className="gcard"><div className="gcardtitle">Station 4 · Outfield</div><div className="gplayer">Theo · Mia · Zoe</div></div>
+    </div>
+  </div>);
+}
+
+function LocationsVisual() {
+  return (<div className="lp-phone">
+    <div className="clbl">Eastside Park</div>
+    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Batting Cage 2</div><div className="limt">Coach Jen · Group B · L-screen, tee</div></div></div>
+    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Infield</div><div className="limt">Coach Mike · Group A · Bases, buckets</div></div></div>
+    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Outfield</div><div className="limt">Coach Sam · Group C · Cones</div></div></div>
+  </div>);
+}
+
+function TemplatesVisual() {
+  return (<div className="lp-phone">
+    <div className="clbl">Start Something</div>
+    <div className="brow mb10"><button className="btn ghost bsm" style={{ flex: 1 }}>Start from Template</button><button className="btn ghost bsm" style={{ flex: 1 }}>Copy Previous</button></div>
+    <div className="clbl">Recently Used</div>
+    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Standard Weekly Practice</div><div className="limt">Used 12 times</div></div></div>
+    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Pre-Game Warmup</div><div className="limt">Used 6 times</div></div></div>
+  </div>);
+}
+
+function LiveVisual() {
+  return (<div className="lp-phone dark">
+    <div className="cc-act-name" style={{ color: "#fff" }}>3-Man Weave</div>
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
+      <div className="cc-timer">04:12</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
+    </div>
+    <div className="cc-focus" style={{ marginBottom: 8 }}>
+      <div className="cc-focus-lbl">Focus today</div>
+      <div className="cl-item" style={{ borderBottom: "none", padding: "4px 0" }}><div className="cl-check" style={{ borderColor: "var(--gb)" }} /><div className="cl-text">Finish every rep at full speed</div></div>
+      <div className="cl-item" style={{ borderBottom: "none", padding: "4px 0" }}><div className="cl-check" style={{ borderColor: "var(--gb)" }} /><div className="cl-text">Keep eyes up on the catch</div></div>
+    </div>
+    <div className="cc-queue"><div className="cc-queue-item"><span style={{ fontSize: 13, color: "var(--td)" }}>Next</span><span style={{ fontSize: 13, color: "#fff", fontWeight: 600 }}>Station Block · Cage 2</span></div></div>
+  </div>);
+}
+
+function HelperVisual() {
+  return (<div className="lp-row" style={{ gap: 14 }}>
+    <div className="lp-phone" style={{ maxWidth: 220 }}>
+      <div className="clbl">Head Coach</div>
+      <div className="cc-act-name" style={{ fontSize: 17 }}>Full Practice</div>
+      <div className="limt">All 4 stations · 55 min total</div>
+    </div>
+    <div className="lp-phone" style={{ maxWidth: 220 }}>
+      <div className="clbl">Helper View</div>
+      <div className="cc-act-name" style={{ fontSize: 17 }}>Batting Cage 2</div>
+      <div className="limt">Group B · Ava, Jordan, Sam</div>
+      <div className="cc-focus" style={{ marginTop: 8, padding: 10 }}><div className="cc-focus-lbl" style={{ fontSize: 9 }}>Focus</div><div style={{ fontSize: 13 }}>Level swing, contact out front</div></div>
+    </div>
+  </div>);
+}
+
+function FocusVisual() {
+  return (<div className="lp-phone">
+    <div className="cc-focus">
+      <div className="cc-focus-lbl">Focus today</div>
+      <div className="cc-focus-txt" style={{ fontSize: 15 }}>
+        <div className="cl-item" style={{ padding: "6px 0" }}><div className="cl-check" /><div className="cl-text">Stay balanced through the movement</div></div>
+        <div className="cl-item" style={{ padding: "6px 0" }}><div className="cl-check" /><div className="cl-text">Keep your eyes up</div></div>
+        <div className="cl-item" style={{ padding: "6px 0", borderBottom: "none" }}><div className="cl-check" /><div className="cl-text">Finish under control</div></div>
+      </div>
+    </div>
+  </div>);
+}
+
+function AdjustVisual() {
+  return (<div className="lp-phone dark">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+      <span style={{ color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 700 }}>Station Block</span>
+      <span className="bdg" style={{ background: "var(--ambg)", color: "var(--amber)" }}>4 min ahead</span>
+    </div>
+    <div className="cc-controls" style={{ padding: 0, flexWrap: "wrap" }}>
+      <button className="btn ghost bsm">-1 min</button><button className="btn ghost bsm">+1 min</button><button className="btn ghost bsm">Skip</button><button className="btn primary bsm">Next</button>
+    </div>
+  </div>);
+}
+
+function TimerVisual() {
+  return (<div className="lp-phone dark">
+    <div className="cc-act-name" style={{ color: "#fff" }}>Batting Cage 2</div>
+    <div className="cc-timer over" style={{ fontSize: 46 }}>-01:42</div>
+    <div style={{ fontSize: 12, color: "var(--td)", marginTop: 4 }}>over planned time · prepare to transition</div>
+  </div>);
+}
+
+function TransitionVisual() {
+  return (<div className="lp-phone">
+    <div className="cc-trans-card">
+      <div className="cc-trans-names">Timmy, Billy &amp; Bobby</div>
+      <div className="cc-trans-to">Infield with Coach Mike &#8594; Batting Cage 2 with Coach Jen</div>
+      <div className="cc-trans-sub">Bring: bats, helmets</div>
+    </div>
+  </div>);
+}
+
+function HistoryVisual() {
+  return (<div className="lp-phone">
+    <div className="sechdr"><span className="sectitle">Tue Practice · Completed</span><span className="bdg bp">58 / 60 min</span></div>
+    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Attendance</div><div className="limt">12 of 14 present</div></div></div>
+    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Coach Note</div><div className="limt">Cage 2 group needs more reps on timing</div></div></div>
+    <div className="brow mt8"><button className="btn ghost bsm" style={{ flex: 1 }}>Copy Practice</button><button className="btn ghost bsm" style={{ flex: 1 }}>Save as Template</button></div>
+  </div>);
+}
+
+function Section({ id, eyebrow, title, body, visual, reverse, dark, tight }) {
+  return (<section id={id} className={"lp-section" + (dark ? " dark" : "") + (tight ? " tight" : "")}>
+    <div className="lp-wrap">
+      <div className={"lp-row" + (reverse ? " rev" : "")}>
+        <div className="lp-copy">
+          {eyebrow && <div className="lp-eyebrow">{eyebrow}</div>}
+          <div className="lp-title">{title}</div>
+          {body.map((p, i) => <div key={i} className="lp-body">{p}</div>)}
+        </div>
+        <div className="lp-visual"><div className="lp-visual-inner">{visual}</div></div>
+      </div>
+    </div>
+  </section>);
+}
+
+const FAQS = [
+  { q: "Is Run of Practice free?", a: "Run of Practice is free during early access while the product is being tested and improved." },
+  { q: "Who is it for?", a: "Run of Practice is designed for head coaches, assistant coaches and anyone helping run an organized practice." },
+  { q: "Does every helper need an account?", a: "No. Assistant coaches can access practices through their accounts, while temporary or ad hoc helpers can receive a link with the information they need." },
+  { q: "Can I use it for different sports?", a: "Run of Practice is designed around common practice needs such as drills, groups, stations, locations, timing, equipment and transitions. The exact setup can be adjusted for different sports and levels." },
+  { q: "Can I copy an old practice?", a: "Yes. Previous practices can be copied, adjusted and run again. Coaches can also save reusable templates." },
+  { q: "What happens if attendance changes?", a: "Player groupings can be updated based on the players who are actually present. Coaches can use random groupings or make manual changes." },
+  { q: "Can I adjust the schedule while practice is happening?", a: "Yes. Coaches can add or reduce time, end an activity, skip an activity or move to the next part of the practice. Run of Practice shows how those changes affect the overall schedule." },
 ];
 
+function FAQ() {
+  const [open, setOpen] = useState(0);
+  return (<div className="lp-section tight"><div className="lp-wrap" style={{ maxWidth: 760 }}>
+    <div className="lp-title" style={{ marginBottom: 4 }}>Questions coaches ask</div>
+    <div style={{ borderBottom: "1px solid var(--b)" }}>
+      {FAQS.map((f, i) => (<div key={i}>
+        <button className="lp-faq-q" onClick={() => setOpen(open === i ? -1 : i)}>{f.q}<span style={{ color: "var(--td)", fontSize: 20, flexShrink: 0 }}>{open === i ? "−" : "+"}</span></button>
+        {open === i && <div className="lp-faq-a">{f.a}</div>}
+      </div>))}
+    </div>
+  </div></div>);
+}
+
 export default function LandingPage({ onGetStarted }) {
-  return (<div style={{ minHeight: "100dvh", background: "var(--bg)", overflowY: "auto" }}>
-    <div style={{ background: "var(--black)", padding: "48px 24px 40px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-      <div style={{ width: 84, height: 84, borderRadius: 20, overflow: "hidden", marginBottom: 18, boxShadow: "0 8px 32px rgba(0,0,0,.4)" }}>
-        <img src="/apple-touch-icon.png" style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="Run of Practice" />
+  return (<div id="top" className="lp" style={{ minHeight: "100dvh", overflowY: "auto" }}>
+    <style>{LP_CSS}</style>
+    <Header onGetStarted={onGetStarted} />
+
+    <div className="lp-hero">
+      <div className="lp-eyebrow">Practice Planning and Live Execution</div>
+      <h1>Plan the practice. Run it live. Keep everyone aligned.</h1>
+      <div className="lp-hero-sub">Run of Practice gives coaches one place to schedule practices, build detailed plans, organize drills, players, stations, equipment and locations, then run the plan live with assistants and helpers. Spend less time explaining what happens next and more time coaching.</div>
+      <div className="lp-btnrow">
+        <button className="btn primary blg" onClick={onGetStarted}>Try It Free</button>
+        <a href="#how-it-works" className="btn ghost blg" style={{ textDecoration: "none" }}>See How It Works</a>
       </div>
-      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 34, fontWeight: 900, color: "#fff", letterSpacing: "-.01em", lineHeight: 1.05, marginBottom: 14, maxWidth: 340 }}>
-        Make every minute of practice count.
-      </div>
-      <div style={{ fontSize: 15, color: "var(--td)", lineHeight: 1.5, maxWidth: 320, marginBottom: 28 }}>
-        Plan it once, run it live, and everyone on your staff, from assistant coaches to helpers to players, knows exactly what to do.
-      </div>
-      <button className="btn primary blg bfull" style={{ maxWidth: 320 }} onClick={onGetStarted}>Try it free</button>
-      <button className="btn ghost bmd bfull" style={{ maxWidth: 320, marginTop: 10, background: "transparent", color: "var(--td)", border: "1.5px solid rgba(255,255,255,.2)" }} onClick={onGetStarted}>Already have an account? Sign in</button>
+      <div style={{ fontSize: 12, color: "var(--td)", marginTop: 12 }}>Free during early access.</div>
+      <div style={{ marginTop: 34, display: "flex", justifyContent: "center" }}><div style={{ maxWidth: 320, width: "100%" }}><LiveVisual /></div></div>
     </div>
 
-    <div style={{ padding: "36px 20px", maxWidth: 480, margin: "0 auto" }}>
-      <div style={{ fontSize: 15, lineHeight: 1.6, color: "var(--black2)", marginBottom: 12 }}>
-        Players end up waiting in line. Helpers aren't always sure what they're supposed to be running. Assistant coaches all emphasize something different, and transitions eat up more time than you planned for. Before long you're spending more time managing logistics than actually developing players.
-      </div>
-      <div style={{ fontSize: 15, lineHeight: 1.6, color: "var(--black2)", marginBottom: 32 }}>
-        Run of Practice keeps everyone aligned, so coaches spend more time coaching and players spend more time improving.
-      </div>
+    <Section id="how-it-works" eyebrow="Schedule" title="See what is planned and what still needs work." visual={<ScheduleVisual />} body={[
+      "Add one-time or recurring practices and see the status of each one at a glance.",
+      "You can quickly tell which practices are ready, which have been started and which still need a plan.",
+      "Instead of waiting until the night before, you always know what is coming and what needs your attention.",
+    ]} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 32 }}>
-        {CAPS.map((c, i) => (<div key={i} className="card" style={{ padding: "16px 14px" }}>
-          <div style={{ width: 34, height: 34, borderRadius: 8, background: "var(--gbg)", color: "var(--green)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
-            <div style={{ width: 18, height: 18 }}><c.I /></div>
-          </div>
-          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{c.title}</div>
-          <div style={{ fontSize: 12.5, color: "var(--tm)", lineHeight: 1.4 }}>{c.body}</div>
-        </div>))}
-      </div>
+    <Section id="features" eyebrow="Drill Library" title="Build a drill library around the way you coach." reverse visual={<LibraryVisual />} body={[
+      "Save the drills you use so you do not have to recreate them for every practice. Each drill can include a description and setup instructions, coaching focus points, the skills it develops, default duration, equipment and grouping format.",
+      "The library becomes a reusable collection of the drills, teaching points and practice ideas that fit your team.",
+    ]} />
 
-      <div className="card" style={{ marginBottom: 32 }}>
-        <div style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--black2)" }}>
-          Run of Practice is a coaching operations platform. It connects the plan you build ahead of time to what actually happens once practice starts, so it's not another scheduling app and it's not a group chat. It's the plan itself, live, in everyone's hands.
+    <Section eyebrow="Practice Builder" title="Build the practice in the order it will happen." visual={<BuilderVisual />} body={[
+      "Start with the amount of time available and create the full flow of practice. Add drills from your library or create something new, and adjust the duration for that specific practice without changing the saved default.",
+      "Include everything needed to run the plan: opening checklist, warmups, drills, stations, breaks, team periods, position-specific work and closing activities. You can see the total planned time as the practice comes together.",
+    ]} />
+
+    <Section eyebrow="Stations and Groupings" title="Organize the players before the drill starts." reverse visual={<StationsVisual />} body={[
+      "Create stations and define how long each station lasts, how much transition time is needed and how players will move through the rotation. Group players based on who is actually at practice, using random groups, manual groups, balanced groups or position-specific groups.",
+      "Attendance changes can flow into the groupings so the coach does not have to rebuild the practice when someone is absent.",
+    ]} />
+
+    <Section eyebrow="Locations and Equipment" title="Plan around the space and equipment you actually have." visual={<LocationsVisual />} body={[
+      "Save the places where your team practices, then define the specific areas within each location, such as Main Field, Bullpen, Batting Cage 2 or Court 1. Assign each drill or station to the correct area.",
+      "Equipment can also be listed ahead of time so coaches and helpers know what needs to be ready.",
+    ]} />
+
+    <Section eyebrow="Templates and Previous Practices" title="Start with what already works." reverse visual={<TemplatesVisual />} body={[
+      "Save common practice structures as templates so you do not have to begin with a blank plan every time. You can also copy a previous practice, run it again or make a few changes for the next session.",
+      "The more you use Run of Practice, the less work it should take to create the next plan.",
+    ]} />
+
+    <div className="lp-section tight dark" style={{ textAlign: "center" }}>
+      <div className="lp-wrap" style={{ maxWidth: 640 }}>
+        <div className="lp-title">The plan does not stop being useful when practice starts.</div>
+        <div className="lp-body">Once practice begins, Run of Practice turns the plan into a live view that coaches, assistants and helpers can follow together. The head coach stays in control while everyone else sees the information they need to carry out the plan.</div>
+      </div>
+    </div>
+
+    <Section dark eyebrow="Live Practice View" title="Keep the full practice in view." visual={<LiveVisual />} body={[
+      "The live practice screen shows what is happening now, how much time remains, the coaching focus, which players are involved, who is leading the activity, where it is happening, what equipment is needed and what is coming next.",
+      "The coach can move through the practice without switching between a written plan, a stopwatch and separate instructions.",
+    ]} />
+
+    <Section eyebrow="Assistant and Helper Views" title="Put the same live plan in every coach's hands." reverse visual={<HelperVisual />} body={[
+      "Assistant coaches automatically see the practices assigned to their team. For an additional coach or parent helper, send a simple link they can open on their phone.",
+      "They see what they are responsible for now, which players they have, what drill they are running, the coaching points to reinforce, how much time remains and where they go next. Ad hoc helpers do not need to create an account or download an app.",
+    ]} />
+
+    <Section eyebrow="Consistent Coaching" title="Keep the coaching message consistent." visual={<FocusVisual />} body={[
+      "The head coach can include the specific focus points that matter for each drill. Assistants and helpers see those same points while the drill is happening.",
+      "Instead of each coach emphasizing something different, everyone can reinforce the same priorities, and players receive clearer instruction with fewer things competing for their attention.",
+    ]} />
+
+    <Section eyebrow="Live Adjustments" title="Adjust the plan without losing track of it." reverse visual={<AdjustVisual />} body={[
+      "Practice rarely runs exactly as planned. Add time when a drill needs another repetition, end something early when the team is ready to move on, or skip an activity and move directly to the next one.",
+      "Run of Practice updates the live schedule as changes are made, so the coach can always see whether practice is ahead, on schedule or behind.",
+    ]} />
+
+    <Section eyebrow="Timers and Warnings" title="Know how long the drill actually took." visual={<TimerVisual />} body={[
+      "When the planned time expires, the timer can continue into negative time, so a coach can immediately see that a drill has gone two minutes over instead of losing track of the schedule.",
+      "Activities that require cleanup or travel can include an advance warning, so a group knows to finish the current repetition and start packing up before time runs out.",
+    ]} />
+
+    <Section eyebrow="Transition Support" title="Make the next move clear before the current drill ends." reverse visual={<TransitionVisual />} body={[
+      "Transitions should not require the head coach to stop everyone and explain the next setup. Before the change, each coach or helper can see their next location, their next drill, the players moving with them, the coach taking over the group, and any equipment that needs to move.",
+      "Everyone can prepare for what is next while the current activity is finishing.",
+    ]} />
+
+    <div className="lp-section tight">
+      <div className="lp-wrap">
+        <div className="lp-title" style={{ textAlign: "center" }}>A clearer plan leads to a smoother practice.</div>
+        <div className="lp-outcome" style={{ marginTop: 20 }}>
+          <div className="lp-outcome-item">Faster transitions, less time repeating instructions</div>
+          <div className="lp-outcome-item">More consistent coaching across every station</div>
+          <div className="lp-outcome-item">Less time sorting players and rebuilding groups</div>
+          <div className="lp-outcome-item">More time for the coach to observe, teach and adjust</div>
         </div>
       </div>
+    </div>
 
-      <div style={{ marginBottom: 32 }}>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Built by a coach who still coaches.</div>
-        <div style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--black2)" }}>
-          Run of Practice is in early access, and the coaches using it now are shaping what it becomes. Try it out, and if something would make your practices better, <a href={"mailto:" + CONTACT_EMAIL} style={{ color: "var(--green)" }}>tell us</a>. We read everything.
-        </div>
+    <Section eyebrow="Practice History" title="Keep the plan and what actually happened together." reverse visual={<HistoryVisual />} body={[
+      "After practice, keep a record of attendance, completed activities, actual drill durations, coaching notes, changes made during practice and areas that need more work.",
+      "Use that information when building the next practice or deciding which plan to run again.",
+    ]} />
+
+    <div id="early-access" className="lp-section" style={{ background: "var(--gbg)", textAlign: "center" }}>
+      <div className="lp-wrap" style={{ maxWidth: 640 }}>
+        <div className="lp-eyebrow">Early Access</div>
+        <div className="lp-title">Use it in a real practice. Tell us where it falls short.</div>
+        <div className="lp-body">Run of Practice is currently in early access. We are looking for coaches who will use it during real practices and provide direct feedback about what made planning easier, what was confusing, what slowed them down, and what assistants needed to run their part of the plan.</div>
+        <div className="lp-body">The goal is to build something coaches can rely on before, during and after practice.</div>
+        <button className="btn primary blg" onClick={onGetStarted} style={{ marginTop: 8 }}>Try Run of Practice</button>
+        <div style={{ fontSize: 12, color: "var(--tm)", marginTop: 10 }}>Free during early access.</div>
       </div>
+    </div>
 
-      <div style={{ textAlign: "center", marginBottom: 40 }}>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, lineHeight: 1.3, marginBottom: 18, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>
-          If you forget you're even using software because practice just runs better, that's the goal.
-        </div>
-        <button className="btn primary blg bfull" style={{ maxWidth: 320, margin: "0 auto" }} onClick={onGetStarted}>Try it free</button>
+    <div className="lp-section dark" style={{ textAlign: "center" }}>
+      <div className="lp-wrap" style={{ maxWidth: 560 }}>
+        <div className="lp-title">Build the plan once. Keep everyone following it.</div>
+        <div className="lp-body">Schedule the practice, organize the details and run it live from the same place.</div>
+        <button className="btn primary blg" onClick={onGetStarted} style={{ marginTop: 8 }}>Try It Free</button>
+        <div style={{ marginTop: 12 }}><button className="lp-signin" style={{ color: "var(--td)" }} onClick={onGetStarted}>Already have an account? Sign in</button></div>
       </div>
+    </div>
 
-      <div style={{ paddingTop: 20, borderTop: "1px solid var(--b)", display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 8, fontSize: 12, color: "var(--td)" }}>
-        <a href="/terms" style={{ color: "var(--td)" }}>Terms of Use</a>
-        <span>·</span>
-        <a href="/privacy" style={{ color: "var(--td)" }}>Privacy Policy</a>
-        <span>·</span>
-        <a href={"mailto:" + CONTACT_EMAIL} style={{ color: "var(--td)" }}>{CONTACT_EMAIL}</a>
-        <span>·</span>
-        <a href="#" onClick={e => { e.preventDefault(); onGetStarted(); }} style={{ color: "var(--td)" }}>Sign in</a>
+    <FAQ />
+
+    <div className="lp-footer">
+      <div className="lp-wrap">
+        <div className="lp-brand" style={{ color: "#fff" }}><img src="/apple-touch-icon.png" alt="" /><span style={{ color: "#fff" }}>Run of Practice</span></div>
+        <div style={{ fontSize: 13, marginTop: 10, maxWidth: 420 }}>Practice planning and live execution for coaches, assistants and helpers.</div>
+        <div className="lp-footer-links">
+          <a href="#how-it-works">How It Works</a>
+          <a href="#features">Features</a>
+          <a href="#early-access">Early Access</a>
+          <button className="lp-signin" style={{ color: "#c9d6cf" }} onClick={onGetStarted}>Sign In</button>
+          <a href={"mailto:" + CONTACT_EMAIL}>Contact</a>
+          <a href="/terms">Terms of Use</a>
+          <a href="/privacy">Privacy Policy</a>
+        </div>
       </div>
     </div>
   </div>);

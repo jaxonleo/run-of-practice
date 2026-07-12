@@ -1,5 +1,11 @@
 // ── Utility helpers ──────────────────────────────────────────────────────────
 export const uid=()=>Math.random().toString(36).slice(2,9);
+// "Today" must be the viewer's *local calendar day*, not UTC. `toISOString()`
+// converts to UTC first, so anywhere west of Greenwich (e.g. Phoenix, UTC-7)
+// rolls over to "tomorrow" hours before local midnight -- a coach checking
+// practices at 8:46pm Saturday saw Sunday's date as "today" and Monday's
+// practices mislabeled "Tomorrow". Use local Date getters instead.
+export const localDateStr=(d=new Date())=>{const dt=d instanceof Date?d:new Date(d);return dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0");};
 export const fmt12=(t)=>{if(!t)return"";const[h,m]=t.split(":").map(Number);const ampm=h>=12?"PM":"AM";const h12=h%12||12;return h12+":"+(m<10?"0":"")+m+" "+ampm;};
 export const fmt=(s)=>{const neg=s<0;const abs=Math.abs(s);const m=Math.floor(abs/60),sec=abs%60;return(neg?"-":"")+String(m).padStart(2,"0")+":"+String(sec).padStart(2,"0");};
 export const actSecs=(a)=>{if(a.type==="station_block"){const n=(a.stations?a.stations.length:0);return(n*(a.stationDuration||0)+Math.max(0,n-1)*(a.transitionDuration||0))*60;}return(a.duration||0)*60;};
@@ -93,7 +99,7 @@ export const DEMO_INIT={
   ],
   practices:[{
     id:"demo_p1",teamId:"team_demo1",locationId:"loc_demo1",
-    date:new Date().toISOString().slice(0,10),
+    date:localDateStr(),
     startTime:"16:00",durMin:60,
     activities:[
       {id:"da1",type:"activity",name:"Warm Up",duration:5,coachingPoints:"Light jog and dynamic stretching",equipment:""},

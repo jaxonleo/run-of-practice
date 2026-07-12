@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { sumMins, isHeadCoach, planningState } from "../constants.js";
+import { sumMins, isHeadCoach, planningState, localDateStr } from "../constants.js";
 import { archivePractice, fetchPlannedAbsences, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
@@ -89,9 +89,9 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
 
 export default function HomeScreen({ data, update, setView, setLiveId, coachId, coachName, coachEmail, onSignOut, onDeactivate, setEditPracticeId, refreshPlanning, refreshTeams }) {
   const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
-  const tomorrowStr = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
-  const in14Str = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
+  const todayStr = localDateStr(now);
+  const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
+  const in14Str = localDateStr(new Date(Date.now() + 14 * 864e5));
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
@@ -218,7 +218,7 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
         const headcount = team ? Math.max(0, team.players.length - count) : null;
         return (<div className="card" style={{ marginBottom: 16, borderColor: soon ? "var(--green)" : "var(--b)", borderWidth: soon ? 2 : 1.5 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            {team && team.colorPrimary && <span style={{ width: 10, height: 10, borderRadius: "50%", background: team.colorPrimary, flexShrink: 0 }} />}
+            {team && team.colorPrimary && <span style={{ width: 10, height: 10, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
             <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)" }}>{dayLbl(nextPractice.date, todayStr, tomorrowStr)}{nextPractice.startTime ? " · " + timeLbl(nextPractice) : ""}</span>
           </div>
           <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1, marginBottom: 4 }}>{team ? team.name : "Practice"}</div>
@@ -245,7 +245,7 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
         const team = teamById(p.teamId), loc = locById(p.locationId), planned = isPlanned(p), count = absenceCounts[p.id] || 0;
         return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer" }} onClick={() => setViewPractice(p)}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-            {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", background: team.colorPrimary, flexShrink: 0 }} />}
+            {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
             <div className="lim" style={{ minWidth: 0 }}>
               <div className="lin">{team ? team.name : "Practice"}</div>
               <div className="limt">{dayLbl(p.date, todayStr, tomorrowStr)}{p.startTime ? " · " + timeLbl(p) : ""}{loc ? " · " + loc.name : ""}{!planned && " · Needs plan"}{planned && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{count > 0 && " · " + count + " out"}</div>

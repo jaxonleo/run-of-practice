@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { fetchPlannedAbsences, createPlannedAbsence, deletePlannedAbsence, setPlannedAbsences } from "../supabase.js";
+import { localDateStr } from "../constants.js";
 
 // Two entry shapes (§7): a fixed practice picking which roster players are
 // out ("Who's out?" from PracticeDetail), or a player picking which of
 // their upcoming practices they're out for ("Mark out for..."/Home quick
 // action) -- presetPlayer skips straight to the practice-picking step.
 export default function AbsencePicker({ data, coachId, mode, practice, team, presetPlayer, onClose }) {
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const in14Str = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
+  const todayStr = localDateStr();
+  const in14Str = localDateStr(new Date(Date.now() + 14 * 864e5));
   const [step, setStep] = useState(presetPlayer ? "practices" : "player");
   const [player, setPlayer] = useState(presetPlayer || null);
   const [selected, setSelected] = useState(new Set());

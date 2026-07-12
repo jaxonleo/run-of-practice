@@ -5,6 +5,71 @@ import { createTeam, updateTeam, createPlayer, updatePlayer, createStaff, update
 const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
 const STAFF_ROLES=["Head Coach","Assistant Coach","Helper"];
 
+// Closed by default: shows only the selected tags as removable chips plus an
+// "Add/Edit" button that opens the full category-grouped, searchable picker
+// in an overlay. A flat always-open pill grid stopped scaling once a coach's
+// tag set grew past a handful of categories (56 seeded tags across 7
+// categories x2 sports) -- most of that space was pills the coach hadn't
+// picked and never would for this particular drill.
+function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshLibrary}){
+  const [open,setOpen]=useState(false);
+  const [search,setSearch]=useState("");
+  const [newTagName,setNewTagName]=useState("");
+  const [newTagCategoryId,setNewTagCategoryId]=useState("");
+  const cats=(data.skillCategories||[]).filter(c=>c.sport===sport);
+  if(cats.length===0)return null;
+  const allTags=data.skillTags||[];
+  const selectedTags=selectedIds.map(id=>allTags.find(t=>t.id===id)).filter(Boolean);
+  const toggleTag=id=>{const has=selectedIds.includes(id);onChange(has?selectedIds.filter(x=>x!==id):[...selectedIds,id]);};
+  const addTag=async()=>{
+    if(!newTagName.trim())return;
+    const catId=newTagCategoryId||(cats[0]&&cats[0].id);
+    if(!catId)return;
+    const{data:newTag}=await createSkillTag(coachId,{categoryId:catId,name:newTagName.trim()});
+    if(newTag)onChange([...selectedIds,newTag.id]);
+    setNewTagName("");
+    await refreshLibrary();
+  };
+  const q=search.trim().toLowerCase();
+  return(<div className="fld"><label className="lbl">Skill Tags</label>
+    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+      {selectedTags.map(t=>(<span key={t.id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 4px 4px 10px",borderRadius:20,background:"var(--green)",color:"#fff",fontSize:13}}>
+        {t.name}
+        <button type="button" onClick={()=>toggleTag(t.id)} aria-label={"Remove "+t.name} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:15,lineHeight:1,padding:"2px 4px"}}>&times;</button>
+      </span>))}
+      <button type="button" className="btn ghost bxs" onClick={()=>setOpen(true)}>{selectedTags.length?"Edit":"+ Add"} Skill Tags</button>
+    </div>
+    {open&&(<div className="movly" style={{zIndex:300}} onClick={e=>{if(e.target===e.currentTarget)setOpen(false);}}>
+      <div className="modal">
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900}}>Skill Tags</div>
+          <button type="button" className="btn ghost bxs" onClick={()=>setOpen(false)}>Done</button>
+        </div>
+        <input className="inp" placeholder="Search skills..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:14}}/>
+        {cats.map(cat=>{
+          const tags=allTags.filter(t=>t.categoryId===cat.id&&(!q||t.name.toLowerCase().includes(q)));
+          if(tags.length===0)return null;
+          return(<div key={cat.id} style={{marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>{cat.name}</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {tags.map(t=>(<button key={t.id} type="button" onClick={()=>toggleTag(t.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:selectedIds.includes(t.id)?"var(--green)":"var(--s1)",color:selectedIds.includes(t.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{t.name}</button>))}
+            </div>
+          </div>);
+        })}
+        {q&&cats.every(cat=>allTags.filter(t=>t.categoryId===cat.id&&t.name.toLowerCase().includes(q)).length===0)&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>No skills match "{search}"</div>}
+        <div style={{display:"flex",gap:6,marginTop:4}}>
+          <select className="sel" style={{maxWidth:140}} value={newTagCategoryId||cats[0].id} onChange={e=>setNewTagCategoryId(e.target.value)}>
+            {cats.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <input className="inp" placeholder="Add my own tag..." style={{flex:1}} value={newTagName} onChange={e=>setNewTagName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTag()}/>
+          <button type="button" className="btn ghost bxs" onClick={addTag}>Add</button>
+        </div>
+        <button type="button" className="btn primary bmd bfull" style={{marginTop:14}} onClick={()=>setOpen(false)}>Done</button>
+      </div>
+    </div>)}
+  </div>);
+}
+
 function DurStepper({value,min,onChange,step}){
   const s=step||1;
   const mn=min||1;
@@ -57,8 +122,6 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
   });
   const set=(k,v)=>setF(p=>Object.assign({},p,{[k]:v}));
   const parsePositions=s=>(s||"").split(",").map(x=>x.trim()).filter(Boolean);
-  const [newTagName,setNewTagName]=useState("");
-  const [newTagCategoryId,setNewTagCategoryId]=useState("");
   const [saving,setSaving]=useState(false);
   const [saveError,setSaveError]=useState("");
   const savingRef=useRef(false);
@@ -242,40 +305,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
                 </div>
               </div>);
             })()}
-            {(()=>{
-              const drillSport=f.sport||"General";
-              const cats=(data.skillCategories||[]).filter(c=>c.sport===drillSport);
-              const toggleTag=id=>{const cur=(f.skillTagIds||[]);const has=cur.includes(id);set("skillTagIds",has?cur.filter(x=>x!==id):[...cur,id]);};
-              const addTag=async()=>{
-                if(!newTagName.trim())return;
-                const catId=newTagCategoryId||(cats[0]&&cats[0].id);
-                if(!catId)return;
-                const {data:newTag}=await createSkillTag(coachId,{categoryId:catId,name:newTagName.trim()});
-                if(newTag)set("skillTagIds",[...(f.skillTagIds||[]),newTag.id]);
-                setNewTagName("");
-                await refreshLibrary();
-              };
-              if(cats.length===0)return null;
-              return(<div className="fld"><label className="lbl">Skill Tags</label>
-                {cats.map(cat=>{
-                  const tags=(data.skillTags||[]).filter(t=>t.categoryId===cat.id);
-                  if(tags.length===0)return null;
-                  return(<div key={cat.id} style={{marginBottom:8}}>
-                    <div style={{fontSize:11,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>{cat.name}</div>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                      {tags.map(t=>(<button key={t.id} type="button" onClick={()=>toggleTag(t.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:(f.skillTagIds||[]).includes(t.id)?"var(--green)":"var(--s1)",color:(f.skillTagIds||[]).includes(t.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{t.name}</button>))}
-                    </div>
-                  </div>);
-                })}
-                <div style={{display:"flex",gap:6,marginTop:4}}>
-                  <select className="sel" style={{maxWidth:140}} value={newTagCategoryId||cats[0].id} onChange={e=>setNewTagCategoryId(e.target.value)}>
-                    {cats.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  <input className="inp" placeholder="Add my own tag..." style={{flex:1}} value={newTagName} onChange={e=>setNewTagName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTag()}/>
-                  <button type="button" className="btn ghost bxs" onClick={addTag}>Add</button>
-                </div>
-              </div>);
-            })()}
+            <SkillTagPicker data={data} coachId={coachId} sport={f.sport||"General"} selectedIds={f.skillTagIds||[]} onChange={ids=>set("skillTagIds",ids)} refreshLibrary={refreshLibrary}/>
           </div>
         )}
         {saveError&&<div style={{fontSize:13,color:"var(--red)",marginTop:4}}>{saveError}</div>}

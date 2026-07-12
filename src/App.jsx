@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach } from "./constants.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig } from "./components/ActivityConfigs.jsx";
@@ -193,11 +193,11 @@ function TeamsScreen({data,update,setView,setLiveId,coachId,openModal,setEditPra
   useEffect(()=>{if(selectedTeam&&!data.teams.some(t=>t.id===selectedTeam))setSelectedTeam(null);},[selectedTeam,data.teams]);
   const delPractice=async id=>{await archivePractice(id);await refreshPlanning();if(selectedPractice&&selectedPractice.id===id)setSelectedPractice(null);};
   const now=new Date();
-  const todayStr=now.toISOString().slice(0,10);
+  const todayStr=localDateStr(now);
   const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
   if(selectedPractice){
-    const isPast=selectedPractice.date<new Date().toISOString().slice(0,10);
-    if(isPast)return(<div style={{padding:"14px 14px calc(var(--tab)+40px)"}}><HistoryViewer data={data} update={update} practice={selectedPractice} onRunAgain={async()=>{const now=new Date();const {data:saved}=await savePracticeTree(null,{teamId:selectedPractice.teamId,locationId:selectedPractice.locationId,date:now.toISOString().slice(0,10),startTime:now.toTimeString().slice(0,5),activities:stripIdsForCopy(selectedPractice.activities)});await refreshPlanning();setSelectedPractice(null);if(saved){setLiveId(saved.id);setView("command");}}} onBack={()=>setSelectedPractice(null)}/></div>);
+    const isPast=selectedPractice.date<localDateStr();
+    if(isPast)return(<div style={{padding:"14px 14px calc(var(--tab)+40px)"}}><HistoryViewer data={data} update={update} practice={selectedPractice} onRunAgain={async()=>{const now=new Date();const {data:saved}=await savePracticeTree(null,{teamId:selectedPractice.teamId,locationId:selectedPractice.locationId,date:localDateStr(now),startTime:now.toTimeString().slice(0,5),activities:stripIdsForCopy(selectedPractice.activities)});await refreshPlanning();setSelectedPractice(null);if(saved){setLiveId(saved.id);setView("command");}}} onBack={()=>setSelectedPractice(null)}/></div>);
     return (<PracticeDetail practice={selectedPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} coachId={coachId} refreshPlanning={refreshPlanning} onBack={()=>setSelectedPractice(null)}/>);
   }
   if(selectedTeam){
@@ -503,15 +503,15 @@ export default function App(){
 function PracticeLog({data,update,launchRun}){
   const [viewPractice,setViewPractice]=useState(null);
   const fmtDate=ds=>{
-    const today=new Date().toISOString().slice(0,10);
-    const yest=new Date(Date.now()-864e5).toISOString().slice(0,10);
+    const today=localDateStr();
+    const yest=localDateStr(new Date(Date.now()-864e5));
     if(ds===today)return "Today";
     if(ds===yest)return "Yesterday";
     return new Date(ds+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"});
   };
   const sorted=[...data.practices].sort((a,b)=>b.date.localeCompare(a.date));
   const standalone=data.notes.filter(n=>!n.practiceId);
-  if(viewPractice)return(<div style={{paddingBottom:80}}><HistoryViewer data={data} update={update} practice={viewPractice} onRunAgain={()=>{const now=new Date();const newId=uid();const copy=JSON.parse(JSON.stringify(viewPractice));copy.id=newId;copy.date=now.toISOString().slice(0,10);copy.startTime=now.toTimeString().slice(0,5);update(d=>{d.practices.push(copy);return d;});setViewPractice(null);launchRun(newId);}} onBack={()=>setViewPractice(null)}/></div>);
+  if(viewPractice)return(<div style={{paddingBottom:80}}><HistoryViewer data={data} update={update} practice={viewPractice} onRunAgain={()=>{const now=new Date();const newId=uid();const copy=JSON.parse(JSON.stringify(viewPractice));copy.id=newId;copy.date=localDateStr(now);copy.startTime=now.toTimeString().slice(0,5);update(d=>{d.practices.push(copy);return d;});setViewPractice(null);launchRun(newId);}} onBack={()=>setViewPractice(null)}/></div>);
   if(!sorted.length&&!standalone.length)return(<div className="empty"><div className="emtx">No practice history yet. Run a practice to see it here.</div></div>);
   return(<div>
     {sorted.map(p=>{
@@ -558,7 +558,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const [expandedId,setExpandedId]=useState(null);
   const [savedTpl,setSavedTpl]=useState(false);
   const [bottomMode,setBottomMode]=useState(null);
-  const [schedDate,setSchedDate]=useState(editP?(editP.date||new Date().toISOString().slice(0,10)):new Date().toISOString().slice(0,10));
+  const [schedDate,setSchedDate]=useState(editP?(editP.date||localDateStr()):localDateStr());
   const [schedTime,setSchedTime]=useState(editP?(editP.startTime||"16:00"):"16:00");
   const [schedDur,setSchedDur]=useState(60);
   const [tplName,setTplName]=useState("");
@@ -914,7 +914,7 @@ function NotesTab({data,update}){
   const filtered=data.notes.filter(n=>{const q=search.toLowerCase();return(!q||(n.text.toLowerCase().includes(q)||(n.context||"").toLowerCase().includes(q)))&&(!filterCtx||n.context===filterCtx);}).slice().reverse();
   const grouped=filtered.reduce((acc,n)=>{const d=n.date.slice(0,10);if(!acc[d])acc[d]=[];acc[d].push(n);return acc;},{});
   const groupDates=Object.keys(grouped).sort().reverse();
-  const fmtD=ds=>{const today=new Date().toISOString().slice(0,10);const yest=new Date(Date.now()-864e5).toISOString().slice(0,10);if(ds===today)return "Today";if(ds===yest)return "Yesterday";return new Date(ds+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});};
+  const fmtD=ds=>{const today=localDateStr();const yest=localDateStr(new Date(Date.now()-864e5));if(ds===today)return "Today";if(ds===yest)return "Yesterday";return new Date(ds+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});};
   return (<div style={{paddingBottom:80}}>
       <div className="card mb10">
         <div className="fld"><label className="lbl">Context</label><input className="inp" placeholder="e.g. Weston, Shooting" value={ctx} onChange={e=>setCtx(e.target.value)}/></div>

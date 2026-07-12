@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { findOrCreatePreviewToken, cancelPractice, restorePractice, fetchPlannedAbsences } from "../supabase.js";
-import { isHeadCoach, planningState } from "../constants.js";
+import { isHeadCoach, planningState, localDateStr } from "../constants.js";
 import AbsencePicker from "./AbsencePicker.jsx";
 
 // §1: same "35/60 min" pill as HomeScreen/ScheduleScreen -- duplicated per
@@ -18,7 +18,7 @@ export default function PracticeDetail({practice,data,update,setView,setLiveId,s
   const canManage=isHeadCoach(team,coachId);
   const loc=data.locations.find(l=>l.id===practice.locationId);
   const now=new Date();
-  const todayStr=now.toISOString().slice(0,10);
+  const todayStr=localDateStr(now);
   const isPast=practice.date&&practice.date<todayStr;
   const isMissed=practice.status==="scheduled"&&isPast;
   const isCancelled=practice.status==="cancelled";

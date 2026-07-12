@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { uid, sumMins } from "../constants.js";
+import { uid, sumMins, localDateStr } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 import { createAsset, updateAsset, archiveAsset, archiveDrill, setDrillShare, copyDrillToMyLibrary, archiveLocation, savePracticeTree, saveTemplateTree, archiveTemplate, swapDrillPositions, createSkillTag, archiveSkillTag } from "../supabase.js";
 
@@ -215,7 +215,7 @@ function TemplateWorkspace({data,template,onRun,onBack,openModal,coachId,refresh
   const [newTplName,setNewTplName]=useState("");
   const [showNewTpl,setShowNewTpl]=useState(false);
   const [schedMode,setSchedMode]=useState(false);
-  const [schedDate,setSchedDate]=useState(()=>new Date().toISOString().slice(0,10));
+  const [schedDate,setSchedDate]=useState(()=>localDateStr());
   const [schedTime,setSchedTime]=useState("16:00");
   const team=data.teams.find(t=>t.id===teamId)||null;
   const loc=data.locations.find(l=>l.id===locId)||null;
@@ -226,7 +226,7 @@ function TemplateWorkspace({data,template,onRun,onBack,openModal,coachId,refresh
 
   const handleRun=async()=>{
     const now=new Date();
-    const dateStr=now.toISOString().slice(0,10);
+    const dateStr=localDateStr(now);
     const timeStr=now.toTimeString().slice(0,5);
     const {data:saved}=await savePracticeTree(null,{teamId,locationId:locId,date:dateStr,startTime:timeStr,activities:acts});
     await refreshPlanning();

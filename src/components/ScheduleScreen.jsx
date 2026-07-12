@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { fetchPlannedAbsences } from "../supabase.js";
-import { isHeadCoach, sumMins, planningState } from "../constants.js";
+import { isHeadCoach, sumMins, planningState, localDateStr } from "../constants.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import SeriesWizard from "./SeriesWizard.jsx";
 
@@ -32,7 +32,7 @@ function DaySheet({ date, practices, data, onPick, onClose }) {
         const team = teamById(p.teamId), planned = (p.activities || []).length > 0, cancelled = p.status === "cancelled";
         return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer", opacity: cancelled ? .6 : 1 }} onClick={() => onPick(p)}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", background: team.colorPrimary, flexShrink: 0 }} />}
+            {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
             <div className="lim"><div className="lin" style={{ textDecoration: cancelled ? "line-through" : "none" }}>{team ? team.name : "Practice"}</div><div className="limt">{timeLbl(p)}{!planned && !cancelled && " · Needs plan"}{planned && !cancelled && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{cancelled && " · Cancelled"}</div></div>
           </div>
           <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>
@@ -45,8 +45,8 @@ function DaySheet({ date, practices, data, onPick, onClose }) {
 
 export default function ScheduleScreen({ data, update, setView, setLiveId, coachId, setEditPracticeId, refreshPlanning }) {
   const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
-  const tomorrowStr = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+  const todayStr = localDateStr(now);
+  const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
 
   const [mode, setMode] = useState("agenda");
   const [showPast, setShowPast] = useState(false);
@@ -117,7 +117,7 @@ export default function ScheduleScreen({ data, update, setView, setLiveId, coach
           const team = teamById(p.teamId), planned = (p.activities || []).length > 0, cancelled = p.status === "cancelled", count = absenceCounts[p.id] || 0;
           return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer", opacity: cancelled ? .6 : 1 }} onClick={() => setViewPractice(p)}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-              {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", background: team.colorPrimary, flexShrink: 0 }} />}
+              {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
               <div className="lim" style={{ minWidth: 0 }}>
                 <div className="lin" style={{ textDecoration: cancelled ? "line-through" : "none" }}>{team ? team.name : "Practice"}</div>
                 <div className="limt">{timeLbl(p)}{!planned && !cancelled && " · Needs plan"}{planned && !cancelled && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{cancelled && " · Cancelled"}{count > 0 && " · " + count + " out"}</div>
