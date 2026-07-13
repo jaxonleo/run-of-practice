@@ -844,6 +844,39 @@ export async function setPlannedAbsences(playerId, notedBy, selectedPracticeIds,
   }
 }
 
+// ── Notes (§8) -- captured live during a drill/station or at the end of a
+// practice. practiceActivityId + stationId (both optional) record what was
+// "current" at note-taking time via real ids, not the old blob's fragile
+// name-string match. Fetched on demand per practice (history view, note
+// counts) rather than bulk-loaded, unlike the old always-in-memory blob.
+export async function fetchNotesForPractice(practiceId) {
+  if (!practiceId) return []
+  const { data, error } = await supabase.from('notes').select('*').eq('practice_id', practiceId).is('archived_at', null).order('created_at', { ascending: true })
+  if (error) { console.error('fetchNotesForPractice:', error); return [] }
+  return data.map(n => ({ id: n.id, practiceId: n.practice_id, practiceActivityId: n.practice_activity_id, stationId: n.station_id, text: n.text, createdAt: n.created_at, createdBy: n.created_by }))
+}
+// Practice-history list rows only need a count, not full note content --
+// one query for a whole team's past practices instead of N.
+export async function fetchNoteCountsForPractices(practiceIds) {
+  if (!practiceIds || !practiceIds.length) return {}
+  const { data, error } = await supabase.from('notes').select('practice_id').in('practice_id', practiceIds).is('archived_at', null)
+  if (error) { console.error('fetchNoteCountsForPractices:', error); return {} }
+  const counts = {}
+  for (const row of data || []) counts[row.practice_id] = (counts[row.practice_id] || 0) + 1
+  return counts
+}
+export async function createNote({ practiceId, practiceActivityId, stationId, text, createdBy }) {
+  const { data, error } = await supabase.from('notes').insert({
+    practice_id: practiceId,
+    practice_activity_id: practiceActivityId || null,
+    station_id: stationId || null,
+    text,
+    created_by: createdBy,
+  }).select().single()
+  if (error) { console.error('createNote:', error); return { error } }
+  return { data }
+}
+
 export async function fetchTemplatesFull() {
   const [tplsRes, actsRes, equipRes, itemsRes, blocksRes, stationsRes, stationEquipRes] = await Promise.all([
     supabase.from('templates').select('*').is('archived_at', null),

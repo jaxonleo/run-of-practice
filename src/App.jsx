@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, createAsset, updateAsset, archiveAsset, archiveLocation } from "./supabase.js";
+import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, createAsset, updateAsset, archiveAsset, archiveLocation, fetchNoteCountsForPractices } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
@@ -328,6 +328,15 @@ function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPr
   const now=new Date();
   const todayStr=localDateStr(now);
   const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
+  // A count per past practice for the History list badge, not full note
+  // content -- fetched once for the whole team instead of once per row.
+  const [historyNoteCounts,setHistoryNoteCounts]=useState({});
+  useEffect(()=>{
+    if(!selectedTeam){setHistoryNoteCounts({});return;}
+    const pastIds=data.practices.filter(p=>p.teamId===selectedTeam&&p.date<todayStr).map(p=>p.id);
+    if(!pastIds.length){setHistoryNoteCounts({});return;}
+    fetchNoteCountsForPractices(pastIds).then(setHistoryNoteCounts);
+  },[selectedTeam,data.practices]);
   if(selectedPractice){
     const isPast=selectedPractice.date<localDateStr();
     if(isPast)return(<div style={{padding:"14px 14px calc(var(--tab)+40px)"}}><HistoryViewer data={data} update={update} practice={selectedPractice} onRunAgain={async()=>{const now=new Date();const {data:saved}=await savePracticeTree(null,{teamId:selectedPractice.teamId,locationId:selectedPractice.locationId,date:localDateStr(now),startTime:now.toTimeString().slice(0,5),activities:stripIdsForCopy(selectedPractice.activities)});await refreshPlanning();setSelectedPractice(null);if(saved){setLiveId(saved.id);setView("command");}}} onBack={()=>setSelectedPractice(null)}/></div>);
@@ -372,12 +381,12 @@ function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPr
         {teamTab==="history"&&<div>
           {past.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No practice history yet.</div>}
           {past.map(p=>{
-            const practiceNotes=(data.notes||[]).filter(n=>n.practiceId===p.id);
+            const noteCount=historyNoteCounts[p.id]||0;
             return(<div key={p.id} className="card" style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setSelectedPractice(p)}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div>
                   <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900}}>{new Date(p.date+"T12:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}</div>
-                  <div style={{fontSize:12,color:"var(--td)"}}>{(p.activities||[]).length} activities · {(p.activities||[]).reduce((s,a)=>{if(a.type==="station_block")return s+a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*(a.transitionDuration||0);return s+(a.duration||0);},0)}min{practiceNotes.length>0?" · "+practiceNotes.length+" note"+(practiceNotes.length>1?"s":""):""}</div>
+                  <div style={{fontSize:12,color:"var(--td)"}}>{(p.activities||[]).length} activities · {(p.activities||[]).reduce((s,a)=>{if(a.type==="station_block")return s+a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*(a.transitionDuration||0);return s+(a.duration||0);},0)}min{noteCount>0?" · "+noteCount+" note"+(noteCount>1?"s":""):""}</div>
                 </div>
                 <span style={{color:"var(--td)",fontSize:13}}>&#8250;</span>
               </div>

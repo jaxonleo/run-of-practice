@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups } from "../constants.js";
-import { savePracticeTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences } from "../supabase.js";
+import { savePracticeTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
@@ -119,9 +119,14 @@ function HistoryViewer({data,update,practice,onRunAgain,onBack}){
   const equipNames=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean).join(", ");
   const [tplNameInput,setTplNameInput]=useState("");
   const [showTplInput,setShowTplInput]=useState(false);
-  // Notes keyed by context string
-  const practiceNotes=(data.notes||[]).filter(n=>n.practiceId===practice.id);
-  const notesForContext=ctx=>practiceNotes.filter(n=>n.context===ctx);
+  // Fetched from the notes table on demand (not bulk-loaded with the rest
+  // of the app's data) -- keyed by real practice_activity_id/station_id,
+  // not the old blob's fragile context-name match.
+  const [practiceNotes,setPracticeNotes]=useState([]);
+  useEffect(()=>{fetchNotesForPractice(practice.id).then(setPracticeNotes);},[practice.id]);
+  const notesForActivity=activityId=>practiceNotes.filter(n=>n.practiceActivityId===activityId&&!n.stationId);
+  const notesForStation=stationId=>practiceNotes.filter(n=>n.stationId===stationId);
+  const generalNotes=practiceNotes.filter(n=>!n.practiceActivityId);
   const handleSaveAsTpl=()=>{
     if(!tplNameInput.trim())return;
     const sport=(team&&team.sport)||"General";
@@ -135,12 +140,11 @@ function HistoryViewer({data,update,practice,onRunAgain,onBack}){
     setTplSaved(true);setShowTplInput(false);setTplNameInput("");
     setTimeout(()=>setTplSaved(false),2500);
   };
-  const NotesList=({ctx})=>{
-    const notes=notesForContext(ctx);
-    if(!notes.length)return null;
+  const NotesList=({notes})=>{
+    if(!notes||!notes.length)return null;
     return(<div style={{marginTop:8,paddingTop:8,borderTop:"1px dashed var(--b)"}}>
       {notes.map(n=>(<div key={n.id} style={{display:"flex",gap:8,marginBottom:6,alignItems:"flex-start"}}>
-        <span style={{fontSize:11,color:"var(--td)",flexShrink:0,marginTop:2}}>{new Date(n.date).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</span>
+        <span style={{fontSize:11,color:"var(--td)",flexShrink:0,marginTop:2}}>{new Date(n.createdAt).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</span>
         <span style={{fontSize:13,color:"var(--black)",lineHeight:1.4,flex:1}}>{n.text}</span>
       </div>))}
     </div>);
@@ -159,7 +163,7 @@ function HistoryViewer({data,update,practice,onRunAgain,onBack}){
     </div>
     {practice.activities.map(act=>{
       const isExpanded=expandedId===act.id;
-      const actNotes=notesForContext(act.name);
+      const actNotes=practiceNotes.filter(n=>n.practiceActivityId===act.id);
       const hasNotes=actNotes.length>0;
       return(<div key={act.id} className="ablk" style={{marginBottom:8}}>
         {/* Header row */}
@@ -189,16 +193,15 @@ function HistoryViewer({data,update,practice,onRunAgain,onBack}){
             {act.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Player Gear: </span>{act.playerGear}</div>}
             {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Grouping: </span>{act.grouping==="partners"?"Partners":act.numGroups+" Groups"}</div>}
             {act.assignments&&act.assignments.length>0&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Players: </span>{pnames(act.assignments)}</div>}
-            <NotesList ctx={act.name}/>
+            <NotesList notes={notesForActivity(act.id)}/>
           </div>}
           {act.type==="checklist"&&<div>
             {(act.items||[]).map(it=>(<div key={it.id} style={{fontSize:13,padding:"4px 0",borderBottom:"1px solid var(--b)",color:"var(--black)"}}>{it.text}</div>))}
-            <NotesList ctx={act.name}/>
+            <NotesList notes={notesForActivity(act.id)}/>
           </div>}
           {act.type==="station_block"&&<div>
             {act.stations.map(st=>{
-              const stCtx=st.activityName||st.name;
-              const stNotes=notesForContext(stCtx);
+              const stNotes=notesForStation(st.id);
               return(<div key={st.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--b)"}}>
                 <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:"var(--green)",letterSpacing:".05em",marginBottom:4}}>
                   {st.name}{st.activityName&&st.activityName!==st.name?": "+st.activityName:""}
@@ -213,25 +216,20 @@ function HistoryViewer({data,update,practice,onRunAgain,onBack}){
                   {equipNames(st.equipment)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Equipment: </span>{equipNames(st.equipment)}</div>}
                   {st.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Player Gear: </span>{st.playerGear}</div>}
                   {st.assignments&&st.assignments.length>0&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Players: </span>{pnames(st.assignments)}</div>}
-                  {stNotes.length>0&&<div style={{marginTop:6,paddingTop:6,borderTop:"1px dashed var(--b)"}}>
-                    {stNotes.map(n=>(<div key={n.id} style={{display:"flex",gap:8,marginBottom:4,alignItems:"flex-start"}}>
-                      <span style={{fontSize:11,color:"var(--td)",flexShrink:0,marginTop:2}}>{new Date(n.date).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</span>
-                      <span style={{fontSize:13,color:"var(--black)",lineHeight:1.4}}>{n.text}</span>
-                    </div>))}
-                  </div>}
+                  <NotesList notes={stNotes}/>
                 </div>
               </div>);
             })}
             {/* Block-level notes not tied to a specific station */}
-            <NotesList ctx="Station Block"/>
+            <NotesList notes={notesForActivity(act.id)}/>
           </div>}
         </div>}
       </div>);
     })}
     {/* End of practice notes */}
-    {notesForContext("End of Practice").length>0&&<div className="card mb10">
+    {generalNotes.length>0&&<div className="card mb10">
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,marginBottom:8}}>End of Practice Notes</div>
-      <NotesList ctx="End of Practice"/>
+      <NotesList notes={generalNotes}/>
     </div>}
     <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--b)"}}>
       <button className="btn primary bxl bfull" style={{marginBottom:8}} onClick={onRunAgain}>Run Again</button>
@@ -662,6 +660,8 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const [liveGroups,setLiveGroups]=useState(null);
   const [audioOn,setAudioOn]=useState(false);
   const [noteText,setNoteText]=useState("");
+  const [noteError,setNoteError]=useState("");
+  const [savingNote,setSavingNote]=useState(false);
   const [showROS,setShowROS]=useState(false);
   const [clState,setClState]=useState({});
   const [movePlayer,setMovePlayer]=useState(null);
@@ -1024,7 +1024,18 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const SkillTagRow=({names})=>names.length?(<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
     {names.map(n=>(<span key={n} className="bdg bs" style={{fontSize:10}}>{n}</span>))}
   </div>):null;
-  const addNote=()=>{if(!noteText.trim())return;const ctx=isBlock&&cur.stations[stIdx]?cur.stations[stIdx].activityName||cur.stations[stIdx].name:(cur&&cur.name)||"Practice";update(d=>{d.notes.push({id:uid(),text:noteText,context:ctx,date:new Date().toISOString(),practiceId:liveId});return d;});setNoteText("");};
+  // Not cleared until the write actually succeeds -- a network hiccup
+  // during a live practice silently losing a typed note is exactly the
+  // kind of thing that's easy to not notice until it's too late to redo.
+  const addNote=async()=>{
+    if(!noteText.trim()||savingNote)return;
+    setSavingNote(true);setNoteError("");
+    const focusedStation=isBlock&&cur.stations?cur.stations[stIdx]:null;
+    const {error}=await createNote({practiceId:liveId,practiceActivityId:cur?cur.id:null,stationId:focusedStation?focusedStation.id:null,text:noteText.trim(),createdBy:coachId});
+    setSavingNote(false);
+    if(error){setNoteError("Couldn't save note. Try again.");return;}
+    setNoteText("");
+  };
   const toggleCl=(actId,itemId)=>{setClState(s=>{const cur2=s[actId]||{};return Object.assign({},s,{[actId]:Object.assign({},cur2,{[itemId]:!cur2[itemId]})});});};
 
   const reshuffleGroups=useCallback(async()=>{
@@ -1107,7 +1118,15 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     // no separate seed step.
     const freshPresent=team?team.players.map(p=>p.id).filter(id=>!plannedAbsentIds.has(id)):[];
     return (<AttendanceScreen key={showAtt?"upd":"init"} practice={practice} team={team} isUpdate={showAtt} initialPresent={showAtt?[...presentIds]:freshPresent} initialCoachPresent={showAtt?[...coachPresentIds]:null} onConfirm={showAtt?handleAttUpdate:handleAttConfirm} onBack={attBack}/>);}
-  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--green)",marginBottom:4}}>Practice Complete</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{team&&team.name} practice complete.</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>setNoteText(e.target.value)}/><button className="btn primary bsm bfull mt6" onClick={()=>{if(noteText.trim()){update(d=>{d.notes.push({id:uid(),text:noteText,context:"End of Practice",date:new Date().toISOString(),practiceId:liveId});return d;});setNoteText("");}}} >Save Note</button></div><button className="btn primary bmd bfull" onClick={()=>{setLiveId(null);setStage("pick");setView("today");}}>Done</button></div></div>);
+  const saveEndNote=async()=>{
+    if(!noteText.trim()||savingNote)return;
+    setSavingNote(true);setNoteError("");
+    const {error}=await createNote({practiceId:liveId,practiceActivityId:null,stationId:null,text:noteText.trim(),createdBy:coachId});
+    setSavingNote(false);
+    if(error){setNoteError("Couldn't save note. Try again.");return;}
+    setNoteText("");
+  };
+  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--green)",marginBottom:4}}>Practice Complete</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{team&&team.name} practice complete.</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>{setNoteText(e.target.value);if(noteError)setNoteError("");}}/>{noteError&&<div style={{fontSize:12,color:"var(--red)",marginTop:4}}>{noteError}</div>}<button className="btn primary bsm bfull mt6" onClick={saveEndNote} disabled={savingNote}>{savingNote?"Saving...":"Save Note"}</button></div><button className="btn primary bmd bfull" onClick={()=>{setLiveId(null);setStage("pick");setView("today");}}>Done</button></div></div>);
 
   if(!cur)return null;
 
@@ -1379,9 +1398,10 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
       </div>}
     </div>
     <div className="cc-note-bar">
-      <input className="inp" placeholder="Quick note..." value={noteText} onChange={e=>setNoteText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNote()} style={{fontSize:14}}/>
-      <button className="btn primary bsm" onClick={addNote}>Save</button>
+      <input className="inp" placeholder="Quick note..." value={noteText} onChange={e=>{setNoteText(e.target.value);if(noteError)setNoteError("");}} onKeyDown={e=>e.key==="Enter"&&addNote()} style={{fontSize:14}}/>
+      <button className="btn primary bsm" onClick={addNote} disabled={savingNote}>{savingNote?"Saving...":"Save"}</button>
     </div>
+    {noteError&&<div style={{padding:"0 14px 8px",fontSize:12,color:"var(--red)"}}>{noteError}</div>}
     {showShare&&shareToken&&<ShareSheet token={shareToken} scope={shareScope} onClose={()=>setShowShare(false)}/>}
   </div>);
 }
