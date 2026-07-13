@@ -640,7 +640,101 @@ async function seedAllStationGroups(sessionId, activities, presentIds, mode, cre
   }
 }
 
-export default function CommandScreen({data,update,liveId,setLiveId,coachId,setView,refreshPlanning}){
+// ── In-session practice editor ──────────────────────────────────────────────
+// A cut-down BuilderScreen scoped to just the activity list (team/location/
+// schedule stay fixed for a practice already live) -- reorders, adds, edits
+// and removes activities, then hands the new list back to the caller, which
+// is responsible for re-pointing the live session at whatever now sits at
+// index 0 (see onSaveResume in CommandScreen below).
+function LiveEditBuilder({data,coachId,refreshLibrary,liveActs,team,loc,onSaveResume,onBack}){
+  const [acts,setActs]=useState(()=>JSON.parse(JSON.stringify(liveActs||[])));
+  const [expandedId,setExpandedId]=useState(null);
+  const [saving,setSaving]=useState(false);
+  const teamSport=(team&&team.sport)||"General";
+  const filteredLib=(data.activityLibrary||[]).filter(a=>(a.sport||"General")===teamSport||(a.sport||"General")==="General");
+  const headCoach=(team&&(team.coaches.find(c=>c.role==="Head Coach")||team.coaches[0]))||null;
+  const headCoachId=(headCoach&&headCoach.id)||"";
+  const defaultAssignIds=team?team.players.map(p=>p.id):[];
+  const totalMins=sumMins(acts);
+
+  const addAct=lib=>{
+    setActs(p=>[...p,{id:uid(),type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:defaultAssignIds,coachId:headCoachId,sublocationId:"",notes:"",description:lib.description||"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);
+  };
+  const addChecklist=isClose=>{
+    const a={id:uid(),type:"checklist",name:isClose?"Closer":"Intro",duration:5,assignments:defaultAssignIds,coachId:headCoachId,items:[],notes:""};
+    setActs(p=>[...p,a]);setExpandedId(a.id);
+  };
+  const addBlock=()=>{
+    const b={id:uid(),type:"station_block",rotate:true,stationDuration:10,transitionDuration:2,stations:[
+      {id:uid(),name:"Station 1",activityName:"",coachId:headCoachId,sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
+      {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
+    ]};
+    setActs(p=>[...p,b]);setExpandedId(b.id);
+  };
+  const remAct=id=>setActs(p=>p.filter(a=>a.id!==id));
+  const updAct=(id,ch)=>setActs(p=>p.map(a=>a.id===id?Object.assign({},a,ch):a));
+  const updSt=(aid,sid,ch)=>setActs(p=>p.map(a=>a.id===aid?Object.assign({},a,{stations:a.stations.map(s=>s.id===sid?Object.assign({},s,ch):s)}):a));
+
+  return (<div style={{padding:"0 0 calc(var(--tab) + 20px)"}}>
+    <div style={{padding:"10px 14px",display:"flex",gap:6,position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
+      <button className="btn ghost bsm" style={{flex:1}} onClick={onBack} disabled={saving}>Cancel</button>
+      <button className="btn primary bsm" style={{flex:2}} disabled={saving} onClick={async()=>{setSaving(true);await onSaveResume(acts);}}>{saving?"Saving...":"Save & Resume"}</button>
+    </div>
+    <div style={{padding:"14px 14px 0"}}>
+      {acts.length===0&&(<div style={{textAlign:"center",padding:"20px 16px",background:"var(--s2)",borderRadius:"var(--r)",marginBottom:10,border:"1.5px dashed var(--b)"}}>
+        <div style={{fontSize:13,color:"var(--td)",lineHeight:1.7}}>Nothing left in this practice.<br/>Select activities below to add more.</div>
+      </div>)}
+      {acts.length>0&&(<div className="sechdr mb8">
+        <span className="sectitle">{acts.length} Activities</span>
+        <span className="pill">{totalMins}m</span>
+      </div>)}
+      {acts.map((act,i)=>(<div key={act.id}>
+        <div className="ablk">
+          <div className="abhdr" onClick={()=>setExpandedId(expandedId===act.id?null:act.id)}>
+            <div style={{display:"flex",flexDirection:"column",gap:2,marginRight:6,flexShrink:0}}>
+              <button onClick={e=>{e.stopPropagation();if(i>0)setActs(p=>{const a=[...p];[a[i-1],a[i]]=[a[i],a[i-1]];return a;});}} disabled={i===0} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===0?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8593;</button>
+              <button onClick={e=>{e.stopPropagation();if(i<acts.length-1)setActs(p=>{const a=[...p];[a[i],a[i+1]]=[a[i+1],a[i]];return a;});}} disabled={i===acts.length-1} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===acts.length-1?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8595;</button>
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {act.type==="station_block"?"Station Block":act.name}
+              </div>
+              {act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m</div>:<div className="limt">{act.duration}min</div>}
+            </div>
+            <div className="row">
+              {act.type!=="station_block"&&<span className="bdg bp">{act.duration}m</span>}
+              {act.type==="station_block"&&<span className="bdg bp">{act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*act.transitionDuration:0)}m</span>}
+              <button className="btn danger bxs" onClick={e=>{e.stopPropagation();remAct(act.id);}}>x</button>
+            </div>
+          </div>
+          {expandedId===act.id&&(<div className="abbody">
+            {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
+            {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
+            {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport} libraryDrills={data.activityLibrary}/>}
+          </div>)}
+        </div>
+      </div>))}
+      <div style={{borderTop:"1px solid var(--b)",paddingTop:14}}>
+        <div className="sechdr mb8"><span className="sectitle">Add Drills</span></div>
+        <div className="g2" style={{marginBottom:6}}>
+          <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(false)}><div className="lim"><div className="lin">Intro</div><div className="limt">Checklist</div></div><span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span></div>
+          <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(true)}><div className="lim"><div className="lin">Closer</div><div className="limt">Checklist</div></div><span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span></div>
+        </div>
+        <div className="li tap" style={{marginBottom:6,background:"var(--gbg)",borderColor:"var(--gb)"}} onClick={addBlock}>
+          <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">2 stations, add or remove as needed</div></div>
+          <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
+        </div>
+        {team&&<div className="clbl" style={{marginBottom:8}}>{teamSport} + General</div>}
+        {filteredLib.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>addAct(lib)}>
+          <div className="lim"><div className="lin">{lib.name}</div><div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div></div>
+          <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
+        </div>))}
+      </div>
+    </div>
+  </div>);
+}
+
+export default function CommandScreen({data,update,liveId,setLiveId,coachId,setView,refreshPlanning,refreshLibrary}){
   const practice=liveId?data.practices.find(p=>p.id===liveId):null;
   const team=practice?data.teams.find(t=>t.id===practice.teamId):null;
   const loc=practice?data.locations.find(l=>l.id===practice.locationId):null;
@@ -1145,9 +1239,9 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   if(showEditBuilder){
     return(<LiveEditBuilder
       data={data}
-      update={update}
+      coachId={coachId}
+      refreshLibrary={refreshLibrary}
       liveActs={liveActs}
-      practice={practice}
       team={team}
       loc={loc}
       onSaveResume={async(newActs)=>{

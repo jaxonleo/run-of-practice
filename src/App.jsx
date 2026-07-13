@@ -759,7 +759,7 @@ export default function App(){
         {view==="manage"&&<ManageScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} profile={profile} coachEmail={coachEmailStr} saveName={saveName} onSignOut={signOut} onDeactivate={handleDeactivate}/>}
         {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setEditPracticeId={setEditPracticeId} setStartTemplateId={setStartTemplateId} refreshLibrary={refreshLibrary} coachId={coachId} refreshPlanning={refreshPlanning}/>}
         {view==="builder"&&<BuilderScreen data={fullData} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} startTemplateId={startTemplateId} setStartTemplateId={setStartTemplateId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} markDirty={d=>{builderDirtyRef.current=d;}} onCancel={()=>guardedSetView(priorView)}/>}
-        {view==="command"&&<CommandScreen data={fullData} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} setView={setView} refreshPlanning={refreshPlanning}/>}
+        {view==="command"&&<CommandScreen data={fullData} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} setView={setView} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
       </div>
       {view!=="command"&&<nav className="tabbar">
         {TABS.map(({id,label,I})=>(<button key={id} className={"ti "+(activeTabId===id?"on":"")} onClick={()=>guardedSetView(id)}>
