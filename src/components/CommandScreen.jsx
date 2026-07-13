@@ -768,12 +768,6 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     try{
       if(buzzerAudioRef.current){buzzerAudioRef.current.currentTime=0;buzzerAudioRef.current.play().catch(()=>{});}
     }catch(e){console.error('buzzer error:',e);}
-    try{
-      window.speechSynthesis.cancel();
-      const u=new SpeechSynthesisUtterance("Next up!");
-      u.rate=1.1;u.pitch=1.2;u.volume=1;
-      window.speechSynthesis.speak(u);
-    }catch(e){console.error('beep error:',e);}
   },[audioOn]);
   const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
   const playWarningTone=useCallback(()=>{
