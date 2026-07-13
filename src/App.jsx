@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, createAsset, updateAsset, archiveAsset, archiveLocation, fetchNoteCountsForPractices } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr } from "./constants.js";
+import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, createAsset, updateAsset, archiveAsset, archiveLocation, fetchNoteCountsForPractices, fetchPracticeRunStatus } from "./supabase.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig } from "./components/ActivityConfigs.jsx";
@@ -18,15 +18,8 @@ import { TermsPage, PrivacyPage } from "./components/LegalPages.jsx";
 // every nested id (activity, station) must be regenerated as a fresh local
 // id first, or savePracticeTree's isDbId check would treat them as
 // already-saved rows belonging to the OLD practice and silently reparent
-// (steal) them instead of inserting real copies.
-function stripIdsForCopy(acts){
-  return JSON.parse(JSON.stringify(acts||[])).map(a=>{
-    a.id=uid();
-    if(a.type==="station_block"&&Array.isArray(a.stations))a.stations=a.stations.map(s=>Object.assign({},s,{id:uid()}));
-    if(a.type==="checklist"&&Array.isArray(a.items))a.items=a.items.map(it=>Object.assign({},it,{id:uid()}));
-    return a;
-  });
-}
+// (steal) them instead of inserting real copies. (stripIdsForCopy lives in
+// constants.js so ScheduleScreen's own History routing can reuse it too.)
 
 const CSS=`
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=DM+Mono:wght@400;500&family=Barlow:wght@400;500;600&display=swap');
@@ -330,23 +323,30 @@ function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPr
   // A count per past practice for the History list badge, not full note
   // content -- fetched once for the whole team instead of once per row.
   const [historyNoteCounts,setHistoryNoteCounts]=useState({});
+  // Same date-agnostic run signal ScheduleScreen uses -- a practice run
+  // earlier today needs to land in History immediately, not at midnight.
+  const [teamRunStatus,setTeamRunStatus]=useState({});
   useEffect(()=>{
-    if(!selectedTeam){setHistoryNoteCounts({});return;}
+    if(!selectedTeam){setHistoryNoteCounts({});setTeamRunStatus({});return;}
+    const teamIds=data.practices.filter(p=>p.teamId===selectedTeam).map(p=>p.id);
+    fetchPracticeRunStatus(teamIds).then(setTeamRunStatus);
     const pastIds=data.practices.filter(p=>p.teamId===selectedTeam&&p.date<todayStr).map(p=>p.id);
     if(!pastIds.length){setHistoryNoteCounts({});return;}
     fetchNoteCountsForPractices(pastIds).then(setHistoryNoteCounts);
   },[selectedTeam,data.practices]);
+  const teamRan=p=>teamRunStatus[p.id]==="completed";
   if(selectedPractice){
-    const isPast=selectedPractice.date<localDateStr();
-    if(isPast)return(<div style={{padding:"14px 14px calc(var(--tab)+40px)"}}><HistoryViewer data={data} update={update} practice={selectedPractice} onRunAgain={async()=>{const now=new Date();const {data:saved}=await savePracticeTree(null,{teamId:selectedPractice.teamId,locationId:selectedPractice.locationId,date:localDateStr(now),startTime:now.toTimeString().slice(0,5),activities:stripIdsForCopy(selectedPractice.activities)});await refreshPlanning();setSelectedPractice(null);if(saved){setLiveId(saved.id);setView("command");}}} onBack={()=>setSelectedPractice(null)}/></div>);
+    const isHistorical=(selectedPractice.date<localDateStr()||teamRan(selectedPractice))&&selectedPractice.status!=="cancelled";
+    const isPlanned=(selectedPractice.activities||[]).length>0;
+    if(isHistorical&&isPlanned)return(<div style={{padding:"14px 14px calc(var(--tab)+40px)"}}><HistoryViewer data={data} update={update} practice={selectedPractice} onRunAgain={async()=>{const now=new Date();const {data:saved}=await savePracticeTree(null,{teamId:selectedPractice.teamId,locationId:selectedPractice.locationId,date:localDateStr(now),startTime:now.toTimeString().slice(0,5),activities:stripIdsForCopy(selectedPractice.activities)});await refreshPlanning();setSelectedPractice(null);if(saved){setLiveId(saved.id);setView("command");}}} onBack={()=>setSelectedPractice(null)}/></div>);
     return (<PracticeDetail practice={selectedPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} coachId={coachId} refreshPlanning={refreshPlanning} onBack={()=>setSelectedPractice(null)}/>);
   }
   if(selectedTeam){
     const team=data.teams.find(t=>t.id===selectedTeam);
     if(!team)return null;
     const teamPractices=data.practices.filter(p=>p.teamId===selectedTeam);
-    const upcoming=teamPractices.filter(p=>p.date>=todayStr).sort((a,b)=>a.date>b.date?1:-1);
-    const past=teamPractices.filter(p=>p.date<todayStr).sort((a,b)=>b.date>a.date?1:-1);
+    const upcoming=teamPractices.filter(p=>p.date>=todayStr&&!teamRan(p)).sort((a,b)=>a.date>b.date?1:-1);
+    const past=teamPractices.filter(p=>p.date<todayStr||teamRan(p)).sort((a,b)=>b.date>a.date?1:-1);
     const TTABS=["practices","roster","history"];
     const canManageTeam=isHeadCoach(team,coachId);
     return (<div style={{paddingBottom:80}}>
@@ -381,11 +381,12 @@ function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPr
           {past.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No practice history yet.</div>}
           {past.map(p=>{
             const noteCount=historyNoteCounts[p.id]||0;
+            const statusLbl=p.status==="cancelled"?"Cancelled":teamRan(p)?"Completed":teamRunStatus[p.id]==="started"?"Started, not finished":(p.activities||[]).length>0?"Missed":"Never planned";
             return(<div key={p.id} className="card" style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setSelectedPractice(p)}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div>
                   <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900}}>{new Date(p.date+"T12:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}</div>
-                  <div style={{fontSize:12,color:"var(--td)"}}>{(p.activities||[]).length} activities · {(p.activities||[]).reduce((s,a)=>{if(a.type==="station_block")return s+a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*(a.transitionDuration||0);return s+(a.duration||0);},0)}min{noteCount>0?" · "+noteCount+" note"+(noteCount>1?"s":""):""}</div>
+                  <div style={{fontSize:12,color:"var(--td)"}}>{statusLbl} · {(p.activities||[]).length} activities · {(p.activities||[]).reduce((s,a)=>{if(a.type==="station_block")return s+a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*(a.transitionDuration||0);return s+(a.duration||0);},0)}min{noteCount>0?" · "+noteCount+" note"+(noteCount>1?"s":""):""}</div>
                 </div>
                 <span style={{color:"var(--td)",fontSize:13}}>&#8250;</span>
               </div>

@@ -223,6 +223,23 @@ export async function hasCompletedSession(practiceIds) {
   if (error) { console.error('hasCompletedSession:', error); return false }
   return (data || []).length > 0
 }
+// Per-practice run state, derived from practice_live_sessions rather than
+// stored on the practice itself -- lets History/"already ran" treatment be
+// date-agnostic (a practice run this morning counts immediately, not just
+// after midnight) and distinguishes a session that finished from one that
+// was started and left running/abandoned (no live session row at all means
+// it was truly never run). One query per set of practice ids, not per-row.
+export async function fetchPracticeRunStatus(practiceIds) {
+  if (!practiceIds || !practiceIds.length) return {}
+  const { data, error } = await supabase.from('practice_live_sessions').select('practice_id,status').in('practice_id', practiceIds)
+  if (error) { console.error('fetchPracticeRunStatus:', error); return {} }
+  const out = {}
+  for (const row of data || []) {
+    if (row.status === 'completed') out[row.practice_id] = 'completed'
+    else if (out[row.practice_id] !== 'completed') out[row.practice_id] = 'started'
+  }
+  return out
+}
 export async function fetchStaffSuggestions(coachId, excludeTeamId) {
   const { data, error } = await supabase.from('team_staff').select('first_name, last_name, invite_email, team_id').eq('added_by', coachId).not('invite_email', 'is', null)
   if (error) { console.error('fetchStaffSuggestions:', error); return [] }

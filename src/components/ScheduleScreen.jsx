@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { fetchPlannedAbsences } from "../supabase.js";
-import { isHeadCoach, sumMins, planningState, localDateStr } from "../constants.js";
+import { fetchPlannedAbsences, fetchPracticeRunStatus, savePracticeTree } from "../supabase.js";
+import { isHeadCoach, sumMins, planningState, localDateStr, stripIdsForCopy } from "../constants.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import SeriesWizard from "./SeriesWizard.jsx";
+import SchedulePracticeModal from "./SchedulePracticeModal.jsx";
+import { HistoryViewer } from "./CommandScreen.jsx";
 
 // §1: same "35/60 min" pill as HomeScreen -- duplicated per this codebase's
 // existing convention (timeLbl/dayLbl are likewise redefined per file
@@ -22,7 +24,7 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 };
 
-function DaySheet({ date, practices, data, onPick, onClose }) {
+function DaySheet({ date, practices, data, todayStr, runStatus, onPick, onClose }) {
   const teamById = id => data.teams.find(t => t.id === id);
   return (<div className="movly" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="modal">
@@ -30,10 +32,19 @@ function DaySheet({ date, practices, data, onPick, onClose }) {
       {practices.length === 0 && <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>Nothing scheduled.</div>}
       {practices.map(p => {
         const team = teamById(p.teamId), planned = (p.activities || []).length > 0, cancelled = p.status === "cancelled";
+        const completed = runStatus[p.id] === "completed", started = runStatus[p.id] === "started";
+        const isPast = date < todayStr;
         return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer", opacity: cancelled ? .6 : 1 }} onClick={() => onPick(p)}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
-            <div className="lim"><div className="lin" style={{ textDecoration: cancelled ? "line-through" : "none" }}>{team ? team.name : "Practice"}</div><div className="limt">{timeLbl(p)}{!planned && !cancelled && " · Needs plan"}{planned && !cancelled && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{cancelled && " · Cancelled"}</div></div>
+            <div className="lim"><div className="lin" style={{ textDecoration: cancelled ? "line-through" : "none" }}>{team ? team.name : "Practice"}</div><div className="limt">
+              {timeLbl(p)}
+              {cancelled && " · Cancelled"}
+              {!cancelled && completed && " · Completed"}
+              {!cancelled && !completed && started && isPast && " · Started, not finished"}
+              {!cancelled && !completed && !started && !planned && (isPast ? " · Missed" : " · Needs plan")}
+              {!cancelled && !completed && !started && planned && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}
+            </div></div>
           </div>
           <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>
         </div>);
@@ -54,17 +65,24 @@ export default function ScheduleScreen({ data, update, setView, setLiveId, coach
   const [monthCursor, setMonthCursor] = useState(new Date(now.getFullYear(), now.getMonth(), 1));
   const [daySheetDate, setDaySheetDate] = useState(null);
   const [viewPractice, setViewPractice] = useState(null);
+  const [historyPractice, setHistoryPractice] = useState(null);
   const [showWizard, setShowWizard] = useState(false);
+  const [showSingle, setShowSingle] = useState(false);
   const [absenceCounts, setAbsenceCounts] = useState({});
+  const [runStatus, setRunStatus] = useState({});
 
   const canScheduleAny = data.teams.some(t => isHeadCoach(t, coachId));
   const toggleTeam = id => setTeamFilter(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const passesFilter = p => teamFilter.size === 0 || teamFilter.has(p.teamId);
   const filtered = data.practices.filter(passesFilter);
+  // A practice counts as "ran" the moment its live session completes, not
+  // just once its calendar date has passed -- otherwise a practice run this
+  // morning still reads as "upcoming" until midnight.
+  const ran = p => runStatus[p.id] === "completed";
 
   useEffect(() => {
     const ids = filtered.map(p => p.id);
-    if (!ids.length) { setAbsenceCounts({}); return; }
+    if (!ids.length) { setAbsenceCounts({}); setRunStatus({}); return; }
     let cancelled = false;
     fetchPlannedAbsences(ids).then(rows => {
       if (cancelled) return;
@@ -72,17 +90,52 @@ export default function ScheduleScreen({ data, update, setView, setLiveId, coach
       for (const r of rows) counts[r.practice_id] = (counts[r.practice_id] || 0) + 1;
       setAbsenceCounts(counts);
     });
+    fetchPracticeRunStatus(ids).then(m => { if (!cancelled) setRunStatus(m); });
     return () => { cancelled = true; };
   }, [JSON.stringify(filtered.map(p => p.id))]);
 
+  // Any past/planned practice (run or not) goes to HistoryViewer, which is
+  // the only view that surfaces notes and "what took place" -- cancelled
+  // practices stay on PracticeDetail (that's where Restore lives), and an
+  // unplanned practice has nothing to review, so it stays on PracticeDetail
+  // too (missed-plan messaging + a way to still plan/cancel it).
+  const openPractice = p => {
+    const isHistorical = p.date < todayStr || ran(p);
+    if (isHistorical && p.status !== "cancelled" && (p.activities || []).length > 0) setHistoryPractice(p);
+    else setViewPractice(p);
+  };
+  const runAgainFrom = async practice => {
+    const runNow = new Date();
+    const { data: saved } = await savePracticeTree(null, {
+      teamId: practice.teamId, locationId: practice.locationId, sublocationId: practice.sublocationId,
+      date: localDateStr(runNow), startTime: runNow.toTimeString().slice(0, 5),
+      activities: stripIdsForCopy(practice.activities),
+    });
+    await refreshPlanning();
+    setHistoryPractice(null);
+    if (saved) { setLiveId(saved.id); setView("command"); }
+  };
+
+  if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} update={update} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} /></div>);
   if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} coachId={coachId} refreshPlanning={refreshPlanning} onBack={() => setViewPractice(null)} /></div>);
 
   const teamById = id => data.teams.find(t => t.id === id);
 
-  // Agenda
-  const upcoming = filtered.filter(p => p.date >= todayStr).sort((a, b) => a.date === b.date ? (a.startTime || "").localeCompare(b.startTime || "") : a.date.localeCompare(b.date));
-  const past = filtered.filter(p => p.date < todayStr).sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || ""));
+  // Agenda -- "past" now also catches a same-day practice that already
+  // finished (ran), and "upcoming" excludes it, so a completed morning
+  // practice moves into history immediately instead of waiting for midnight.
+  const upcoming = filtered.filter(p => p.date >= todayStr && !ran(p)).sort((a, b) => a.date === b.date ? (a.startTime || "").localeCompare(b.startTime || "") : a.date.localeCompare(b.date));
+  const past = filtered.filter(p => p.date < todayStr || ran(p)).sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || ""));
   const groupByDay = list => { const g = []; let cur = null; for (const p of list) { if (!cur || cur.date !== p.date) { cur = { date: p.date, items: [] }; g.push(cur); } cur.items.push(p); } return g; };
+  // Past-list status word: cancelled beats everything, then a completed run,
+  // then a session that was started but never finished (abandoned), then
+  // plain missed (never even started).
+  const pastStatusLbl = p => {
+    if (p.status === "cancelled") return "Cancelled";
+    if (ran(p)) return "Completed";
+    if (runStatus[p.id] === "started") return "Started, not finished";
+    return "Missed";
+  };
 
   // Month grid
   const monthStart = monthCursor;
@@ -94,9 +147,12 @@ export default function ScheduleScreen({ data, update, setView, setLiveId, coach
   const toDateStr = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 
   return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}>
-    <div style={{ padding: "20px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 28, fontWeight: 900 }}>Schedule</div>
-      {canScheduleAny && <button className="btn primary bsm" onClick={() => setShowWizard(true)}>+ Schedule</button>}
+    <div style={{ padding: "20px 16px 12px" }}>
+      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 28, fontWeight: 900, marginBottom: canScheduleAny ? 10 : 0 }}>Schedule</div>
+      {canScheduleAny && <div style={{ display: "flex", gap: 8 }}>
+        <button className="btn primary bsm" style={{ flex: 1 }} onClick={() => setShowSingle(true)}>+ Practice</button>
+        <button className="btn outline bsm" style={{ flex: 1 }} onClick={() => setShowWizard(true)}>+ Series</button>
+      </div>}
     </div>
 
     {data.teams.length > 0 && <div style={{ padding: "0 16px 12px", display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -115,7 +171,7 @@ export default function ScheduleScreen({ data, update, setView, setLiveId, coach
         <div className="clbl" style={{ marginBottom: 6 }}>{dayLbl(g.date, todayStr, tomorrowStr)}</div>
         {g.items.map(p => {
           const team = teamById(p.teamId), planned = (p.activities || []).length > 0, cancelled = p.status === "cancelled", count = absenceCounts[p.id] || 0;
-          return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer", opacity: cancelled ? .6 : 1 }} onClick={() => setViewPractice(p)}>
+          return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer", opacity: cancelled ? .6 : 1 }} onClick={() => openPractice(p)}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
               {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
               <div className="lim" style={{ minWidth: 0 }}>
@@ -127,13 +183,13 @@ export default function ScheduleScreen({ data, update, setView, setLiveId, coach
           </div>);
         })}
       </div>))}
-      {upcoming.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>{canScheduleAny ? "Nothing scheduled. Tap + Schedule to set up recurring practices." : "Nothing scheduled yet."}</div>}
+      {upcoming.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>{canScheduleAny ? "Nothing scheduled. Tap + Practice or + Series above to get started." : "Nothing scheduled yet."}</div>}
       {past.length > 0 && <div style={{ marginTop: 8 }}>
         <button className="btn ghost bsm bfull" onClick={() => setShowPast(s => !s)}>{showPast ? "Hide" : "Show"} Completed / History</button>
         {showPast && groupByDay(past).map(g => (<div key={g.date} style={{ marginTop: 12 }}>
           <div className="clbl" style={{ marginBottom: 6 }}>{dayLbl(g.date, todayStr, tomorrowStr)}</div>
-          {g.items.map(p => { const team = teamById(p.teamId); return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer" }} onClick={() => setViewPractice(p)}>
-            <div className="lim"><div className="lin">{team ? team.name : "Practice"}</div><div className="limt">{timeLbl(p)}</div></div>
+          {g.items.map(p => { const team = teamById(p.teamId); return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer" }} onClick={() => openPractice(p)}>
+            <div className="lim"><div className="lin">{team ? team.name : "Practice"}</div><div className="limt">{timeLbl(p)} · {pastStatusLbl(p)}</div></div>
             <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>
           </div>); })}
         </div>))}
@@ -162,9 +218,10 @@ export default function ScheduleScreen({ data, update, setView, setLiveId, coach
           </div>);
         })}
       </div>
-      {daySheetDate && <DaySheet date={daySheetDate} practices={(practicesByDate[daySheetDate] || []).sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))} data={data} onPick={p => { setDaySheetDate(null); setViewPractice(p); }} onClose={() => setDaySheetDate(null)} />}
+      {daySheetDate && <DaySheet date={daySheetDate} practices={(practicesByDate[daySheetDate] || []).sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))} data={data} todayStr={todayStr} runStatus={runStatus} onPick={p => { setDaySheetDate(null); openPractice(p); }} onClose={() => setDaySheetDate(null)} />}
     </div>}
 
     {showWizard && <SeriesWizard data={data} coachId={coachId} onClose={() => setShowWizard(false)} onDone={async () => { setShowWizard(false); await refreshPlanning(); }} />}
+    {showSingle && <SchedulePracticeModal data={data} coachId={coachId} onClose={() => setShowSingle(false)} onDone={async (result, planNow) => { setShowSingle(false); await refreshPlanning(); if (planNow && result && setEditPracticeId) { setEditPracticeId(result.id); setView("builder"); } }} />}
   </div>);
 }

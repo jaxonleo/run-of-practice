@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { sumMins, isHeadCoach, planningState, localDateStr } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback } from "../supabase.js";
+import { sumMins, isHeadCoach, planningState, localDateStr, stripIdsForCopy } from "../constants.js";
+import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback, savePracticeTree } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
+import { HistoryViewer } from "./CommandScreen.jsx";
 
 // §1: "35/60 min" pill -- half-filled/amber for partial, warning-tinted for
 // overplanned, filled+check when within tolerance. Returns null (renders
@@ -99,8 +100,10 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [practiceMenuId, setPracticeMenuId] = useState(null);
   const [viewPractice, setViewPractice] = useState(null);
+  const [historyPractice, setHistoryPractice] = useState(null);
   const [showAbsencePicker, setShowAbsencePicker] = useState(false);
   const [absenceCounts, setAbsenceCounts] = useState({});
+  const [runStatus, setRunStatus] = useState({});
   const [showHelpMenu, setShowHelpMenu] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -128,9 +131,34 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
     });
   };
   useEffect(refreshAbsenceCounts, [agendaIdsKey]);
+  useEffect(() => {
+    const ids = agendaWindow.map(p => p.id);
+    if (!ids.length) { setRunStatus({}); return; }
+    fetchPracticeRunStatus(ids).then(setRunStatus);
+  }, [agendaIdsKey]);
+  // Same date-agnostic run signal as ScheduleScreen -- a practice run
+  // earlier today shouldn't still read as the hero's "upcoming" practice.
+  const ran = p => runStatus[p.id] === "completed";
+  const openPractice = p => {
+    if (ran(p) && isPlanned(p)) setHistoryPractice(p);
+    else setViewPractice(p);
+  };
+  const runAgainFrom = async practice => {
+    const runNow = new Date();
+    const { data: saved } = await savePracticeTree(null, {
+      teamId: practice.teamId, locationId: practice.locationId, sublocationId: practice.sublocationId,
+      date: localDateStr(runNow), startTime: runNow.toTimeString().slice(0, 5),
+      activities: stripIdsForCopy(practice.activities),
+    });
+    await refreshPlanning();
+    setHistoryPractice(null);
+    if (saved) { setLiveId(saved.id); setView("command"); }
+  };
 
-  // Next-practice hero: soonest today (any time-of-day), else soonest future.
-  const nextPractice = agendaWindow.find(p => p.date === todayStr) || agendaWindow.find(p => p.date > todayStr) || null;
+  // Next-practice hero: soonest today (any time-of-day), else soonest
+  // future -- skips a practice that's already completed today so the hero
+  // moves on instead of still offering "Start Practice" on a finished run.
+  const nextPractice = agendaWindow.find(p => p.date === todayStr && !ran(p)) || agendaWindow.find(p => p.date > todayStr && !ran(p)) || null;
   const isSoonOrLive = p => {
     if (!p || !p.startTime || p.date !== todayStr) return false;
     const [h, m] = p.startTime.split(":").map(Number);
@@ -157,6 +185,7 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
   const [leavingTeamId, setLeavingTeamId] = useState(null);
   const handleLeave = async teamId => { setLeavingTeamId(teamId); await leaveTeam(teamId); if (refreshTeams) await refreshTeams(); setLeavingTeamId(null); };
 
+  if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} update={update} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} /></div>);
   if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} coachId={coachId} onBack={() => setViewPractice(null)} /></div>);
 
   return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}>
@@ -242,13 +271,13 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
       <div className="sechdr" style={{ marginBottom: 8 }}><span className="sectitle">Next 14 Days</span></div>
       {agendaWindow.length === 0 && <div style={{ padding: "16px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>Nothing scheduled.</div>}
       {agendaWindow.map(p => {
-        const team = teamById(p.teamId), loc = locById(p.locationId), planned = isPlanned(p), count = absenceCounts[p.id] || 0;
-        return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer" }} onClick={() => setViewPractice(p)}>
+        const team = teamById(p.teamId), loc = locById(p.locationId), planned = isPlanned(p), count = absenceCounts[p.id] || 0, completed = ran(p);
+        return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer" }} onClick={() => openPractice(p)}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
             {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
             <div className="lim" style={{ minWidth: 0 }}>
               <div className="lin">{team ? team.name : "Practice"}</div>
-              <div className="limt">{dayLbl(p.date, todayStr, tomorrowStr)}{p.startTime ? " · " + timeLbl(p) : ""}{loc ? " · " + loc.name : ""}{!planned && " · Needs plan"}{planned && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{count > 0 && " · " + count + " out"}</div>
+              <div className="limt">{dayLbl(p.date, todayStr, tomorrowStr)}{p.startTime ? " · " + timeLbl(p) : ""}{loc ? " · " + loc.name : ""}{completed && " · Completed"}{!completed && !planned && " · Needs plan"}{!completed && planned && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{count > 0 && " · " + count + " out"}</div>
             </div>
           </div>
           <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
