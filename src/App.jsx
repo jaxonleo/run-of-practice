@@ -552,6 +552,7 @@ export default function App(){
   const [modal,setModal]=useState(null);
   const [liveId,setLiveId]=useState(null);
   const [editPracticeId,setEditPracticeId]=useState(null);
+  const [startTemplateId,setStartTemplateId]=useState(null);
   const [session,setSession]=useState(undefined); // undefined=loading, null=signed out, object=signed in
   const [wantsAuth,setWantsAuth]=useState(false);
   const update=useCallback(fn=>{setData(d=>{const nx=fn(JSON.parse(JSON.stringify(d)));saveData(nx);return nx;});},[]);
@@ -649,8 +650,8 @@ export default function App(){
         {view==="today"&&<HomeScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} coachEmail={profile&&profile.email?profile.email:(session?session.user.email:"")} onSignOut={signOut} onDeactivate={handleDeactivate} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>}
         {view==="schedule"&&<ScheduleScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning}/>}
         {view==="manage"&&<ManageScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
-        {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setLiveId={setLiveId} launchRun={launchRun} setEditPracticeId={setEditPracticeId} refreshLibrary={refreshLibrary} coachId={coachId} refreshPlanning={refreshPlanning}/>}
-        {view==="builder"&&<BuilderScreen data={fullData} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
+        {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setEditPracticeId={setEditPracticeId} setStartTemplateId={setStartTemplateId} refreshLibrary={refreshLibrary} coachId={coachId} refreshPlanning={refreshPlanning}/>}
+        {view==="builder"&&<BuilderScreen data={fullData} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} startTemplateId={startTemplateId} setStartTemplateId={setStartTemplateId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
         {view==="command"&&<CommandScreen data={fullData} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} setView={setView} refreshPlanning={refreshPlanning}/>}
       </div>
       {view!=="command"&&<nav className="tabbar">
@@ -713,13 +714,20 @@ function DurStepper({value,min,onChange,step}){
   );
 }
 
-function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPracticeId,coachId,refreshPlanning,refreshLibrary}){
+function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,coachId,refreshPlanning,refreshLibrary}){
   const editP=editPracticeId?data.practices.find(p=>p.id===editPracticeId):null;
+  // "Start from Template" seeds a brand-new (not editP) practice from a
+  // saved template's contents -- distinct from editing an already-scheduled
+  // practice, so it still gets the full Team/Schedule/Template/Run Now bar.
+  const startTpl=(!editP&&startTemplateId)?(data.templates||[]).find(t=>t.id===startTemplateId):null;
+  // Consume the intent once on mount so leaving and returning to Builder
+  // later (e.g. to edit a different practice) doesn't silently re-seed it.
+  useEffect(()=>{if(startTemplateId&&setStartTemplateId)setStartTemplateId(null);},[]);
   const [existingId,setExistingId]=useState(editP?editP.id:null);
-  const [teamId,setTeamId]=useState(editP?editP.teamId:(data.teams[0]?data.teams[0].id:""));
+  const [teamId,setTeamId]=useState(editP?editP.teamId:((startTpl&&startTpl.defaultTeamId)||(data.teams[0]?data.teams[0].id:"")));
   const lastLocForTeam=(tid)=>{const tps=data.practices.filter(p=>p.teamId===tid&&p.locationId).sort((a,b)=>b.date>a.date?1:-1);return tps.length?tps[0].locationId:(data.locations[0]?data.locations[0].id:"");};
-  const [locId,setLocId]=useState(editP?editP.locationId:lastLocForTeam(editP?editP.teamId:(data.teams[0]?data.teams[0].id:"")));
-  const [acts,setActs]=useState(editP?JSON.parse(JSON.stringify(editP.activities)):[]);
+  const [locId,setLocId]=useState(editP?editP.locationId:((startTpl&&startTpl.locationId)||lastLocForTeam(editP?editP.teamId:(data.teams[0]?data.teams[0].id:""))));
+  const [acts,setActs]=useState(editP?JSON.parse(JSON.stringify(editP.activities)):(startTpl?stripIdsForCopy(startTpl.activities):[]));
   const [expandedId,setExpandedId]=useState(null);
   const [savedTpl,setSavedTpl]=useState(false);
   const [bottomMode,setBottomMode]=useState(null);
@@ -797,11 +805,15 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
         <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",flexShrink:0}}>Editing</span>
         <span style={{fontSize:13,fontWeight:700,color:"var(--black)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{team?team.name:"Practice"} · {schedDate?new Date(schedDate+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"No date"}{schedTime?" · "+fmt12(schedTime):""}</span>
       </div>}
+      {!editP&&startTpl&&<div style={{padding:"8px 14px",background:"var(--gbg)",borderBottom:"1px solid var(--gb)",display:"flex",alignItems:"baseline",gap:8}}>
+        <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",flexShrink:0}}>From Template</span>
+        <span style={{fontSize:13,fontWeight:700,color:"var(--black)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{startTpl.name}</span>
+      </div>}
       <div style={{padding:"8px 14px",display:"flex",gap:6}}>
         {(!bottomMode||bottomMode==="")&&<div style={{display:"flex",gap:6,width:"100%"}}>
-          <button className="btn outline bsm" style={{flex:1}} onClick={handleSave}>{existingId?"Save":"Save"}</button>
-          <button className="btn outline bsm" style={{flex:1}} onClick={()=>setBottomMode("schedule")}>Schedule</button>
-          <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{setTplName("");setBottomMode("template");}}>Template</button>
+          <button className="btn outline bsm" style={{flex:1}} onClick={handleSave}>Save</button>
+          {!editP&&<button className="btn outline bsm" style={{flex:1}} onClick={()=>setBottomMode("schedule")}>Schedule</button>}
+          {!editP&&<button className="btn ghost bsm" style={{flex:1}} onClick={()=>{setTplName("");setBottomMode("template");}}>Template</button>}
           <button className="btn primary bsm" style={{flex:2}} onClick={handleRun}>Run Now</button>
         </div>}
         {bottomMode==="schedule"&&<div style={{width:"100%"}}>
@@ -829,16 +841,21 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
       </div>
       <div className="card mb10">
         <div className="clbl">Practice Setup</div>
-        <div className="fld"><label className="lbl">Team</label>
+        {!editP&&<div className="fld"><label className="lbl">Team</label>
           <select className="sel" value={teamId} onChange={e=>{const tid=e.target.value;setTeamId(tid);setLocId(lastLocForTeam(tid));}}>
             {!data.teams.length&&<option value="">-- Add a team first --</option>}
             {data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
-        </div>
-        <div className="fld"><label className="lbl">Location</label>
-          <select className="sel" value={locId} onChange={e=>setLocId(e.target.value)}>
-            {data.locations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
+        </div>}
+        <div className={editP?"g2":undefined}>
+          <div className="fld"><label className="lbl">Location</label>
+            <select className="sel" value={locId} onChange={e=>setLocId(e.target.value)}>
+              {data.locations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </div>
+          {editP&&<div className="fld"><label className="lbl">Start Time</label>
+            <input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/>
+          </div>}
         </div>
       </div>
       {acts.length===0&&(<div style={{textAlign:"center",padding:"20px 16px",background:"var(--s2)",borderRadius:"var(--r)",marginBottom:10,border:"1.5px dashed var(--b)"}}>
@@ -870,7 +887,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
               </div>
             </div>
             {expandedId===act.id&&(<div className="abbody">
-                {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
+                {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
                 {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
                 {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport} libraryDrills={data.activityLibrary}/>}
               </div>

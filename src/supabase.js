@@ -874,13 +874,13 @@ export async function fetchTemplatesFull() {
     return {
       id: t.id, name: t.name, sport: t.sport, locationId: t.location_id || '',
       organizationId: t.organization_id, ownerUserId: t.owner_user_id, sharedWithOrganizationId: t.shared_with_organization_id,
-      createdAt: t.created_at, updatedAt: t.updated_at,
+      createdAt: t.created_at, updatedAt: t.updated_at, defaultTeamId: t.default_team_id || '',
       durMin: sumMinsLocal(activities), activities,
     }
   })
 }
-export async function saveTemplateTree(ownerUserId, existingId, { name, sport, locationId, activities }) {
-  const row = { name, sport: sport || 'General', location_id: locationId || null }
+export async function saveTemplateTree(ownerUserId, existingId, { name, sport, locationId, teamId, activities }) {
+  const row = { name, sport: sport || 'General', location_id: locationId || null, default_team_id: teamId || null }
   let tplId = existingId
   if (isDbId(tplId)) {
     await supabase.from('templates').update(row).eq('id', tplId)

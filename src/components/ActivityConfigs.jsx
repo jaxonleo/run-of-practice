@@ -25,13 +25,22 @@ function DurStepper({value,min,onChange,step}){
   </div>);
 }
 
-export function ActConfig({act,team,loc,onChange,onDone,assets,coachId,refreshLibrary}){
+export function ActConfig({act,team,loc,onChange,onDone,assets,coachId,refreshLibrary,libraryDrills,skillTags}){
   const [newGearOpen,setNewGearOpen]=useState(false);
   const teamEquip=(assets||[]).filter(a=>!a.type||a.type==="team");
   const sport=act.sport||"General";
   const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General"));
   const equip=Array.isArray(act.equipment)?act.equipment:[];
   const toggleEquip=id=>{const has=equip.includes(id);onChange({equipment:has?equip.filter(x=>x!==id):[...equip,id]});};
+  // Practice/template activities are a snapshot copy of the drill at
+  // add-time and don't carry their own skillTagIds -- look them up on the
+  // source library drill, same as the Library screen and live view do.
+  const drillTagNames=(()=>{
+    if(!act.libraryId)return [];
+    const drill=(libraryDrills||[]).find(d=>d.id===act.libraryId);
+    if(!drill||!drill.skillTagIds||!drill.skillTagIds.length)return [];
+    return drill.skillTagIds.map(id=>{const t=(skillTags||[]).find(t=>t.id===id);return t?t.name:null;}).filter(Boolean);
+  })();
   const addInline=async(inputId,type,gearSport)=>{
     const el=document.getElementById(inputId);
     if(!el||!el.value.trim())return;
@@ -94,6 +103,11 @@ export function ActConfig({act,team,loc,onChange,onDone,assets,coachId,refreshLi
         <button type="button" className="btn ghost bxs" onClick={()=>addInline("actcfg-gear-inp","player",sport)}>Add</button>
         <button type="button" className="btn ghost bxs" onClick={()=>setNewGearOpen(false)}>✕</button>
       </div>:<button type="button" className="btn ghost bxs" onClick={()=>setNewGearOpen(true)}>+ Add Gear</button>}
+    </div>}
+    {drillTagNames.length>0&&<div className="fld"><label className="lbl">Skill Tags</label>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+        {drillTagNames.map(n=>(<span key={n} className="bdg bs">{n}</span>))}
+      </div>
     </div>}
     <button className="btn ghost bsm bfull mt8" onClick={onDone}>Done</button>
   </div>);

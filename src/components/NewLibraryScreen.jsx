@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import { uid, sumMins, localDateStr } from "../constants.js";
+import { uid, sumMins } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
-import { archiveDrill, setDrillShare, copyDrillToMyLibrary, savePracticeTree, saveTemplateTree, archiveTemplate, swapDrillPositions, createSkillTag, archiveSkillTag } from "../supabase.js";
+import { archiveDrill, setDrillShare, copyDrillToMyLibrary, saveTemplateTree, archiveTemplate, swapDrillPositions, createSkillTag, archiveSkillTag } from "../supabase.js";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -78,16 +78,18 @@ function SkillsTab({data,coachId,refreshLibrary}){
 // aren't team-scoped in the new schema (reusable across every team a coach
 // coaches), so there's nowhere to persist a specific coach or player
 // assignment at the template level, only sublocation (coach/org-owned, not
-// team-owned). teamId here is pure local UI state: which team's roster to
-// preview against and which team a practice defaults to when run/scheduled
-// from this template.
-function TemplateWorkspace({data,template,onRun,onBack,openModal,coachId,refreshLibrary,refreshPlanning}){
+// team-owned). teamId is a real persisted column (default_team_id) even
+// though it's optional -- defaults to "" (None), never auto-picked, so a
+// coach's explicit "None" choice sticks across reopens instead of reverting.
+// This screen is purely for building/editing the template itself -- no
+// Run Now/Schedule here. Turning a template into an actual practice is a
+// separate "Start from Template" action (once the template has been saved)
+// that hands off to Builder as a brand-new, non-editing practice seeded
+// with the template's activities.
+function TemplateWorkspace({data,template,onBack,openModal,coachId,refreshLibrary,refreshPlanning,onStartFromTemplate}){
   const [name,setName]=useState(template.name);
   const [sport,setSport]=useState(template.sport||"General");
-  const [teamId,setTeamId]=useState(()=>{
-    const match=data.teams.find(t=>(t.sport||"General")===template.sport);
-    return match?match.id:(data.teams[0]?data.teams[0].id:"");
-  });
+  const [teamId,setTeamId]=useState(template.defaultTeamId||"");
   const [locId,setLocId]=useState(()=>template.locationId||(data.locations[0]?data.locations[0].id:""));
   const [acts,setActs]=useState(()=>JSON.parse(JSON.stringify(template.activities||[])));
   const [existingId,setExistingId]=useState(template.id);
@@ -95,27 +97,19 @@ function TemplateWorkspace({data,template,onRun,onBack,openModal,coachId,refresh
   const [savedMsg,setSavedMsg]=useState(null);
   const [newTplName,setNewTplName]=useState("");
   const [showNewTpl,setShowNewTpl]=useState(false);
-  const [schedMode,setSchedMode]=useState(false);
-  const [schedDate,setSchedDate]=useState(()=>localDateStr());
-  const [schedTime,setSchedTime]=useState("16:00");
-  const team=data.teams.find(t=>t.id===teamId)||null;
+  // A freshly-created template placeholder (from "+ New Template") has a
+  // locally-generated uid(), not a real UUID -- checked live off existingId
+  // (not frozen at mount) so Save as New/Start from Template appear the
+  // moment a brand-new template's first save returns a real row.
+  const isSaved=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(existingId||"");
   const loc=data.locations.find(l=>l.id===locId)||null;
   const updAct=(id,ch)=>setActs(p=>p.map(a=>a.id===id?Object.assign({},a,ch):a));
   const updSt=(aid,sid,ch)=>setActs(p=>p.map(a=>a.id===aid?Object.assign({},a,{stations:a.stations.map(s=>s.id===sid?Object.assign({},s,ch):s)}):a));
   const remAct=id=>setActs(p=>p.filter(a=>a.id!==id));
   const equipNames=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
 
-  const handleRun=async()=>{
-    const now=new Date();
-    const dateStr=localDateStr(now);
-    const timeStr=now.toTimeString().slice(0,5);
-    const {data:saved}=await savePracticeTree(null,{teamId,locationId:locId,date:dateStr,startTime:timeStr,activities:acts});
-    await refreshPlanning();
-    if(saved&&onRun)onRun(saved.id);
-  };
-
   const handleSave=async()=>{
-    const {data:saved}=await saveTemplateTree(coachId,existingId,{name,sport,locationId:locId,activities:acts});
+    const {data:saved}=await saveTemplateTree(coachId,existingId,{name,sport,locationId:locId,teamId,activities:acts});
     if(saved)setExistingId(saved.id);
     await refreshPlanning();
     setSavedMsg("Template saved!");
@@ -124,22 +118,11 @@ function TemplateWorkspace({data,template,onRun,onBack,openModal,coachId,refresh
 
   const handleSaveAsNew=async()=>{
     if(!newTplName.trim())return;
-    await saveTemplateTree(coachId,null,{name:newTplName.trim(),sport,locationId:locId,activities:acts});
+    await saveTemplateTree(coachId,null,{name:newTplName.trim(),sport,locationId:locId,teamId,activities:acts});
     await refreshPlanning();
     setSavedMsg("Saved as \""+newTplName.trim()+"\"!");
     setShowNewTpl(false);setNewTplName("");
     setTimeout(()=>setSavedMsg(null),2000);
-  };
-
-  const handleSchedule=async()=>{
-    if(!schedDate)return;
-    const {data:saved}=await savePracticeTree(null,{teamId,locationId:locId,date:schedDate,startTime:schedTime,activities:acts});
-    await refreshPlanning();
-    const [mo,da,yr]=[schedDate.slice(5,7),schedDate.slice(8,10),schedDate.slice(0,4)];
-    const st=schedTime.split(":");const sh=parseInt(st[0]);const sm=st[1];const sampm=sh>=12?"PM":"AM";const s12=(sh%12||12)+":"+sm+" "+sampm;
-    setSavedMsg(saved?("Scheduled for "+mo+"-"+da+"-"+yr+" at "+s12+"!"):"Something went wrong.");
-    setSchedMode(false);
-    setTimeout(()=>{setSavedMsg(null);onBack();},1500);
   };
 
   return (<div style={{paddingBottom:100}}>
@@ -203,7 +186,7 @@ function TemplateWorkspace({data,template,onRun,onBack,openModal,coachId,refresh
           </div>
         </div>
         {expandedId===act.id&&(<div className="abbody">
-          {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
+          {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
           {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
           {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={sport} libraryDrills={data.activityLibrary}/>}
         </div>)}
@@ -264,37 +247,19 @@ function TemplateWorkspace({data,template,onRun,onBack,openModal,coachId,refresh
       <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowNewTpl(false);setNewTplName("");}}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsNew} disabled={!newTplName.trim()}>Save</button></div>
     </div>}
 
-    {/* Schedule overlay - fixed so it's always visible */}
-    {schedMode&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:100,display:"flex",alignItems:"flex-end"}} onClick={()=>setSchedMode(false)}>
-      <div style={{background:"#fff",width:"100%",maxWidth:480,margin:"0 auto",borderRadius:"20px 20px 0 0",padding:"24px 20px 40px"}} onClick={e=>e.stopPropagation()}>
-        <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 20px"}}/>
-        <div className="clbl mb10">Schedule Practice</div>
-        <div className="g2">
-          <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/></div>
-          <div className="fld"><label className="lbl">Start Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
-        </div>
-        <div style={{fontSize:12,color:"var(--td)",marginBottom:16}}>Saves to your calendar. Share a setup link from the practice detail.</div>
-        <div className="brow">
-          <button className="btn ghost bmd" style={{flex:1}} onClick={()=>setSchedMode(false)}>Cancel</button>
-          <button className="btn primary bmd" style={{flex:1}} onClick={handleSchedule} disabled={!schedDate}>Schedule</button>
-        </div>
-      </div>
-    </div>}
-
     {/* Bottom action bar */}
     {!showNewTpl&&<div style={{position:"fixed",bottom:"calc(var(--tab))",left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#fff",borderTop:"1px solid var(--b)",padding:"10px 14px",zIndex:50}}>
-      <button className="btn primary bxl bfull" style={{marginBottom:8,height:52,fontSize:17}} onClick={handleRun}>Run Now</button>
+      {isSaved&&<button className="btn primary bxl bfull" style={{marginBottom:8,height:52,fontSize:17}} onClick={()=>onStartFromTemplate&&onStartFromTemplate(existingId)}>Start from Template</button>}
       <div className="brow">
-        <button className="btn ghost bmd" style={{flex:1}} onClick={()=>setSchedMode(true)}>Schedule</button>
-        <button className="btn ghost bmd" style={{flex:1}} onClick={handleSave}>Save Template</button>
-        <button className="btn outline bmd" style={{flex:1}} onClick={()=>setShowNewTpl(true)}>Save as New</button>
+        <button className="btn outline bmd" style={{flex:1}} onClick={handleSave}>Save Template</button>
+        {isSaved&&<button className="btn ghost bmd" style={{flex:1}} onClick={()=>setShowNewTpl(true)}>Save as New</button>}
       </div>
     </div>}
   </div>);
 }
 
 // ── NewLibraryScreen ──────────────────────────────────────────────────────────
-export default function NewLibraryScreen({data,openModal,setView,setLiveId,launchRun,setEditPracticeId,refreshLibrary,coachId,refreshPlanning}){
+export default function NewLibraryScreen({data,openModal,setView,setEditPracticeId,setStartTemplateId,refreshLibrary,coachId,refreshPlanning}){
   const [libTab,setLibTab]=useState("drills");
   useEffect(()=>{window.__ropLibTab=setLibTab;return()=>{delete window.__ropLibTab;};},[]);
   const [openMenu,setOpenMenu]=useState(null);
@@ -307,6 +272,7 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
   const [copyingId,setCopyingId]=useState(null);
   const [tagFilter,setTagFilter]=useState([]);
   const [tagSearch,setTagSearch]=useState("");
+  const [showFilter,setShowFilter]=useState(false);
   const [newTplPrompt,setNewTplPrompt]=useState(false);
   const [newTplNameDraft,setNewTplNameDraft]=useState("");
   const toggle=sport=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}));
@@ -320,6 +286,7 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
   })();
   const isMine=shelf==="mine";
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
+  const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
   // Only offer tags that at least one drill on this shelf actually has --
   // filtering by a tag with zero drills would just be a dead end.
   const tagCounts={};
@@ -358,7 +325,7 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
     setNewTplPrompt(false);
   };
   const LTABS=["drills","templates","skills"];
-  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onRun={practiceId=>{setLiveId(practiceId);setView("command");}} onBack={()=>setEditingTpl(null)}/></div>);
+  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>{if(setEditPracticeId)setEditPracticeId(null);if(setStartTemplateId)setStartTemplateId(tplId);setView("builder");}}/></div>);
   return (<div style={{paddingBottom:80}}>
     <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>Library</div>
@@ -373,13 +340,31 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
       {shelves.length>1&&<div style={{display:"flex",gap:6,overflowX:"auto",marginBottom:12,paddingBottom:2}}>
         {shelves.map(s=>(<button key={s.key} onClick={()=>{setShelf(s.key);setTagFilter([]);setTagSearch("");}} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:shelf===s.key?"var(--green)":"var(--s1)",color:shelf===s.key?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{s.label}</button>))}
       </div>}
-      {isMine&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn primary bsm" onClick={()=>openModal("addActivity")}>+ Add Drill</button></div>}
-      {availableTags.length>0&&<div style={{marginBottom:14}} onClick={e=>e.stopPropagation()}>
-        {availableTags.length>8&&<input className="inp" placeholder="Search skill tags..." value={tagSearch} onChange={e=>setTagSearch(e.target.value)} style={{marginBottom:8}}/>}
-        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-          {visibleTagChips.map(t=>(<button key={t.id} type="button" onClick={()=>toggleTagFilter(t.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:tagFilter.includes(t.id)?"var(--green)":"var(--s1)",color:tagFilter.includes(t.id)?"#fff":"var(--black)",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t.name} <span style={{opacity:.7}}>{tagCounts[t.id]}</span></button>))}
-          {visibleTagChips.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No skill tags match "{tagSearch}"</span>}
-          {tagFilter.length>0&&<button type="button" onClick={()=>setTagFilter([])} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:"#fff",color:"var(--td)",fontSize:12,fontWeight:600,cursor:"pointer"}}>Clear ×</button>}
+      <div style={{display:"flex",justifyContent:"flex-end",gap:6,marginBottom:12}}>
+        {availableTags.length>0&&<button className="btn ghost bsm" onClick={e=>{e.stopPropagation();setShowFilter(true);}}>Filter{tagFilter.length>0?" ("+tagFilter.length+")":""}</button>}
+        {isMine&&<button className="btn primary bsm" onClick={()=>openModal("addActivity")}>+ Add Drill</button>}
+      </div>
+      {tagFilter.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center",marginBottom:12}} onClick={e=>e.stopPropagation()}>
+        {tagFilter.map(id=>{const t=skillTagsById[id];if(!t)return null;return(<span key={id} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 4px 3px 10px",borderRadius:20,background:"var(--green)",color:"#fff",fontSize:12,fontWeight:600}}>
+          {t.name}
+          <button type="button" onClick={()=>toggleTagFilter(id)} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:14,lineHeight:1,padding:"2px 4px"}}>&times;</button>
+        </span>);})}
+        <button type="button" onClick={()=>setTagFilter([])} style={{background:"none",border:"none",color:"var(--td)",fontSize:12,cursor:"pointer",textDecoration:"underline",padding:0}}>Clear all</button>
+      </div>}
+      {showFilter&&<div className="movly" style={{zIndex:300}} onClick={e=>{if(e.target===e.currentTarget)setShowFilter(false);}}>
+        <div className="modal">
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900}}>Filter Drills</div>
+            <button type="button" className="btn ghost bxs" onClick={()=>setShowFilter(false)}>Done</button>
+          </div>
+          <div className="clbl mb8">Skill Tags</div>
+          {availableTags.length>8&&<input className="inp" placeholder="Search skill tags..." value={tagSearch} onChange={e=>setTagSearch(e.target.value)} style={{marginBottom:10}}/>}
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+            {visibleTagChips.map(t=>(<button key={t.id} type="button" onClick={()=>toggleTagFilter(t.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:tagFilter.includes(t.id)?"var(--green)":"var(--s1)",color:tagFilter.includes(t.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{t.name} <span style={{opacity:.7}}>{tagCounts[t.id]}</span></button>))}
+            {visibleTagChips.length===0&&<span style={{fontSize:13,color:"var(--td)"}}>No skill tags match "{tagSearch}"</span>}
+          </div>
+          {tagFilter.length>0&&<button type="button" className="btn ghost bxs" onClick={()=>setTagFilter([])}>Clear all filters</button>}
+          <button type="button" className="btn primary bmd bfull" style={{marginTop:14}} onClick={()=>setShowFilter(false)}>Done</button>
         </div>
       </div>}
       {shelfDrillsAll.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>{isMine?"No drills yet. Tap + Add Drill.":shelf.startsWith("orgLib:")?"No drills shared to this org yet -- share one from My Library.":"No drills shared by other coaches yet."}</div>}
@@ -405,6 +390,9 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
               {act.coachingPoints&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.coachingPoints}</div>}
               {act.equipment&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>Needs: {equipNames(act.equipment).join(", ")}</div>}
               {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>{act.grouping==="partners"?"Partners":act.numGroups+" groups"}</div>}
+              {act.skillTagIds&&act.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                {tagNames(act.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+              </div>}
               {!isMine&&<div style={{fontSize:11,color:"var(--green2)",marginTop:4}}>Shared by {(data.profilesById&&data.profilesById[act.ownerUserId]&&data.profilesById[act.ownerUserId].name)||"a coach"}</div>}
               {!isMine&&shelf.startsWith("shared:")&&<button className="btn outline bxs" style={{marginTop:6}} onClick={()=>doCopy(act)} disabled={copyingId===act.id}>{copyingId===act.id?"Copying...":"Copy to My Library"}</button>}
             </div>
