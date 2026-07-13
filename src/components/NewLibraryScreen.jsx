@@ -21,7 +21,13 @@ function SkillsTab({data,coachId,refreshLibrary}){
   const [drafts,setDrafts]=useState({});
   const cats=data.skillCategories||[];
   const tags=data.skillTags||[];
-  const sports=[...new Set(cats.map(c=>c.sport))].sort();
+  // Every coach gets starter tags seeded for every sport with a curated
+  // taxonomy, regardless of which teams they actually coach -- a
+  // basketball-only coach doesn't want to wade through Baseball's 7
+  // categories to find their own. Scope the sport groupings shown here to
+  // the sports of the coach's own teams.
+  const myTeamSports=new Set((data.teams||[]).map(t=>t.sport).filter(Boolean));
+  const sports=[...new Set(cats.map(c=>c.sport))].filter(s=>myTeamSports.has(s)).sort();
   const del=async id=>{await archiveSkillTag(id);await refreshLibrary();};
   const add=async categoryId=>{
     const name=(drafts[categoryId]||"").trim();
@@ -30,7 +36,8 @@ function SkillsTab({data,coachId,refreshLibrary}){
     setDrafts(p=>Object.assign({},p,{[categoryId]:""}));
     await refreshLibrary();
   };
-  if(sports.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No skill categories set up yet.</div>;
+  if(cats.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No skill categories set up yet.</div>;
+  if(sports.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Add a team to see skill tags for its sport here.</div>;
   return(<div>
     {sports.map(sport=>{
       const isCollapsed=collapsed[sport];
@@ -313,7 +320,6 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
   })();
   const isMine=shelf==="mine";
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
-  const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
   // Only offer tags that at least one drill on this shelf actually has --
   // filtering by a tag with zero drills would just be a dead end.
   const tagCounts={};
@@ -399,9 +405,6 @@ export default function NewLibraryScreen({data,openModal,setView,setLiveId,launc
               {act.coachingPoints&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.coachingPoints}</div>}
               {act.equipment&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>Needs: {equipNames(act.equipment).join(", ")}</div>}
               {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>{act.grouping==="partners"?"Partners":act.numGroups+" groups"}</div>}
-              {act.skillTagIds&&act.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                {tagNames(act.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
-              </div>}
               {!isMine&&<div style={{fontSize:11,color:"var(--green2)",marginTop:4}}>Shared by {(data.profilesById&&data.profilesById[act.ownerUserId]&&data.profilesById[act.ownerUserId].name)||"a coach"}</div>}
               {!isMine&&shelf.startsWith("shared:")&&<button className="btn outline bxs" style={{marginTop:6}} onClick={()=>doCopy(act)} disabled={copyingId===act.id}>{copyingId===act.id?"Copying...":"Copy to My Library"}</button>}
             </div>

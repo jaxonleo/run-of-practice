@@ -206,8 +206,12 @@ function GearEditRow({asset,refreshLibrary,onDone}){
 }
 
 // ── EquipmentTab ──────────────────────────────────────────────────────────────
-function EquipmentTab({data,coachId,refreshLibrary,openModal}){
-  const [equipTab,setEquipTab]=useState("team");
+// `mode` ("team" | "player") pins the view to one section with no internal
+// toggle, for when Team Equipment and Player Gear are already separate
+// top-level Manage tabs. Omit it to get the old combined-with-toggle view.
+function EquipmentTab({data,coachId,refreshLibrary,openModal,mode}){
+  const [equipTabState,setEquipTabState]=useState(mode||"team");
+  const equipTab=mode||equipTabState;
   const [openMenu,setOpenMenu]=useState(null);
   const [newName,setNewName]=useState("");
   const [newSport,setNewSport]=useState("General");
@@ -224,9 +228,9 @@ function EquipmentTab({data,coachId,refreshLibrary,openModal}){
   const del=async id=>{await archiveAsset(id);await refreshLibrary();};
   return(<div onClick={()=>setOpenMenu(null)}>
     {/* Toggle */}
-    <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:16}}>
-      {["team","player"].map(t=>(<button key={t} onClick={()=>{setEquipTab(t);setShowAdd(false);}} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:equipTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:equipTab===t?"var(--black)":"var(--td)"}}>{t==="team"?"Team Equipment":"Player Gear"}</button>))}
-    </div>
+    {!mode&&<div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:16}}>
+      {["team","player"].map(t=>(<button key={t} onClick={()=>{setEquipTabState(t);setShowAdd(false);}} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:equipTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:equipTab===t?"var(--black)":"var(--td)"}}>{t==="team"?"Team Equipment":"Player Gear"}</button>))}
+    </div>}
 
     {/* Team Equipment */}
     {equipTab==="team"&&<div>
@@ -313,7 +317,7 @@ function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPr
   const [teamTab,setTeamTab]=useState("practices");
   const [manageTab,setManageTab]=useState("teams");
   const [manageMenu,setManageMenu]=useState(null);
-  const MTABS=["teams","locations","equipment"];
+  const MTABS=[{id:"teams",label:"Teams"},{id:"locations",label:"Locations"},{id:"teamEquip",label:"Team Equipment"},{id:"playerGear",label:"Player Gear"}];
   const [selectedPractice,setSelectedPractice]=useState(null);
   const myTeams=data.teams;
   const [practiceMenuId,setPracticeMenuId]=useState(null);
@@ -390,7 +394,7 @@ function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPr
     </div>
     <div style={{padding:"0 16px 12px"}}>
       <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:0}}>
-        {MTABS.map(t=>(<button key={t} onClick={()=>{setManageTab(t);setManageMenu(null);}} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:manageTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:manageTab===t?"var(--black)":"var(--td)"}}>{t}</button>))}
+        {MTABS.map(t=>(<button key={t.id} onClick={()=>{setManageTab(t.id);setManageMenu(null);}} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:manageTab===t.id?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".02em",textTransform:"uppercase",color:manageTab===t.id?"var(--black)":"var(--td)"}}>{t.label}</button>))}
       </div>
     </div>
     {manageTab==="teams"&&<div style={{padding:"0 16px"}}>
@@ -423,8 +427,11 @@ function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPr
         </div>
       </div>))}
     </div>}
-    {manageTab==="equipment"&&<div style={{padding:"0 16px"}}>
-      <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal}/>
+    {manageTab==="teamEquip"&&<div style={{padding:"0 16px"}}>
+      <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode="team"/>
+    </div>}
+    {manageTab==="playerGear"&&<div style={{padding:"0 16px"}}>
+      <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode="player"/>
     </div>}
   </div>);
 }
@@ -610,8 +617,8 @@ export default function App(){
   const TABS=[
     {id:"today",label:"Home",I:Ic.Home},
     {id:"schedule",label:"Schedule",I:Ic.Cal},
-    {id:"manage",label:"Manage",I:Ic.Build},
     {id:"library",label:"Library",I:Ic.Run},
+    {id:"manage",label:"Manage",I:Ic.Build},
   ];
   const coachName=profile&&profile.first_name?profile.first_name:(session?(session.user.email||"Coach"):"Coach");
   const path=window.location.pathname;
