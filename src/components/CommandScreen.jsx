@@ -1170,6 +1170,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
         <div style={{position:"relative"}}>
           <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
           {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
+            <button className="mm-item" onClick={()=>{setShowEllipsis(false);setView("today");}}>Leave (keeps running)</button>
             {isController&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowEditBuilder(true);}}>Edit Practice</button>}
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);if(!audioOn){try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
             {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_read");}}>Share Live View</button>}

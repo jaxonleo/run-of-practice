@@ -44,6 +44,7 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .screen{flex:1;overflow-y:auto;overflow-x:hidden;padding:14px 14px calc(var(--tab)+80px);scrollbar-width:none;}
 .screen::-webkit-scrollbar{display:none;}
 .tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;height:var(--tab);background:var(--s1);border-top:1px solid var(--b);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom,0);}
+.live-resume{position:fixed;bottom:var(--tab);left:50%;transform:translateX(-50%);width:100%;max-width:480px;z-index:99;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 14px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border:none;border-top:1px solid rgba(255,255,255,.15);}
 .ti{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:none;border:none;cursor:pointer;color:var(--td);font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 2px;position:relative;}
 .ti.on{color:var(--green);}.ti svg{width:20px;height:20px;stroke-width:1.8;stroke:var(--td);}.ti.on svg{stroke:var(--green);}
 .phdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
@@ -166,8 +167,6 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 `;
 
 const Ic={
-  Build:()=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>,
-  Run:()=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>,
   Lib:()=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>,
   Admin:()=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>,
   Dots:()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>,
@@ -558,6 +557,21 @@ export default function App(){
   useEffect(()=>{let el=document.getElementById('rop-css');if(!el){el=document.createElement('style');el.id='rop-css';document.head.appendChild(el);}el.textContent=CSS;},[]);
   const [loaded,setLoaded]=useState(false);
   const [view,setView]=useState("today");
+  // Tracks the last real tab the coach was on, so Builder's Back button and
+  // the tab bar's active-tab highlight both know where "away" means -- Builder
+  // and Command aren't tabs themselves, they're entered from one.
+  const [priorView,setPriorView]=useState("today");
+  useEffect(()=>{if(view!=="builder"&&view!=="command")setPriorView(view);},[view]);
+  // Builder's own edits are local state with no autosave -- this ref lets the
+  // tab bar (and Builder's Back button) warn before discarding them, without
+  // forcing Builder's state up into App.
+  const builderDirtyRef=useRef(false);
+  const guardedSetView=useCallback(dest=>{
+    if(view==="builder"&&dest!=="builder"&&builderDirtyRef.current){
+      if(!window.confirm("You have unsaved changes to this practice. Leave without saving?"))return;
+    }
+    setView(dest);
+  },[view]);
   const [modal,setModal]=useState(null);
   const [liveId,setLiveId]=useState(null);
   const [editPracticeId,setEditPracticeId]=useState(null);
@@ -627,9 +641,14 @@ export default function App(){
   const TABS=[
     {id:"today",label:"Home",I:Ic.Home},
     {id:"schedule",label:"Schedule",I:Ic.Cal},
-    {id:"library",label:"Library",I:Ic.Run},
-    {id:"manage",label:"Manage",I:Ic.Build},
+    {id:"library",label:"Library",I:Ic.Lib},
+    {id:"manage",label:"Manage",I:Ic.Admin},
   ];
+  // Builder isn't its own tab -- while it's open, the tab bar should still
+  // show the tab the coach came from, not go dark.
+  const activeTabId=view==="builder"?priorView:view;
+  const livePractice=liveId?fullData.practices.find(p=>p.id===liveId):null;
+  const liveTeam=livePractice?fullData.teams.find(t=>t.id===livePractice.teamId):null;
   const coachName=profile&&profile.first_name?profile.first_name:(session?(session.user.email||"Coach"):"Coach");
   const path=window.location.pathname;
   const liveMatch=path.match(/^\/live\/([a-z0-9-]+)$/i);
@@ -660,16 +679,18 @@ export default function App(){
         {view==="schedule"&&<ScheduleScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning}/>}
         {view==="manage"&&<ManageScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
         {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setEditPracticeId={setEditPracticeId} setStartTemplateId={setStartTemplateId} refreshLibrary={refreshLibrary} coachId={coachId} refreshPlanning={refreshPlanning}/>}
-        {view==="builder"&&<BuilderScreen data={fullData} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} startTemplateId={startTemplateId} setStartTemplateId={setStartTemplateId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
+        {view==="builder"&&<BuilderScreen data={fullData} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} startTemplateId={startTemplateId} setStartTemplateId={setStartTemplateId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} markDirty={d=>{builderDirtyRef.current=d;}} onCancel={()=>guardedSetView(priorView)}/>}
         {view==="command"&&<CommandScreen data={fullData} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} setView={setView} refreshPlanning={refreshPlanning}/>}
       </div>
       {view!=="command"&&<nav className="tabbar">
-        {TABS.map(({id,label,I})=>(<button key={id} className={"ti "+(view===id?"on":"")} onClick={()=>setView(id)}>
-            {id==="command"&&liveId&&<span className="live" style={{position:"absolute",top:6,right:"calc(50% - 14px)",width:6,height:6}}/>}
+        {TABS.map(({id,label,I})=>(<button key={id} className={"ti "+(activeTabId===id?"on":"")} onClick={()=>guardedSetView(id)}>
             <I/>{label}
           </button>
         ))}
       </nav>}
+      {liveId&&view!=="command"&&<button className="live-resume" onClick={()=>setView("command")}>
+        <span className="live"/>Resume Live Practice{liveTeam?" · "+liveTeam.name:""}
+      </button>}
     </div>
     {modal&&<ModalLayer modal={modal} data={fullData} update={update} closeModal={closeModal} refreshTeams={refreshTeams} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} coachId={coachId}/>}
   </div>);
@@ -723,7 +744,7 @@ function DurStepper({value,min,onChange,step}){
   );
 }
 
-function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,coachId,refreshPlanning,refreshLibrary}){
+function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,coachId,refreshPlanning,refreshLibrary,markDirty,onCancel}){
   const editP=editPracticeId?data.practices.find(p=>p.id===editPracticeId):null;
   // "Start from Template" seeds a brand-new (not editP) practice from a
   // saved template's contents -- distinct from editing an already-scheduled
@@ -745,6 +766,15 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const [schedDur,setSchedDur]=useState(60);
   const [tplName,setTplName]=useState("");
   const dragIdx=useRef(null);
+  // Snapshot of what's actually persisted, so the tab bar/Back button can
+  // warn before discarding edits that only exist in this component's state.
+  const savedSnapshotRef=useRef();
+  if(savedSnapshotRef.current===undefined)savedSnapshotRef.current=JSON.stringify({teamId,locId,acts});
+  const markSaved=()=>{savedSnapshotRef.current=JSON.stringify({teamId,locId,acts});if(markDirty)markDirty(false);};
+  useEffect(()=>{
+    if(markDirty)markDirty(JSON.stringify({teamId,locId,acts})!==savedSnapshotRef.current);
+  },[teamId,locId,acts]);
+  useEffect(()=>()=>{if(markDirty)markDirty(false);},[]);
   const team=data.teams.find(t=>t.id===teamId)||null;
   const loc=data.locations.find(l=>l.id===locId)||null;
   const teamSport=(team&&team.sport)||"General";
@@ -786,7 +816,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const doSchedule=async(dateVal,timeVal)=>{
     if(!dateVal)return;
     const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:dateVal,startTime:timeVal||"",timezone:team&&team.timezone,activities:acts});
-    if(saved)setExistingId(saved.id);
+    if(saved){setExistingId(saved.id);markSaved();}
     await refreshPlanning();
     setBottomMode("done_sched");
   };
@@ -799,16 +829,18 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   };
   const handleSave=async()=>{
     const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,activities:acts});
-    if(saved)setExistingId(saved.id);
+    if(saved){setExistingId(saved.id);markSaved();}
     await refreshPlanning();
     if(existingId&&setEditPracticeId)setEditPracticeId(null);
   };
   const handleRun=async()=>{
     const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,activities:acts});
+    if(saved)markSaved();
     await refreshPlanning();
     if(saved)launchRun(saved.id);
   };
   return (<div style={{paddingBottom:80}}>
+      {onCancel&&<div style={{padding:"10px 14px 0"}}><button className="btn ghost bxs" onClick={onCancel}>Back</button></div>}
       <div style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
       {editP&&<div style={{padding:"8px 14px",background:"var(--gbg)",borderBottom:"1px solid var(--gb)",display:"flex",alignItems:"baseline",gap:8}}>
         <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",flexShrink:0}}>Editing</span>
@@ -967,7 +999,7 @@ function PlayerProfile({player:playerInit,team:teamInit,data,update,refreshTeams
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900}}>{player.firstName} {player.lastName}</div>
         <div className="td" style={{fontSize:12}}>{team.name}{player.jersey?" - #"+player.jersey:""}</div>
       </div>
-      <button className="btn ghost bxs" onClick={onBack}>Done</button>
+      <button className="btn ghost bxs" onClick={onBack}>Back</button>
     </div>
     <button className="btn outline bsm bfull" style={{marginBottom:10}} onClick={()=>setMarkingOut(true)}>Mark Out For...</button>
     {markingOut&&<AbsencePicker data={data} coachId={coachId} mode="pickPlayerThenPractices" presetPlayer={Object.assign({},player,{teamId:team.id})} onClose={()=>setMarkingOut(false)}/>}
