@@ -24,7 +24,7 @@ const LP_CSS = `
 .lp-section.tight{padding:34px 0;}
 .lp-eyebrow{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--green2);margin-bottom:8px;}
 .lp-section.dark .lp-eyebrow{color:var(--gb);}
-.lp-title{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;line-height:1.15;letter-spacing:-.01em;margin-bottom:14px;color:var(--black);}
+.lp-title{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;line-height:1.15;letter-spacing:-.01em;margin-bottom:14px;color:var(--black);}
 .lp-section.dark .lp-title{color:#fff;}
 .lp-body{font-size:15.5px;line-height:1.65;color:var(--black2);margin-bottom:12px;}
 .lp-section.dark .lp-body{color:#c9d6cf;}
@@ -38,7 +38,6 @@ const LP_CSS = `
   .lp-navlink.hideonsm{display:inline;}
 }
 .lp-phone{background:#fff;border:1px solid var(--b);border-radius:20px;padding:16px;box-shadow:0 20px 50px rgba(0,0,0,.14);}
-.lp-phone.dark{background:var(--black);border-color:#2a352e;}
 .lp-hero{background:var(--black);padding:52px 20px 60px;text-align:center;}
 .lp-hero h1{font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:900;color:#fff;letter-spacing:-.01em;line-height:1.08;margin:14px auto 16px;max-width:640px;}
 .lp-hero-sub{font-size:16px;color:var(--td);line-height:1.6;max-width:520px;margin:0 auto 26px;}
@@ -175,20 +174,20 @@ function TemplatesVisual() {
 }
 
 function LiveVisual() {
-  return (<div className="lp-phone dark">
+  return (<div className="lp-phone">
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-      <div className="row"><span className="live" /><span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--gb)", marginLeft: 5 }}>Live</span></div>
+      <div className="row"><span className="live" /><span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginLeft: 5 }}>Live</span></div>
       <span style={{ background: "var(--gbg)", color: "var(--green)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>On time</span>
     </div>
-    <div className="cc-act-name" style={{ color: "#fff" }}>3-Man Weave</div>
+    <div className="cc-act-name">3-Man Weave</div>
     <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
-      <div className="cc-timer">04:12</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
+      <div className="cc-timer" style={{ fontSize: 46 }}>04:12</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
     </div>
     <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, marginBottom: 10 }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
-      <div style={{ fontSize: 14, color: "#fff", lineHeight: 1.5 }}>Finish every rep at full speed, no walking back.</div>
+      <div style={{ fontSize: 14, color: "var(--black)", lineHeight: 1.5 }}>Finish every rep at full speed, no walking back.</div>
     </div>
-    <div className="cc-queue"><div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)" }}>Up Next</div><div className="cc-queue-item"><span style={{ fontSize: 13, color: "#fff" }}>Station Block</span><span className="bdg bs">20m</span></div></div>
+    <div className="cc-queue"><div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)" }}>Up Next</div><div className="cc-queue-item"><span style={{ fontSize: 13, color: "var(--black2)" }}>Station Block</span><span className="bdg bs">20m</span></div></div>
   </div>);
 }
 
@@ -222,9 +221,9 @@ function FocusVisual() {
 }
 
 function AdjustVisual() {
-  return (<div className="lp-phone dark">
+  return (<div className="lp-phone">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-      <span style={{ color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 700 }}>Station Block</span>
+      <span style={{ color: "var(--black)", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 700 }}>Station Block</span>
       <span style={{ background: "var(--gbg)", color: "var(--green)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>4m ahead</span>
     </div>
     <div className="brow" style={{ marginBottom: 8 }}>
@@ -238,8 +237,8 @@ function AdjustVisual() {
 }
 
 function TimerVisual() {
-  return (<div className="lp-phone dark">
-    <div className="cc-act-name" style={{ color: "#fff" }}>Batting Cage 2</div>
+  return (<div className="lp-phone">
+    <div className="cc-act-name">Batting Cage 2</div>
     <div className="cc-timer over" style={{ fontSize: 46 }}>-01:42</div>
     <div style={{ fontSize: 12, color: "var(--td)", marginTop: 4 }}>over planned time · prepare to transition</div>
   </div>);
