@@ -88,7 +88,7 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 };
 
-export default function HomeScreen({ data, update, setView, setLiveId, coachId, coachName, coachEmail, onSignOut, onDeactivate, setEditPracticeId, refreshPlanning, refreshTeams }) {
+export default function HomeScreen({ data, update, setView, setLiveId, coachId, coachName, coachEmail, setEditPracticeId, refreshPlanning, refreshTeams }) {
   const now = new Date();
   const todayStr = localDateStr(now);
   const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
@@ -96,8 +96,6 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
-  const [showAccountMenu, setShowAccountMenu] = useState(false);
-  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [practiceMenuId, setPracticeMenuId] = useState(null);
   const [viewPractice, setViewPractice] = useState(null);
   const [historyPractice, setHistoryPractice] = useState(null);
@@ -205,25 +203,10 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
             <button className="mm-item" onClick={() => { setShowHelpMenu(false); setShowFeedback(true); }}>Send Feedback</button>
           </div>}
         </div>
-        <div style={{ position: "relative" }}>
-          <button onClick={() => setShowAccountMenu(s => !s)} style={{ background: "var(--s2)", border: "1.5px solid var(--b)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
-          </button>
-          {showAccountMenu && <div className="mini-menu" style={{ minWidth: 180 }}>
-            <button className="mm-item" onClick={() => { setShowAccountMenu(false); if (onSignOut) onSignOut(); }}>Sign Out</button>
-            <button className="mm-item mm-danger" onClick={() => { setShowAccountMenu(false); setConfirmDeactivate(true); }}>Deactivate Account</button>
-          </div>}
-        </div>
       </div>
     </div>
     {showChecklist && <ChecklistModal data={data} hasCompleted={hasCompleted} onClose={() => setShowChecklist(false)} />}
     {showFeedback && <FeedbackModal coachId={coachId} coachEmail={coachEmail} onClose={() => setShowFeedback(false)} />}
-    {confirmDeactivate && <div style={{ margin: "0 16px 12px" }}><div className="confirm-box">
-      <div className="confirm-title">Deactivate your account?</div>
-      <div className="confirm-body">You'll be signed out and hidden from your teammates' rosters. All your teams, practices, and data stay exactly as they are -- just sign back in any time to pick up right where you left off.</div>
-      <div className="brow"><button className="btn ghost bsm" onClick={() => setConfirmDeactivate(false)}>Cancel</button><button className="btn danger bsm" onClick={() => { if (onDeactivate) onDeactivate(); }}>Deactivate</button></div>
-    </div></div>}
-
     {pendingWelcome && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 14, marginBottom: 6 }}>You've been added to <strong>{pendingWelcome.team.name}</strong> by {adderName}.</div>
       <button style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 12, color: "var(--td)", textDecoration: "underline" }} disabled={leavingTeamId === pendingWelcome.team.id} onClick={() => handleLeave(pendingWelcome.team.id)}>Not your team? Leave</button>

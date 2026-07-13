@@ -304,12 +304,19 @@ function EquipmentTab({data,coachId,refreshLibrary,openModal,mode}){
   </div>);
 }
 
-function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPracticeId,refreshTeams,refreshPlanning,refreshLibrary}){
+function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPracticeId,refreshTeams,refreshPlanning,refreshLibrary,profile,coachEmail,saveName,onSignOut,onDeactivate}){
   const [selectedTeam,setSelectedTeam]=useState(null);
   const [teamTab,setTeamTab]=useState("practices");
-  const [manageTab,setManageTab]=useState("teams");
+  // null = the top-level list nav; otherwise which section is drilled into.
+  const [manageTab,setManageTab]=useState(null);
   const [manageMenu,setManageMenu]=useState(null);
-  const MTABS=[{id:"teams",label:"Teams"},{id:"locations",label:"Locations"},{id:"teamEquip",label:"Team Equipment"},{id:"playerGear",label:"Player Gear"}];
+  const NAV_ITEMS=[
+    {id:"teams",label:"My Teams",sub:data.teams.length+" team"+(data.teams.length===1?"":"s")},
+    {id:"locations",label:"My Locations",sub:data.locations.length+" location"+(data.locations.length===1?"":"s")},
+    {id:"teamEquip",label:"Team Equipment"},
+    {id:"playerGear",label:"Player Gear"},
+    {id:"account",label:"Account Settings"},
+  ];
   const [selectedPractice,setSelectedPractice]=useState(null);
   const myTeams=data.teams;
   const [practiceMenuId,setPracticeMenuId]=useState(null);
@@ -396,17 +403,15 @@ function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPr
       </div>
     </div>);
   }
-  return (<div style={{paddingBottom:80}}>
-    <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>Manage</div>
-      {manageTab==="teams"&&<button className="btn primary bsm" onClick={()=>openModal("addTeam")}>+ Team</button>}
+  const BackRow=()=>(<div style={{padding:"12px 14px 0"}}><button className="btn ghost bxs" onClick={()=>{setManageTab(null);setManageMenu(null);}}>Back</button></div>);
+
+  if(manageTab==="teams")return(<div style={{paddingBottom:80}}>
+    <BackRow/>
+    <div style={{padding:"12px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>My Teams</div>
+      <button className="btn primary bsm" onClick={()=>openModal("addTeam")}>+ Team</button>
     </div>
-    <div style={{padding:"0 16px 12px"}}>
-      <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:0}}>
-        {MTABS.map(t=>(<button key={t.id} onClick={()=>{setManageTab(t.id);setManageMenu(null);}} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:manageTab===t.id?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".02em",textTransform:"uppercase",color:manageTab===t.id?"var(--black)":"var(--td)"}}>{t.label}</button>))}
-      </div>
-    </div>
-    {manageTab==="teams"&&<div style={{padding:"0 16px"}}>
+    <div style={{padding:"0 16px"}}>
       {myTeams.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No teams yet. Tap + Team to get started.</div>}
       {myTeams.map(t=>(<div key={t.id} className="card" style={{marginBottom:10,cursor:"pointer",borderLeft:"4px solid "+(t.colorPrimary||"transparent")}} onClick={()=>{setSelectedTeam(t.id);setTeamTab("practices");}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -414,8 +419,12 @@ function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPr
           <span style={{color:"var(--green)",fontSize:22}}>›</span>
         </div>
       </div>))}
-    </div>}
-    {manageTab==="locations"&&<div style={{padding:"0 16px"}} onClick={()=>setManageMenu(null)}>
+    </div>
+  </div>);
+
+  if(manageTab==="locations")return(<div style={{paddingBottom:80}} onClick={()=>setManageMenu(null)}>
+    <BackRow/>
+    <div style={{padding:"12px 16px 0"}}>
       <div className="sechdr mb10"><span className="sectitle">{data.locations.length} Locations</span><button className="btn primary bsm" onClick={()=>openModal("addLocation")}>+ Add</button></div>
       {data.locations.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No locations yet.</div>}
       {data.locations.map(loc=>(<div key={loc.id} className="card" style={{position:"relative",marginBottom:10}}>
@@ -435,13 +444,81 @@ function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPr
           {!loc.sublocations.length&&<span style={{fontSize:12,color:"var(--td)"}}>No areas yet</span>}
         </div>
       </div>))}
-    </div>}
-    {manageTab==="teamEquip"&&<div style={{padding:"0 16px"}}>
-      <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode="team"/>
-    </div>}
-    {manageTab==="playerGear"&&<div style={{padding:"0 16px"}}>
-      <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode="player"/>
-    </div>}
+    </div>
+  </div>);
+
+  if(manageTab==="teamEquip")return(<div style={{paddingBottom:80}}>
+    <BackRow/>
+    <div style={{padding:"12px 16px 0"}}><EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode="team"/></div>
+  </div>);
+
+  if(manageTab==="playerGear")return(<div style={{paddingBottom:80}}>
+    <BackRow/>
+    <div style={{padding:"12px 16px 0"}}><EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode="player"/></div>
+  </div>);
+
+  if(manageTab==="account")return(<AccountSettingsScreen profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate} onBack={()=>setManageTab(null)}/>);
+
+  // Top-level list nav -- a plain vertical list rather than tabs, so it
+  // grows/scrolls with the page as more sections get added instead of
+  // squeezing narrower per-tab labels.
+  return (<div style={{paddingBottom:80}}>
+    <div style={{padding:"20px 16px 12px"}}>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>Manage</div>
+    </div>
+    <div style={{padding:"0 16px"}}>
+      {NAV_ITEMS.map(item=>(<div key={item.id} className="li" style={{marginBottom:8,cursor:"pointer"}} onClick={()=>setManageTab(item.id)}>
+        <div className="lim"><div className="lin">{item.label}</div>{item.sub&&<div className="limt">{item.sub}</div>}</div>
+        <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+      </div>))}
+    </div>
+  </div>);
+}
+
+function AccountSettingsScreen({profile,coachEmail,saveName,onSignOut,onDeactivate,onBack}){
+  const [firstName,setFirstName]=useState(profile?profile.first_name||"":"");
+  const [lastName,setLastName]=useState(profile?profile.last_name||"":"");
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+  const [confirmDeactivate,setConfirmDeactivate]=useState(false);
+  // Profile loads async after this screen can already be mounted -- sync
+  // the fields once it arrives instead of only reading it at first render.
+  useEffect(()=>{setFirstName(profile?profile.first_name||"":"");setLastName(profile?profile.last_name||"":"");},[profile]);
+  const dirty=!!profile&&(firstName.trim()!==(profile.first_name||"")||lastName.trim()!==(profile.last_name||""));
+  const save=async()=>{
+    if(!firstName.trim()||saving)return;
+    setSaving(true);
+    await saveName(firstName.trim(),lastName.trim());
+    setSaving(false);setSaved(true);
+    setTimeout(()=>setSaved(false),2000);
+  };
+  return (<div style={{paddingBottom:80}}>
+    <div style={{padding:"12px 14px 0"}}><button className="btn ghost bxs" onClick={onBack}>Back</button></div>
+    <div style={{padding:"12px 16px 0"}}>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,marginBottom:18}}>Account Settings</div>
+
+      <div className="clbl mb8">Your Info</div>
+      <div className="fld mb10"><label className="lbl">First Name</label><input className="inp" value={firstName} onChange={e=>setFirstName(e.target.value)}/></div>
+      <div className="fld mb10"><label className="lbl">Last Name</label><input className="inp" placeholder="(optional)" value={lastName} onChange={e=>setLastName(e.target.value)}/></div>
+      <div className="fld" style={{marginBottom:12}}><label className="lbl">Email</label><div style={{fontSize:14,color:"var(--td)",padding:"8px 0"}}>{coachEmail||"--"}</div></div>
+      {dirty&&<button className="btn primary bmd bfull" style={{marginBottom:24}} onClick={save} disabled={!firstName.trim()||saving}>{saving?"Saving...":"Save Changes"}</button>}
+      {!dirty&&saved&&<div style={{fontSize:13,color:"var(--green)",marginBottom:24}}>Saved.</div>}
+      {!dirty&&!saved&&<div style={{marginBottom:24}}/>}
+
+      <div className="clbl mb8">Legal</div>
+      <a href="/terms" className="li" style={{textDecoration:"none",marginBottom:6}}><div className="lim"><div className="lin">Terms of Service</div></div><span style={{color:"var(--td)",fontSize:18}}>&#8250;</span></a>
+      <a href="/privacy" className="li" style={{textDecoration:"none",marginBottom:24}}><div className="lim"><div className="lin">Privacy Policy</div></div><span style={{color:"var(--td)",fontSize:18}}>&#8250;</span></a>
+
+      <div className="clbl mb8" style={{color:"var(--red)"}}>Danger Zone</div>
+      {!confirmDeactivate&&<button className="btn ghost bmd bfull" style={{marginBottom:24,color:"var(--red)"}} onClick={()=>setConfirmDeactivate(true)}>Deactivate Account</button>}
+      {confirmDeactivate&&<div className="confirm-box" style={{marginBottom:24}}>
+        <div className="confirm-title">Deactivate your account?</div>
+        <div className="confirm-body">You'll be signed out and hidden from your teammates' rosters. All your teams, practices, and data stay exactly as they are -- just sign back in any time to pick up right where you left off.</div>
+        <div className="brow"><button className="btn ghost bsm" onClick={()=>setConfirmDeactivate(false)}>Cancel</button><button className="btn danger bsm" onClick={()=>{if(onDeactivate)onDeactivate();}}>Deactivate</button></div>
+      </div>}
+
+      <button className="btn outline bmd bfull" onClick={()=>{if(onSignOut)onSignOut();}}>Sign Out</button>
+    </div>
   </div>);
 }
 
@@ -651,6 +728,7 @@ export default function App(){
   const livePractice=liveId?fullData.practices.find(p=>p.id===liveId):null;
   const liveTeam=livePractice?fullData.teams.find(t=>t.id===livePractice.teamId):null;
   const coachName=profile&&profile.first_name?profile.first_name:(session?(session.user.email||"Coach"):"Coach");
+  const coachEmailStr=profile&&profile.email?profile.email:(session?session.user.email:"");
   const path=window.location.pathname;
   const liveMatch=path.match(/^\/live\/([a-z0-9-]+)$/i);
   if(liveMatch)return (<HelperView token={liveMatch[1]}/>);
@@ -676,9 +754,9 @@ export default function App(){
   return (<div style={{display:"contents"}}>
     <div className="app">
       <div className="screen">
-        {view==="today"&&<HomeScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} coachEmail={profile&&profile.email?profile.email:(session?session.user.email:"")} onSignOut={signOut} onDeactivate={handleDeactivate} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>}
+        {view==="today"&&<HomeScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} coachEmail={coachEmailStr} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>}
         {view==="schedule"&&<ScheduleScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning}/>}
-        {view==="manage"&&<ManageScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
+        {view==="manage"&&<ManageScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} profile={profile} coachEmail={coachEmailStr} saveName={saveName} onSignOut={signOut} onDeactivate={handleDeactivate}/>}
         {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setEditPracticeId={setEditPracticeId} setStartTemplateId={setStartTemplateId} refreshLibrary={refreshLibrary} coachId={coachId} refreshPlanning={refreshPlanning}/>}
         {view==="builder"&&<BuilderScreen data={fullData} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} startTemplateId={startTemplateId} setStartTemplateId={setStartTemplateId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} markDirty={d=>{builderDirtyRef.current=d;}} onCancel={()=>guardedSetView(priorView)}/>}
         {view==="command"&&<CommandScreen data={fullData} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} setView={setView} refreshPlanning={refreshPlanning}/>}
