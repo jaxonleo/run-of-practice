@@ -675,6 +675,62 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const spoken=useRef({});
   const activityLogIdRef=useRef(null);
 
+  // ── Background audio session: a real <audio> element (not a bare
+  // AudioContext oscillator, which Safari silently dropped -- see
+  // dcbf238) kept looping at near-silent volume once the coach enables
+  // audio. This is what earns the tab the OS's "actively playing media"
+  // exemption so the actual cue sounds below still fire once the phone
+  // locks or the coach switches apps -- a bare setTimeout/speechSynthesis
+  // call does not survive that. Wake Lock (screen-stays-on) is a separate,
+  // complementary layer for the common case where the phone just times out
+  // in the coach's hand rather than being switched away from entirely.
+  const bgAudioRef=useRef(null);
+  const beepAudioRef=useRef(null);
+  const buzzerAudioRef=useRef(null);
+  const wakeLockRef=useRef(null);
+  useEffect(()=>{
+    beepAudioRef.current=new Audio('/audio/tennis-beep.wav');
+    buzzerAudioRef.current=new Audio('/audio/gym-buzzer.wav');
+    const bg=new Audio('/audio/silence-loop.wav');
+    bg.loop=true;bg.volume=0.02;
+    bgAudioRef.current=bg;
+    return()=>{
+      try{bg.pause();}catch(e){}
+      bgAudioRef.current=null;beepAudioRef.current=null;buzzerAudioRef.current=null;
+      if(wakeLockRef.current){try{wakeLockRef.current.release();}catch(e){}wakeLockRef.current=null;}
+    };
+  },[]);
+  const requestWakeLock=useCallback(async()=>{
+    try{
+      if('wakeLock' in navigator)wakeLockRef.current=await navigator.wakeLock.request('screen');
+    }catch(e){}
+  },[]);
+  // Wake Lock is auto-released by the browser whenever the tab is hidden --
+  // re-request it when the coach comes back so a quick app-switch doesn't
+  // permanently drop it for the rest of the session.
+  useEffect(()=>{
+    const onVis=()=>{if(document.visibilityState==='visible'&&audioOn)requestWakeLock();};
+    document.addEventListener('visibilitychange',onVis);
+    return()=>document.removeEventListener('visibilitychange',onVis);
+  },[audioOn,requestWakeLock]);
+  const startBgAudioSession=useCallback(()=>{
+    try{
+      if(bgAudioRef.current){bgAudioRef.current.currentTime=0;bgAudioRef.current.play().catch(()=>{});}
+    }catch(e){}
+    try{
+      if('mediaSession' in navigator){
+        navigator.mediaSession.metadata=new window.MediaMetadata({title:(team?team.name:'Practice')+' — Live',artist:'Run of Practice'});
+        navigator.mediaSession.playbackState='playing';
+      }
+    }catch(e){}
+    requestWakeLock();
+  },[team,requestWakeLock]);
+  const stopBgAudioSession=useCallback(()=>{
+    try{if(bgAudioRef.current)bgAudioRef.current.pause();}catch(e){}
+    try{if('mediaSession' in navigator)navigator.mediaSession.playbackState='none';}catch(e){}
+    try{if(wakeLockRef.current){wakeLockRef.current.release();wakeLockRef.current=null;}}catch(e){}
+  },[]);
+
   const idx=session?Math.max(0,liveActs.findIndex(a=>a.id===session.current_practice_activity_id)):0;
   const cur=liveActs[idx]||null;
   const isBlock=cur&&cur.type==="station_block";
@@ -710,6 +766,9 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
   const beep=useCallback(()=>{
     if(!audioOn)return;
     try{
+      if(buzzerAudioRef.current){buzzerAudioRef.current.currentTime=0;buzzerAudioRef.current.play().catch(()=>{});}
+    }catch(e){console.error('buzzer error:',e);}
+    try{
       window.speechSynthesis.cancel();
       const u=new SpeechSynthesisUtterance("Next up!");
       u.rate=1.1;u.pitch=1.2;u.volume=1;
@@ -717,11 +776,17 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     }catch(e){console.error('beep error:',e);}
   },[audioOn]);
   const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
+  const playWarningTone=useCallback(()=>{
+    if(!audioOn)return;
+    try{if(beepAudioRef.current){beepAudioRef.current.currentTime=0;beepAudioRef.current.play().catch(()=>{});}}catch(e){console.error('beep tone error:',e);}
+  },[audioOn]);
 
   const beepRef=useRef(beep);
   useEffect(()=>{beepRef.current=beep;},[beep]);
   const speakRef=useRef(speak);
   useEffect(()=>{speakRef.current=speak;},[speak]);
+  const warnToneRef=useRef(playWarningTone);
+  useEffect(()=>{warnToneRef.current=playWarningTone;},[playWarningTone]);
 
   const buzzedRef=useRef(false);
   useEffect(()=>{
@@ -739,6 +804,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     const rem2=phaseSecs-elapsed;
     if(rem2<=122&&rem2>=118&&!warnedRef.current&&running){
       warnedRef.current=true;
+      warnToneRef.current();
       speakRef.current("Two minutes remaining.");
     }
     if(rem2>130){warnedRef.current=false;}
@@ -1164,6 +1230,9 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
               u.rate=1;u.volume=1;
               window.speechSynthesis.speak(u);
             }catch(e){}
+            startBgAudioSession();
+          }else{
+            stopBgAudioSession();
           }
           spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);
         }} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊 On":"🔇 Off"}</button>
@@ -1172,7 +1241,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
           {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);setView("today");}}>Leave (keeps running)</button>
             {isController&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowEditBuilder(true);}}>Edit Practice</button>}
-            <button className="mm-item" onClick={()=>{setShowEllipsis(false);if(!audioOn){try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
+            <button className="mm-item" onClick={()=>{setShowEllipsis(false);if(!audioOn){try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}startBgAudioSession();}else{stopBgAudioSession();}spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
             {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_read");}}>Share Live View</button>}
             {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_attendance");}}>Share for Attendance</button>}
             {isController&&<button className="mm-item" onClick={endPractice}>End Practice</button>}
