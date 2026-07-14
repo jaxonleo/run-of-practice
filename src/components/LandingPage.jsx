@@ -51,6 +51,52 @@ const LP_CSS = `
 .lp-footer{background:var(--black);color:#c9d6cf;padding:36px 20px 28px;}
 .lp-footer a{color:#c9d6cf;}
 .lp-footer-links{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:13px;}
+
+/* ---- On Your Wrist (roadmap) ---- */
+.lp-eyebrow-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+.lp-eyebrow-row .lp-eyebrow{margin-bottom:0;}
+.lp-pill-roadmap{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--amber);background:var(--ambg);border:1px solid var(--ambb);border-radius:999px;padding:4px 12px;text-transform:uppercase;}
+.lp-watch-stage{margin-top:32px;display:flex;justify-content:center;align-items:flex-start;gap:48px;flex-wrap:wrap;}
+.lp-watch-col{display:flex;flex-direction:column;align-items:center;max-width:240px;}
+.lp-watch{position:relative;width:200px;margin:40px 0 44px;filter:drop-shadow(0 20px 34px rgba(17,23,20,.22));}
+.lp-watch-band{position:absolute;left:50%;transform:translateX(-50%);width:104px;height:40px;background:var(--black2);z-index:0;}
+.lp-watch-band.top{top:-32px;border-radius:16px 16px 5px 5px;}
+.lp-watch-band.bottom{bottom:-32px;border-radius:5px 5px 16px 16px;}
+.lp-watch-case{position:relative;z-index:1;background:linear-gradient(145deg,#3a3f3a,#191c19);border-radius:48px;padding:10px;}
+.lp-watch-crown{position:absolute;right:-5px;top:64px;width:7px;height:30px;border-radius:4px;background:linear-gradient(90deg,#4a4f4a,#232623);}
+.lp-watch-button{position:absolute;right:-4px;top:106px;width:4px;height:40px;border-radius:3px;background:#2c302c;}
+.lp-watch-screen{position:relative;background:#000;border-radius:40px;overflow:hidden;aspect-ratio:4/4.9;display:flex;flex-direction:column;padding:22px 17px 17px;}
+.lp-w-statusline{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.lp-w-live{display:flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.1em;color:#7fd6a4;}
+.lp-w-live .dot{width:6px;height:6px;border-radius:50%;background:#43d97d;animation:pulse 1.5s infinite;}
+.lp-w-ontime{font-family:'DM Mono',monospace;font-size:9px;font-weight:700;color:#cfe8d8;background:rgba(127,214,164,.16);border-radius:999px;padding:3px 8px;}
+.lp-w-drill{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:19px;color:#fff;line-height:1.1;margin-bottom:2px;}
+.lp-w-timer{font-family:'DM Mono',monospace;font-weight:500;font-size:44px;letter-spacing:-.02em;color:#43d97d;line-height:1.05;}
+.lp-w-timer-label{font-size:10px;color:#8b978f;margin-bottom:10px;}
+.lp-w-upnext{background:rgba(255,255,255,.08);border-radius:12px;padding:8px 11px;margin-bottom:10px;}
+.lp-w-upnext .lbl{font-family:'DM Mono',monospace;font-size:8px;font-weight:700;letter-spacing:.14em;color:#8b978f;margin-bottom:3px;}
+.lp-w-upnext .name{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;color:#e8ede9;}
+.lp-w-upnext .mins{font-family:'DM Mono',monospace;font-size:10px;color:#a9b5ad;background:rgba(255,255,255,.1);border-radius:6px;padding:2px 6px;}
+.lp-w-next-btn{margin-top:auto;background:var(--green);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:14px;letter-spacing:.05em;text-align:center;border-radius:999px;padding:11px 0;}
+.lp-w-alert-screen{justify-content:flex-start;background:radial-gradient(120% 90% at 50% 0%,#3a1410 0,#000 62%);}
+.lp-w-haptic{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:12px;}
+.lp-w-haptic span{width:4px;border-radius:2px;background:#ff6a4d;animation:lp-haptic 1s ease-in-out infinite;}
+.lp-w-haptic span:nth-child(1){height:9px;animation-delay:0s;}
+.lp-w-haptic span:nth-child(2){height:16px;animation-delay:.12s;}
+.lp-w-haptic span:nth-child(3){height:23px;animation-delay:.24s;}
+.lp-w-haptic span:nth-child(4){height:16px;animation-delay:.36s;}
+.lp-w-haptic span:nth-child(5){height:9px;animation-delay:.48s;}
+@keyframes lp-haptic{0%,100%{transform:scaleY(.5);opacity:.5}50%{transform:scaleY(1);opacity:1}}
+.lp-w-rotate{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:21px;letter-spacing:.03em;color:#ff6a4d;text-align:center;margin-bottom:12px;}
+.lp-w-move-card{background:rgba(255,255,255,.09);border-radius:12px;padding:10px 12px;margin-bottom:8px;}
+.lp-w-move-card .who{font-size:12px;font-weight:600;color:#fff;margin-bottom:3px;}
+.lp-w-move-card .to{font-size:11px;line-height:1.45;color:#c9b3ac;}
+.lp-w-move-card .to strong{color:#ffd9c7;font-weight:600;}
+.lp-w-done-btn{margin-top:auto;background:rgba(255,255,255,.14);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13px;letter-spacing:.05em;text-align:center;border-radius:999px;padding:11px 0;}
+.lp-watch-caption{font-size:12.5px;line-height:1.5;color:var(--tm);text-align:center;max-width:210px;}
+.lp-watch-caption strong{color:var(--black);font-weight:600;}
+@media (prefers-reduced-motion:reduce){.lp-w-live .dot,.lp-w-haptic span{animation:none;}}
+@media (max-width:560px){.lp-watch-stage{gap:32px;}}
 `;
 
 function Header({ onGetStarted }) {
@@ -244,6 +290,13 @@ function TimerVisual() {
   </div>);
 }
 
+function AdjustTimerVisual() {
+  return (<div className="lp-row" style={{ gap: 14 }}>
+    <div style={{ maxWidth: 220 }}><AdjustVisual /></div>
+    <div style={{ maxWidth: 220 }}><TimerVisual /></div>
+  </div>);
+}
+
 function TransitionVisual() {
   return (<div className="lp-phone">
     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 900, color: "var(--red)", letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 10 }}>Rotate Now</div>
@@ -270,6 +323,50 @@ function HistoryVisual() {
     </div>
     <button className="btn primary bxl bfull mb8">Run Again</button>
     <button className="btn ghost bmd bfull">Save as Template</button>
+  </div>);
+}
+
+// ── "On Your Wrist" roadmap teaser: an Apple Watch device frame with two
+// screen states (live timer, rotate alert), built from the app's own fonts
+// and color tokens rather than the mockup's standalone stylesheet.
+function WatchFrame({ children }) {
+  return (<div className="lp-watch">
+    <div className="lp-watch-band top"></div>
+    <div className="lp-watch-band bottom"></div>
+    <div className="lp-watch-crown"></div>
+    <div className="lp-watch-button"></div>
+    <div className="lp-watch-case">{children}</div>
+  </div>);
+}
+
+function WatchLiveScreen() {
+  return (<div className="lp-watch-screen">
+    <div className="lp-w-statusline">
+      <span className="lp-w-live"><span className="dot"></span>LIVE</span>
+      <span className="lp-w-ontime">On time</span>
+    </div>
+    <div className="lp-w-drill">3-Man Weave</div>
+    <div className="lp-w-timer">04:12</div>
+    <div className="lp-w-timer-label">remaining</div>
+    <div className="lp-w-upnext">
+      <div className="lbl">UP NEXT</div>
+      <div className="name">Station Block <span className="mins">20m</span></div>
+    </div>
+    <div className="lp-w-next-btn">NEXT &rsaquo;</div>
+  </div>);
+}
+
+function WatchAlertScreen() {
+  return (<div className="lp-watch-screen lp-w-alert-screen">
+    <div className="lp-w-haptic" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div className="lp-w-rotate">ROTATE NOW</div>
+    <div className="lp-w-move-card">
+      <div className="who">Timmy, Billy, Bobby</div>
+      <div className="to">&rarr; <strong>Batting Cage 2</strong> &middot; Coach Jen</div>
+    </div>
+    <div className="lp-w-done-btn">GOT IT</div>
   </div>);
 }
 
@@ -312,14 +409,14 @@ function FAQ() {
 }
 
 export default function LandingPage({ onGetStarted }) {
-  return (<div id="top" className="lp" style={{ minHeight: "100dvh", overflowY: "auto" }}>
+  return (<div id="top" className="lp" style={{ minHeight: "100dvh" }}>
     <style>{LP_CSS}</style>
     <Header onGetStarted={onGetStarted} />
 
     <div className="lp-hero">
       <div className="lp-eyebrow">Practice Planning and Live Execution</div>
       <h1>Plan the practice. Run it live. Keep everyone aligned.</h1>
-      <div className="lp-hero-sub">Run of Practice gives coaches one place to schedule practices, build detailed plans, organize drills, players, stations, equipment and locations, then run the plan live with assistants and helpers. Spend less time explaining what happens next and more time coaching.</div>
+      <div className="lp-hero-sub">Schedule practices, build the plan, and run it live with your assistants and helpers. Less time explaining what happens next. More time coaching.</div>
       <div className="lp-btnrow">
         <button className="btn primary blg" onClick={onGetStarted}>Try It Free</button>
         <a href="#how-it-works" className="btn ghost blg" style={{ textDecoration: "none" }}>See How It Works</a>
@@ -328,97 +425,99 @@ export default function LandingPage({ onGetStarted }) {
       <div style={{ marginTop: 34, display: "flex", justifyContent: "center" }}><div style={{ maxWidth: 320, width: "100%" }}><LiveVisual /></div></div>
     </div>
 
-    <Section id="how-it-works" eyebrow="Schedule" title="See what is planned and what still needs work." visual={<ScheduleVisual />} body={[
-      "Add one-time or recurring practices and see the status of each one at a glance.",
-      "You can quickly tell which practices are ready, which have been started and which still need a plan.",
-      "Instead of waiting until the night before, you always know what is coming and what needs your attention.",
+    <Section dark eyebrow="Live Practice View" title="One screen runs the whole practice." visual={<LiveVisual />} body={[
+      "What's happening now, time remaining, the coaching focus, which players, which coach, which field, and what's next. No clipboard, no stopwatch, no flipping between notes.",
     ]} />
 
-    <Section id="features" eyebrow="Drill Library" title="Build a drill library around the way you coach." reverse visual={<LibraryVisual />} body={[
-      "Save the drills you use so you do not have to recreate them for every practice. Each drill can include a description and setup instructions, coaching focus points, the skills it develops, default duration, equipment and grouping format.",
-      "The library becomes a reusable collection of the drills, teaching points and practice ideas that fit your team.",
+    <Section eyebrow="Assistant and Helper Views" title="The same live plan in every coach's hands." reverse visual={<HelperVisual />} body={[
+      "Assistant coaches see their team's practices automatically. Parent helpers get a link — no account, no app to download. Everyone sees their drill, their players, their coaching points, and where they go next.",
     ]} />
 
-    <Section eyebrow="Practice Builder" title="Build the practice in the order it will happen." visual={<BuilderVisual />} body={[
-      "Start with the amount of time available and create the full flow of practice. Add drills from your library or create something new, and adjust the duration for that specific practice without changing the saved default.",
-      "Include everything needed to run the plan: opening checklist, warmups, drills, stations, breaks, team periods, position-specific work and closing activities. You can see the total planned time as the practice comes together.",
+    <Section eyebrow="Consistent Coaching" title="Every station teaches the same thing." visual={<FocusVisual />} body={[
+      "Write the focus points once. Every assistant and helper sees them while the drill is running, so players hear one message instead of four versions of it.",
     ]} />
 
-    <Section eyebrow="Stations and Groupings" title="Organize the players before the drill starts." reverse visual={<StationsVisual />} body={[
-      "Create stations and define how long each station lasts, how much transition time is needed and how players will move through the rotation. Group players based on who is actually at practice, using random groups, manual groups, balanced groups or position-specific groups.",
-      "Attendance changes can flow into the groupings so the coach does not have to rebuild the practice when someone is absent.",
+    <Section eyebrow="Transition Support" title="Rotate stations without stopping practice." reverse visual={<TransitionVisual />} body={[
+      "Before each rotation, every coach sees their next drill, next location, which players are coming, and what equipment moves with them. Groups rotate on their own. You never call everyone in to explain the next setup.",
     ]} />
 
-    <Section eyebrow="Locations and Equipment" title="Plan around the space and equipment you actually have." visual={<LocationsVisual />} body={[
-      "Save the places where your team practices, then define the specific areas within each location, such as Main Field, Bullpen, Batting Cage 2 or Court 1. Assign each drill or station to the correct area.",
-      "Equipment can also be listed ahead of time so coaches and helpers know what needs to be ready.",
-    ]} />
-
-    <Section eyebrow="Templates and Previous Practices" title="Start with what already works." reverse visual={<TemplatesVisual />} body={[
-      "Save common practice structures as templates so you do not have to begin with a blank plan every time. You can also copy a previous practice, run it again or make a few changes for the next session.",
-      "The more you use Run of Practice, the less work it should take to create the next plan.",
+    <Section eyebrow="Live Adjustments & Timers" title="Practice never goes to plan. That's fine." visual={<AdjustTimerVisual />} body={[
+      "Add a minute, cut a drill short, or skip ahead. The schedule recalculates as you go, so you always know if you're ahead or behind. Timers run into negative time — you see a drill went two minutes over instead of losing the thread. Drills that need cleanup can warn the group before time is up.",
     ]} />
 
     <div className="lp-section tight dark" style={{ textAlign: "center" }}>
       <div className="lp-wrap" style={{ maxWidth: 640 }}>
-        <div className="lp-title">The plan does not stop being useful when practice starts.</div>
-        <div className="lp-body">Once practice begins, Run of Practice turns the plan into a live view that coaches, assistants and helpers can follow together. The head coach stays in control while everyone else sees the information they need to carry out the plan.</div>
+        <div className="lp-title">A smooth practice starts before you get to the field.</div>
+        <div className="lp-body">Everything the live view shows — drills, groups, stations, equipment — comes from a plan you build in minutes, not the night before at the kitchen table.</div>
       </div>
     </div>
 
-    <Section dark eyebrow="Live Practice View" title="Keep the full practice in view." visual={<LiveVisual />} body={[
-      "The live practice screen shows what is happening now, how much time remains, the coaching focus, which players are involved, who is leading the activity, where it is happening, what equipment is needed and what is coming next.",
-      "The coach can move through the practice without switching between a written plan, a stopwatch and separate instructions.",
+    <Section eyebrow="Practice Builder" title="Build the practice in the order it will happen." reverse visual={<BuilderVisual />} body={[
+      "Set your total time, then add warmups, drills, stations, breaks and scrimmage. Pull from your library or write something new. The running total tells you whether the plan fits the time you have.",
     ]} />
 
-    <Section eyebrow="Assistant and Helper Views" title="Put the same live plan in every coach's hands." reverse visual={<HelperVisual />} body={[
-      "Assistant coaches automatically see the practices assigned to their team. For an additional coach or parent helper, send a simple link they can open on their phone.",
-      "They see what they are responsible for now, which players they have, what drill they are running, the coaching points to reinforce, how much time remains and where they go next. Ad hoc helpers do not need to create an account or download an app.",
+    <Section eyebrow="Stations and Groupings" title="Groups built from who actually showed up." visual={<StationsVisual />} body={[
+      "Set station lengths, transition time and rotation order. Generate groups from the players at practice — random, balanced, manual or by position. When attendance changes, the groups update. You don't rebuild the practice because two kids are out sick.",
     ]} />
 
-    <Section eyebrow="Consistent Coaching" title="Keep the coaching message consistent." visual={<FocusVisual />} body={[
-      "The head coach can include the specific focus points that matter for each drill. Assistants and helpers see those same points while the drill is happening.",
-      "Instead of each coach emphasizing something different, everyone can reinforce the same priorities, and players receive clearer instruction with fewer things competing for their attention.",
+    <Section id="features" eyebrow="Drill Library" title="Save a drill once. Use it all season." reverse visual={<LibraryVisual />} body={[
+      "Each drill keeps its setup, coaching points, skills, default duration and equipment. Add it to any practice in one tap. You never rebuild a drill you've already taught.",
     ]} />
 
-    <Section eyebrow="Live Adjustments" title="Adjust the plan without losing track of it." reverse visual={<AdjustVisual />} body={[
-      "Practice rarely runs exactly as planned. Add time when a drill needs another repetition, end something early when the team is ready to move on, or skip an activity and move directly to the next one.",
-      "Run of Practice updates the live schedule as changes are made, so the coach can always see whether practice is ahead, on schedule or behind.",
+    <Section eyebrow="Locations and Equipment" title="Plan around the space you actually have." visual={<LocationsVisual />} body={[
+      "Save your fields, courts and cages, then define the areas inside them — Batting Cage 2, Court 1, Bullpen. Assign each drill to an area and list the equipment, so helpers know what to set up before players arrive.",
     ]} />
 
-    <Section eyebrow="Timers and Warnings" title="Know how long the drill actually took." visual={<TimerVisual />} body={[
-      "When the planned time expires, the timer can continue into negative time, so a coach can immediately see that a drill has gone two minutes over instead of losing track of the schedule.",
-      "Activities that require cleanup or travel can include an advance warning, so a group knows to finish the current repetition and start packing up before time runs out.",
+    <Section id="how-it-works" eyebrow="Schedule" title="Know which practices still have no plan." reverse visual={<ScheduleVisual />} body={[
+      "Add one-time or recurring practices. Each one shows its status at a glance — ready, started, or needs a plan — so Thursday's practice doesn't sneak up on you Wednesday night.",
     ]} />
 
-    <Section eyebrow="Transition Support" title="Make the next move clear before the current drill ends." reverse visual={<TransitionVisual />} body={[
-      "Transitions should not require the head coach to stop everyone and explain the next setup. Before the change, each coach or helper can see their next location, their next drill, the players moving with them, the coach taking over the group, and any equipment that needs to move.",
-      "Everyone can prepare for what is next while the current activity is finishing.",
+    <Section eyebrow="Templates and Previous Practices" title="Start with what already works." visual={<TemplatesVisual />} body={[
+      "Save your standard practice as a template, or copy last week's and change two drills. The tenth plan takes five minutes, not an evening.",
+    ]} />
+
+    <Section eyebrow="Practice History" title="Keep the plan and what actually happened together." reverse visual={<HistoryVisual />} body={[
+      "After practice: attendance, actual drill times, what changed on the fly, and notes on what needs more work. Next week's plan starts from what your team actually did — not what you hoped it would do.",
     ]} />
 
     <div className="lp-section tight">
       <div className="lp-wrap">
         <div className="lp-title" style={{ textAlign: "center" }}>A clearer plan leads to a smoother practice.</div>
         <div className="lp-outcome" style={{ marginTop: 20 }}>
-          <div className="lp-outcome-item">Faster transitions, less time repeating instructions</div>
-          <div className="lp-outcome-item">More consistent coaching across every station</div>
-          <div className="lp-outcome-item">Less time sorting players and rebuilding groups</div>
-          <div className="lp-outcome-item">More time for the coach to observe, teach and adjust</div>
+          <div className="lp-outcome-item">Faster transitions, fewer repeated instructions</div>
+          <div className="lp-outcome-item">One coaching message across every station</div>
+          <div className="lp-outcome-item">Groups that survive attendance changes</div>
+          <div className="lp-outcome-item">More time to watch, teach and adjust</div>
         </div>
       </div>
     </div>
 
-    <Section eyebrow="Practice History" title="Keep the plan and what actually happened together." reverse visual={<HistoryVisual />} body={[
-      "After practice, keep a record of attendance, completed activities, actual drill durations, coaching notes, changes made during practice and areas that need more work.",
-      "Use that information when building the next practice or deciding which plan to run again.",
-    ]} />
+    <div id="on-your-wrist" className="lp-section">
+      <div className="lp-wrap" style={{ maxWidth: 760, textAlign: "center" }}>
+        <div className="lp-eyebrow-row" style={{ justifyContent: "center" }}>
+          <span className="lp-eyebrow">On Your Wrist</span>
+          <span className="lp-pill-roadmap">Coming to iOS</span>
+        </div>
+        <div className="lp-title">Coach the drill, not the clock.</div>
+        <div className="lp-body">The next step: a native iOS app with Apple Watch support. Current drill, time remaining and coaching focus on your wrist, with a tap when it's time to rotate. Your phone stays in your pocket. Your eyes stay on your players.</div>
+        <div className="lp-watch-stage">
+          <div className="lp-watch-col">
+            <WatchFrame><WatchLiveScreen /></WatchFrame>
+            <p className="lp-watch-caption"><strong>Glance, don't scroll.</strong> Drill, time and what's next — advance with one tap.</p>
+          </div>
+          <div className="lp-watch-col">
+            <WatchFrame><WatchAlertScreen /></WatchFrame>
+            <p className="lp-watch-caption"><strong>A tap on the wrist</strong> when it's time to move — no whistle, no shouting across the field.</p>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div id="early-access" className="lp-section" style={{ background: "var(--gbg)", textAlign: "center" }}>
       <div className="lp-wrap" style={{ maxWidth: 640 }}>
         <div className="lp-eyebrow">Early Access</div>
         <div className="lp-title">Use it in a real practice. Tell us where it falls short.</div>
-        <div className="lp-body">Run of Practice is currently in early access. We are looking for coaches who will use it during real practices and provide direct feedback about what made planning easier, what was confusing, what slowed them down, and what assistants needed to run their part of the plan.</div>
-        <div className="lp-body">The goal is to build something coaches can rely on before, during and after practice.</div>
+        <div className="lp-body">Run of Practice is in early access. We're looking for coaches who will run it during real practices and tell us what worked, what was confusing, and what their assistants needed. The goal: something coaches rely on before, during and after practice.</div>
         <button className="btn primary blg" onClick={onGetStarted} style={{ marginTop: 8 }}>Try Run of Practice</button>
         <div style={{ fontSize: 12, color: "var(--tm)", marginTop: 10 }}>Free during early access.</div>
       </div>
@@ -427,7 +526,7 @@ export default function LandingPage({ onGetStarted }) {
     <div className="lp-section dark" style={{ textAlign: "center" }}>
       <div className="lp-wrap" style={{ maxWidth: 560 }}>
         <div className="lp-title">Build the plan once. Keep everyone following it.</div>
-        <div className="lp-body">Schedule the practice, organize the details and run it live from the same place.</div>
+        <div className="lp-body">Schedule the practice, organize the details and run it live from one place.</div>
         <button className="btn primary blg" onClick={onGetStarted} style={{ marginTop: 8 }}>Try It Free</button>
         <div style={{ marginTop: 12 }}><button className="lp-signin" style={{ color: "var(--td)" }} onClick={onGetStarted}>Already have an account? Sign in</button></div>
       </div>
