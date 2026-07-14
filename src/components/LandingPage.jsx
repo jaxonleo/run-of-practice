@@ -37,7 +37,7 @@ const LP_CSS = `
   .lp-row.rev{flex-direction:row-reverse;}
   .lp-navlink.hideonsm{display:inline;}
 }
-.lp-phone{background:#fff;border:1px solid var(--b);border-radius:20px;padding:16px;box-shadow:0 20px 50px rgba(0,0,0,.14);}
+.lp-phone{background:#fff;border:1px solid var(--b);border-radius:20px;padding:16px;box-shadow:0 20px 50px rgba(0,0,0,.14);text-align:left;color:var(--black);}
 .lp-hero{background:var(--black);padding:52px 20px 60px;text-align:center;}
 .lp-hero h1{font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:900;color:#fff;letter-spacing:-.01em;line-height:1.08;margin:14px auto 16px;max-width:640px;}
 .lp-hero-sub{font-size:16px;color:var(--td);line-height:1.6;max-width:520px;margin:0 auto 26px;}
@@ -229,20 +229,38 @@ function LiveVisual() {
     <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
       <div className="cc-timer" style={{ fontSize: 46 }}>04:12</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
     </div>
+    <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 4 }}>Description</div>
+      <div style={{ fontSize: 13, color: "var(--black)", lineHeight: 1.5 }}>Three players move the ball down the floor together, passing in sequence and finishing at the rim.</div>
+    </div>
     <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, marginBottom: 10 }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
       <div style={{ fontSize: 14, color: "var(--black)", lineHeight: 1.5 }}>Finish every rep at full speed, no walking back.</div>
     </div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+      <span className="bdg bs" style={{ fontSize: 10 }}>Ball Handling</span><span className="bdg bs" style={{ fontSize: 10 }}>Finishing</span>
+    </div>
     <div className="cc-queue"><div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)" }}>Up Next</div><div className="cc-queue-item"><span style={{ fontSize: 13, color: "var(--black2)" }}>Station Block</span><span className="bdg bs">20m</span></div></div>
+  </div>);
+}
+
+function StationOverviewRow({ label, name, coach, chips }) {
+  return (<div style={{ background: "var(--s1)", border: "1px solid var(--b)", borderRadius: "var(--rs)", padding: "8px 10px", marginBottom: 6 }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)" }}>{label}</span>
+      <span style={{ fontSize: 10, color: "var(--td)" }}>{coach}</span>
+    </div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 900, color: "var(--black)", marginBottom: 4 }}>{name}</div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>{chips}</div>
   </div>);
 }
 
 function HelperVisual() {
   return (<div className="lp-row" style={{ gap: 14 }}>
     <div className="lp-phone" style={{ maxWidth: 220 }}>
-      <div className="clbl">Head Coach</div>
-      <div className="cc-act-name" style={{ fontSize: 17 }}>Station Block</div>
-      <div className="limt">All 4 stations · Round 1 of 4</div>
+      <div className="clbl">All Stations</div>
+      <StationOverviewRow label="Station 1" name="Infield" coach="Coach Mike" chips={<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="here" /></>} />
+      <StationOverviewRow label="Station 2" name="Batting Cage 2" coach="Coach Jen" chips={<><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></>} />
     </div>
     <div className="lp-phone" style={{ maxWidth: 220 }}>
       <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 2 }}>Station 2</div>
@@ -285,8 +303,7 @@ function AdjustVisual() {
 function TimerVisual() {
   return (<div className="lp-phone">
     <div className="cc-act-name">Batting Cage 2</div>
-    <div className="cc-timer over" style={{ fontSize: 46 }}>-01:42</div>
-    <div style={{ fontSize: 12, color: "var(--td)", marginTop: 4 }}>over planned time · prepare to transition</div>
+    <div className="cc-timer over" style={{ fontSize: 46 }}>-02:00</div>
   </div>);
 }
 
@@ -430,7 +447,7 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Assistant and Helper Views" title="The same live plan in every coach's hands." reverse visual={<HelperVisual />} body={[
-      "Assistant coaches see their team's practices automatically. Parent helpers get a link — no account, no app to download. Everyone sees their drill, their players, their coaching points, and where they go next.",
+      "Assistant coaches see their team's practices automatically. Parent helpers get a link: no account, no app to download. Everyone sees their drill, their players, their coaching points, and where they go next.",
     ]} />
 
     <Section eyebrow="Consistent Coaching" title="Every station teaches the same thing." visual={<FocusVisual />} body={[
@@ -442,13 +459,13 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Live Adjustments & Timers" title="Practice never goes to plan. That's fine." visual={<AdjustTimerVisual />} body={[
-      "Add a minute, cut a drill short, or skip ahead. The schedule recalculates as you go, so you always know if you're ahead or behind. Timers run into negative time — you see a drill went two minutes over instead of losing the thread. Drills that need cleanup can warn the group before time is up.",
+      "Add a minute, cut a drill short, or skip ahead. The schedule recalculates as you go, so you always know if you're ahead or behind. Timers run into negative time: you see a drill went two minutes over instead of losing the thread. Drills that need cleanup can warn the group before time is up.",
     ]} />
 
     <div className="lp-section tight dark" style={{ textAlign: "center" }}>
       <div className="lp-wrap" style={{ maxWidth: 640 }}>
         <div className="lp-title">A smooth practice starts before you get to the field.</div>
-        <div className="lp-body">Everything the live view shows — drills, groups, stations, equipment — comes from a plan you build in minutes, not the night before at the kitchen table.</div>
+        <div className="lp-body">Everything the live view shows (drills, groups, stations, equipment) comes from a plan you build in minutes, not the night before at the kitchen table.</div>
       </div>
     </div>
 
@@ -457,7 +474,7 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Stations and Groupings" title="Groups built from who actually showed up." visual={<StationsVisual />} body={[
-      "Set station lengths, transition time and rotation order. Generate groups from the players at practice — random, balanced, manual or by position. When attendance changes, the groups update. You don't rebuild the practice because two kids are out sick.",
+      "Set station lengths, transition time and rotation order. Generate groups from the players at practice: random, balanced, manual or by position. When attendance changes, the groups update. You don't rebuild the practice because two kids are out sick.",
     ]} />
 
     <Section id="features" eyebrow="Drill Library" title="Save a drill once. Use it all season." reverse visual={<LibraryVisual />} body={[
@@ -465,11 +482,11 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Locations and Equipment" title="Plan around the space you actually have." visual={<LocationsVisual />} body={[
-      "Save your fields, courts and cages, then define the areas inside them — Batting Cage 2, Court 1, Bullpen. Assign each drill to an area and list the equipment, so helpers know what to set up before players arrive.",
+      "Save your fields, courts and cages, then define the areas inside them: Batting Cage 2, Court 1, Bullpen. Assign each drill to an area and list the equipment, so helpers know what to set up before players arrive.",
     ]} />
 
     <Section id="how-it-works" eyebrow="Schedule" title="Know which practices still have no plan." reverse visual={<ScheduleVisual />} body={[
-      "Add one-time or recurring practices. Each one shows its status at a glance — ready, started, or needs a plan — so Thursday's practice doesn't sneak up on you Wednesday night.",
+      "Add one-time or recurring practices. Each one shows its status at a glance (ready, started, or needs a plan) so Thursday's practice doesn't sneak up on you Wednesday night.",
     ]} />
 
     <Section eyebrow="Templates and Previous Practices" title="Start with what already works." visual={<TemplatesVisual />} body={[
@@ -477,7 +494,7 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Practice History" title="Keep the plan and what actually happened together." reverse visual={<HistoryVisual />} body={[
-      "After practice: attendance, actual drill times, what changed on the fly, and notes on what needs more work. Next week's plan starts from what your team actually did — not what you hoped it would do.",
+      "After practice: attendance, actual drill times, what changed on the fly, and notes on what needs more work. Next week's plan starts from what your team actually did, not what you hoped it would do.",
     ]} />
 
     <div className="lp-section tight">
@@ -503,11 +520,11 @@ export default function LandingPage({ onGetStarted }) {
         <div className="lp-watch-stage">
           <div className="lp-watch-col">
             <WatchFrame><WatchLiveScreen /></WatchFrame>
-            <p className="lp-watch-caption"><strong>Glance, don't scroll.</strong> Drill, time and what's next — advance with one tap.</p>
+            <p className="lp-watch-caption"><strong>Glance, don't scroll.</strong> Drill, time and what's next: advance with one tap.</p>
           </div>
           <div className="lp-watch-col">
             <WatchFrame><WatchAlertScreen /></WatchFrame>
-            <p className="lp-watch-caption"><strong>A tap on the wrist</strong> when it's time to move — no whistle, no shouting across the field.</p>
+            <p className="lp-watch-caption"><strong>A tap on the wrist</strong> when it's time to move: no whistle, no shouting across the field.</p>
           </div>
         </div>
       </div>
