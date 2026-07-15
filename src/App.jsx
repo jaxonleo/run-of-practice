@@ -775,6 +775,7 @@ function AuthedShell(){
   // Step-3 bridge only (see the /schedule route comment above) -- retire
   // once step 4 folds Schedule into /team/:teamId/schedule.
   const goToSchedule=useCallback(()=>navigate("/schedule"),[navigate]);
+  const goToTeam=useCallback(teamId=>navigate("/team/"+teamId+"/schedule"),[navigate]);
 
   // Loading initial session
   if(session===undefined)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
@@ -791,7 +792,7 @@ function AuthedShell(){
   // Show data loading spinner after auth but before data loaded
   if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div></div>);
 
-  return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,goToBuilder,goToRun,goHome,goToSchedule}}>
+  return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,goToBuilder,goToRun,goHome,goToSchedule,goToTeam}}>
     <Outlet/>
     {ctx.modal&&<ModalLayer modal={ctx.modal} data={ctx.data} update={ctx.update} closeModal={ctx.closeModal} refreshTeams={ctx.refreshTeams} refreshLibrary={ctx.refreshLibrary} refreshPlanning={ctx.refreshPlanning} coachId={ctx.coachId}/>}
   </AppCtx.Provider>);
@@ -806,8 +807,8 @@ function HelperViewRoute(){ const {token}=useParams(); return <HelperView token=
 function PreviewViewRoute(){ const {token}=useParams(); return <PreviewView token={token}/>; }
 
 function HomeRoute(){
-  const {data,update,goToBuilder,goToRun,goToSchedule,coachId,coachName,coachEmail,refreshPlanning,refreshTeams}=useAppCtx();
-  return <HomeScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>;
+  const {data,update,goToBuilder,goToRun,goToSchedule,goToTeam,coachId,coachName,coachEmail,refreshPlanning,refreshTeams}=useAppCtx();
+  return <HomeScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeam={goToTeam} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>;
 }
 
 function LibraryRoute(){

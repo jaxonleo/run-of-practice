@@ -88,7 +88,7 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 };
 
-export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSchedule, coachId, coachName, coachEmail, refreshPlanning, refreshTeams }) {
+export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSchedule, goToTeam, coachId, coachName, coachEmail, refreshPlanning, refreshTeams }) {
   const now = new Date();
   const todayStr = localDateStr(now);
   const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
@@ -211,6 +211,13 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
       <div style={{ fontSize: 14, marginBottom: 6 }}>You've been added to <strong>{pendingWelcome.team.name}</strong> by {adderName}.</div>
       <button style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 12, color: "var(--td)", textDecoration: "underline" }} disabled={leavingTeamId === pendingWelcome.team.id} onClick={() => handleLeave(pendingWelcome.team.id)}>Not your team? Leave</button>
     </div></div>}
+
+    {data.teams.length > 0 && <div style={{ padding: "0 16px 12px", display: "flex", gap: 6, flexWrap: "wrap" }}>
+      {data.teams.map(t => (<button key={t.id} onClick={() => goToTeam(t.id)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 20, border: "1.5px solid " + (t.colorPrimary || "var(--green)"), background: "#fff", cursor: "pointer" }}>
+        <span style={{ width: 7, height: 7, borderRadius: "50%", background: t.colorPrimary || "var(--green)" }} />
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--black)" }}>{t.name}</span>
+      </button>))}
+    </div>}
 
     <div style={{ padding: "0 16px" }}>
       {!nextPractice && <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px" }}>
