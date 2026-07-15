@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 const CONTACT_EMAIL = "contact@runofpractice.com";
 
@@ -51,6 +51,71 @@ function useCountdown(startSeconds) {
   return { display: formatClock(remaining), over, minutesBehind: over ? Math.ceil(Math.abs(remaining) / 60) : 0 };
 }
 
+// Interactive clock for the hero demo -- unlike useCountdown (pure wall-clock
+// math, read-only), this one re-anchors on every pause/resume/adjust/reset so
+// it stays Date.now()-accurate while still supporting user control.
+function useAdjustableClock(initialSeconds) {
+  const reducedMotion = usePrefersReducedMotion();
+  const [state, setState] = useState({ base: initialSeconds, at: Date.now(), paused: false });
+  const [, forceTick] = useState(0);
+
+  useEffect(() => {
+    if (reducedMotion || state.paused) return;
+    const id = setInterval(() => forceTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [reducedMotion, state.paused]);
+
+  const computeRemaining = (s) => (s.paused || reducedMotion) ? s.base : s.base - Math.floor((Date.now() - s.at) / 1000);
+  const remaining = computeRemaining(state);
+  const over = remaining < 0;
+
+  return {
+    display: formatClock(remaining),
+    over,
+    minutesBehind: over ? Math.ceil(Math.abs(remaining) / 60) : 0,
+    paused: state.paused,
+    pause: () => setState(s => s.paused ? s : { base: computeRemaining(s), at: Date.now(), paused: true }),
+    resume: () => setState(s => s.paused ? { base: s.base, at: Date.now(), paused: false } : s),
+    adjust: (deltaSeconds) => setState(s => ({ base: computeRemaining(s) + deltaSeconds, at: Date.now(), paused: s.paused })),
+    resetTo: (seconds) => setState(s => ({ base: seconds, at: Date.now(), paused: s.paused })),
+  };
+}
+
+// Click-driven step timer for the Adjustments card -- no wall-clock ticking,
+// just an undo-able history of manual adjustments (this card demonstrates
+// the controls, not another running clock).
+function useStepTimer(initialSeconds, initialAheadMinutes) {
+  const [timerSeconds, setTimerSeconds] = useState(initialSeconds);
+  const [aheadMinutes, setAheadMinutes] = useState(initialAheadMinutes);
+  const [history, setHistory] = useState([]);
+  const [flash, setFlash] = useState(false);
+  const flashTimeoutRef = useRef(null);
+  useEffect(() => () => { if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current); }, []);
+
+  const doFlash = () => {
+    setFlash(true);
+    if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+    flashTimeoutRef.current = setTimeout(() => setFlash(false), 600);
+  };
+
+  return {
+    display: formatClock(timerSeconds),
+    aheadMinutes,
+    over: aheadMinutes < 0,
+    flash,
+    bump: (deltaMinutes) => { setTimerSeconds(t => t + deltaMinutes * 60); setAheadMinutes(a => a - deltaMinutes); },
+    next: () => { setHistory(h => [...h, { timerSeconds, aheadMinutes }]); setTimerSeconds(13 * 60); doFlash(); },
+    prev: () => setHistory(h => {
+      if (h.length === 0) return h;
+      const last = h[h.length - 1];
+      setTimerSeconds(last.timerSeconds);
+      setAheadMinutes(last.aheadMinutes);
+      doFlash();
+      return h.slice(0, -1);
+    }),
+  };
+}
+
 // Scoped to this page only -- the app's own CSS (App.jsx's CSS block) is
 // injected globally and already defines .btn/.card/.pill/.bdg/.cc-* etc, so
 // section visuals below reuse those real component classes instead of
@@ -85,6 +150,8 @@ const LP_CSS = `
   .lp-row{flex-direction:row;gap:56px;align-items:center;}
   .lp-row.rev{flex-direction:row-reverse;}
   .lp-navlink.hideonsm{display:inline;}
+  .lp-row.wide-visual .lp-copy{flex:0 0 255px;}
+  .lp-row.wide-visual .lp-visual{flex:1 1 auto;}
 }
 .lp-phone{background:#fff;border:1px solid var(--b);border-radius:20px;padding:16px;box-shadow:0 20px 50px rgba(0,0,0,.14);text-align:left;color:var(--black);width:100%;max-width:var(--mock-card-primary);margin:0 auto;}
 .lp-duo{position:relative;display:flex;align-items:flex-end;justify-content:center;width:100%;}
@@ -96,9 +163,27 @@ const LP_CSS = `
   .lp-duo .lp-card-primary,.lp-duo .lp-card-secondary{flex:none;width:100%;max-width:none;margin-left:0;}
   .lp-duo .lp-card-secondary{margin-top:14px;}
 }
+.lp-duo-fixed{position:relative;display:flex;align-items:flex-end;justify-content:center;flex-wrap:wrap;width:100%;}
+.lp-duo-fixed .lp-card-primary{flex:0 0 var(--mock-card-primary);width:var(--mock-card-primary);max-width:100%;}
+.lp-duo-fixed .lp-phoneframe-wrap{flex:0 0 300px;width:300px;max-width:100%;margin-left:-32px;position:relative;z-index:2;}
+@media (max-width:899px){
+  .lp-duo-fixed{flex-direction:column;}
+  .lp-duo-fixed .lp-card-primary{width:100%;}
+  .lp-duo-fixed .lp-phoneframe-wrap{width:100%;margin-left:0;margin-top:14px;}
+}
+.lp-phoneframe{position:relative;width:100%;background:linear-gradient(160deg,#2b2f2b,#141714);border-radius:44px;padding:12px;box-shadow:0 24px 50px rgba(0,0,0,.28);}
+.lp-phoneframe-island{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:90px;height:22px;background:#000;border-radius:14px;z-index:2;}
+.lp-phoneframe-screen{position:relative;background:#fff;border-radius:34px;overflow:hidden;padding-top:34px;}
+.lp-phoneframe .lp-phone{box-shadow:none;border:none;border-radius:0;max-width:none;margin:0;padding:16px 16px 24px;}
 .lp-hero-stage{position:relative;width:100%;max-width:var(--mock-card-primary);margin:0 auto;}
 .lp-hero-mini{position:absolute;right:-18px;bottom:-22px;width:60%;max-width:var(--mock-card-secondary);transform:scale(0.7) rotate(-2deg);transform-origin:bottom right;z-index:2;filter:drop-shadow(0 16px 26px rgba(0,0,0,.3));}
 .lp-hero-mini .lp-phone{max-width:none;}
+.lp-rotate-flash{position:absolute;top:14px;right:14px;background:var(--red);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:20px;z-index:5;animation:lp-rotate-flash-pop .3s ease;}
+@keyframes lp-rotate-flash-pop{from{opacity:0;transform:scale(.8);}to{opacity:1;transform:scale(1);}}
+.lp-chip-fade{animation:lp-chip-fade .3s ease;}
+@keyframes lp-chip-fade{from{opacity:0;transform:translateY(2px);}to{opacity:1;transform:translateY(0);}}
+.lp-flash-green{animation:lp-flash-green .6s ease;}
+@keyframes lp-flash-green{0%{border-color:var(--green);}100%{border-color:var(--b);}}
 .lp-hero{background:var(--black);padding:52px 20px 60px;text-align:center;}
 .lp-hero h1{font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:900;color:#fff;letter-spacing:-.01em;line-height:1.08;margin:14px auto 16px;max-width:640px;}
 .lp-hero-sub{font-size:16px;color:var(--td);line-height:1.6;max-width:520px;margin:0 auto 26px;}
@@ -133,6 +218,7 @@ const LP_CSS = `
 .lp-w-ontime{font-family:'DM Mono',monospace;font-size:9px;font-weight:700;color:#cfe8d8;background:rgba(127,214,164,.16);border-radius:999px;padding:3px 8px;}
 .lp-w-behind{font-family:'DM Mono',monospace;font-size:9px;font-weight:700;color:#f4d9a8;background:rgba(240,198,116,.18);border-radius:999px;padding:3px 8px;}
 .lp-w-drill{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:19px;color:#fff;line-height:1.1;margin-bottom:2px;}
+.lp-w-location{font-size:9px;color:#8b978f;margin-bottom:8px;}
 .lp-w-timer{font-family:'DM Mono',monospace;font-weight:500;font-size:44px;letter-spacing:-.02em;color:#43d97d;line-height:1.05;font-variant-numeric:tabular-nums;}
 .lp-w-timer.over{color:#ff6a4d;animation:pulse .8s infinite;}
 .lp-w-timer-label{font-size:10px;color:#8b978f;margin-bottom:10px;}
@@ -158,7 +244,7 @@ const LP_CSS = `
 .lp-w-done-btn{margin-top:auto;background:rgba(255,255,255,.14);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13px;letter-spacing:.05em;text-align:center;border-radius:999px;padding:11px 0;}
 .lp-watch-caption{font-size:12.5px;line-height:1.5;color:var(--tm);text-align:center;max-width:210px;}
 .lp-watch-caption strong{color:var(--black);font-weight:600;}
-@media (prefers-reduced-motion:reduce){.lp-w-live .dot,.lp-w-haptic span,.lp-w-timer.over{animation:none;}}
+@media (prefers-reduced-motion:reduce){.lp-w-live .dot,.lp-w-haptic span,.lp-w-timer.over,.lp-rotate-flash,.lp-chip-fade,.lp-flash-green,.cc-timer.over{animation:none;}}
 @media (max-width:560px){.lp-watch-stage{gap:32px;}}
 `;
 
@@ -208,8 +294,8 @@ function LibraryVisual() {
       <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>Ground Ball Fundamentals</div>
       <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 2, lineHeight: 1.4 }}>Fielding triangle, glove out front. Right, left, throw.</div>
       <div style={{ fontSize: 11, color: "var(--td)", marginTop: 2 }}>Needs: Bucket of Balls</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
-        <span className="bdg bs" style={{ fontSize: 10 }}>Fielding</span><span className="bdg bs" style={{ fontSize: 10 }}>Footwork</span>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+        <span className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>Fielding</span><span className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>Footwork</span>
       </div>
     </div>
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--s1)", border: "1px solid var(--b)", borderRadius: "var(--r)", marginTop: 10 }}>
@@ -236,7 +322,11 @@ function BuilderVisual() {
 
 function StationChip({ name, tone }) {
   const map = { here: { b: "var(--green)", bg: "var(--green)", c: "#fff" }, other: { b: "#d97706", bg: "#fef3c7", c: "#92400e" }, none: { b: "var(--b)", bg: "var(--s1)", c: "var(--black)" } }[tone];
-  return <span style={{ padding: "5px 9px", borderRadius: 8, border: "1.5px solid " + map.b, background: map.bg, color: map.c, fontSize: 12, fontWeight: 700 }}>{name}</span>;
+  return <span style={{ padding: "5px 9px", borderRadius: 8, border: "1.5px solid " + map.b, background: map.bg, color: map.c, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{name}</span>;
+}
+
+function LocationLine({ text, style }) {
+  return <div style={{ fontSize: 12, color: "var(--td)", display: "flex", alignItems: "center", gap: 4, ...style }}><span aria-hidden="true">📍</span>{text}</div>;
 }
 
 function StationsVisual() {
@@ -253,7 +343,7 @@ function StationsVisual() {
     <button className="btn outline bsm bfull mb8">Generate Random Groups</button>
     {stations.map((s) => (<div key={s.label} style={{ background: "var(--s1)", border: "1.5px solid var(--b)", borderRadius: "var(--r)", padding: "10px 10px 8px", marginBottom: 8 }}>
       <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 900, color: "var(--green)", letterSpacing: ".05em", marginBottom: 6 }}>{s.label.toUpperCase()} · {s.area.toUpperCase()}</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {s.chips.map(c => <StationChip key={c.n} name={c.n} tone={c.t} />)}
       </div>
     </div>))}
@@ -267,8 +357,8 @@ function LocationsVisual() {
         <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 700 }}>Eastside Park</span>
         <button className="btn ghost bxs">+ Area</button>
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        <span className="bdg bs">Batting Cage 1</span><span className="bdg bs">Batting Cage 2</span><span className="bdg bs">Infield</span><span className="bdg bs">Outfield</span>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <span className="bdg bs" style={{ whiteSpace: "nowrap" }}>Batting Cage 1</span><span className="bdg bs" style={{ whiteSpace: "nowrap" }}>Batting Cage 2</span><span className="bdg bs" style={{ whiteSpace: "nowrap" }}>Infield</span><span className="bdg bs" style={{ whiteSpace: "nowrap" }}>Outfield</span>
       </div>
     </div>
     <div className="sechdr mb8"><span className="sectitle">Team Equipment</span></div>
@@ -295,6 +385,7 @@ function TemplatesVisual() {
 function LiveVisual({
   drill = "Throwing Progression",
   roundLabel = null,
+  location = "Outfield · Eastside Park",
   startSeconds = CLOCK_THROWING_START,
   description = "Partners start at 30 feet, step back to 45 and 60 as arms loosen. Focus throws to the chest, receiver gives a target.",
   focus = "Hit the chest. Point your front shoulder, follow your throw.",
@@ -312,6 +403,7 @@ function LiveVisual({
     </div>
     {roundLabel && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 2 }}>{roundLabel}</div>}
     <div className="cc-act-name">{drill}</div>
+    {location && <LocationLine text={location} style={{ marginTop: 2, marginBottom: 4 }} />}
     <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
       <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
     </div>
@@ -323,8 +415,8 @@ function LiveVisual({
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
       <div style={{ fontSize: 14, color: "var(--black)", lineHeight: 1.5 }}>{focus}</div>
     </div>
-    {skills.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
-      {skills.map(s => <span key={s} className="bdg bs" style={{ fontSize: 10 }}>{s}</span>)}
+    {skills.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+      {skills.map(s => <span key={s} className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>{s}</span>)}
     </div>}
     <div className="cc-queue"><div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)" }}>Up Next</div><div className="cc-queue-item"><span style={{ fontSize: 13, color: "var(--black2)" }}>{upNextName}</span><span className="bdg bs">{upNextMins}</span></div></div>
   </div>);
@@ -337,20 +429,121 @@ function StationOverviewRow({ label, name, coach, chips }) {
       <span style={{ fontSize: 10, color: "var(--td)" }}>{coach}</span>
     </div>
     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 900, color: "var(--black)", marginBottom: 4 }}>{name}</div>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>{chips}</div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{chips}</div>
   </div>);
 }
 
-function StationFocusVisual() {
+// ── Hero demo: one Station Block round, both cards on one shared,
+// pausable/adjustable clock. Stations (drill/coach/location) are fixed;
+// only the player groups rotate through them each round.
+const HERO_ROTATION = [
+  { infield: ["Timmy", "Billy", "Bobby"], cage: ["Ava", "Jordan"] },
+  { infield: ["Ava", "Jordan"], cage: ["Max", "Riley", "Sam"] },
+  { infield: ["Max", "Riley", "Sam"], cage: ["Timmy", "Billy", "Bobby"] },
+];
+function playerTone(name) { return name === "Sam" ? "other" : "here"; }
+
+function HeroPrimaryCard({ round, clock, rotateFlash, players, onPauseToggle, onAdjust, onNext }) {
+  return (<div className="lp-phone" style={{ position: "relative" }}>
+    {rotateFlash && <div className="lp-rotate-flash">Rotate</div>}
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+      <div className="row"><span className="live" style={{ animationPlayState: clock.paused ? "paused" : "running" }} /><span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginLeft: 5 }}>Live</span></div>
+      {clock.paused
+        ? <span style={{ background: "var(--s2)", color: "var(--tm)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>Paused</span>
+        : clock.over
+          ? <span style={{ background: "var(--ambg)", color: "var(--amber)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{clock.minutesBehind}m behind</span>
+          : <span style={{ background: "var(--gbg)", color: "var(--green)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>On time</span>}
+    </div>
+    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 2 }}>Round {round} of 3</div>
+    <div className="cc-act-name">Ground Ball Fundamentals</div>
+    <LocationLine text="Infield · Eastside Park" style={{ marginTop: 2, marginBottom: 2 }} />
+    <div className="limt" style={{ marginBottom: 6 }}>Coach Mike</div>
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
+      <div className={"cc-timer" + (clock.over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{clock.display}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
+    </div>
+    <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 4 }}>Description</div>
+      <div style={{ fontSize: 13, color: "var(--black)", lineHeight: 1.5 }}>Coach rolls firm grounders, alternating forehand and backhand. Field, footwork, throw to the bucket target.</div>
+    </div>
+    <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
+      <div style={{ fontSize: 14, color: "var(--black)", lineHeight: 1.5 }}>Fielding triangle: feet wide, glove out front. Right, left, throw.</div>
+    </div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+      <span className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>Fielding</span><span className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>Footwork</span>
+    </div>
+    <div key={round} className="lp-chip-fade" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+      {players.map(p => <StationChip key={p} name={p} tone={playerTone(p)} />)}
+    </div>
+    <div className="cc-queue" style={{ marginBottom: 10 }}>
+      <div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)" }}>Up Next</div>
+      <div className="cc-queue-item">
+        {round < 3
+          ? <span style={{ fontSize: 13, color: "var(--black2)" }}>Round {round + 1}: players rotate</span>
+          : <><span style={{ fontSize: 13, color: "var(--black2)" }}>Situational Scrimmage</span><span className="bdg bs">20m</span></>}
+      </div>
+    </div>
+    <div className="brow" style={{ marginBottom: 8, gap: 8 }}>
+      <button className="btn ghost bsm" style={{ minWidth: 44, minHeight: 44 }} aria-label={clock.paused ? "Resume timer" : "Pause timer"} onClick={onPauseToggle}>{clock.paused ? "▶" : "❚❚"}</button>
+      <button className="btn ghost bsm" style={{ flex: 1, minHeight: 44 }} aria-label="Subtract one minute from round timer" onClick={() => onAdjust(-60)}>−1M</button>
+      <button className="btn ghost bsm" style={{ flex: 1, minHeight: 44 }} aria-label="Add one minute to round timer" onClick={() => onAdjust(60)}>+1M</button>
+    </div>
+    <button className="btn primary blg bfull" style={{ minHeight: 44 }} aria-label="Advance to next round" onClick={onNext}>Next &gt;</button>
+  </div>);
+}
+
+function HeroOverlayCard({ round, clock, players }) {
   return (<div className="lp-phone">
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 2 }}>Station 2</div>
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Batting Cage 1</div>
-    <div className="limt" style={{ marginBottom: 6 }}>Front Toss · Coach Jen</div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 2 }}>Station 2</div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 900, marginBottom: 2 }}>Front Toss</div>
+    <LocationLine text="Batting Cage 1 · Eastside Park" style={{ fontSize: 11, marginBottom: 2 }} />
+    <div className="limt" style={{ fontSize: 11, marginBottom: 6 }}>Coach Jen</div>
+    <div className={"cc-timer" + (clock.over ? " over" : "")} style={{ fontSize: 30, fontVariantNumeric: "tabular-nums", marginBottom: 8 }}>{clock.display}</div>
+    <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 8, marginBottom: 8 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)" }}>Description</div>
+      <div style={{ fontSize: 11.5, lineHeight: 1.4 }}>Firm underhand toss from behind the L-screen. 8 swings, rotate. Partner shags.</div>
+    </div>
     <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 8, marginBottom: 8 }}>
       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a" }}>💡 Coaching Focus</div>
-      <div style={{ fontSize: 12.5, lineHeight: 1.4 }}>Level swing, contact out front.</div>
+      <div style={{ fontSize: 12, lineHeight: 1.4 }}>Level swing, contact out front.</div>
     </div>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+      <span className="bdg bs" style={{ fontSize: 9, whiteSpace: "nowrap" }}>Hitting</span><span className="bdg bs" style={{ fontSize: 9, whiteSpace: "nowrap" }}>Contact</span>
+    </div>
+    <div key={round} className="lp-chip-fade" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      {players.map(p => <StationChip key={p} name={p} tone={playerTone(p)} />)}
+    </div>
+  </div>);
+}
+
+function HeroDemo() {
+  const clock = useAdjustableClock(CLOCK_STATION_BLOCK_START);
+  const [round, setRound] = useState(1);
+  const [rotateFlash, setRotateFlash] = useState(false);
+  const flashTimeoutRef = useRef(null);
+  useEffect(() => () => { if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current); }, []);
+
+  const handleNext = () => {
+    clock.resetTo(CLOCK_STATION_BLOCK_START);
+    setRound(r => (r % 3) + 1);
+    setRotateFlash(true);
+    if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+    flashTimeoutRef.current = setTimeout(() => setRotateFlash(false), 1000);
+  };
+
+  const roundData = HERO_ROTATION[round - 1];
+
+  return (<div className="lp-hero-stage">
+    <HeroPrimaryCard
+      round={round}
+      clock={clock}
+      rotateFlash={rotateFlash}
+      players={roundData.infield}
+      onPauseToggle={clock.paused ? clock.resume : clock.pause}
+      onAdjust={clock.adjust}
+      onNext={handleNext}
+    />
+    <div className="lp-hero-mini"><HeroOverlayCard round={round} clock={clock} players={roundData.cage} /></div>
   </div>);
 }
 
@@ -358,9 +551,9 @@ function StationDetailVisual() {
   const { display, over } = useCountdown(CLOCK_STATION_BLOCK_START);
   return (<div className="lp-phone">
     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 2 }}>Station 2</div>
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Batting Cage 1</div>
-    <div className="limt" style={{ marginBottom: 8 }}>Coach Jen</div>
-    <div style={{ fontWeight: 700, fontSize: 15, color: "var(--black)", marginBottom: 10 }}>Front Toss</div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Front Toss</div>
+    <LocationLine text="Batting Cage 1 · Eastside Park" style={{ marginBottom: 3 }} />
+    <div className="limt" style={{ marginBottom: 10 }}>Coach Jen</div>
     <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 4 }}>Description</div>
       <div style={{ fontSize: 13, color: "var(--black)", lineHeight: 1.5 }}>Toss from behind the L-screen, firm underhand to the front half of the plate. Each hitter takes 8 swings, then rotates. Partner shags into the bucket.</div>
@@ -369,13 +562,13 @@ function StationDetailVisual() {
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
       <div style={{ fontSize: 14, color: "var(--black)", lineHeight: 1.5 }}>Level swing, contact out front. Let the outside pitch travel.</div>
     </div>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
-      <span className="bdg bs" style={{ fontSize: 10 }}>Hitting</span><span className="bdg bs" style={{ fontSize: 10 }}>Contact</span>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+      <span className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>Hitting</span><span className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>Contact</span>
     </div>
     <div style={{ marginBottom: 10 }}>
       <span style={{ border: "1.5px solid #fde047", borderRadius: 20, padding: "3px 10px", fontSize: 12, color: "#854d0e", fontWeight: 600, background: "#fff" }}>Equipment: L-Screen, Bucket of Balls, Helmets</span>
     </div>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></div>
     <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
       <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
     </div>
@@ -383,14 +576,14 @@ function StationDetailVisual() {
 }
 
 function HelperVisual() {
-  return (<div className="lp-duo">
+  return (<div className="lp-duo-fixed">
     <div className="lp-phone lp-card-primary">
       <div className="clbl">All Stations</div>
       <StationOverviewRow label="Station 1" name="Infield" coach="Coach Mike" chips={<><StationChip name="Timmy" tone="here" /><StationChip name="Billy" tone="here" /><StationChip name="Bobby" tone="here" /></>} />
       <StationOverviewRow label="Station 2" name="Batting Cage 1" coach="Coach Jen" chips={<><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></>} />
       <StationOverviewRow label="Station 3" name="Outfield" coach="Coach Dana" chips={<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="here" /><StationChip name="Sam" tone="other" /></>} />
     </div>
-    <div className="lp-card-secondary"><StationDetailVisual /></div>
+    <div className="lp-phoneframe-wrap"><PhoneFrame><StationDetailVisual /></PhoneFrame></div>
   </div>);
 }
 
@@ -404,17 +597,22 @@ function FocusVisual() {
 }
 
 function AdjustVisual() {
-  return (<div className="lp-phone">
+  const t = useStepTimer(13 * 60, 4);
+  return (<div className={"lp-phone" + (t.flash ? " lp-flash-green" : "")}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
       <span style={{ color: "var(--black)", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 700 }}>Station Block</span>
-      <span style={{ background: "var(--gbg)", color: "var(--green)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>4m ahead</span>
+      {t.over
+        ? <span style={{ background: "var(--ambg)", color: "var(--amber)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{Math.abs(t.aheadMinutes)}m behind</span>
+        : <span style={{ background: "var(--gbg)", color: "var(--green)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{t.aheadMinutes}m ahead</span>}
     </div>
+    <div className="cc-timer" style={{ fontSize: 34, fontVariantNumeric: "tabular-nums", marginBottom: 8 }}>{t.display}</div>
     <div className="brow" style={{ marginBottom: 8 }}>
-      <button className="btn ghost bsm" style={{ flex: 1 }}>+1m</button><button className="btn ghost bsm" style={{ flex: 1 }}>-1m</button>
+      <button className="btn ghost bsm" style={{ flex: 1, minHeight: 44 }} aria-label="Add one minute to activity timer" onClick={() => t.bump(1)}>+1m</button>
+      <button className="btn ghost bsm" style={{ flex: 1, minHeight: 44 }} aria-label="Subtract one minute from activity timer" onClick={() => t.bump(-1)}>-1m</button>
     </div>
     <div className="cc-controls" style={{ padding: 0 }}>
-      <button className="btn ghost bmd" style={{ minWidth: 52 }}>&lt;</button>
-      <button className="btn primary blg" style={{ flex: 1 }}>Next &gt;</button>
+      <button className="btn ghost bmd" style={{ minWidth: 52, minHeight: 44 }} aria-label="Previous round" onClick={t.prev}>&lt;</button>
+      <button className="btn primary blg" style={{ flex: 1, minHeight: 44 }} aria-label="Next round" onClick={t.next}>Next &gt;</button>
     </div>
   </div>);
 }
@@ -422,7 +620,8 @@ function AdjustVisual() {
 function TimerVisual() {
   const { display } = useCountdown(CLOCK_BATTING_CAGE_START);
   return (<div className="lp-phone">
-    <div className="cc-act-name">Batting Cage 1</div>
+    <div className="cc-act-name">Front Toss</div>
+    <LocationLine text="Batting Cage 1 · Eastside Park" style={{ marginTop: 2, marginBottom: 8 }} />
     <div className="cc-timer over" style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div>
   </div>);
 }
@@ -434,15 +633,21 @@ function AdjustTimerVisual() {
   </div>);
 }
 
+const ROTATION_MOVES = [
+  { names: "Timmy, Billy, Bobby", from: "Station 1: Infield · Coach Mike", to: "Station 2: Batting Cage 1 · Coach Jen", bring: "helmets, bats" },
+  { names: "Ava, Jordan", from: "Station 2: Batting Cage 1 · Coach Jen", to: "Station 3: Outfield · Coach Dana", bring: "gloves" },
+  { names: "Max, Riley, Sam", from: "Station 3: Outfield · Coach Dana", to: "Station 1: Infield · Coach Mike", bring: "gloves" },
+];
+
 function TransitionVisual() {
   return (<div className="lp-phone">
     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 900, color: "var(--red)", letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 10 }}>Rotate Now</div>
-    <div className="cc-trans-card">
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 20, fontWeight: 900, color: "var(--black)", lineHeight: 1.2, marginBottom: 6 }}>Timmy, Billy, Bobby</div>
-      <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 3 }}>from Station 1: Infield · Coach Mike</div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--black)", marginBottom: 6 }}>&#8594; Station 2: Batting Cage 1 · Coach Jen</div>
-      <div style={{ fontSize: 12, color: "var(--td)" }}>Bring: helmets and bats</div>
-    </div>
+    {ROTATION_MOVES.map((r, i) => (<div key={r.names} className="cc-trans-card" style={{ marginBottom: i < ROTATION_MOVES.length - 1 ? 8 : 0 }}>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 900, color: "var(--black)", lineHeight: 1.2, marginBottom: 4 }}>{r.names}</div>
+      <div style={{ fontSize: 11, color: "var(--td)", marginBottom: 2 }}>from {r.from}</div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--black)", marginBottom: 4 }}>&#8594; {r.to}</div>
+      <div style={{ fontSize: 11, color: "var(--td)" }}>Bring: {r.bring}</div>
+    </div>))}
   </div>);
 }
 
@@ -477,6 +682,13 @@ function WatchFrame({ children }) {
   </div>);
 }
 
+function PhoneFrame({ children }) {
+  return (<div className="lp-phoneframe">
+    <div className="lp-phoneframe-island" aria-hidden="true"></div>
+    <div className="lp-phoneframe-screen">{children}</div>
+  </div>);
+}
+
 function WatchLiveScreen() {
   const { display, over, minutesBehind } = useCountdown(CLOCK_STATION_BLOCK_START);
   return (<div className="lp-watch-screen">
@@ -485,6 +697,7 @@ function WatchLiveScreen() {
       {over ? <span className="lp-w-behind">{minutesBehind}m behind</span> : <span className="lp-w-ontime">On time</span>}
     </div>
     <div className="lp-w-drill">Station Block</div>
+    <div className="lp-w-location">📍 Infield</div>
     <div className={"lp-w-timer" + (over ? " over" : "")}>{display}</div>
     <div className="lp-w-timer-label">remaining</div>
     <div className="lp-w-upnext">
@@ -509,10 +722,10 @@ function WatchAlertScreen() {
   </div>);
 }
 
-function Section({ id, eyebrow, title, body, visual, reverse, dark, tight }) {
+function Section({ id, eyebrow, title, body, visual, reverse, dark, tight, wideVisual }) {
   return (<section id={id} className={"lp-section" + (dark ? " dark" : "") + (tight ? " tight" : "")}>
     <div className="lp-wrap">
-      <div className={"lp-row" + (reverse ? " rev" : "")}>
+      <div className={"lp-row" + (reverse ? " rev" : "") + (wideVisual ? " wide-visual" : "")}>
         <div className="lp-copy">
           {eyebrow && <div className="lp-eyebrow">{eyebrow}</div>}
           <div className="lp-title">{title}</div>
@@ -562,10 +775,7 @@ export default function LandingPage({ onGetStarted }) {
       </div>
       <div style={{ fontSize: 12, color: "var(--td)", marginTop: 12 }}>Free during early access.</div>
       <div style={{ marginTop: 34, display: "flex", justifyContent: "center" }}>
-        <div className="lp-hero-stage">
-          <LiveVisual drill="Station Block" roundLabel="Round 1 of 3" startSeconds={CLOCK_STATION_BLOCK_START} description="" focus="Quality reps over rep count. Coaches teach, players move." skills={[]} upNextName="Situational Scrimmage" upNextMins="20m" />
-          <div className="lp-hero-mini"><StationFocusVisual /></div>
-        </div>
+        <HeroDemo />
       </div>
     </div>
 
@@ -573,7 +783,7 @@ export default function LandingPage({ onGetStarted }) {
       "What's happening now, time remaining, the coaching focus, which players, which coach, which field, and what's next. No clipboard, no stopwatch, no flipping between notes.",
     ]} />
 
-    <Section eyebrow="Assistant and Helper Views" title="The same live plan in every coach's hands." reverse visual={<HelperVisual />} body={[
+    <Section eyebrow="Assistant and Helper Views" title="The same live plan in every coach's hands." reverse wideVisual visual={<HelperVisual />} body={[
       "Assistant coaches see their team's practices automatically. Parent helpers get a link: no account, no app to download. Everyone sees their drill, their players, their coaching points, and where they go next.",
     ]} />
 
