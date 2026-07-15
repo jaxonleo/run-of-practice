@@ -54,7 +54,11 @@ function DaySheet({ date, practices, data, todayStr, runStatus, onPick, onClose 
   </div>);
 }
 
-export default function ScheduleScreen({ data, update, goToBuilder, goToRun, coachId, refreshPlanning }) {
+// fixedTeamId (handoff §4.4): set when reached via /team/:teamId/schedule --
+// data.practices is already scoped to that one team by the caller
+// (fetchPracticesFull(teamId)), so the team-filter chip row is redundant
+// (it would show exactly one, permanently-active chip) and is hidden.
+export default function ScheduleScreen({ data, update, goToBuilder, goToRun, coachId, refreshPlanning, fixedTeamId }) {
   const now = new Date();
   const todayStr = localDateStr(now);
   const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
@@ -155,7 +159,7 @@ export default function ScheduleScreen({ data, update, goToBuilder, goToRun, coa
       </div>}
     </div>
 
-    {data.teams.length > 0 && <div style={{ padding: "0 16px 12px", display: "flex", gap: 6, flexWrap: "wrap" }}>
+    {!fixedTeamId && data.teams.length > 0 && <div style={{ padding: "0 16px 12px", display: "flex", gap: 6, flexWrap: "wrap" }}>
       {data.teams.map(t => (<button key={t.id} onClick={() => toggleTeam(t.id)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 20, border: "1.5px solid " + (teamFilter.size === 0 || teamFilter.has(t.id) ? (t.colorPrimary || "var(--green)") : "var(--b)"), background: teamFilter.has(t.id) ? (t.colorPrimary || "var(--green)") : "#fff", cursor: "pointer" }}>
         <span style={{ width: 7, height: 7, borderRadius: "50%", background: t.colorPrimary || "var(--green)" }} />
         <span style={{ fontSize: 12, fontWeight: 600, color: teamFilter.has(t.id) ? "#fff" : "var(--black)" }}>{t.name}</span>

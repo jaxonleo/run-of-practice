@@ -130,6 +130,7 @@ export async function fetchMyTeams() {
     endDate: t.end_date,
     colorPrimary: t.color_primary,
     colorSecondary: t.color_secondary,
+    goalsWindowWeeks: t.goals_window_weeks || 4,
     players: players.filter(p => p.team_id === t.id).map(p => Object.assign(mapPlayerRow(p), { focusAreas: focusByPlayer[p.id] || [] })),
     coaches: staff.filter(s => s.team_id === t.id && !(s.user_id && deactivatedUserIds.has(s.user_id))).map(mapStaffRow),
   }))
@@ -567,9 +568,18 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
   return base
 }
 
-export async function fetchPracticesFull() {
+// teamId is optional -- omitted, this fetches every one of the coach's
+// practices (Home/My Week's cross-team agenda needs that); passed, it scopes
+// the practices query itself to that team (handoff §4.4 "at minimum, scope
+// fetchPracticesFull by team" -- the join tables below are still fetched
+// unscoped and filtered client-side via actsByPractice, same as before;
+// a fully bounded query across every join is flagged as a later gap, not
+// required for this milestone).
+export async function fetchPracticesFull(teamId) {
+  let practicesQuery = supabase.from('practices').select('*').is('archived_at', null)
+  if (teamId) practicesQuery = practicesQuery.eq('team_id', teamId)
   const [practicesRes, actsRes, equipRes, itemsRes, blocksRes, stationsRes, stationEquipRes, teamsRes] = await Promise.all([
-    supabase.from('practices').select('*').is('archived_at', null),
+    practicesQuery,
     supabase.from('practice_activities').select('*').is('archived_at', null),
     supabase.from('practice_activity_equipment').select('*'),
     supabase.from('practice_activity_checklist_items').select('*').order('position'),
@@ -1190,4 +1200,76 @@ export async function submitPublicFeedback({ email, message, pageContext }) {
   const { data, error } = await supabase.rpc('submit_public_feedback', { p_email: email, p_message: message, p_page_context: pageContext || null })
   if (error) { console.error('submitPublicFeedback:', error); return { error: 'request_failed' } }
   return data
+}
+
+// ── Team goals (ROP-Goals-TeamNav-Handoff.md) ─────────────────────────────────
+
+export async function fetchTeamGoals(teamId) {
+  const { data, error } = await supabase.from('team_goals').select('*').eq('team_id', teamId).is('archived_at', null)
+  if (error) { console.error('fetchTeamGoals:', error); return [] }
+  return (data || []).map(g => ({ id: g.id, teamId: g.team_id, skillTagId: g.skill_tag_id, targetPct: Number(g.target_pct) }))
+}
+// Upsert-by-(team,tag): re-setting a goal for a tag that already has one
+// updates the existing active row (team_goals_active_unique), rather than
+// archiving and re-inserting.
+export async function upsertTeamGoal(teamId, skillTagId, targetPct, createdBy) {
+  const { data: existing } = await supabase.from('team_goals').select('id').eq('team_id', teamId).eq('skill_tag_id', skillTagId).is('archived_at', null).maybeSingle()
+  if (existing) {
+    const { error } = await supabase.from('team_goals').update({ target_pct: targetPct }).eq('id', existing.id)
+    if (error) { console.error('upsertTeamGoal (update):', error); return { error } }
+    return { data: { id: existing.id } }
+  }
+  const { data, error } = await supabase.from('team_goals').insert({ team_id: teamId, skill_tag_id: skillTagId, target_pct: targetPct, created_by: createdBy }).select().single()
+  if (error) { console.error('upsertTeamGoal (insert):', error); return { error } }
+  return { data: { id: data.id } }
+}
+export async function archiveTeamGoal(id) {
+  const { error } = await supabase.from('team_goals').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  if (error) console.error('archiveTeamGoal:', error)
+  return { error }
+}
+export async function updateGoalsWindowWeeks(teamId, weeks) {
+  const { error } = await supabase.from('teams').update({ goals_window_weeks: weeks }).eq('id', teamId)
+  if (error) console.error('updateGoalsWindowWeeks:', error)
+  return { error }
+}
+export async function fetchTeamGoalReport(teamId) {
+  const { data, error } = await supabase.rpc('get_team_goal_report', { p_team_id: teamId })
+  if (error) { console.error('fetchTeamGoalReport:', error); return null }
+  return data
+}
+export async function fetchTeamSessionHistory(teamId) {
+  const { data, error } = await supabase.rpc('get_team_session_history', { p_team_id: teamId })
+  if (error) { console.error('fetchTeamSessionHistory:', error); return [] }
+  return data || []
+}
+export async function setSessionExclusion(sessionId, excluded) {
+  const { error } = await supabase.rpc('set_session_exclusion', { p_session_id: sessionId, p_excluded: excluded })
+  if (error) console.error('setSessionExclusion:', error)
+  return { error }
+}
+export async function adjustSessionActivity(logId, startedAt, endedAt) {
+  const { error } = await supabase.rpc('adjust_session_activity', { p_log_id: logId, p_started_at: startedAt, p_ended_at: endedAt })
+  if (error) console.error('adjustSessionActivity:', error)
+  return { error }
+}
+export async function addSessionActivityRow(sessionId, { practiceActivityId, stationId, startedAt, endedAt }) {
+  const { data, error } = await supabase.rpc('add_session_activity_row', {
+    p_session_id: sessionId, p_practice_activity_id: practiceActivityId || null, p_station_id: stationId || null,
+    p_started_at: startedAt, p_ended_at: endedAt,
+  })
+  if (error) { console.error('addSessionActivityRow:', error); return { error } }
+  return { data: { id: data } }
+}
+// Real elapsed timing for one completed session's activities, for the
+// planned-vs-actual History detail (handoff §5.3) -- this is the first
+// frontend read path for session_activity_log's timing columns.
+export async function fetchSessionActivityLog(sessionId) {
+  const { data, error } = await supabase.from('session_activity_log').select('*').eq('session_id', sessionId).order('started_at')
+  if (error) { console.error('fetchSessionActivityLog:', error); return [] }
+  return (data || []).map(r => ({
+    id: r.id, practiceActivityId: r.practice_activity_id, stationId: r.station_id,
+    startedAt: r.started_at, endedAt: r.ended_at, presentPlayerIds: r.present_player_ids || [],
+    adjustedAt: r.adjusted_at,
+  }))
 }

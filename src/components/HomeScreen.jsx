@@ -88,11 +88,12 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 };
 
-export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSchedule, goToTeam, coachId, coachName, coachEmail, refreshPlanning, refreshTeams }) {
+export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSchedule, goToTeam, goToTeamGoals, coachId, coachName, coachEmail, refreshPlanning, refreshTeams }) {
   const now = new Date();
   const todayStr = localDateStr(now);
   const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
-  const in14Str = localDateStr(new Date(Date.now() + 14 * 864e5));
+  // "My week" (handoff §4.3): was a 14-day window, now 7.
+  const in7Str = localDateStr(new Date(Date.now() + 7 * 864e5));
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
@@ -114,13 +115,23 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
   const locById = id => data.locations.find(l => l.id === id);
   const isPlanned = p => (p.activities || []).length > 0;
   const isCancelled = p => p.status === "cancelled";
+  // Same date-agnostic run signal as ScheduleScreen -- a practice run
+  // earlier today shouldn't still read as upcoming until midnight.
+  const ran = p => runStatus[p.id] === "completed";
 
   const active = data.practices.filter(p => !isCancelled(p));
-  const agendaWindow = active.filter(p => p.date >= todayStr && p.date <= in14Str).sort((a, b) => a.date === b.date ? (a.startTime || "").localeCompare(b.startTime || "") : a.date.localeCompare(b.date));
+  // Raw date-window candidates, before the ran() filter -- runStatus/absence
+  // counts are fetched for this set first (ran() reads runStatus, so the
+  // filtered-out set can't be known until that fetch resolves).
+  const windowCandidates = active.filter(p => p.date >= todayStr && p.date <= in7Str).sort((a, b) => a.date === b.date ? (a.startTime || "").localeCompare(b.startTime || "") : a.date.localeCompare(b.date));
+  // Completed practices leave the list entirely (handoff §4.3) -- Home used
+  // to only badge them "· Completed" inline; Schedule already excludes them
+  // from its "upcoming" bucket the same way.
+  const agendaWindow = windowCandidates.filter(p => !ran(p));
 
-  const agendaIdsKey = JSON.stringify(agendaWindow.map(p => p.id));
+  const agendaIdsKey = JSON.stringify(windowCandidates.map(p => p.id));
   const refreshAbsenceCounts = () => {
-    const ids = agendaWindow.map(p => p.id);
+    const ids = windowCandidates.map(p => p.id);
     if (!ids.length) { setAbsenceCounts({}); return; }
     fetchPlannedAbsences(ids).then(rows => {
       const counts = {};
@@ -130,13 +141,38 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
   };
   useEffect(refreshAbsenceCounts, [agendaIdsKey]);
   useEffect(() => {
-    const ids = agendaWindow.map(p => p.id);
+    const ids = windowCandidates.map(p => p.id);
     if (!ids.length) { setRunStatus({}); return; }
     fetchPracticeRunStatus(ids).then(setRunStatus);
   }, [agendaIdsKey]);
-  // Same date-agnostic run signal as ScheduleScreen -- a practice run
-  // earlier today shouldn't still read as the hero's "upcoming" practice.
-  const ran = p => runStatus[p.id] === "completed";
+
+  // Last-practice recap, one per team (handoff §4.3) -- needs run status
+  // across ALL practices, not just this week's window, since the most
+  // recent completed practice for a team could be older than 7 days.
+  const [allRunStatus, setAllRunStatus] = useState({});
+  const allPracticeIdsKey = JSON.stringify(data.practices.map(p => p.id));
+  useEffect(() => {
+    const ids = data.practices.map(p => p.id);
+    if (!ids.length) { setAllRunStatus({}); return; }
+    fetchPracticeRunStatus(ids).then(setAllRunStatus);
+  }, [allPracticeIdsKey]);
+  const lastPracticePerTeam = data.teams.map(team => {
+    const completed = data.practices
+      .filter(p => p.teamId === team.id && allRunStatus[p.id] === "completed")
+      .sort((a, b) => b.date === a.date ? (b.startTime || "").localeCompare(a.startTime || "") : b.date.localeCompare(a.date));
+    return completed[0] ? { team, practice: completed[0] } : null;
+  }).filter(Boolean);
+  const [recapAbsenceCounts, setRecapAbsenceCounts] = useState({});
+  const recapIdsKey = JSON.stringify(lastPracticePerTeam.map(r => r.practice.id));
+  useEffect(() => {
+    const ids = lastPracticePerTeam.map(r => r.practice.id);
+    if (!ids.length) { setRecapAbsenceCounts({}); return; }
+    fetchPlannedAbsences(ids).then(rows => {
+      const counts = {};
+      for (const r of rows) counts[r.practice_id] = (counts[r.practice_id] || 0) + 1;
+      setRecapAbsenceCounts(counts);
+    });
+  }, [recapIdsKey]);
   const openPractice = p => {
     if (ran(p) && isPlanned(p)) setHistoryPractice(p);
     else setViewPractice(p);
@@ -156,7 +192,9 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
   // Next-practice hero: soonest today (any time-of-day), else soonest
   // future -- skips a practice that's already completed today so the hero
   // moves on instead of still offering "Start Practice" on a finished run.
-  const nextPractice = agendaWindow.find(p => p.date === todayStr && !ran(p)) || agendaWindow.find(p => p.date > todayStr && !ran(p)) || null;
+  // agendaWindow already excludes ran(p) practices (above), so no need to
+  // recheck it here.
+  const nextPractice = agendaWindow.find(p => p.date === todayStr) || agendaWindow.find(p => p.date > todayStr) || null;
   const isSoonOrLive = p => {
     if (!p || !p.startTime || p.date !== todayStr) return false;
     const [h, m] = p.startTime.split(":").map(Number);
@@ -253,21 +291,45 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
         </div>);
       })()}
 
+      {lastPracticePerTeam.length > 0 && <div style={{ marginBottom: 16 }}>
+        <div className="clbl mb8">Last Practice</div>
+        {lastPracticePerTeam.map(({ team, practice }) => {
+          const mins = sumMins(practice.activities || []);
+          const absent = recapAbsenceCounts[practice.id] || 0;
+          const headcount = Math.max(0, team.players.length - absent);
+          return (<div key={team.id} className="card" style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => goToTeamGoals(team.id)}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+              {team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", background: team.colorPrimary, flexShrink: 0 }} />}
+              <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 14, fontWeight: 700 }}>{team.name}</span>
+            </div>
+            <div style={{ fontSize: 12, color: "var(--td)" }}>
+              {new Date(practice.date + "T12:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · {mins} min · {headcount} of {team.players.length} there
+            </div>
+            {/* Goals delta is stubbed here per the handoff (§4.3) -- the real
+                target-vs-actual insight is built in the Goals tab (§5.2),
+                which this links to. */}
+            <div style={{ fontSize: 12, color: "var(--green)", marginTop: 4 }}>See goals insights &#8594;</div>
+          </div>);
+        })}
+      </div>}
+
       {needsPlanning.length > 0 && <div className="li" style={{ marginBottom: 16, cursor: "pointer" }} onClick={goToSchedule}>
         <div className="lim"><div className="lin">{needsPlanning.length} practice{needsPlanning.length > 1 ? "s" : ""} in the next 14 days need{needsPlanning.length === 1 ? "s" : ""} a plan</div></div>
         <span style={{ color: "var(--green)", fontSize: 18 }}>&#8250;</span>
       </div>}
 
-      <div className="sechdr" style={{ marginBottom: 8 }}><span className="sectitle">Next 14 Days</span></div>
+      <div className="sechdr" style={{ marginBottom: 8 }}><span className="sectitle">This Week</span></div>
       {agendaWindow.length === 0 && <div style={{ padding: "16px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>Nothing scheduled.</div>}
       {agendaWindow.map(p => {
-        const team = teamById(p.teamId), loc = locById(p.locationId), planned = isPlanned(p), count = absenceCounts[p.id] || 0, completed = ran(p);
+        // agendaWindow already excludes completed practices, so no "· Completed"
+        // badge branch is needed here (unlike the old 14-day list).
+        const team = teamById(p.teamId), loc = locById(p.locationId), planned = isPlanned(p), count = absenceCounts[p.id] || 0;
         return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer" }} onClick={() => openPractice(p)}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
             {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
             <div className="lim" style={{ minWidth: 0 }}>
               <div className="lin">{team ? team.name : "Practice"}</div>
-              <div className="limt">{dayLbl(p.date, todayStr, tomorrowStr)}{p.startTime ? " · " + timeLbl(p) : ""}{loc ? " · " + loc.name : ""}{completed && " · Completed"}{!completed && !planned && " · Needs plan"}{!completed && planned && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{count > 0 && " · " + count + " out"}</div>
+              <div className="limt">{dayLbl(p.date, todayStr, tomorrowStr)}{p.startTime ? " · " + timeLbl(p) : ""}{loc ? " · " + loc.name : ""}{!planned && " · Needs plan"}{planned && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{count > 0 && " · " + count + " out"}</div>
             </div>
           </div>
           <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>

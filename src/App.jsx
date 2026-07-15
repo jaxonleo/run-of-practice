@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } from "react";
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider, Navigate, Outlet, useNavigate, useParams, useBlocker } from "react-router-dom";
 import Layout from "./Layout.jsx";
+import GoalsScreen from "./components/GoalsScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, createAsset, updateAsset, archiveAsset, archiveLocation, fetchNoteCountsForPractices, fetchPracticeRunStatus } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy } from "./constants.js";
@@ -727,7 +728,7 @@ export default function App(){
           <Route path="team/:teamId" element={<TeamIndexRedirect/>}/>
           <Route path="team/:teamId/schedule" element={<TeamScheduleRoute/>}/>
           <Route path="team/:teamId/plan" element={<PlanPlaceholder/>}/>
-          <Route path="team/:teamId/goals" element={<GoalsPlaceholder/>}/>
+          <Route path="team/:teamId/goals" element={<GoalsRoute/>}/>
           <Route path="team/:teamId/team" element={<TeamRosterRoute/>}/>
         </Route>
       </Route>
@@ -776,6 +777,7 @@ function AuthedShell(){
   // once step 4 folds Schedule into /team/:teamId/schedule.
   const goToSchedule=useCallback(()=>navigate("/schedule"),[navigate]);
   const goToTeam=useCallback(teamId=>navigate("/team/"+teamId+"/schedule"),[navigate]);
+  const goToTeamGoals=useCallback(teamId=>navigate("/team/"+teamId+"/goals"),[navigate]);
 
   // Loading initial session
   if(session===undefined)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
@@ -792,7 +794,7 @@ function AuthedShell(){
   // Show data loading spinner after auth but before data loaded
   if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div></div>);
 
-  return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,goToBuilder,goToRun,goHome,goToSchedule,goToTeam}}>
+  return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,goToBuilder,goToRun,goHome,goToSchedule,goToTeam,goToTeamGoals}}>
     <Outlet/>
     {ctx.modal&&<ModalLayer modal={ctx.modal} data={ctx.data} update={ctx.update} closeModal={ctx.closeModal} refreshTeams={ctx.refreshTeams} refreshLibrary={ctx.refreshLibrary} refreshPlanning={ctx.refreshPlanning} coachId={ctx.coachId}/>}
   </AppCtx.Provider>);
@@ -807,8 +809,8 @@ function HelperViewRoute(){ const {token}=useParams(); return <HelperView token=
 function PreviewViewRoute(){ const {token}=useParams(); return <PreviewView token={token}/>; }
 
 function HomeRoute(){
-  const {data,update,goToBuilder,goToRun,goToSchedule,goToTeam,coachId,coachName,coachEmail,refreshPlanning,refreshTeams}=useAppCtx();
-  return <HomeScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeam={goToTeam} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>;
+  const {data,update,goToBuilder,goToRun,goToSchedule,goToTeam,goToTeamGoals,coachId,coachName,coachEmail,refreshPlanning,refreshTeams}=useAppCtx();
+  return <HomeScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeam={goToTeam} goToTeamGoals={goToTeamGoals} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>;
 }
 
 function LibraryRoute(){
@@ -822,11 +824,27 @@ function ScheduleLegacyRoute(){
   return <ScheduleScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning}/>;
 }
 
+// Team-scoped Schedule (handoff §4.4). Fetches practices scoped to this one
+// team (fetchPracticesFull(teamId)) rather than reusing the app-wide
+// unbounded fetch -- a separate local fetch/state from App's own
+// `planning.practices`, since Home/My Week still needs the cross-team
+// unscoped list. refreshPlanning here refreshes both this team's scoped
+// list (immediate) and the global one (so Home stays in sync after a
+// mutation made from inside a team's Schedule tab).
 function TeamScheduleRoute(){
-  // Not yet team-filtered internally -- that's step 4 (handoff §4.4). Mounts
-  // the same existing ScheduleScreen unchanged, matching step 3's mandate to
-  // isolate router regressions from feature work.
-  return <ScheduleLegacyRoute/>;
+  const {teamId}=useParams();
+  const {data,update,goToBuilder,goToRun,coachId,refreshPlanning:refreshGlobalPlanning}=useAppCtx();
+  const [teamPractices,setTeamPractices]=useState(null);
+  const refreshTeamPractices=useCallback(()=>{
+    fetchPracticesFull(teamId).then(setTeamPractices);
+  },[teamId]);
+  useEffect(()=>{refreshTeamPractices();},[refreshTeamPractices]);
+  const refreshBoth=useCallback(async()=>{
+    await Promise.all([refreshTeamPractices(),refreshGlobalPlanning()]);
+  },[refreshTeamPractices,refreshGlobalPlanning]);
+  if(teamPractices===null)return (<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Loading...</div>);
+  const scopedData=Object.assign({},data,{practices:teamPractices});
+  return <ScheduleScreen data={scopedData} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshBoth} fixedTeamId={teamId}/>;
 }
 
 function TeamIndexRedirect(){
@@ -843,8 +861,10 @@ function TeamRosterRoute(){
 function PlanPlaceholder(){
   return (<div className="empty"><div className="emtx">Plan tab is coming soon.<br/>For now, build practices from Library or the team's Schedule tab.</div></div>);
 }
-function GoalsPlaceholder(){
-  return (<div className="empty"><div className="emtx">Goals + Insights is coming soon.<br/>Target-vs-planned-vs-actual reporting lands in the next implementation step.</div></div>);
+function GoalsRoute(){
+  const {teamId}=useParams();
+  const {data,coachId}=useAppCtx();
+  return <GoalsScreen data={data} teamId={teamId} coachId={coachId}/>;
 }
 
 function BuilderRoute(){
@@ -967,7 +987,6 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
     if(window.confirm("You have unsaved changes to this practice. Leave without saving?"))blocker.proceed();
     else blocker.reset();
   },[blocker]);
-  useEffect(()=>()=>{if(markDirty)markDirty(false);},[]);
   const team=data.teams.find(t=>t.id===teamId)||null;
   const loc=data.locations.find(l=>l.id===locId)||null;
   const teamSport=(team&&team.sport)||"General";
