@@ -131,9 +131,9 @@ function Header({ onGetStarted }) {
 // but they render with the exact same design tokens as the live app.
 function ScheduleVisual() {
   const rows = [
-    { day: "Today", t: "Varsity Practice", time: "4:00 PM", icon: "✓", color: "var(--green)", status: "60/60 min" },
-    { day: "Today", t: "JV Practice", time: "5:30 PM", icon: null, color: "var(--td)", status: "Needs plan" },
-    { day: "Tomorrow", t: "Varsity Practice", time: "4:00 PM", icon: "◐", color: "var(--amber)", status: "35/60 min" },
+    { day: "Today", t: "12U Red Practice", time: "4:00 PM", icon: "✓", color: "var(--green)", status: "85/90 min" },
+    { day: "Today", t: "10U Blue Practice", time: "5:30 PM", icon: null, color: "var(--td)", status: "Needs plan" },
+    { day: "Tomorrow", t: "12U Red Practice", time: "4:00 PM", icon: "◐", color: "var(--amber)", status: "40/90 min" },
   ];
   let lastDay = null;
   return (<div className="lp-phone">
@@ -150,24 +150,28 @@ function ScheduleVisual() {
 function LibraryVisual() {
   return (<div className="lp-phone">
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--s1)", borderRadius: "var(--r) var(--r) 0 0" }}>
-      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>Basketball</span>
-      <span style={{ fontSize: 12, color: "var(--td)" }}>6 drills ▼</span>
+      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>Baseball</span>
+      <span style={{ fontSize: 12, color: "var(--td)" }}>14 drills ▼</span>
     </div>
     <div style={{ border: "1px solid var(--b)", borderTop: "none", padding: "10px 12px" }}>
-      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>3-Man Weave</div>
-      <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 2, lineHeight: 1.4 }}>Finish every rep at full speed, no walking back.</div>
-      <div style={{ fontSize: 11, color: "var(--td)", marginTop: 2 }}>Needs: Cones</div>
+      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>Ground Ball Fundamentals</div>
+      <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 2, lineHeight: 1.4 }}>Fielding triangle, glove out front. Right, left, throw.</div>
+      <div style={{ fontSize: 11, color: "var(--td)", marginTop: 2 }}>Needs: Bucket of Balls</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
-        <span className="bdg bs" style={{ fontSize: 10 }}>Ball Handling</span><span className="bdg bs" style={{ fontSize: 10 }}>Finishing</span>
+        <span className="bdg bs" style={{ fontSize: 10 }}>Fielding</span><span className="bdg bs" style={{ fontSize: 10 }}>Footwork</span>
       </div>
+    </div>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--s1)", border: "1px solid var(--b)", borderRadius: "var(--r)", marginTop: 10 }}>
+      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>Basketball</span>
+      <span style={{ fontSize: 12, color: "var(--td)" }}>6 drills ▸</span>
     </div>
   </div>);
 }
 
 function BuilderVisual() {
-  const rows = [{ n: "Warmup", d: "10m" }, { n: "3-Man Weave", d: "10m" }, { n: "Station Block", d: "20m" }, { n: "Team Scrimmage", d: "15m" }];
+  const rows = [{ n: "Dynamic Warmup", d: "10m" }, { n: "Throwing Progression", d: "10m" }, { n: "Station Block", d: "45m" }, { n: "Situational Scrimmage", d: "20m" }];
   return (<div className="lp-phone">
-    <div className="sechdr mb8"><span className="sectitle">4 Activities</span><span className="pill">55m</span></div>
+    <div className="sechdr mb8"><span className="sectitle">4 Activities</span><span className="pill">85m</span></div>
     {rows.map((r, i) => (<div key={i} className="ablk" style={{ marginBottom: 6 }}>
       <div className="abhdr" style={{ cursor: "default" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 2, marginRight: 6, flexShrink: 0, color: "var(--s3)", fontSize: 12, lineHeight: 1 }}><span>&#8593;</span><span>&#8595;</span></div>
@@ -185,17 +189,21 @@ function StationChip({ name, tone }) {
 }
 
 function StationsVisual() {
+  const stations = [
+    { label: "Station 1", area: "Infield", chips: [{ n: "Timmy", t: "here" }, { n: "Billy", t: "here" }, { n: "Bobby", t: "here" }] },
+    { label: "Station 2", area: "Batting Cage 1", chips: [{ n: "Ava", t: "here" }, { n: "Jordan", t: "here" }] },
+    { label: "Station 3", area: "Outfield", chips: [{ n: "Max", t: "here" }, { n: "Riley", t: "here" }, { n: "Sam", t: "other" }] },
+  ];
   return (<div className="lp-phone">
     <div style={{ display: "flex", borderRadius: "var(--r)", overflow: "hidden", border: "1.5px solid var(--b)", marginBottom: 8 }}>
       <div style={{ flex: 1, padding: "6px 0", textAlign: "center", background: "var(--green)", color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, fontWeight: 700 }}>ROTATE</div>
       <div style={{ flex: 1, padding: "6px 0", textAlign: "center", background: "var(--s1)", color: "var(--black)", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, fontWeight: 700 }}>STATIC</div>
     </div>
     <button className="btn outline bsm bfull mb8">Generate Random Groups</button>
-    {["Station 1", "Station 2"].map((s, i) => (<div key={i} style={{ background: "var(--s1)", border: "1.5px solid var(--b)", borderRadius: "var(--r)", padding: "10px 10px 8px", marginBottom: 8 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 900, color: "var(--green)", letterSpacing: ".05em", marginBottom: 6 }}>{s.toUpperCase()}</div>
+    {stations.map((s) => (<div key={s.label} style={{ background: "var(--s1)", border: "1.5px solid var(--b)", borderRadius: "var(--r)", padding: "10px 10px 8px", marginBottom: 8 }}>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 900, color: "var(--green)", letterSpacing: ".05em", marginBottom: 6 }}>{s.label.toUpperCase()} · {s.area.toUpperCase()}</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-        {i === 0 ? (<><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /><StationChip name="Sam" tone="other" /></>)
-          : (<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="none" /></>)}
+        {s.chips.map(c => <StationChip key={c.n} name={c.n} tone={c.t} />)}
       </div>
     </div>))}
   </div>);
@@ -215,51 +223,55 @@ function LocationsVisual() {
     <div className="sechdr mb8"><span className="sectitle">Team Equipment</span></div>
     <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">L-Screen</div></div></div>
     <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Bucket of Balls</div></div></div>
+    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Helmets</div></div></div>
+    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Tee</div></div></div>
   </div>);
 }
 
 function TemplatesVisual() {
   return (<div className="lp-phone">
     <div className="card" style={{ marginBottom: 10 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 900, lineHeight: 1 }}>Standard Weekly Practice</div>
-      <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2, marginBottom: 8 }}>6 activities · 60min</div>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 900, lineHeight: 1 }}>Standard Tuesday Practice</div>
+      <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2, marginBottom: 8 }}>4 activities · 90min</div>
       <button className="btn primary bmd bfull">View / Edit</button>
     </div>
     <div className="clbl" style={{ marginBottom: 6 }}>Tuesday</div>
-    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Varsity Practice</div><div className="limt">Completed</div></div></div>
+    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">12U Red Practice</div><div className="limt">Completed</div></div></div>
     <button className="btn primary bsm bfull mt8">Run Again</button>
   </div>);
 }
 
 function LiveVisual({
-  drill = "3-Man Weave",
-  time = "04:12",
-  description = "Three players move the ball down the floor together, passing in sequence and finishing at the rim.",
-  focus = "Finish every rep at full speed, no walking back.",
-  skills = ["Ball Handling", "Finishing"],
+  drill = "Throwing Progression",
+  roundLabel = null,
+  time = "06:45",
+  description = "Partners start at 30 feet, step back to 45 and 60 as arms loosen. Focus throws to the chest, receiver gives a target.",
+  focus = "Hit the chest. Point your front shoulder, follow your throw.",
+  skills = ["Arm Care", "Accuracy"],
   upNextName = "Station Block",
-  upNextMins = "20m",
+  upNextMins = "45m",
 }) {
   return (<div className="lp-phone">
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
       <div className="row"><span className="live" /><span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginLeft: 5 }}>Live</span></div>
       <span style={{ background: "var(--gbg)", color: "var(--green)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>On time</span>
     </div>
+    {roundLabel && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 2 }}>{roundLabel}</div>}
     <div className="cc-act-name">{drill}</div>
     <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
       <div className="cc-timer" style={{ fontSize: 46 }}>{time}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
     </div>
-    <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
+    {description && <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 4 }}>Description</div>
       <div style={{ fontSize: 13, color: "var(--black)", lineHeight: 1.5 }}>{description}</div>
-    </div>
+    </div>}
     <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, marginBottom: 10 }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
       <div style={{ fontSize: 14, color: "var(--black)", lineHeight: 1.5 }}>{focus}</div>
     </div>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+    {skills.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
       {skills.map(s => <span key={s} className="bdg bs" style={{ fontSize: 10 }}>{s}</span>)}
-    </div>
+    </div>}
     <div className="cc-queue"><div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)" }}>Up Next</div><div className="cc-queue-item"><span style={{ fontSize: 13, color: "var(--black2)" }}>{upNextName}</span><span className="bdg bs">{upNextMins}</span></div></div>
   </div>);
 }
@@ -278,13 +290,40 @@ function StationOverviewRow({ label, name, coach, chips }) {
 function StationFocusVisual() {
   return (<div className="lp-phone">
     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 2 }}>Station 2</div>
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Batting Cage 2</div>
-    <div className="limt" style={{ marginBottom: 6 }}>Coach Jen</div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Batting Cage 1</div>
+    <div className="limt" style={{ marginBottom: 6 }}>Front Toss · Coach Jen</div>
     <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 8, marginBottom: 8 }}>
       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a" }}>💡 Coaching Focus</div>
-      <div style={{ fontSize: 12.5, lineHeight: 1.4 }}>Level swing, contact out front</div>
+      <div style={{ fontSize: 12.5, lineHeight: 1.4 }}>Level swing, contact out front.</div>
     </div>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></div>
+  </div>);
+}
+
+function StationDetailVisual() {
+  return (<div className="lp-phone">
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 2 }}>Station 2</div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Batting Cage 1</div>
+    <div className="limt" style={{ marginBottom: 8 }}>Coach Jen</div>
+    <div style={{ fontWeight: 700, fontSize: 15, color: "var(--black)", marginBottom: 10 }}>Front Toss</div>
+    <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 4 }}>Description</div>
+      <div style={{ fontSize: 13, color: "var(--black)", lineHeight: 1.5 }}>Toss from behind the L-screen, firm underhand to the front half of the plate. Each hitter takes 8 swings, then rotates. Partner shags into the bucket.</div>
+    </div>
+    <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
+      <div style={{ fontSize: 14, color: "var(--black)", lineHeight: 1.5 }}>Level swing, contact out front. Let the outside pitch travel.</div>
+    </div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+      <span className="bdg bs" style={{ fontSize: 10 }}>Hitting</span><span className="bdg bs" style={{ fontSize: 10 }}>Contact</span>
+    </div>
+    <div style={{ marginBottom: 10 }}>
+      <span style={{ border: "1.5px solid #fde047", borderRadius: 20, padding: "3px 10px", fontSize: 12, color: "#854d0e", fontWeight: 600, background: "#fff" }}>Equipment: L-Screen, Bucket of Balls, Helmets</span>
+    </div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></div>
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+      <div className="cc-timer" style={{ fontSize: 46 }}>08:30</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
+    </div>
   </div>);
 }
 
@@ -292,10 +331,11 @@ function HelperVisual() {
   return (<div className="lp-duo">
     <div className="lp-phone lp-card-primary">
       <div className="clbl">All Stations</div>
-      <StationOverviewRow label="Station 1" name="Infield" coach="Coach Mike" chips={<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="here" /></>} />
-      <StationOverviewRow label="Station 2" name="Batting Cage 2" coach="Coach Jen" chips={<><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></>} />
+      <StationOverviewRow label="Station 1" name="Infield" coach="Coach Mike" chips={<><StationChip name="Timmy" tone="here" /><StationChip name="Billy" tone="here" /><StationChip name="Bobby" tone="here" /></>} />
+      <StationOverviewRow label="Station 2" name="Batting Cage 1" coach="Coach Jen" chips={<><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></>} />
+      <StationOverviewRow label="Station 3" name="Outfield" coach="Coach Dana" chips={<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="here" /><StationChip name="Sam" tone="other" /></>} />
     </div>
-    <div className="lp-card-secondary"><StationFocusVisual /></div>
+    <div className="lp-card-secondary"><StationDetailVisual /></div>
   </div>);
 }
 
@@ -303,7 +343,7 @@ function FocusVisual() {
   return (<div className="lp-phone">
     <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, paddingTop: 4, paddingBottom: 4 }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
-      <div style={{ fontSize: 15, color: "var(--black)", lineHeight: 1.5 }}>Stay balanced through the movement. Keep your eyes up. Finish every rep under control.</div>
+      <div style={{ fontSize: 15, color: "var(--black)", lineHeight: 1.5 }}>Fielding triangle: feet wide, glove out front. Right, left, throw. Work through the ball, never around it.</div>
     </div>
   </div>);
 }
@@ -326,8 +366,8 @@ function AdjustVisual() {
 
 function TimerVisual() {
   return (<div className="lp-phone">
-    <div className="cc-act-name">Batting Cage 2</div>
-    <div className="cc-timer over" style={{ fontSize: 46 }}>-02:00</div>
+    <div className="cc-act-name">Batting Cage 1</div>
+    <div className="cc-timer over" style={{ fontSize: 46 }}>-01:20</div>
   </div>);
 }
 
@@ -344,23 +384,24 @@ function TransitionVisual() {
     <div className="cc-trans-card">
       <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 20, fontWeight: 900, color: "var(--black)", lineHeight: 1.2, marginBottom: 6 }}>Timmy, Billy, Bobby</div>
       <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 3 }}>from Station 1: Infield · Coach Mike</div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--black)" }}>&#8594; Station 2: Batting Cage 2 · Coach Jen</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--black)", marginBottom: 6 }}>&#8594; Station 2: Batting Cage 1 · Coach Jen</div>
+      <div style={{ fontSize: 12, color: "var(--td)" }}>Bring: helmets and bats</div>
     </div>
   </div>);
 }
 
 function HistoryVisual() {
   return (<div className="lp-phone">
-    <div className="sechdr mb8"><span className="sectitle">4 Activities</span><span className="pill">58m</span></div>
+    <div className="sechdr mb8"><span className="sectitle">4 Activities</span><span className="pill">88m</span></div>
     <div className="ablk" style={{ marginBottom: 8 }}>
       <div className="abhdr" style={{ cursor: "default" }}>
-        <div style={{ flex: 1, font: "700 14px 'Barlow Condensed',sans-serif" }}>3-Man Weave</div>
-        <span className="bdg bs">10m</span>
+        <div style={{ flex: 1, font: "700 14px 'Barlow Condensed',sans-serif" }}>Station Block</div>
+        <span className="bdg bs">49m</span>
       </div>
     </div>
     <div className="card" style={{ marginBottom: 10 }}>
       <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>End of Practice Notes</div>
-      <div style={{ fontSize: 13, color: "var(--black)" }}>Cage 2 group needs more reps on timing.</div>
+      <div style={{ fontSize: 13, color: "var(--black)" }}>Cage 1 group needs more reps on the outside pitch. Timmy's throws sailing high, check grip next week.</div>
     </div>
     <button className="btn primary bxl bfull mb8">Run Again</button>
     <button className="btn ghost bmd bfull">Save as Template</button>
@@ -386,12 +427,12 @@ function WatchLiveScreen() {
       <span className="lp-w-live"><span className="dot"></span>LIVE</span>
       <span className="lp-w-ontime">On time</span>
     </div>
-    <div className="lp-w-drill">3-Man Weave</div>
+    <div className="lp-w-drill">Station Block</div>
     <div className="lp-w-timer">04:12</div>
     <div className="lp-w-timer-label">remaining</div>
     <div className="lp-w-upnext">
       <div className="lbl">UP NEXT</div>
-      <div className="name">Station Block <span className="mins">20m</span></div>
+      <div className="name">Situational Scrimmage <span className="mins">20m</span></div>
     </div>
     <div className="lp-w-next-btn">NEXT &rsaquo;</div>
   </div>);
@@ -405,7 +446,7 @@ function WatchAlertScreen() {
     <div className="lp-w-rotate">ROTATE NOW</div>
     <div className="lp-w-move-card">
       <div className="who">Timmy, Billy, Bobby</div>
-      <div className="to">&rarr; <strong>Batting Cage 2</strong> &middot; Coach Jen</div>
+      <div className="to">&rarr; <strong>Batting Cage 1</strong> &middot; Coach Jen</div>
     </div>
     <div className="lp-w-done-btn">GOT IT</div>
   </div>);
@@ -465,13 +506,13 @@ export default function LandingPage({ onGetStarted }) {
       <div style={{ fontSize: 12, color: "var(--td)", marginTop: 12 }}>Free during early access.</div>
       <div style={{ marginTop: 34, display: "flex", justifyContent: "center" }}>
         <div className="lp-hero-stage">
-          <LiveVisual />
+          <LiveVisual drill="Station Block" roundLabel="Round 1 of 3" time="04:12" description="" focus="Quality reps over rep count. Coaches teach, players move." skills={[]} upNextName="Situational Scrimmage" upNextMins="20m" />
           <div className="lp-hero-mini"><StationFocusVisual /></div>
         </div>
       </div>
     </div>
 
-    <Section dark eyebrow="Live Practice View" title="One screen runs the whole practice." visual={<LiveVisual drill="Partner Passing" time="06:45" description="Two players face off and pass back and forth, working footwork and target hands between reps." focus="Sharp, chest-height passes. Call for it before you catch it." skills={["Passing", "Footwork"]} upNextName="Water Break" upNextMins="5m" />} body={[
+    <Section dark eyebrow="Live Practice View" title="One screen runs the whole practice." visual={<LiveVisual />} body={[
       "What's happening now, time remaining, the coaching focus, which players, which coach, which field, and what's next. No clipboard, no stopwatch, no flipping between notes.",
     ]} />
 
