@@ -259,7 +259,7 @@ function TemplateWorkspace({data,template,onBack,openModal,coachId,refreshLibrar
 }
 
 // ── NewLibraryScreen ──────────────────────────────────────────────────────────
-export default function NewLibraryScreen({data,openModal,setView,setEditPracticeId,setStartTemplateId,refreshLibrary,coachId,refreshPlanning}){
+export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibrary,coachId,refreshPlanning}){
   const [libTab,setLibTab]=useState("drills");
   useEffect(()=>{window.__ropLibTab=setLibTab;return()=>{delete window.__ropLibTab;};},[]);
   const [openMenu,setOpenMenu]=useState(null);
@@ -325,11 +325,11 @@ export default function NewLibraryScreen({data,openModal,setView,setEditPractice
     setNewTplPrompt(false);
   };
   const LTABS=["drills","templates","skills"];
-  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>{if(setEditPracticeId)setEditPracticeId(null);if(setStartTemplateId)setStartTemplateId(tplId);setView("builder");}}/></div>);
+  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>goToBuilder(null,tplId)}/></div>);
   return (<div style={{paddingBottom:80}}>
     <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>Library</div>
-      <button className="btn primary bsm" onClick={()=>{if(setEditPracticeId)setEditPracticeId(null);setView("builder");}}>+ Build Practice</button>
+      <button className="btn primary bsm" onClick={()=>goToBuilder(null)}>+ Build Practice</button>
     </div>
     <div style={{padding:"0 16px 12px"}}>
       <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:0}}>

@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } from "react";
+import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider, Navigate, Outlet, useNavigate, useParams, useBlocker } from "react-router-dom";
+import Layout from "./Layout.jsx";
+import { Ic } from "./icons.jsx";
 import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, createAsset, updateAsset, archiveAsset, archiveLocation, fetchNoteCountsForPractices, fetchPracticeRunStatus } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
@@ -159,20 +162,13 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .cl-text{font-size:16px;line-height:1.5;flex:1;}.cl-text.done{text-decoration:line-through;color:var(--td);}
 `;
 
-const Ic={
-  Lib:()=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>,
-  Admin:()=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>,
-  Dots:()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>,
-  Chev:({up})=><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points={up?"4 10 8 6 12 10":"4 6 8 10 12 6"}/></svg>,
-  Check:()=><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><polyline points="2 7 6 11 12 3"/></svg>,
-  Play:()=><svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="7 4 20 12 7 20 7 4"/></svg>,
-  Pause:()=><svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" stroke="none"><rect x="5" y="3" width="4" height="18" rx="1"/><rect x="15" y="3" width="4" height="18" rx="1"/></svg>,
-  Restart:()=><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>,
-  Sort:()=><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="10" y2="8"/><line x1="2" y1="12" x2="6" y2="12"/></svg>,
-  Home:()=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
-  Cal:()=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>,
-};
-
+// Shared app state (data, coachId, navigation helpers, etc.) for every route
+// wrapper below Layout -- the router is created once via useMemo (recreating
+// it on every render would reset navigation state), so route elements can't
+// close over fresh render-time values directly. Route wrapper components
+// read this instead of receiving props from a re-rendered parent.
+export const AppCtx=createContext(null);
+export const useAppCtx=()=>useContext(AppCtx);
 
 // ── GearEditRow — inline edit for a player gear item ─────────────────────────
 function GearEditRow({asset,refreshLibrary,onDone}){
@@ -304,8 +300,12 @@ function EquipmentTab({data,coachId,refreshLibrary,openModal,mode}){
   </div>);
 }
 
-function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPracticeId,refreshTeams,refreshPlanning,refreshLibrary,profile,coachEmail,saveName,onSignOut,onDeactivate}){
-  const [selectedTeam,setSelectedTeam]=useState(null);
+function ManageScreen({data,update,goToBuilder,goToRun,coachId,openModal,refreshTeams,refreshPlanning,refreshLibrary,profile,coachEmail,saveName,onSignOut,onDeactivate,initialTeamId}){
+  // initialTeamId (from /team/:teamId/team) jumps straight into that team's
+  // workspace instead of making the coach click through "My Teams" first --
+  // same fixedTeamId precedent RostersTab already uses.
+  const [selectedTeam,setSelectedTeam]=useState(initialTeamId||null);
+  useEffect(()=>{if(initialTeamId&&initialTeamId!==selectedTeam)setSelectedTeam(initialTeamId);},[initialTeamId]);
   const [teamTab,setTeamTab]=useState("practices");
   // null = the top-level list nav; otherwise which section is drilled into.
   const [manageTab,setManageTab]=useState(null);
@@ -345,8 +345,8 @@ function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPr
   if(selectedPractice){
     const isHistorical=(selectedPractice.date<localDateStr()||teamRan(selectedPractice))&&selectedPractice.status!=="cancelled";
     const isPlanned=(selectedPractice.activities||[]).length>0;
-    if(isHistorical&&isPlanned)return(<div style={{padding:"14px 14px calc(var(--tab)+40px)"}}><HistoryViewer data={data} update={update} practice={selectedPractice} onRunAgain={async()=>{const now=new Date();const {data:saved}=await savePracticeTree(null,{teamId:selectedPractice.teamId,locationId:selectedPractice.locationId,date:localDateStr(now),startTime:now.toTimeString().slice(0,5),activities:stripIdsForCopy(selectedPractice.activities)});await refreshPlanning();setSelectedPractice(null);if(saved){setLiveId(saved.id);setView("command");}}} onBack={()=>setSelectedPractice(null)}/></div>);
-    return (<PracticeDetail practice={selectedPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} coachId={coachId} refreshPlanning={refreshPlanning} onBack={()=>setSelectedPractice(null)}/>);
+    if(isHistorical&&isPlanned)return(<div style={{padding:"14px 14px calc(var(--tab)+40px)"}}><HistoryViewer data={data} update={update} practice={selectedPractice} onRunAgain={async()=>{const now=new Date();const {data:saved}=await savePracticeTree(null,{teamId:selectedPractice.teamId,locationId:selectedPractice.locationId,date:localDateStr(now),startTime:now.toTimeString().slice(0,5),activities:stripIdsForCopy(selectedPractice.activities)});await refreshPlanning();setSelectedPractice(null);if(saved)goToRun(saved.id);}} onBack={()=>setSelectedPractice(null)}/></div>);
+    return (<PracticeDetail practice={selectedPractice} data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning} onBack={()=>setSelectedPractice(null)}/>);
   }
   if(selectedTeam){
     const team=data.teams.find(t=>t.id===selectedTeam);
@@ -367,7 +367,7 @@ function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPr
           {TTABS.map(t=>(<button key={t} onClick={()=>setTeamTab(t)} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:teamTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",color:teamTab===t?"var(--black)":"var(--td)"}}>{t}</button>))}
         </div>
         {teamTab==="practices"&&<div>
-          <div className="sechdr" style={{marginBottom:8}}><span className="sectitle">{upcoming.length>0?"Upcoming":"Practices"}</span>{canManageTeam&&<button className="btn primary bxs" onClick={()=>{setEditPracticeId(null);setView("builder");}}>+ Build</button>}</div>
+          <div className="sechdr" style={{marginBottom:8}}><span className="sectitle">{upcoming.length>0?"Upcoming":"Practices"}</span>{canManageTeam&&<button className="btn primary bxs" onClick={()=>goToBuilder(null)}>+ Build</button>}</div>
           {upcoming.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>{canManageTeam?"No upcoming practices. Tap + Build.":"No upcoming practices."}</div>}
           {upcoming.map(p=>(<div key={p.id} className="li" style={{marginBottom:6,cursor:"pointer",position:"relative"}} onClick={()=>setSelectedPractice(p)}>
             <div className="lim"><div className="lin">{new Date(p.date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}{p.startTime?" - "+timeLbl(p):""}</div><div className="limt">{(p.activities||[]).length} activities</div></div>
@@ -376,7 +376,7 @@ function ManageScreen({data,update,setView,setLiveId,coachId,openModal,setEditPr
               {canManageTeam&&<div style={{position:"relative"}}>
                 <button className="ell-btn" onClick={e=>{e.stopPropagation();setPracticeMenuId(practiceMenuId===p.id?null:p.id);}}><span/><span/><span/></button>
                 {practiceMenuId===p.id&&<div className="mini-menu" style={{right:0,minWidth:140}}>
-                  <button className="mm-item" onClick={e=>{e.stopPropagation();setPracticeMenuId(null);setEditPracticeId(p.id);setView("builder");}}>Edit</button>
+                  <button className="mm-item" onClick={e=>{e.stopPropagation();setPracticeMenuId(null);goToBuilder(p.id);}}>Edit</button>
                   <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();delPractice(p.id);setPracticeMenuId(null);}}>Delete</button>
                 </div>}
               </div>}
@@ -634,22 +634,6 @@ export default function App(){
   const [data,setData]=useState(INIT);
   useEffect(()=>{let el=document.getElementById('rop-css');if(!el){el=document.createElement('style');el.id='rop-css';document.head.appendChild(el);}el.textContent=CSS;},[]);
   const [loaded,setLoaded]=useState(false);
-  const [view,setView]=useState("today");
-  // Tracks the last real tab the coach was on, so Builder's Back button and
-  // the tab bar's active-tab highlight both know where "away" means -- Builder
-  // and Command aren't tabs themselves, they're entered from one.
-  const [priorView,setPriorView]=useState("today");
-  useEffect(()=>{if(view!=="builder"&&view!=="command")setPriorView(view);},[view]);
-  // Builder's own edits are local state with no autosave -- this ref lets the
-  // tab bar (and Builder's Back button) warn before discarding them, without
-  // forcing Builder's state up into App.
-  const builderDirtyRef=useRef(false);
-  const guardedSetView=useCallback(dest=>{
-    if(view==="builder"&&dest!=="builder"&&builderDirtyRef.current){
-      if(!window.confirm("You have unsaved changes to this practice. Leave without saving?"))return;
-    }
-    setView(dest);
-  },[view]);
   const [modal,setModal]=useState(null);
   const [liveId,setLiveId]=useState(null);
   const [editPracticeId,setEditPracticeId]=useState(null);
@@ -714,36 +698,92 @@ export default function App(){
   const fullData=useMemo(()=>Object.assign({},data,{teams},library,planning),[data,teams,library,planning]);
   const openModal=(t,p)=>setModal({type:t,payload:p||{}});
   const closeModal=()=>setModal(null);
-  const launchRun=id=>{if(id)setLiveId(id);setView("command");};
-  useEffect(()=>{window.__cbSetView=setView;return()=>{delete window.__cbSetView;};},[]);
-  const TABS=[
-    {id:"today",label:"Home",I:Ic.Home},
-    {id:"schedule",label:"Schedule",I:Ic.Cal},
-    {id:"library",label:"Library",I:Ic.Lib},
-    {id:"manage",label:"Manage",I:Ic.Admin},
-  ];
-  // Builder isn't its own tab -- while it's open, the tab bar should still
-  // show the tab the coach came from, not go dark.
-  const activeTabId=view==="builder"?priorView:view;
-  const livePractice=liveId?fullData.practices.find(p=>p.id===liveId):null;
-  const liveTeam=livePractice?fullData.teams.find(t=>t.id===livePractice.teamId):null;
   const coachName=profile&&profile.first_name?profile.first_name:(session?(session.user.email||"Coach"):"Coach");
   const coachEmailStr=profile&&profile.email?profile.email:(session?session.user.email:"");
-  const path=window.location.pathname;
-  const liveMatch=path.match(/^\/live\/([a-z0-9-]+)$/i);
-  if(liveMatch)return (<HelperView token={liveMatch[1]}/>);
-  const previewMatch=path.match(/^\/preview\/([a-z0-9-]+)$/i);
-  if(previewMatch)return (<PreviewView token={previewMatch[1]}/>);
-  if(path==="/terms")return (<TermsPage/>);
-  if(path==="/privacy")return (<PrivacyPage/>);
+
+  // Router is created once (empty deps) -- recreating it on every render
+  // would reset in-flight navigation/blocker state. Route elements read
+  // current data/callbacks from AppCtx instead of closing over this render's
+  // values. /live/:token, /preview/:token, /terms, /privacy are top-level
+  // siblings of the authed shell (not nested under it) so they render
+  // regardless of auth/loading state, exactly like the old regex checks did.
+  const router=useMemo(()=>createBrowserRouter(createRoutesFromElements(
+    <>
+      <Route path="/live/:token" element={<HelperViewRoute/>}/>
+      <Route path="/preview/:token" element={<PreviewViewRoute/>}/>
+      <Route path="/terms" element={<TermsPage/>}/>
+      <Route path="/privacy" element={<PrivacyPage/>}/>
+      <Route path="/*" element={<AuthedShell/>}>
+        <Route element={<LayoutRoute/>}>
+          <Route index element={<HomeRoute/>}/>
+          <Route path="library" element={<LibraryRoute/>}/>
+          <Route path="builder/:practiceId" element={<BuilderRoute/>}/>
+          <Route path="run/:practiceId" element={<RunRoute/>}/>
+          {/* Step-3 bridge only: the old cross-team Schedule screen, reachable
+              until step 4 (Snapshot/handoff §4.4) folds it into
+              /team/:teamId/schedule and Home's own agenda. Not in the
+              handoff's §4.1 route list -- remove once step 4 lands. */}
+          <Route path="schedule" element={<ScheduleLegacyRoute/>}/>
+          <Route path="team/:teamId" element={<TeamIndexRedirect/>}/>
+          <Route path="team/:teamId/schedule" element={<TeamScheduleRoute/>}/>
+          <Route path="team/:teamId/plan" element={<PlanPlaceholder/>}/>
+          <Route path="team/:teamId/goals" element={<GoalsPlaceholder/>}/>
+          <Route path="team/:teamId/team" element={<TeamRosterRoute/>}/>
+        </Route>
+      </Route>
+    </>
+  )),[]);
+
+  const ctxValue=useMemo(()=>({
+    data:fullData,update,coachId,profile,coachName,coachEmail:coachEmailStr,
+    session,wantsAuth,setWantsAuth,loaded,
+    openModal,closeModal,modal,
+    refreshTeams,refreshLibrary,refreshPlanning,
+    saveName,onSignOut:signOut,onDeactivate:handleDeactivate,
+  }),[fullData,update,coachId,profile,coachName,coachEmailStr,session,wantsAuth,loaded,modal,refreshTeams,refreshLibrary,refreshPlanning,saveName,handleDeactivate]);
+
+  return (<AppCtx.Provider value={ctxValue}>
+    <RouterProvider router={router}/>
+  </AppCtx.Provider>);
+}
+
+// ── Route wrappers ───────────────────────────────────────────────────────────
+// Thin components so the router config above can stay a stable, one-time
+// tree while still reading live data via AppCtx. None of the screens they
+// render (HomeScreen, ScheduleScreen, etc.) had their own internals touched
+// beyond swapping setView/setLiveId/setEditPracticeId navigation call sites
+// for goToBuilder/goToRun/goHome (handoff §4, "ship with existing screens
+// mounted before touching their internals").
+
+function AuthedShell(){
+  const ctx=useAppCtx();
+  const {session,wantsAuth,setWantsAuth,profile,saveName,loaded}=ctx;
+  const [liveId,setLiveId]=useState(null);
+  const [editPracticeId,setEditPracticeId]=useState(null);
+  const [startTemplateId,setStartTemplateId]=useState(null);
+  const navigate=useNavigate();
+  const goToBuilder=useCallback((practiceId,templateId)=>{
+    setEditPracticeId(practiceId||null);
+    setStartTemplateId(templateId||null);
+    navigate("/builder/"+(practiceId||"new"));
+  },[navigate]);
+  const goToRun=useCallback(practiceId=>{
+    setLiveId(practiceId||null);
+    navigate("/run/"+(practiceId||"new"));
+  },[navigate]);
+  const goHome=useCallback(()=>navigate("/"),[navigate]);
+  // Step-3 bridge only (see the /schedule route comment above) -- retire
+  // once step 4 folds Schedule into /team/:teamId/schedule.
+  const goToSchedule=useCallback(()=>navigate("/schedule"),[navigate]);
+
   // Loading initial session
   if(session===undefined)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
-  // Landing-page addendum §1: "/" is adaptive on session state, checked
-  // client-side before rendering -- an installed PWA icon's start_url stays
-  // "/" and keeps launching straight into the app for a signed-in user,
-  // while a signed-out visitor sees the marketing pitch instead of a
-  // dead-end sign-in form. Both CTAs on the landing page lead to the same
-  // AuthScreen (wantsAuth), just weighted differently.
+  // Landing-page addendum §1: "/" is adaptive on session state -- an
+  // installed PWA icon's start_url stays "/" and keeps launching straight
+  // into the app for a signed-in user, while a signed-out visitor sees the
+  // marketing pitch instead of a dead-end sign-in form. Both CTAs on the
+  // landing page lead to the same AuthScreen (wantsAuth), just weighted
+  // differently.
   if(!session)return wantsAuth?(<AuthScreen onBack={()=>setWantsAuth(false)}/>):(<LandingPage onGetStarted={()=>setWantsAuth(true)}/>);
   // One-time name prompt -- covers both fresh signups and pre-existing
   // accounts created before name collection existed.
@@ -751,28 +791,82 @@ export default function App(){
   // Show data loading spinner after auth but before data loaded
   if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div></div>);
 
-  return (<div style={{display:"contents"}}>
-    <div className="app">
-      <div className="screen">
-        {view==="today"&&<HomeScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} coachName={coachName} coachEmail={coachEmailStr} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>}
-        {view==="schedule"&&<ScheduleScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} setEditPracticeId={setEditPracticeId} refreshPlanning={refreshPlanning}/>}
-        {view==="manage"&&<ManageScreen data={fullData} update={update} setView={setView} setLiveId={setLiveId} coachId={coachId} openModal={openModal} setEditPracticeId={setEditPracticeId} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} profile={profile} coachEmail={coachEmailStr} saveName={saveName} onSignOut={signOut} onDeactivate={handleDeactivate}/>}
-        {view==="library"&&<NewLibraryScreen data={fullData} update={update} openModal={openModal} setView={setView} setEditPracticeId={setEditPracticeId} setStartTemplateId={setStartTemplateId} refreshLibrary={refreshLibrary} coachId={coachId} refreshPlanning={refreshPlanning}/>}
-        {view==="builder"&&<BuilderScreen data={fullData} update={update} openModal={openModal} launchRun={launchRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} startTemplateId={startTemplateId} setStartTemplateId={setStartTemplateId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} markDirty={d=>{builderDirtyRef.current=d;}} onCancel={()=>guardedSetView(priorView)}/>}
-        {view==="command"&&<CommandScreen data={fullData} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} setView={setView} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>}
-      </div>
-      {view!=="command"&&<nav className="tabbar">
-        {TABS.map(({id,label,I})=>(<button key={id} className={"ti "+(activeTabId===id?"on":"")} onClick={()=>guardedSetView(id)}>
-            <I/>{label}
-          </button>
-        ))}
-      </nav>}
-      {liveId&&view!=="command"&&<button className="live-resume" onClick={()=>setView("command")}>
-        <span className="live"/>Resume Live Practice{liveTeam?" · "+liveTeam.name:""}
-      </button>}
-    </div>
-    {modal&&<ModalLayer modal={modal} data={fullData} update={update} closeModal={closeModal} refreshTeams={refreshTeams} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} coachId={coachId}/>}
-  </div>);
+  return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,goToBuilder,goToRun,goHome,goToSchedule}}>
+    <Outlet/>
+    {ctx.modal&&<ModalLayer modal={ctx.modal} data={ctx.data} update={ctx.update} closeModal={ctx.closeModal} refreshTeams={ctx.refreshTeams} refreshLibrary={ctx.refreshLibrary} refreshPlanning={ctx.refreshPlanning} coachId={ctx.coachId}/>}
+  </AppCtx.Provider>);
+}
+
+function LayoutRoute(){
+  const {data,liveId,goToRun}=useAppCtx();
+  return <Layout data={data} liveId={liveId} goToRun={goToRun}/>;
+}
+
+function HelperViewRoute(){ const {token}=useParams(); return <HelperView token={token}/>; }
+function PreviewViewRoute(){ const {token}=useParams(); return <PreviewView token={token}/>; }
+
+function HomeRoute(){
+  const {data,update,goToBuilder,goToRun,goToSchedule,coachId,coachName,coachEmail,refreshPlanning,refreshTeams}=useAppCtx();
+  return <HomeScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>;
+}
+
+function LibraryRoute(){
+  const {data,update,openModal,goToBuilder,refreshLibrary,coachId,refreshPlanning}=useAppCtx();
+  return <NewLibraryScreen data={data} update={update} openModal={openModal} goToBuilder={goToBuilder} refreshLibrary={refreshLibrary} coachId={coachId} refreshPlanning={refreshPlanning}/>;
+}
+
+// step-3 bridge -- see the router config comment above.
+function ScheduleLegacyRoute(){
+  const {data,update,goToBuilder,goToRun,coachId,refreshPlanning}=useAppCtx();
+  return <ScheduleScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning}/>;
+}
+
+function TeamScheduleRoute(){
+  // Not yet team-filtered internally -- that's step 4 (handoff §4.4). Mounts
+  // the same existing ScheduleScreen unchanged, matching step 3's mandate to
+  // isolate router regressions from feature work.
+  return <ScheduleLegacyRoute/>;
+}
+
+function TeamIndexRedirect(){
+  const {teamId}=useParams();
+  return <Navigate to={"/team/"+teamId+"/schedule"} replace/>;
+}
+
+function TeamRosterRoute(){
+  const {teamId}=useParams();
+  const {data,update,goToBuilder,goToRun,coachId,openModal,refreshTeams,refreshPlanning,refreshLibrary,profile,coachEmail,saveName,onSignOut,onDeactivate}=useAppCtx();
+  return <ManageScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} openModal={openModal} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate} initialTeamId={teamId}/>;
+}
+
+function PlanPlaceholder(){
+  return (<div className="empty"><div className="emtx">Plan tab is coming soon.<br/>For now, build practices from Library or the team's Schedule tab.</div></div>);
+}
+function GoalsPlaceholder(){
+  return (<div className="empty"><div className="emtx">Goals + Insights is coming soon.<br/>Target-vs-planned-vs-actual reporting lands in the next implementation step.</div></div>);
+}
+
+function BuilderRoute(){
+  const {practiceId}=useParams();
+  const {data,update,openModal,goToRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,coachId,refreshPlanning,refreshLibrary}=useAppCtx();
+  // Restores state from the URL on a fresh mount (direct link / refresh) --
+  // navigation via goToBuilder() already set this state before navigating,
+  // so this is a no-op in the normal in-app flow.
+  useEffect(()=>{
+    const wanted=practiceId&&practiceId!=="new"?practiceId:null;
+    if(wanted!==editPracticeId)setEditPracticeId(wanted);
+  },[practiceId]);
+  return <BuilderScreen data={data} update={update} openModal={openModal} launchRun={goToRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} startTemplateId={startTemplateId} setStartTemplateId={setStartTemplateId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>;
+}
+
+function RunRoute(){
+  const {practiceId}=useParams();
+  const {data,update,liveId,setLiveId,coachId,goHome,refreshPlanning,refreshLibrary}=useAppCtx();
+  useEffect(()=>{
+    const wanted=practiceId&&practiceId!=="new"?practiceId:null;
+    if(wanted!==liveId)setLiveId(wanted);
+  },[practiceId]);
+  return <CommandScreen data={data} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} goHome={goHome} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>;
 }
 
 function PracticeLog({data,update,launchRun}){
@@ -823,7 +917,8 @@ function DurStepper({value,min,onChange,step}){
   );
 }
 
-function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,coachId,refreshPlanning,refreshLibrary,markDirty,onCancel}){
+function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,coachId,refreshPlanning,refreshLibrary}){
+  const navigate=useNavigate();
   const editP=editPracticeId?data.practices.find(p=>p.id===editPracticeId):null;
   // "Start from Template" seeds a brand-new (not editP) practice from a
   // saved template's contents -- distinct from editing an already-scheduled
@@ -845,14 +940,32 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const [schedDur,setSchedDur]=useState(60);
   const [tplName,setTplName]=useState("");
   const dragIdx=useRef(null);
-  // Snapshot of what's actually persisted, so the tab bar/Back button can
-  // warn before discarding edits that only exist in this component's state.
+  // Snapshot of what's actually persisted, so the router blocker (and the
+  // beforeunload guard below) can warn before discarding edits that only
+  // exist in this component's state. Replaces the old App-level
+  // guardedSetView/builderDirtyRef/priorView mechanism (handoff §4.2) --
+  // useBlocker replaces client-side-nav guarding, beforeunload covers a hard
+  // refresh/tab close, which the old mechanism never actually protected
+  // against either (it only guarded App.jsx's own setView calls).
   const savedSnapshotRef=useRef();
   if(savedSnapshotRef.current===undefined)savedSnapshotRef.current=JSON.stringify({teamId,locId,acts});
-  const markSaved=()=>{savedSnapshotRef.current=JSON.stringify({teamId,locId,acts});if(markDirty)markDirty(false);};
+  const [dirty,setDirty]=useState(false);
+  const markSaved=()=>{savedSnapshotRef.current=JSON.stringify({teamId,locId,acts});setDirty(false);};
   useEffect(()=>{
-    if(markDirty)markDirty(JSON.stringify({teamId,locId,acts})!==savedSnapshotRef.current);
+    setDirty(JSON.stringify({teamId,locId,acts})!==savedSnapshotRef.current);
   },[teamId,locId,acts]);
+  useEffect(()=>{
+    if(!dirty)return;
+    const onBeforeUnload=e=>{e.preventDefault();e.returnValue="";};
+    window.addEventListener("beforeunload",onBeforeUnload);
+    return()=>window.removeEventListener("beforeunload",onBeforeUnload);
+  },[dirty]);
+  const blocker=useBlocker(useCallback(({currentLocation,nextLocation})=>dirty&&currentLocation.pathname!==nextLocation.pathname,[dirty]));
+  useEffect(()=>{
+    if(blocker.state!=="blocked")return;
+    if(window.confirm("You have unsaved changes to this practice. Leave without saving?"))blocker.proceed();
+    else blocker.reset();
+  },[blocker]);
   useEffect(()=>()=>{if(markDirty)markDirty(false);},[]);
   const team=data.teams.find(t=>t.id===teamId)||null;
   const loc=data.locations.find(l=>l.id===locId)||null;
@@ -919,7 +1032,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
     if(saved)launchRun(saved.id);
   };
   return (<div style={{paddingBottom:80}}>
-      {onCancel&&<div style={{padding:"10px 14px 0"}}><button className="btn ghost bxs" onClick={onCancel}>Back</button></div>}
+      <div style={{padding:"10px 14px 0"}}><button className="btn ghost bxs" onClick={()=>navigate("/")}>Back</button></div>
       <div style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
       {editP&&<div style={{padding:"8px 14px",background:"var(--gbg)",borderBottom:"1px solid var(--gb)",display:"flex",alignItems:"baseline",gap:8}}>
         <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",flexShrink:0}}>Editing</span>

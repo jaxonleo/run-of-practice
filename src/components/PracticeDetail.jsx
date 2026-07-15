@@ -13,7 +13,7 @@ function PlanPill({ practice, total }) {
   return <span style={{ color: style.color, fontWeight: 600 }}>{style.icon} {total}/{practice.scheduledDurationMinutes} min</span>;
 }
 
-export default function PracticeDetail({practice,data,update,setView,setLiveId,setEditPracticeId,onBack,coachId,refreshPlanning}){
+export default function PracticeDetail({practice,data,update,goToBuilder,goToRun,onBack,coachId,refreshPlanning}){
   const team=data.teams.find(t=>t.id===practice.teamId);
   const canManage=isHeadCoach(team,coachId);
   const loc=data.locations.find(l=>l.id===practice.locationId);
@@ -76,14 +76,14 @@ export default function PracticeDetail({practice,data,update,setView,setLiveId,s
       <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>{timeLbl(practice)}{loc?" · "+loc.name:""} · {planningState(practice)?<PlanPill practice={practice} total={totalMins}/>:totalMins+"min"}</div>
       {absentPlayers.length>0&&<div style={{fontSize:13,color:"var(--red)",marginBottom:12}}>Out: {absentPlayers.map(p=>p.firstName+" "+(p.lastName||"").slice(0,1)).join(", ")}</div>}
       {!isCancelled&&!isPlanned&&canManage&&<div className="brow" style={{marginBottom:8}}>
-        <button className="btn primary bmd bfull" onClick={()=>{if(setEditPracticeId)setEditPracticeId(practice.id);setView("builder");}}>Plan Practice</button>
+        <button className="btn primary bmd bfull" onClick={()=>goToBuilder(practice.id)}>Plan Practice</button>
       </div>}
       {!isCancelled&&isPlanned&&<div className="brow" style={{marginBottom:8}}>
-        <button className="btn primary bmd bfull" onClick={()=>{setLiveId(practice.id);setView("command");}}>{practice.date>=todayStr?"Run Now":"Run Again"}</button>
+        <button className="btn primary bmd bfull" onClick={()=>goToRun(practice.id)}>{practice.date>=todayStr?"Run Now":"Run Again"}</button>
       </div>}
       {!isCancelled&&<div style={{display:"flex",gap:8,marginBottom:12}}>
         <button className="btn outline bmd" style={{flex:1}} onClick={()=>setShowAbsencePicker(true)}>Who's Out?</button>
-        {isPlanned&&canManage&&<button className="btn outline bmd" style={{flex:1}} onClick={()=>{if(setEditPracticeId)setEditPracticeId(practice.id);setView("builder");}}>Edit</button>}
+        {isPlanned&&canManage&&<button className="btn outline bmd" style={{flex:1}} onClick={()=>goToBuilder(practice.id)}>Edit</button>}
       </div>}
       {!isCancelled&&!confirmCancel&&canManage&&<button className="btn ghost bsm bfull" style={{marginBottom:12,color:"var(--red)"}} onClick={()=>setConfirmCancel(true)}>Cancel Practice</button>}
       {confirmCancel&&<div className="confirm-box" style={{marginBottom:12}}>

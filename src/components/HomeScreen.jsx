@@ -88,7 +88,7 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 };
 
-export default function HomeScreen({ data, update, setView, setLiveId, coachId, coachName, coachEmail, setEditPracticeId, refreshPlanning, refreshTeams }) {
+export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSchedule, coachId, coachName, coachEmail, refreshPlanning, refreshTeams }) {
   const now = new Date();
   const todayStr = localDateStr(now);
   const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
@@ -150,7 +150,7 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
     });
     await refreshPlanning();
     setHistoryPractice(null);
-    if (saved) { setLiveId(saved.id); setView("command"); }
+    if (saved) goToRun(saved.id);
   };
 
   // Next-practice hero: soonest today (any time-of-day), else soonest
@@ -184,7 +184,7 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
   const handleLeave = async teamId => { setLeavingTeamId(teamId); await leaveTeam(teamId); if (refreshTeams) await refreshTeams(); setLeavingTeamId(null); };
 
   if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} update={update} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} /></div>);
-  if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} coachId={coachId} onBack={() => setViewPractice(null)} /></div>);
+  if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} onBack={() => setViewPractice(null)} /></div>);
 
   return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}>
     <div style={{ padding: "20px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -217,8 +217,8 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{data.teams.length === 0 ? "Set up your practice schedule" : "Nothing on the schedule"}</div>
         <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 16 }}>{!canManageAnyTeam ? "Nothing planned yet." : data.teams.length === 0 ? "Add a team, then set up a recurring schedule to get started." : "Build a practice or set up a recurring schedule."}</div>
         {canManageAnyTeam && <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn primary bmd" style={{ flex: 1 }} onClick={() => { if (setEditPracticeId) setEditPracticeId(null); setView("builder"); }}>+ Build a Practice</button>
-          <button className="btn outline bmd" style={{ flex: 1 }} onClick={() => setView("schedule")}>Set Up Schedule</button>
+          <button className="btn primary bmd" style={{ flex: 1 }} onClick={() => goToBuilder(null)}>+ Build a Practice</button>
+          <button className="btn outline bmd" style={{ flex: 1 }} onClick={goToSchedule}>Set Up Schedule</button>
         </div>}
       </div>}
 
@@ -239,14 +239,14 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
             {headcount !== null && <span> · {headcount} of {team.players.length} expected</span>}
             {planned && planningState(nextPractice) && <span> · <PlanPill practice={nextPractice} /></span>}
           </div>
-          {!planned && canManage && <button className="btn primary bxl bfull" onClick={() => { if (setEditPracticeId) setEditPracticeId(nextPractice.id); setView("builder"); }}>Plan Practice</button>}
+          {!planned && canManage && <button className="btn primary bxl bfull" onClick={() => goToBuilder(nextPractice.id)}>Plan Practice</button>}
           {!planned && !canManage && <div className="btn outline bxl bfull" style={{ textAlign: "center", cursor: "default" }}>Not planned yet</div>}
           {planned && !soon && <button className="btn primary bxl bfull" onClick={() => setViewPractice(nextPractice)}>Review Plan</button>}
-          {planned && soon && <button className="btn primary bxl bfull" onClick={() => { setLiveId(nextPractice.id); setView("command"); }}>Start Practice &#8594;</button>}
+          {planned && soon && <button className="btn primary bxl bfull" onClick={() => goToRun(nextPractice.id)}>Start Practice &#8594;</button>}
         </div>);
       })()}
 
-      {needsPlanning.length > 0 && <div className="li" style={{ marginBottom: 16, cursor: "pointer" }} onClick={() => setView("schedule")}>
+      {needsPlanning.length > 0 && <div className="li" style={{ marginBottom: 16, cursor: "pointer" }} onClick={goToSchedule}>
         <div className="lim"><div className="lin">{needsPlanning.length} practice{needsPlanning.length > 1 ? "s" : ""} in the next 14 days need{needsPlanning.length === 1 ? "s" : ""} a plan</div></div>
         <span style={{ color: "var(--green)", fontSize: 18 }}>&#8250;</span>
       </div>}
@@ -266,7 +266,7 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
           <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
             <button className="ell-btn" onClick={e => { e.stopPropagation(); setPracticeMenuId(practiceMenuId === p.id ? null : p.id); }}><span /><span /><span /></button>
             {practiceMenuId === p.id && <div className="mini-menu" style={{ right: 0, minWidth: 140 }}>
-              <button className="mm-item" onClick={() => { setPracticeMenuId(null); if (setEditPracticeId) setEditPracticeId(p.id); setView("builder"); }}>Edit</button>
+              <button className="mm-item" onClick={() => { setPracticeMenuId(null); goToBuilder(p.id); }}>Edit</button>
               <button className="mm-item mm-danger" onClick={() => { delPractice(p.id); setPracticeMenuId(null); }}>Delete</button>
             </div>}
           </div>
@@ -274,7 +274,7 @@ export default function HomeScreen({ data, update, setView, setLiveId, coachId, 
       })}
 
       <div style={{ marginTop: 20, display: "flex", gap: 8 }}>
-        {canManageAnyTeam && <button className="btn outline bmd" style={{ flex: 1 }} onClick={() => { if (setEditPracticeId) setEditPracticeId(null); setView("builder"); }}>+ Practice</button>}
+        {canManageAnyTeam && <button className="btn outline bmd" style={{ flex: 1 }} onClick={() => goToBuilder(null)}>+ Practice</button>}
         <button className="btn ghost bmd" style={{ flex: 1 }} onClick={() => setShowAbsencePicker(true)}>Player Out</button>
       </div>
     </div>

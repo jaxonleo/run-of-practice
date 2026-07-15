@@ -54,7 +54,7 @@ function DaySheet({ date, practices, data, todayStr, runStatus, onPick, onClose 
   </div>);
 }
 
-export default function ScheduleScreen({ data, update, setView, setLiveId, coachId, setEditPracticeId, refreshPlanning }) {
+export default function ScheduleScreen({ data, update, goToBuilder, goToRun, coachId, refreshPlanning }) {
   const now = new Date();
   const todayStr = localDateStr(now);
   const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
@@ -113,11 +113,11 @@ export default function ScheduleScreen({ data, update, setView, setLiveId, coach
     });
     await refreshPlanning();
     setHistoryPractice(null);
-    if (saved) { setLiveId(saved.id); setView("command"); }
+    if (saved) goToRun(saved.id);
   };
 
   if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} update={update} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} /></div>);
-  if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} update={update} setView={setView} setLiveId={setLiveId} setEditPracticeId={setEditPracticeId} coachId={coachId} refreshPlanning={refreshPlanning} onBack={() => setViewPractice(null)} /></div>);
+  if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning} onBack={() => setViewPractice(null)} /></div>);
 
   const teamById = id => data.teams.find(t => t.id === id);
 
@@ -222,6 +222,6 @@ export default function ScheduleScreen({ data, update, setView, setLiveId, coach
     </div>}
 
     {showWizard && <SeriesWizard data={data} coachId={coachId} onClose={() => setShowWizard(false)} onDone={async () => { setShowWizard(false); await refreshPlanning(); }} />}
-    {showSingle && <SchedulePracticeModal data={data} coachId={coachId} onClose={() => setShowSingle(false)} onDone={async (result, planNow) => { setShowSingle(false); await refreshPlanning(); if (planNow && result && setEditPracticeId) { setEditPracticeId(result.id); setView("builder"); } }} />}
+    {showSingle && <SchedulePracticeModal data={data} coachId={coachId} onClose={() => setShowSingle(false)} onDone={async (result, planNow) => { setShowSingle(false); await refreshPlanning(); if (planNow && result) goToBuilder(result.id); }} />}
   </div>);
 }

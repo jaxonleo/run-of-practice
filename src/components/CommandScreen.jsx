@@ -734,7 +734,7 @@ function LiveEditBuilder({data,coachId,refreshLibrary,liveActs,team,loc,onSaveRe
   </div>);
 }
 
-export default function CommandScreen({data,update,liveId,setLiveId,coachId,setView,refreshPlanning,refreshLibrary}){
+export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHome,refreshPlanning,refreshLibrary}){
   const practice=liveId?data.practices.find(p=>p.id===liveId):null;
   const team=practice?data.teams.find(t=>t.id===practice.teamId):null;
   const loc=practice?data.locations.find(l=>l.id===practice.locationId):null;
@@ -1264,7 +1264,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     />);
   }
 
-  if(stage==="attend"||showAtt){const attBack=()=>{if(showAtt){setShowAtt(false);}else{setLiveId(null);setStage("pick");setView("today");}};
+  if(stage==="attend"||showAtt){const attBack=()=>{if(showAtt){setShowAtt(false);}else{setLiveId(null);setStage("pick");goHome();}};
     // Fresh session start: default present-set excludes players marked out
     // in advance (§7) -- the coach can still tap them back in if they show
     // up anyway. This is the only place planned absences feed the live run;
@@ -1280,7 +1280,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
     if(error){setNoteError("Couldn't save note. Try again.");return;}
     setNoteText("");
   };
-  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--green)",marginBottom:4}}>Practice Complete</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{team&&team.name} practice complete.</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>{setNoteText(e.target.value);if(noteError)setNoteError("");}}/>{noteError&&<div style={{fontSize:12,color:"var(--red)",marginTop:4}}>{noteError}</div>}<button className="btn primary bsm bfull mt6" onClick={saveEndNote} disabled={savingNote}>{savingNote?"Saving...":"Save Note"}</button></div><button className="btn primary bmd bfull" onClick={()=>{setLiveId(null);setStage("pick");setView("today");}}>Done</button></div></div>);
+  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--green)",marginBottom:4}}>Practice Complete</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{team&&team.name} practice complete.</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>{setNoteText(e.target.value);if(noteError)setNoteError("");}}/>{noteError&&<div style={{fontSize:12,color:"var(--red)",marginTop:4}}>{noteError}</div>}<button className="btn primary bsm bfull mt6" onClick={saveEndNote} disabled={savingNote}>{savingNote?"Saving...":"Save Note"}</button></div><button className="btn primary bmd bfull" onClick={()=>{setLiveId(null);setStage("pick");goHome();}}>Done</button></div></div>);
 
   if(!cur)return null;
 
@@ -1327,7 +1327,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,setV
         <div style={{position:"relative"}}>
           <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
           {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
-            <button className="mm-item" onClick={()=>{setShowEllipsis(false);setView("today");}}>Leave (keeps running)</button>
+            <button className="mm-item" onClick={()=>{setShowEllipsis(false);goHome();}}>Leave (keeps running)</button>
             {isController&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowEditBuilder(true);}}>Edit Practice</button>}
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);if(!audioOn){try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}startBgAudioSession();}else{stopBgAudioSession();}spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
             {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_read");}}>Share Live View</button>}
