@@ -1,6 +1,55 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 const CONTACT_EMAIL = "contact@runofpractice.com";
+
+// ── Live mock-card timers. One page-load timestamp anchors every clock, so
+// components that need to depict "the same moment" (hero card, watch screen,
+// helper detail card) just call useCountdown with the same start value --
+// no shared state needed, they're all deriving from the same Date.now() math.
+const PAGE_LOAD_MS = Date.now();
+const CLOCK_STATION_BLOCK_START = 4 * 60 + 12; // 04:12, shared by hero/watch/helper detail
+const CLOCK_THROWING_START = 6 * 60 + 45; // 06:45, Live Practice View only
+const CLOCK_BATTING_CAGE_START = -(1 * 60 + 20); // -01:20, already over, counts further negative
+
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(() => window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = () => setReduced(mql.matches);
+    mql.addEventListener ? mql.addEventListener("change", onChange) : mql.addListener(onChange);
+    return () => { mql.removeEventListener ? mql.removeEventListener("change", onChange) : mql.removeListener(onChange); };
+  }, []);
+  return reduced;
+}
+
+function useElapsedSeconds() {
+  const reducedMotion = usePrefersReducedMotion();
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (reducedMotion) return;
+    const tick = () => setElapsed(Math.floor((Date.now() - PAGE_LOAD_MS) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [reducedMotion]);
+  return elapsed;
+}
+
+function formatClock(totalSeconds) {
+  const neg = totalSeconds < 0;
+  const abs = Math.abs(totalSeconds);
+  const m = Math.floor(abs / 60);
+  const s = abs % 60;
+  return (neg ? "-" : "") + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+}
+
+function useCountdown(startSeconds) {
+  const elapsed = useElapsedSeconds();
+  const remaining = startSeconds - elapsed;
+  const over = remaining < 0;
+  return { display: formatClock(remaining), over, minutesBehind: over ? Math.ceil(Math.abs(remaining) / 60) : 0 };
+}
 
 // Scoped to this page only -- the app's own CSS (App.jsx's CSS block) is
 // injected globally and already defines .btn/.card/.pill/.bdg/.cc-* etc, so
@@ -82,8 +131,10 @@ const LP_CSS = `
 .lp-w-live{display:flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.1em;color:#7fd6a4;}
 .lp-w-live .dot{width:6px;height:6px;border-radius:50%;background:#43d97d;animation:pulse 1.5s infinite;}
 .lp-w-ontime{font-family:'DM Mono',monospace;font-size:9px;font-weight:700;color:#cfe8d8;background:rgba(127,214,164,.16);border-radius:999px;padding:3px 8px;}
+.lp-w-behind{font-family:'DM Mono',monospace;font-size:9px;font-weight:700;color:#f4d9a8;background:rgba(240,198,116,.18);border-radius:999px;padding:3px 8px;}
 .lp-w-drill{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:19px;color:#fff;line-height:1.1;margin-bottom:2px;}
-.lp-w-timer{font-family:'DM Mono',monospace;font-weight:500;font-size:44px;letter-spacing:-.02em;color:#43d97d;line-height:1.05;}
+.lp-w-timer{font-family:'DM Mono',monospace;font-weight:500;font-size:44px;letter-spacing:-.02em;color:#43d97d;line-height:1.05;font-variant-numeric:tabular-nums;}
+.lp-w-timer.over{color:#ff6a4d;animation:pulse .8s infinite;}
 .lp-w-timer-label{font-size:10px;color:#8b978f;margin-bottom:10px;}
 .lp-w-upnext{background:rgba(255,255,255,.08);border-radius:12px;padding:8px 11px;margin-bottom:10px;}
 .lp-w-upnext .lbl{font-family:'DM Mono',monospace;font-size:8px;font-weight:700;letter-spacing:.14em;color:#8b978f;margin-bottom:3px;}
@@ -107,7 +158,7 @@ const LP_CSS = `
 .lp-w-done-btn{margin-top:auto;background:rgba(255,255,255,.14);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13px;letter-spacing:.05em;text-align:center;border-radius:999px;padding:11px 0;}
 .lp-watch-caption{font-size:12.5px;line-height:1.5;color:var(--tm);text-align:center;max-width:210px;}
 .lp-watch-caption strong{color:var(--black);font-weight:600;}
-@media (prefers-reduced-motion:reduce){.lp-w-live .dot,.lp-w-haptic span{animation:none;}}
+@media (prefers-reduced-motion:reduce){.lp-w-live .dot,.lp-w-haptic span,.lp-w-timer.over{animation:none;}}
 @media (max-width:560px){.lp-watch-stage{gap:32px;}}
 `;
 
@@ -244,22 +295,25 @@ function TemplatesVisual() {
 function LiveVisual({
   drill = "Throwing Progression",
   roundLabel = null,
-  time = "06:45",
+  startSeconds = CLOCK_THROWING_START,
   description = "Partners start at 30 feet, step back to 45 and 60 as arms loosen. Focus throws to the chest, receiver gives a target.",
   focus = "Hit the chest. Point your front shoulder, follow your throw.",
   skills = ["Arm Care", "Accuracy"],
   upNextName = "Station Block",
   upNextMins = "45m",
 }) {
+  const { display, over, minutesBehind } = useCountdown(startSeconds);
   return (<div className="lp-phone">
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
       <div className="row"><span className="live" /><span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginLeft: 5 }}>Live</span></div>
-      <span style={{ background: "var(--gbg)", color: "var(--green)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>On time</span>
+      {over
+        ? <span style={{ background: "var(--ambg)", color: "var(--amber)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{minutesBehind}m behind</span>
+        : <span style={{ background: "var(--gbg)", color: "var(--green)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>On time</span>}
     </div>
     {roundLabel && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 2 }}>{roundLabel}</div>}
     <div className="cc-act-name">{drill}</div>
     <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
-      <div className="cc-timer" style={{ fontSize: 46 }}>{time}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
+      <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
     </div>
     {description && <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 4 }}>Description</div>
@@ -301,6 +355,7 @@ function StationFocusVisual() {
 }
 
 function StationDetailVisual() {
+  const { display, over } = useCountdown(CLOCK_STATION_BLOCK_START);
   return (<div className="lp-phone">
     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 2 }}>Station 2</div>
     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Batting Cage 1</div>
@@ -322,7 +377,7 @@ function StationDetailVisual() {
     </div>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></div>
     <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-      <div className="cc-timer" style={{ fontSize: 46 }}>08:30</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
+      <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
     </div>
   </div>);
 }
@@ -365,9 +420,10 @@ function AdjustVisual() {
 }
 
 function TimerVisual() {
+  const { display } = useCountdown(CLOCK_BATTING_CAGE_START);
   return (<div className="lp-phone">
     <div className="cc-act-name">Batting Cage 1</div>
-    <div className="cc-timer over" style={{ fontSize: 46 }}>-01:20</div>
+    <div className="cc-timer over" style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div>
   </div>);
 }
 
@@ -422,13 +478,14 @@ function WatchFrame({ children }) {
 }
 
 function WatchLiveScreen() {
+  const { display, over, minutesBehind } = useCountdown(CLOCK_STATION_BLOCK_START);
   return (<div className="lp-watch-screen">
     <div className="lp-w-statusline">
       <span className="lp-w-live"><span className="dot"></span>LIVE</span>
-      <span className="lp-w-ontime">On time</span>
+      {over ? <span className="lp-w-behind">{minutesBehind}m behind</span> : <span className="lp-w-ontime">On time</span>}
     </div>
     <div className="lp-w-drill">Station Block</div>
-    <div className="lp-w-timer">04:12</div>
+    <div className={"lp-w-timer" + (over ? " over" : "")}>{display}</div>
     <div className="lp-w-timer-label">remaining</div>
     <div className="lp-w-upnext">
       <div className="lbl">UP NEXT</div>
@@ -506,7 +563,7 @@ export default function LandingPage({ onGetStarted }) {
       <div style={{ fontSize: 12, color: "var(--td)", marginTop: 12 }}>Free during early access.</div>
       <div style={{ marginTop: 34, display: "flex", justifyContent: "center" }}>
         <div className="lp-hero-stage">
-          <LiveVisual drill="Station Block" roundLabel="Round 1 of 3" time="04:12" description="" focus="Quality reps over rep count. Coaches teach, players move." skills={[]} upNextName="Situational Scrimmage" upNextMins="20m" />
+          <LiveVisual drill="Station Block" roundLabel="Round 1 of 3" startSeconds={CLOCK_STATION_BLOCK_START} description="" focus="Quality reps over rep count. Coaches teach, players move." skills={[]} upNextName="Situational Scrimmage" upNextMins="20m" />
           <div className="lp-hero-mini"><StationFocusVisual /></div>
         </div>
       </div>
