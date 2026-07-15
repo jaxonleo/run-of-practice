@@ -784,7 +784,7 @@ export default function LandingPage({ onGetStarted }) {
       </div>
     </div>
 
-    <Section dark eyebrow="Live Practice View" title="One screen runs the whole practice." visual={<LiveVisual />} body={[
+    <Section id="how-it-works" dark eyebrow="Live Practice View" title="One screen runs the whole practice." visual={<LiveVisual />} body={[
       "What's happening now, time remaining, the coaching focus, which players, which coach, which field, and what's next. No clipboard, no stopwatch, no flipping between notes.",
     ]} />
 
@@ -827,7 +827,7 @@ export default function LandingPage({ onGetStarted }) {
       "Save your fields, courts and cages, then define the areas inside them: Batting Cage 2, Court 1, Bullpen. Assign each drill to an area and list the equipment, so helpers know what to set up before players arrive.",
     ]} />
 
-    <Section id="how-it-works" eyebrow="Schedule" title="Know which practices still have no plan." reverse visual={<ScheduleVisual />} body={[
+    <Section eyebrow="Schedule" title="Know which practices still have no plan." reverse visual={<ScheduleVisual />} body={[
       "Add one-time or recurring practices. Each one shows its status at a glance (ready, started, or needs a plan) so Thursday's practice doesn't sneak up on you Wednesday night.",
     ]} />
 
