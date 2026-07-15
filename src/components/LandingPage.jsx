@@ -9,7 +9,7 @@ const CONTACT_EMAIL = "contact@runofpractice.com";
 // layout (header, alternating rows, responsive breakpoint) under an
 // `.lp-` prefix so nothing here can collide with the app's own classes.
 const LP_CSS = `
-.lp{background:var(--bg);}
+.lp{background:var(--bg);--mock-card-primary:480px;--mock-card-secondary:350px;}
 .lp-header{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between;padding:10px 20px;}
 .lp-brand{display:flex;align-items:center;gap:10px;}
 .lp-brand img{width:32px;height:32px;border-radius:8px;flex-shrink:0;}
@@ -31,13 +31,25 @@ const LP_CSS = `
 .lp-row{display:flex;flex-direction:column;gap:28px;align-items:center;}
 .lp-copy{flex:1;min-width:0;width:100%;}
 .lp-visual{flex:1;min-width:0;width:100%;display:flex;justify-content:center;}
-.lp-visual-inner{width:100%;max-width:400px;}
+.lp-visual-inner{width:100%;}
 @media (min-width:860px){
   .lp-row{flex-direction:row;gap:56px;align-items:center;}
   .lp-row.rev{flex-direction:row-reverse;}
   .lp-navlink.hideonsm{display:inline;}
 }
-.lp-phone{background:#fff;border:1px solid var(--b);border-radius:20px;padding:16px;box-shadow:0 20px 50px rgba(0,0,0,.14);text-align:left;color:var(--black);}
+.lp-phone{background:#fff;border:1px solid var(--b);border-radius:20px;padding:16px;box-shadow:0 20px 50px rgba(0,0,0,.14);text-align:left;color:var(--black);width:100%;max-width:var(--mock-card-primary);margin:0 auto;}
+.lp-duo{position:relative;display:flex;align-items:flex-end;justify-content:center;width:100%;}
+.lp-duo .lp-phone{margin:0;}
+.lp-duo .lp-card-primary{flex:1 1 var(--mock-card-primary);max-width:var(--mock-card-primary);min-width:0;}
+.lp-duo .lp-card-secondary{flex:0 1 var(--mock-card-secondary);max-width:var(--mock-card-secondary);min-width:0;margin-left:-32px;position:relative;z-index:2;}
+@media (max-width:559px){
+  .lp-duo{flex-direction:column;align-items:stretch;}
+  .lp-duo .lp-card-primary,.lp-duo .lp-card-secondary{flex:none;width:100%;max-width:none;margin-left:0;}
+  .lp-duo .lp-card-secondary{margin-top:14px;}
+}
+.lp-hero-stage{position:relative;width:100%;max-width:var(--mock-card-primary);margin:0 auto;}
+.lp-hero-mini{position:absolute;right:-18px;bottom:-22px;width:60%;max-width:var(--mock-card-secondary);transform:scale(0.7) rotate(-2deg);transform-origin:bottom right;z-index:2;filter:drop-shadow(0 16px 26px rgba(0,0,0,.3));}
+.lp-hero-mini .lp-phone{max-width:none;}
 .lp-hero{background:var(--black);padding:52px 20px 60px;text-align:center;}
 .lp-hero h1{font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:900;color:#fff;letter-spacing:-.01em;line-height:1.08;margin:14px auto 16px;max-width:640px;}
 .lp-hero-sub{font-size:16px;color:var(--td);line-height:1.6;max-width:520px;margin:0 auto 26px;}
@@ -219,28 +231,36 @@ function TemplatesVisual() {
   </div>);
 }
 
-function LiveVisual() {
+function LiveVisual({
+  drill = "3-Man Weave",
+  time = "04:12",
+  description = "Three players move the ball down the floor together, passing in sequence and finishing at the rim.",
+  focus = "Finish every rep at full speed, no walking back.",
+  skills = ["Ball Handling", "Finishing"],
+  upNextName = "Station Block",
+  upNextMins = "20m",
+}) {
   return (<div className="lp-phone">
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
       <div className="row"><span className="live" /><span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginLeft: 5 }}>Live</span></div>
       <span style={{ background: "var(--gbg)", color: "var(--green)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>On time</span>
     </div>
-    <div className="cc-act-name">3-Man Weave</div>
+    <div className="cc-act-name">{drill}</div>
     <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
-      <div className="cc-timer" style={{ fontSize: 46 }}>04:12</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
+      <div className="cc-timer" style={{ fontSize: 46 }}>{time}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
     </div>
     <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 4 }}>Description</div>
-      <div style={{ fontSize: 13, color: "var(--black)", lineHeight: 1.5 }}>Three players move the ball down the floor together, passing in sequence and finishing at the rim.</div>
+      <div style={{ fontSize: 13, color: "var(--black)", lineHeight: 1.5 }}>{description}</div>
     </div>
     <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, marginBottom: 10 }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
-      <div style={{ fontSize: 14, color: "var(--black)", lineHeight: 1.5 }}>Finish every rep at full speed, no walking back.</div>
+      <div style={{ fontSize: 14, color: "var(--black)", lineHeight: 1.5 }}>{focus}</div>
     </div>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
-      <span className="bdg bs" style={{ fontSize: 10 }}>Ball Handling</span><span className="bdg bs" style={{ fontSize: 10 }}>Finishing</span>
+      {skills.map(s => <span key={s} className="bdg bs" style={{ fontSize: 10 }}>{s}</span>)}
     </div>
-    <div className="cc-queue"><div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)" }}>Up Next</div><div className="cc-queue-item"><span style={{ fontSize: 13, color: "var(--black2)" }}>Station Block</span><span className="bdg bs">20m</span></div></div>
+    <div className="cc-queue"><div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)" }}>Up Next</div><div className="cc-queue-item"><span style={{ fontSize: 13, color: "var(--black2)" }}>{upNextName}</span><span className="bdg bs">{upNextMins}</span></div></div>
   </div>);
 }
 
@@ -255,23 +275,27 @@ function StationOverviewRow({ label, name, coach, chips }) {
   </div>);
 }
 
+function StationFocusVisual() {
+  return (<div className="lp-phone">
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 2 }}>Station 2</div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Batting Cage 2</div>
+    <div className="limt" style={{ marginBottom: 6 }}>Coach Jen</div>
+    <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 8, marginBottom: 8 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a" }}>💡 Coaching Focus</div>
+      <div style={{ fontSize: 12.5, lineHeight: 1.4 }}>Level swing, contact out front</div>
+    </div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></div>
+  </div>);
+}
+
 function HelperVisual() {
-  return (<div className="lp-row" style={{ gap: 14 }}>
-    <div className="lp-phone" style={{ maxWidth: 220 }}>
+  return (<div className="lp-duo">
+    <div className="lp-phone lp-card-primary">
       <div className="clbl">All Stations</div>
       <StationOverviewRow label="Station 1" name="Infield" coach="Coach Mike" chips={<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="here" /></>} />
       <StationOverviewRow label="Station 2" name="Batting Cage 2" coach="Coach Jen" chips={<><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></>} />
     </div>
-    <div className="lp-phone" style={{ maxWidth: 220 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 2 }}>Station 2</div>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Batting Cage 2</div>
-      <div className="limt" style={{ marginBottom: 6 }}>Coach Jen</div>
-      <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 8, marginBottom: 8 }}>
-        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a" }}>💡 Coaching Focus</div>
-        <div style={{ fontSize: 12.5, lineHeight: 1.4 }}>Level swing, contact out front</div>
-      </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></div>
-    </div>
+    <div className="lp-card-secondary"><StationFocusVisual /></div>
   </div>);
 }
 
@@ -308,9 +332,9 @@ function TimerVisual() {
 }
 
 function AdjustTimerVisual() {
-  return (<div className="lp-row" style={{ gap: 14 }}>
-    <div style={{ maxWidth: 220 }}><AdjustVisual /></div>
-    <div style={{ maxWidth: 220 }}><TimerVisual /></div>
+  return (<div className="lp-duo">
+    <div className="lp-card-primary"><AdjustVisual /></div>
+    <div className="lp-card-secondary"><TimerVisual /></div>
   </div>);
 }
 
@@ -439,10 +463,15 @@ export default function LandingPage({ onGetStarted }) {
         <a href="#how-it-works" className="btn ghost blg" style={{ textDecoration: "none" }}>See How It Works</a>
       </div>
       <div style={{ fontSize: 12, color: "var(--td)", marginTop: 12 }}>Free during early access.</div>
-      <div style={{ marginTop: 34, display: "flex", justifyContent: "center" }}><div style={{ maxWidth: 320, width: "100%" }}><LiveVisual /></div></div>
+      <div style={{ marginTop: 34, display: "flex", justifyContent: "center" }}>
+        <div className="lp-hero-stage">
+          <LiveVisual />
+          <div className="lp-hero-mini"><StationFocusVisual /></div>
+        </div>
+      </div>
     </div>
 
-    <Section dark eyebrow="Live Practice View" title="One screen runs the whole practice." visual={<LiveVisual />} body={[
+    <Section dark eyebrow="Live Practice View" title="One screen runs the whole practice." visual={<LiveVisual drill="Partner Passing" time="06:45" description="Two players face off and pass back and forth, working footwork and target hands between reps." focus="Sharp, chest-height passes. Call for it before you catch it." skills={["Passing", "Footwork"]} upNextName="Water Break" upNextMins="5m" />} body={[
       "What's happening now, time remaining, the coaching focus, which players, which coach, which field, and what's next. No clipboard, no stopwatch, no flipping between notes.",
     ]} />
 
