@@ -374,15 +374,13 @@ export default function GoalsScreen({ data, teamId, coachId }) {
       onChanged={() => { refreshAll(); }} />;
   }
 
-  return (<div style={{ paddingBottom: 80 }}>
-    <div style={{ padding: "20px 16px 12px" }}>
-      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 28, fontWeight: 900 }}>Goals + Insights</div>
-    </div>
-    <div style={{ padding: "0 16px" }}>
-      {canManage && <GoalsEditor teamId={teamId} team={team} data={data} coachId={coachId} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
-      <GlanceView report={report} />
-      <div className="clbl mb8" style={{ marginTop: 4 }}>History</div>
-      <HistoryList history={history} data={data} canManage={canManage} onOpen={setOpenSession} />
-    </div>
+  // No own page header/title here -- embedded under PlanScreen.jsx's "Plan"
+  // header + Build/Goals & Insights toggle (nav restructure round 2,
+  // 2026-07-15; this used to be its own top-level tab).
+  return (<div>
+    {canManage && <GoalsEditor teamId={teamId} team={team} data={data} coachId={coachId} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
+    <GlanceView report={report} />
+    <div className="clbl mb8" style={{ marginTop: 4 }}>History</div>
+    <HistoryList history={history} data={data} canManage={canManage} onOpen={setOpenSession} />
   </div>);
 }

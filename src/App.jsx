@@ -1,18 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } from "react";
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider, Navigate, Outlet, useNavigate, useParams, useBlocker } from "react-router-dom";
 import Layout from "./Layout.jsx";
-import GoalsScreen from "./components/GoalsScreen.jsx";
+import PlanScreen from "./components/PlanScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
-import SettingsScreen from "./components/SettingsScreen.jsx";
+import SettingsScreen, { EquipmentTab } from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
-import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, fetchNoteCountsForPractices, fetchPracticeRunStatus } from "./supabase.js";
+import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView } from "./components/CommandScreen.jsx";
 import HomeScreen from "./components/HomeScreen.jsx";
-import PracticeDetail from "./components/PracticeDetail.jsx";
 import ScheduleScreen from "./components/ScheduleScreen.jsx";
 import AbsencePicker from "./components/AbsencePicker.jsx";
 import LandingPage from "./components/LandingPage.jsx";
@@ -177,54 +176,32 @@ export const useAppCtx=()=>useContext(AppCtx);
 // Manage screen; its top-level list mode (My Teams / Locations / Equipment /
 // Gear / Account) is gone -- team picking moved to /teams, everything else
 // moved to /settings (SettingsScreen.jsx) in the 2026-07-15 nav restructure.
-function ManageScreen({data,update,goToBuilder,goToRun,coachId,openModal,refreshTeams,refreshPlanning,refreshLibrary,initialTeamId}){
+// Team tab (nav restructure round 2, 2026-07-15): "people, places, and
+// things" for one team -- Roster (players + coaches/helpers, via the
+// existing RostersTab) and Equipment (team equipment + player gear,
+// sport-filtered to this team -- see EquipmentTab's own comment on why).
+// Practices and History are gone from here entirely: Schedule already
+// covers both (forward-looking agenda/month and its own collapsible
+// completed/history section), so this was pure duplication, not a second
+// source of truth worth keeping. Locations and Skill Tags stayed in
+// Settings on purpose (a location or a skill tag isn't owned by one team,
+// unlike equipment/gear/roster).
+function ManageScreen({data,update,coachId,openModal,refreshTeams,refreshLibrary,initialTeamId}){
   const navigate=useNavigate();
   // initialTeamId (from /team/:teamId/team) jumps straight into that team's
   // workspace -- same fixedTeamId precedent RostersTab already uses.
   const [selectedTeam,setSelectedTeam]=useState(initialTeamId||null);
   useEffect(()=>{if(initialTeamId&&initialTeamId!==selectedTeam)setSelectedTeam(initialTeamId);},[initialTeamId]);
-  const [teamTab,setTeamTab]=useState("practices");
-  const [selectedPractice,setSelectedPractice]=useState(null);
-  const [practiceMenuId,setPracticeMenuId]=useState(null);
+  const [teamTab,setTeamTab]=useState("roster");
   // If the selected team was just deleted (e.g. via the Roster tab's
   // Delete Team), this route's teamId no longer resolves -- leave for the
   // Teams list instead of rendering blank.
   useEffect(()=>{if(selectedTeam&&!data.teams.some(t=>t.id===selectedTeam))navigate("/teams");},[selectedTeam,data.teams]);
-  const delPractice=async id=>{await archivePractice(id);await refreshPlanning();if(selectedPractice&&selectedPractice.id===id)setSelectedPractice(null);};
-  const now=new Date();
-  const todayStr=localDateStr(now);
-  const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
-  // A count per past practice for the History list badge, not full note
-  // content -- fetched once for the whole team instead of once per row.
-  const [historyNoteCounts,setHistoryNoteCounts]=useState({});
-  // Same date-agnostic run signal ScheduleScreen uses -- a practice run
-  // earlier today needs to land in History immediately, not at midnight.
-  const [teamRunStatus,setTeamRunStatus]=useState({});
-  useEffect(()=>{
-    if(!selectedTeam){setHistoryNoteCounts({});setTeamRunStatus({});return;}
-    const teamIds=data.practices.filter(p=>p.teamId===selectedTeam).map(p=>p.id);
-    fetchPracticeRunStatus(teamIds).then(setTeamRunStatus);
-    const pastIds=data.practices.filter(p=>p.teamId===selectedTeam&&p.date<todayStr).map(p=>p.id);
-    if(!pastIds.length){setHistoryNoteCounts({});return;}
-    fetchNoteCountsForPractices(pastIds).then(setHistoryNoteCounts);
-  },[selectedTeam,data.practices]);
-  const teamRan=p=>teamRunStatus[p.id]==="completed";
-  if(selectedPractice){
-    const isHistorical=(selectedPractice.date<localDateStr()||teamRan(selectedPractice))&&selectedPractice.status!=="cancelled";
-    const isPlanned=(selectedPractice.activities||[]).length>0;
-    if(isHistorical&&isPlanned)return(<div style={{padding:"14px 14px calc(var(--tab)+40px)"}}><HistoryViewer data={data} update={update} practice={selectedPractice} onRunAgain={async()=>{const now=new Date();const {data:saved}=await savePracticeTree(null,{teamId:selectedPractice.teamId,locationId:selectedPractice.locationId,date:localDateStr(now),startTime:now.toTimeString().slice(0,5),activities:stripIdsForCopy(selectedPractice.activities)});await refreshPlanning();setSelectedPractice(null);if(saved)goToRun(saved.id);}} onBack={()=>setSelectedPractice(null)}/></div>);
-    return (<PracticeDetail practice={selectedPractice} data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning} onBack={()=>setSelectedPractice(null)}/>);
-  }
   if(selectedTeam){
     const team=data.teams.find(t=>t.id===selectedTeam);
     if(!team)return null;
-    const teamPractices=data.practices.filter(p=>p.teamId===selectedTeam);
-    const upcoming=teamPractices.filter(p=>p.date>=todayStr&&!teamRan(p)).sort((a,b)=>a.date>b.date?1:-1);
-    const past=teamPractices.filter(p=>p.date<todayStr||teamRan(p)).sort((a,b)=>b.date>a.date?1:-1);
-    const TTABS=["practices","roster","history"];
-    const canManageTeam=isHeadCoach(team,coachId);
+    const TTABS=["roster","equipment"];
     return (<div style={{paddingBottom:80}}>
-      <div style={{padding:"12px 14px 0",display:"flex",alignItems:"center",gap:8}}><button className="btn ghost bxs" onClick={()=>navigate("/teams")}>Teams</button></div>
       <div style={{padding:"8px 16px 12px"}}>
         <div style={{borderLeft:"4px solid "+(team.colorPrimary||"transparent"),paddingLeft:10,marginBottom:14}}>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2}}>{team.name}</div>
@@ -233,40 +210,8 @@ function ManageScreen({data,update,goToBuilder,goToRun,coachId,openModal,refresh
         <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:16}}>
           {TTABS.map(t=>(<button key={t} onClick={()=>setTeamTab(t)} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:teamTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",color:teamTab===t?"var(--black)":"var(--td)"}}>{t}</button>))}
         </div>
-        {teamTab==="practices"&&<div>
-          <div className="sechdr" style={{marginBottom:8}}><span className="sectitle">{upcoming.length>0?"Upcoming":"Practices"}</span>{canManageTeam&&<button className="btn primary bxs" onClick={()=>goToBuilder(null)}>+ Build</button>}</div>
-          {upcoming.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>{canManageTeam?"No upcoming practices. Tap + Build.":"No upcoming practices."}</div>}
-          {upcoming.map(p=>(<div key={p.id} className="li" style={{marginBottom:6,cursor:"pointer",position:"relative"}} onClick={()=>setSelectedPractice(p)}>
-            <div className="lim"><div className="lin">{new Date(p.date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}{p.startTime?" - "+timeLbl(p):""}</div><div className="limt">{(p.activities||[]).length} activities</div></div>
-            <div style={{display:"flex",alignItems:"center",gap:4}}>
-              <span style={{color:"var(--green)",fontSize:18}}>&#8250;</span>
-              {canManageTeam&&<div style={{position:"relative"}}>
-                <button className="ell-btn" onClick={e=>{e.stopPropagation();setPracticeMenuId(practiceMenuId===p.id?null:p.id);}}><span/><span/><span/></button>
-                {practiceMenuId===p.id&&<div className="mini-menu" style={{right:0,minWidth:140}}>
-                  <button className="mm-item" onClick={e=>{e.stopPropagation();setPracticeMenuId(null);goToBuilder(p.id);}}>Edit</button>
-                  <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();delPractice(p.id);setPracticeMenuId(null);}}>Delete</button>
-                </div>}
-              </div>}
-            </div>
-          </div>))}
-          </div>}
         {teamTab==="roster"&&<div><RostersTab data={data} update={update} openModal={openModal} fixedTeamId={selectedTeam} refreshTeams={refreshTeams} coachId={coachId} refreshLibrary={refreshLibrary}/></div>}
-        {teamTab==="history"&&<div>
-          {past.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No practice history yet.</div>}
-          {past.map(p=>{
-            const noteCount=historyNoteCounts[p.id]||0;
-            const statusLbl=p.status==="cancelled"?"Cancelled":teamRan(p)?"Completed":teamRunStatus[p.id]==="started"?"Started, not finished":(p.activities||[]).length>0?"Missed":"Never planned";
-            return(<div key={p.id} className="card" style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setSelectedPractice(p)}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <div>
-                  <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900}}>{new Date(p.date+"T12:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}</div>
-                  <div style={{fontSize:12,color:"var(--td)"}}>{statusLbl} · {(p.activities||[]).length} activities · {(p.activities||[]).reduce((s,a)=>{if(a.type==="station_block")return s+a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*(a.transitionDuration||0);return s+(a.duration||0);},0)}min{noteCount>0?" · "+noteCount+" note"+(noteCount>1?"s":""):""}</div>
-                </div>
-                <span style={{color:"var(--td)",fontSize:13}}>&#8250;</span>
-              </div>
-            </div>);
-          })}
-        </div>}
+        {teamTab==="equipment"&&<EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} sportFilter={team.sport}/>}
       </div>
     </div>);
   }
@@ -482,8 +427,7 @@ export default function App(){
           <Route path="schedule" element={<ScheduleLegacyRoute/>}/>
           <Route path="team/:teamId" element={<TeamIndexRedirect/>}/>
           <Route path="team/:teamId/schedule" element={<TeamScheduleRoute/>}/>
-          <Route path="team/:teamId/plan" element={<PlanPlaceholder/>}/>
-          <Route path="team/:teamId/goals" element={<GoalsRoute/>}/>
+          <Route path="team/:teamId/plan" element={<PlanRoute/>}/>
           <Route path="team/:teamId/team" element={<TeamRosterRoute/>}/>
         </Route>
       </Route>
@@ -517,10 +461,17 @@ function AuthedShell(){
   const [liveId,setLiveId]=useState(null);
   const [editPracticeId,setEditPracticeId]=useState(null);
   const [startTemplateId,setStartTemplateId]=useState(null);
+  const [presetTeamId,setPresetTeamId]=useState(null);
   const navigate=useNavigate();
-  const goToBuilder=useCallback((practiceId,templateId)=>{
+  // presetTeamId (nav restructure round 2): Plan's Build tab already knows
+  // which team it's for -- without this, a new practice defaults to
+  // data.teams[0], which is wrong the moment a coach has more than one team
+  // and starts from a team's own Plan tab instead of the old flat Manage
+  // team-picker.
+  const goToBuilder=useCallback((practiceId,templateId,teamId)=>{
     setEditPracticeId(practiceId||null);
     setStartTemplateId(templateId||null);
+    setPresetTeamId(practiceId?null:(teamId||null));
     navigate("/builder/"+(practiceId||"new"));
   },[navigate]);
   const goToRun=useCallback(practiceId=>{
@@ -532,7 +483,9 @@ function AuthedShell(){
   // once step 4 folds Schedule into /team/:teamId/schedule.
   const goToSchedule=useCallback(()=>navigate("/schedule"),[navigate]);
   const goToTeam=useCallback(teamId=>navigate("/team/"+teamId+"/schedule"),[navigate]);
-  const goToTeamGoals=useCallback(teamId=>navigate("/team/"+teamId+"/goals"),[navigate]);
+  // Goals is a Plan sub-tab now, not its own route -- ?tab=goals tells
+  // PlanScreen which sub-tab to default to (read via useSearchParams there).
+  const goToTeamGoals=useCallback(teamId=>navigate("/team/"+teamId+"/plan?tab=goals"),[navigate]);
   const goToSettings=useCallback(()=>navigate("/settings"),[navigate]);
 
   // Loading initial session
@@ -550,7 +503,7 @@ function AuthedShell(){
   // Show data loading spinner after auth but before data loaded
   if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div></div>);
 
-  return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,goToBuilder,goToRun,goHome,goToSchedule,goToTeam,goToTeamGoals,goToSettings}}>
+  return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,setPresetTeamId,goToBuilder,goToRun,goHome,goToSchedule,goToTeam,goToTeamGoals,goToSettings}}>
     <Outlet/>
     {ctx.modal&&<ModalLayer modal={ctx.modal} data={ctx.data} update={ctx.update} closeModal={ctx.closeModal} refreshTeams={ctx.refreshTeams} refreshLibrary={ctx.refreshLibrary} refreshPlanning={ctx.refreshPlanning} coachId={ctx.coachId}/>}
   </AppCtx.Provider>);
@@ -620,22 +573,19 @@ function TeamIndexRedirect(){
 
 function TeamRosterRoute(){
   const {teamId}=useParams();
-  const {data,update,goToBuilder,goToRun,coachId,openModal,refreshTeams,refreshPlanning,refreshLibrary}=useAppCtx();
-  return <ManageScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} openModal={openModal} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} initialTeamId={teamId}/>;
+  const {data,update,coachId,openModal,refreshTeams,refreshLibrary}=useAppCtx();
+  return <ManageScreen data={data} update={update} coachId={coachId} openModal={openModal} refreshTeams={refreshTeams} refreshLibrary={refreshLibrary} initialTeamId={teamId}/>;
 }
 
-function PlanPlaceholder(){
-  return (<div className="empty"><div className="emtx">Plan tab is coming soon.<br/>For now, build practices from Library or the team's Schedule tab.</div></div>);
-}
-function GoalsRoute(){
+function PlanRoute(){
   const {teamId}=useParams();
-  const {data,coachId}=useAppCtx();
-  return <GoalsScreen data={data} teamId={teamId} coachId={coachId}/>;
+  const {data,coachId,goToBuilder}=useAppCtx();
+  return <PlanScreen data={data} teamId={teamId} coachId={coachId} goToBuilder={goToBuilder}/>;
 }
 
 function BuilderRoute(){
   const {practiceId}=useParams();
-  const {data,update,openModal,goToRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,coachId,refreshPlanning,refreshLibrary}=useAppCtx();
+  const {data,update,openModal,goToRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,coachId,refreshPlanning,refreshLibrary}=useAppCtx();
   // Restores state from the URL on a fresh mount (direct link / refresh) --
   // navigation via goToBuilder() already set this state before navigating,
   // so this is a no-op in the normal in-app flow.
@@ -643,7 +593,7 @@ function BuilderRoute(){
     const wanted=practiceId&&practiceId!=="new"?practiceId:null;
     if(wanted!==editPracticeId)setEditPracticeId(wanted);
   },[practiceId]);
-  return <BuilderScreen data={data} update={update} openModal={openModal} launchRun={goToRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} startTemplateId={startTemplateId} setStartTemplateId={setStartTemplateId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>;
+  return <BuilderScreen data={data} update={update} openModal={openModal} launchRun={goToRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} startTemplateId={startTemplateId} setStartTemplateId={setStartTemplateId} presetTeamId={presetTeamId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>;
 }
 
 function RunRoute(){
@@ -704,7 +654,7 @@ function DurStepper({value,min,onChange,step}){
   );
 }
 
-function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,coachId,refreshPlanning,refreshLibrary}){
+function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,coachId,refreshPlanning,refreshLibrary}){
   const navigate=useNavigate();
   const editP=editPracticeId?data.practices.find(p=>p.id===editPracticeId):null;
   // "Start from Template" seeds a brand-new (not editP) practice from a
@@ -715,7 +665,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   // later (e.g. to edit a different practice) doesn't silently re-seed it.
   useEffect(()=>{if(startTemplateId&&setStartTemplateId)setStartTemplateId(null);},[]);
   const [existingId,setExistingId]=useState(editP?editP.id:null);
-  const [teamId,setTeamId]=useState(editP?editP.teamId:((startTpl&&startTpl.defaultTeamId)||(data.teams[0]?data.teams[0].id:"")));
+  const [teamId,setTeamId]=useState(editP?editP.teamId:(presetTeamId||(startTpl&&startTpl.defaultTeamId)||(data.teams[0]?data.teams[0].id:"")));
   const lastLocForTeam=(tid)=>{const tps=data.practices.filter(p=>p.teamId===tid&&p.locationId).sort((a,b)=>b.date>a.date?1:-1);return tps.length?tps[0].locationId:(data.locations[0]?data.locations[0].id:"");};
   const [locId,setLocId]=useState(editP?editP.locationId:((startTpl&&startTpl.locationId)||lastLocForTeam(editP?editP.teamId:(data.teams[0]?data.teams[0].id:""))));
   const [acts,setActs]=useState(editP?JSON.parse(JSON.stringify(editP.activities)):(startTpl?stripIdsForCopy(startTpl.activities):[]));
@@ -818,7 +768,12 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
     if(saved)launchRun(saved.id);
   };
   return (<div style={{paddingBottom:80}}>
-      <div style={{padding:"10px 14px 0"}}><button className="btn ghost bxs" onClick={()=>navigate("/")}>Back</button></div>
+      {/* Back-button audit (2026-07-15): was a hardcoded navigate("/") --
+          always dropped you on Home regardless of where you actually came
+          from (a team's Plan tab, Schedule, Library...). navigate(-1)
+          returns to wherever that was; the useBlocker guard above already
+          intercepts this exact navigation when there are unsaved edits. */}
+      <div style={{padding:"10px 14px 0"}}><button className="btn ghost bxs" onClick={()=>navigate(-1)}>Back</button></div>
       <div style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
       {editP&&<div style={{padding:"8px 14px",background:"var(--gbg)",borderBottom:"1px solid var(--gb)",display:"flex",alignItems:"baseline",gap:8}}>
         <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",flexShrink:0}}>Editing</span>

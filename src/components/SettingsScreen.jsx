@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { createAsset, updateAsset, archiveAsset, archiveLocation } from "../supabase.js";
 import { SkillsTab } from "./NewLibraryScreen.jsx";
 
@@ -41,22 +42,42 @@ function GearEditRow({asset,refreshLibrary,onDone}){
 }
 
 // ── EquipmentTab ──────────────────────────────────────────────────────────────
-// Used here in its combined mode (no `mode` prop): one "Equipment & Gear"
-// settings entry with the internal Team Equipment / Player Gear toggle,
-// instead of the two separate Manage entries these used to be.
-function EquipmentTab({data,coachId,refreshLibrary,openModal,mode}){
+// Used two ways: unfiltered from Settings (no `mode`, no `sportFilter` --
+// everything the coach owns, across every sport), and sport-filtered from
+// inside a team's workspace (mode + sportFilter=team.sport). Exported so
+// ManageScreen's Team tab (App.jsx) can reuse it.
+//
+// sportFilter (added 2026-07-15, per direct feedback: showing baseball gear
+// while looking at a basketball team would be "weird"): Team Equipment
+// never actually had per-item sport before this -- creation hardcoded
+// sport='General' for every team-equipment row, so there was no way to tell
+// them apart. New team-equipment items now stamp the current team's sport
+// automatically (no picker needed, since the context already answers it);
+// existing 'General' rows still show everywhere as a shared/generic bucket,
+// which is deliberate backward-compat, not a bug -- no migration needed.
+// Player gear already had a real sport picker; sportFilter only changes its
+// *default* selection, since gear can legitimately be sport-specific in a
+// way team equipment generally isn't (a player might own gear for a sport
+// other than the team you're currently viewing them through).
+// NOTE: this only prevents cross-*sport* bleed. Two different teams that
+// play the *same* sport still share one identical equipment pool -- that
+// needs real team-scoped ownership in the data model, deliberately deferred
+// (confirmed with Jax) as its own project once org equipment is real too.
+export function EquipmentTab({data,coachId,refreshLibrary,openModal,mode,sportFilter}){
   const [equipTabState,setEquipTabState]=useState(mode||"team");
   const equipTab=mode||equipTabState;
   const [openMenu,setOpenMenu]=useState(null);
   const [newName,setNewName]=useState("");
-  const [newSport,setNewSport]=useState("General");
+  const [newSport,setNewSport]=useState(sportFilter||"General");
   const [showAdd,setShowAdd]=useState(false);
   const [collapsed,setCollapsed]=useState({});
-  const teamAssets=(data.assets||[]).filter(a=>!a.type||a.type==="team");
-  const playerAssets=(data.assets||[]).filter(a=>a.type==="player");
+  const matchesSport=a=>!sportFilter||(a.sport||"General")===sportFilter||(a.sport||"General")==="General";
+  const teamAssets=(data.assets||[]).filter(a=>(!a.type||a.type==="team")&&matchesSport(a));
+  const playerAssets=(data.assets||[]).filter(a=>a.type==="player"&&matchesSport(a));
   const addNew=async()=>{
     if(!newName.trim())return;
-    await createAsset(coachId,{name:newName.trim(),type:equipTab,sport:equipTab==="player"?newSport:"General"});
+    const sport=equipTab==="player"?newSport:(sportFilter||"General");
+    await createAsset(coachId,{name:newName.trim(),type:equipTab,sport});
     await refreshLibrary();
     setNewName("");setShowAdd(false);
   };
@@ -217,6 +238,7 @@ function LocationsSection({data,openModal,refreshPlanning}){
 }
 
 export default function SettingsScreen({data,coachId,openModal,refreshLibrary,refreshPlanning,profile,coachEmail,saveName,onSignOut,onDeactivate}){
+  const navigate=useNavigate();
   // null = the top-level list; otherwise which section is drilled into.
   const [section,setSection]=useState(null);
   const NAV_ITEMS=[
@@ -240,7 +262,13 @@ export default function SettingsScreen({data,coachId,openModal,refreshLibrary,re
   </div>);
 
   return(<div style={{paddingBottom:80}}>
-    <div style={{padding:"20px 16px 12px"}}>
+    {/* Back-button audit (2026-07-15): Settings is reached via a gear icon,
+        not a tab, so unlike Home/Teams/Library it isn't a navigable root --
+        it needs its own explicit way out instead of relying on the coach to
+        notice the tab bar still works underneath it. navigate(-1) returns
+        to wherever the gear icon was tapped from. */}
+    <div style={{padding:"12px 14px 0"}}><button className="btn ghost bxs" onClick={()=>navigate(-1)}>&#8249; Back</button></div>
+    <div style={{padding:"12px 16px 12px"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>Settings</div>
     </div>
     <div style={{padding:"0 16px"}}>

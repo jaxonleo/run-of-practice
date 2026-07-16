@@ -27,10 +27,13 @@ export default function Layout({ data, liveId, goToRun }) {
   const hideTabBar = location.pathname.startsWith("/run/");
 
   const team = inTeam ? (data.teams || []).find(t => t.id === teamId) : null;
+  // 3 tabs, not 4 (nav-restructure round 2, 2026-07-15): Goals folded into
+  // Plan as a sub-toggle (Build / Goals & Insights) -- both are "how this
+  // team spends its practice time," and Plan's own team-scoped-build
+  // content was still an empty placeholder, so nothing built was lost.
   const teamTabs = inTeam ? [
     { id: "schedule", label: "Schedule", path: `/team/${teamId}/schedule`, I: Ic.Cal },
     { id: "plan", label: "Plan", path: `/team/${teamId}/plan`, I: Ic.Plan },
-    { id: "goals", label: "Goals", path: `/team/${teamId}/goals`, I: Ic.Goals },
     { id: "team", label: "Team", path: `/team/${teamId}/team`, I: Ic.Admin },
   ] : [];
 
@@ -40,8 +43,12 @@ export default function Layout({ data, liveId, goToRun }) {
   return (<div style={{ display: "contents" }}>
     <div className="app">
       {inTeam && team && <div style={{ height: 4, background: team.colorPrimary || "var(--green)", flexShrink: 0 }} />}
+      {/* Back-button audit (2026-07-15): was "My Week" -> Home. Changed to
+          Teams since that's the canonical "leave a team" destination
+          elsewhere too (ManageScreen's own back control used to duplicate
+          this exact link -- removed there, this is now the only one). */}
       {inTeam && team && <div style={{ padding: "10px 14px 0", display: "flex", alignItems: "center", gap: 8 }}>
-        <button className="btn ghost bxs" onClick={() => navigate("/")}>&#8249; My Week</button>
+        <button className="btn ghost bxs" onClick={() => navigate("/teams")}>&#8249; Teams</button>
         <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700 }}>{team.name}</span>
       </div>}
       <div className="screen">
