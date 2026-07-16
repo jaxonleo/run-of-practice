@@ -3,8 +3,9 @@ import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider, N
 import Layout from "./Layout.jsx";
 import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
+import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
-import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, createAsset, updateAsset, archiveAsset, archiveLocation, fetchNoteCountsForPractices, fetchPracticeRunStatus } from "./supabase.js";
+import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, fetchNoteCountsForPractices, fetchPracticeRunStatus } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
@@ -172,159 +173,23 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 export const AppCtx=createContext(null);
 export const useAppCtx=()=>useContext(AppCtx);
 
-// ── GearEditRow — inline edit for a player gear item ─────────────────────────
-function GearEditRow({asset,refreshLibrary,onDone}){
-  const [name,setName]=useState(asset.name);
-  const [sport,setSport]=useState(asset.sport||"General");
-  const save=async()=>{
-    if(!name.trim())return;
-    await updateAsset(asset.id,{name:name.trim(),sport});
-    await refreshLibrary();
-    onDone();
-  };
-  return(<div style={{padding:"10px 12px",background:"var(--s2)",borderBottom:"1px solid var(--b)"}}>
-    <div className="g2" style={{marginBottom:8}}>
-      <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}/></div>
-      <div className="fld"><label className="lbl">Sport</label>
-        <select className="sel" value={sport} onChange={e=>setSport(e.target.value)}>
-          {["General","Baseball","Basketball","Football","Soccer","Softball","Lacrosse","Hockey","Volleyball","Tennis","Swimming","Other"].map(s=><option key={s} value={s}>{s}</option>)}
-        </select>
-      </div>
-    </div>
-    <div className="brow"><button className="btn ghost bxs" onClick={onDone}>Cancel</button><button className="btn primary bxs" onClick={save} disabled={!name.trim()}>Save</button></div>
-  </div>);
-}
-
-// ── EquipmentTab ──────────────────────────────────────────────────────────────
-// `mode` ("team" | "player") pins the view to one section with no internal
-// toggle, for when Team Equipment and Player Gear are already separate
-// top-level Manage tabs. Omit it to get the old combined-with-toggle view.
-function EquipmentTab({data,coachId,refreshLibrary,openModal,mode}){
-  const [equipTabState,setEquipTabState]=useState(mode||"team");
-  const equipTab=mode||equipTabState;
-  const [openMenu,setOpenMenu]=useState(null);
-  const [newName,setNewName]=useState("");
-  const [newSport,setNewSport]=useState("General");
-  const [showAdd,setShowAdd]=useState(false);
-  const [collapsed,setCollapsed]=useState({});
-  const teamAssets=(data.assets||[]).filter(a=>!a.type||a.type==="team");
-  const playerAssets=(data.assets||[]).filter(a=>a.type==="player");
-  const addNew=async()=>{
-    if(!newName.trim())return;
-    await createAsset(coachId,{name:newName.trim(),type:equipTab,sport:equipTab==="player"?newSport:"General"});
-    await refreshLibrary();
-    setNewName("");setShowAdd(false);
-  };
-  const del=async id=>{await archiveAsset(id);await refreshLibrary();};
-  return(<div onClick={()=>setOpenMenu(null)}>
-    {/* Toggle */}
-    {!mode&&<div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:16}}>
-      {["team","player"].map(t=>(<button key={t} onClick={()=>{setEquipTabState(t);setShowAdd(false);}} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:equipTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:equipTab===t?"var(--black)":"var(--td)"}}>{t==="team"?"Team Equipment":"Player Gear"}</button>))}
-    </div>}
-
-    {/* Team Equipment */}
-    {equipTab==="team"&&<div>
-      <div className="sechdr mb10">
-        <span className="sectitle">{teamAssets.length} items</span>
-        <button className="btn primary bsm" onClick={()=>setShowAdd(s=>!s)}>+ Add</button>
-      </div>
-      {showAdd&&<div className="card mb10">
-        <div className="fld"><label className="lbl">Equipment Name</label><input className="inp" autoFocus placeholder="e.g. Ball Rack" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNew()}/></div>
-        <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowAdd(false)}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
-      </div>}
-      {teamAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No team equipment yet.</div>}
-      {teamAssets.map(a=>(<div key={a.id} className="li" style={{position:"relative",marginBottom:6}}>
-        <div className="lim">
-          <div className="lin">{a.name}</div>
-        </div>
-        <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
-        {openMenu===a.id&&<div className="mini-menu">
-          <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editAsset",{asset:a});}}>Edit</button>
-          <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
-        </div>}
-      </div>))}
-    </div>}
-
-    {/* Player Gear */}
-    {equipTab==="player"&&<div>
-      <div className="sechdr mb10">
-        <span className="sectitle">{playerAssets.length} items</span>
-        <button className="btn primary bsm" onClick={()=>setShowAdd(s=>!s)}>+ Add Gear</button>
-      </div>
-      {showAdd&&<div className="card mb12">
-        <div className="g2">
-          <div className="fld"><label className="lbl">Gear Name</label><input className="inp" autoFocus placeholder="e.g. Batting Helmet" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNew()}/></div>
-          <div className="fld"><label className="lbl">Sport</label>
-            <select className="sel" value={newSport} onChange={e=>setNewSport(e.target.value)}>
-              {["General","Baseball","Basketball","Football","Soccer","Softball","Lacrosse","Hockey","Volleyball","Tennis","Swimming","Other"].map(s=><option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-        </div>
-        <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowAdd(false);setNewName("");}}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
-      </div>}
-      {playerAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>
-        <div style={{marginBottom:8}}>No player gear yet.</div>
-        <div style={{fontSize:12}}>Add gear here and it will appear as chips when building drills for that sport. Basketball coaches may not need this at all.</div>
-      </div>}
-      {(()=>{
-        // Group by sport
-        const bySport={};
-        playerAssets.forEach(a=>{const s=a.sport||"General";if(!bySport[s])bySport[s]=[];bySport[s].push(a);});
-        const sportKeys=Object.keys(bySport).sort();
-        return sportKeys.map(sport=>{
-          const isCollapsed=collapsed["pg_"+sport];
-          const items=bySport[sport];
-          return(<div key={sport} style={{marginBottom:8}}>
-            <button onClick={()=>setCollapsed(c=>Object.assign({},c,{["pg_"+sport]:!c["pg_"+sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:isCollapsed?"var(--r)":"var(--r) var(--r) 0 0",cursor:"pointer"}}>
-              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--black)"}}>{sport}</span>
-              <span style={{fontSize:12,color:"var(--td)"}}>{items.length} item{items.length!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
-            </button>
-            {!isCollapsed&&<div style={{border:"1px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)"}}>
-              {items.map((a,i)=>{
-                const isEditing=openMenu==="edit_"+a.id;
-                return(<div key={a.id}>
-                  {!isEditing&&<div className="li" style={{position:"relative",borderBottom:i<items.length-1?"1px solid var(--b)":"none",borderRadius:0}}>
-                    <div className="lim"><div className="lin">{a.name}</div></div>
-                    <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
-                    {openMenu===a.id&&<div className="mini-menu">
-                      <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu("edit_"+a.id);}}>Edit</button>
-                      <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
-                    </div>}
-                  </div>}
-                  {isEditing&&<GearEditRow asset={a} refreshLibrary={refreshLibrary} onDone={()=>setOpenMenu(null)}/>}
-                </div>);
-              })}
-            </div>}
-          </div>);
-        });
-      })()}
-    </div>}
-  </div>);
-}
-
-function ManageScreen({data,update,goToBuilder,goToRun,coachId,openModal,refreshTeams,refreshPlanning,refreshLibrary,profile,coachEmail,saveName,onSignOut,onDeactivate,initialTeamId}){
+// The team workspace's "Team" tab (roster/practices/history). Was the old
+// Manage screen; its top-level list mode (My Teams / Locations / Equipment /
+// Gear / Account) is gone -- team picking moved to /teams, everything else
+// moved to /settings (SettingsScreen.jsx) in the 2026-07-15 nav restructure.
+function ManageScreen({data,update,goToBuilder,goToRun,coachId,openModal,refreshTeams,refreshPlanning,refreshLibrary,initialTeamId}){
+  const navigate=useNavigate();
   // initialTeamId (from /team/:teamId/team) jumps straight into that team's
-  // workspace instead of making the coach click through "My Teams" first --
-  // same fixedTeamId precedent RostersTab already uses.
+  // workspace -- same fixedTeamId precedent RostersTab already uses.
   const [selectedTeam,setSelectedTeam]=useState(initialTeamId||null);
   useEffect(()=>{if(initialTeamId&&initialTeamId!==selectedTeam)setSelectedTeam(initialTeamId);},[initialTeamId]);
   const [teamTab,setTeamTab]=useState("practices");
-  // null = the top-level list nav; otherwise which section is drilled into.
-  const [manageTab,setManageTab]=useState(null);
-  const [manageMenu,setManageMenu]=useState(null);
-  const NAV_ITEMS=[
-    {id:"teams",label:"My Teams",sub:data.teams.length+" team"+(data.teams.length===1?"":"s")},
-    {id:"locations",label:"My Locations",sub:data.locations.length+" location"+(data.locations.length===1?"":"s")},
-    {id:"teamEquip",label:"Team Equipment"},
-    {id:"playerGear",label:"Player Gear"},
-    {id:"account",label:"Account Settings"},
-  ];
   const [selectedPractice,setSelectedPractice]=useState(null);
-  const myTeams=data.teams;
   const [practiceMenuId,setPracticeMenuId]=useState(null);
   // If the selected team was just deleted (e.g. via the Roster tab's
-  // Delete Team), fall back to the team list instead of rendering blank.
-  useEffect(()=>{if(selectedTeam&&!data.teams.some(t=>t.id===selectedTeam))setSelectedTeam(null);},[selectedTeam,data.teams]);
+  // Delete Team), this route's teamId no longer resolves -- leave for the
+  // Teams list instead of rendering blank.
+  useEffect(()=>{if(selectedTeam&&!data.teams.some(t=>t.id===selectedTeam))navigate("/teams");},[selectedTeam,data.teams]);
   const delPractice=async id=>{await archivePractice(id);await refreshPlanning();if(selectedPractice&&selectedPractice.id===id)setSelectedPractice(null);};
   const now=new Date();
   const todayStr=localDateStr(now);
@@ -359,7 +224,7 @@ function ManageScreen({data,update,goToBuilder,goToRun,coachId,openModal,refresh
     const TTABS=["practices","roster","history"];
     const canManageTeam=isHeadCoach(team,coachId);
     return (<div style={{paddingBottom:80}}>
-      <div style={{padding:"12px 14px 0",display:"flex",alignItems:"center",gap:8}}><button className="btn ghost bxs" onClick={()=>setSelectedTeam(null)}>Teams</button></div>
+      <div style={{padding:"12px 14px 0",display:"flex",alignItems:"center",gap:8}}><button className="btn ghost bxs" onClick={()=>navigate("/teams")}>Teams</button></div>
       <div style={{padding:"8px 16px 12px"}}>
         <div style={{borderLeft:"4px solid "+(team.colorPrimary||"transparent"),paddingLeft:10,marginBottom:14}}>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2}}>{team.name}</div>
@@ -405,123 +270,10 @@ function ManageScreen({data,update,goToBuilder,goToRun,coachId,openModal,refresh
       </div>
     </div>);
   }
-  const BackRow=()=>(<div style={{padding:"12px 14px 0"}}><button className="btn ghost bxs" onClick={()=>{setManageTab(null);setManageMenu(null);}}>Back</button></div>);
-
-  if(manageTab==="teams")return(<div style={{paddingBottom:80}}>
-    <BackRow/>
-    <div style={{padding:"12px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>My Teams</div>
-      <button className="btn primary bsm" onClick={()=>openModal("addTeam")}>+ Team</button>
-    </div>
-    <div style={{padding:"0 16px"}}>
-      {myTeams.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No teams yet. Tap + Team to get started.</div>}
-      {myTeams.map(t=>(<div key={t.id} className="card" style={{marginBottom:10,cursor:"pointer",borderLeft:"4px solid "+(t.colorPrimary||"transparent")}} onClick={()=>{setSelectedTeam(t.id);setTeamTab("practices");}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,lineHeight:1,marginBottom:2}}>{t.name}</div><div style={{fontSize:13,color:"var(--td)"}}>{t.sport} - {t.players.length} players</div></div>
-          <span style={{color:"var(--green)",fontSize:22}}>›</span>
-        </div>
-      </div>))}
-    </div>
-  </div>);
-
-  if(manageTab==="locations")return(<div style={{paddingBottom:80}} onClick={()=>setManageMenu(null)}>
-    <BackRow/>
-    <div style={{padding:"12px 16px 0"}}>
-      <div className="sechdr mb10"><span className="sectitle">{data.locations.length} Locations</span><button className="btn primary bsm" onClick={()=>openModal("addLocation")}>+ Add</button></div>
-      {data.locations.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No locations yet.</div>}
-      {data.locations.map(loc=>(<div key={loc.id} className="card" style={{position:"relative",marginBottom:10}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{loc.name}</span>
-          <div className="row">
-            <button className="btn ghost bxs" onClick={()=>openModal("addSublocation",{locationId:loc.id})}>+ Area</button>
-            <button className="ell-btn" onClick={e=>{e.stopPropagation();setManageMenu(manageMenu===loc.id?null:loc.id);}}><span/><span/><span/></button>
-          </div>
-        </div>
-        {manageMenu===loc.id&&<div className="mini-menu" style={{right:8,top:44}}>
-          <button className="mm-item" onClick={e=>{e.stopPropagation();setManageMenu(null);openModal("editLocation",{location:loc});}}>Edit</button>
-          <button className="mm-item mm-danger" onClick={async e=>{e.stopPropagation();setManageMenu(null);await archiveLocation(loc.id);await refreshPlanning();}}>Delete</button>
-        </div>}
-        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-          {loc.sublocations.map(sl=>(<span key={sl.id} className="bdg bs">{sl.name}</span>))}
-          {!loc.sublocations.length&&<span style={{fontSize:12,color:"var(--td)"}}>No areas yet</span>}
-        </div>
-      </div>))}
-    </div>
-  </div>);
-
-  if(manageTab==="teamEquip")return(<div style={{paddingBottom:80}}>
-    <BackRow/>
-    <div style={{padding:"12px 16px 0"}}><EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode="team"/></div>
-  </div>);
-
-  if(manageTab==="playerGear")return(<div style={{paddingBottom:80}}>
-    <BackRow/>
-    <div style={{padding:"12px 16px 0"}}><EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode="player"/></div>
-  </div>);
-
-  if(manageTab==="account")return(<AccountSettingsScreen profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate} onBack={()=>setManageTab(null)}/>);
-
-  // Top-level list nav -- a plain vertical list rather than tabs, so it
-  // grows/scrolls with the page as more sections get added instead of
-  // squeezing narrower per-tab labels.
-  return (<div style={{paddingBottom:80}}>
-    <div style={{padding:"20px 16px 12px"}}>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>Manage</div>
-    </div>
-    <div style={{padding:"0 16px"}}>
-      {NAV_ITEMS.map(item=>(<div key={item.id} className="li" style={{marginBottom:8,cursor:"pointer"}} onClick={()=>setManageTab(item.id)}>
-        <div className="lim"><div className="lin">{item.label}</div>{item.sub&&<div className="limt">{item.sub}</div>}</div>
-        <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
-      </div>))}
-    </div>
-  </div>);
-}
-
-function AccountSettingsScreen({profile,coachEmail,saveName,onSignOut,onDeactivate,onBack}){
-  const [firstName,setFirstName]=useState(profile?profile.first_name||"":"");
-  const [lastName,setLastName]=useState(profile?profile.last_name||"":"");
-  const [saving,setSaving]=useState(false);
-  const [saved,setSaved]=useState(false);
-  const [confirmDeactivate,setConfirmDeactivate]=useState(false);
-  // Profile loads async after this screen can already be mounted -- sync
-  // the fields once it arrives instead of only reading it at first render.
-  useEffect(()=>{setFirstName(profile?profile.first_name||"":"");setLastName(profile?profile.last_name||"":"");},[profile]);
-  const dirty=!!profile&&(firstName.trim()!==(profile.first_name||"")||lastName.trim()!==(profile.last_name||""));
-  const save=async()=>{
-    if(!firstName.trim()||saving)return;
-    setSaving(true);
-    await saveName(firstName.trim(),lastName.trim());
-    setSaving(false);setSaved(true);
-    setTimeout(()=>setSaved(false),2000);
-  };
-  return (<div style={{paddingBottom:80}}>
-    <div style={{padding:"12px 14px 0"}}><button className="btn ghost bxs" onClick={onBack}>Back</button></div>
-    <div style={{padding:"12px 16px 0"}}>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,marginBottom:18}}>Account Settings</div>
-
-      <div className="clbl mb8">Your Info</div>
-      <div className="fld mb10"><label className="lbl">First Name</label><input className="inp" value={firstName} onChange={e=>setFirstName(e.target.value)}/></div>
-      <div className="fld mb10"><label className="lbl">Last Name</label><input className="inp" placeholder="(optional)" value={lastName} onChange={e=>setLastName(e.target.value)}/></div>
-      <div className="fld" style={{marginBottom:12}}><label className="lbl">Email</label><div style={{fontSize:14,color:"var(--td)",padding:"8px 0"}}>{coachEmail||"--"}</div></div>
-      {dirty&&<button className="btn primary bmd bfull" style={{marginBottom:24}} onClick={save} disabled={!firstName.trim()||saving}>{saving?"Saving...":"Save Changes"}</button>}
-      {!dirty&&saved&&<div style={{fontSize:13,color:"var(--green)",marginBottom:24}}>Saved.</div>}
-      {!dirty&&!saved&&<div style={{marginBottom:24}}/>}
-
-      <div className="clbl mb8">Legal</div>
-      <a href="/terms" className="li" style={{textDecoration:"none",marginBottom:6}}><div className="lim"><div className="lin">Terms of Service</div></div><span style={{color:"var(--td)",fontSize:18}}>&#8250;</span></a>
-      <a href="/privacy" className="li" style={{textDecoration:"none",marginBottom:24}}><div className="lim"><div className="lin">Privacy Policy</div></div><span style={{color:"var(--td)",fontSize:18}}>&#8250;</span></a>
-
-      <div className="clbl mb8" style={{color:"var(--red)"}}>Danger Zone</div>
-      {!confirmDeactivate&&<button className="btn ghost bmd bfull" style={{marginBottom:24,color:"var(--red)"}} onClick={()=>setConfirmDeactivate(true)}>Deactivate Account</button>}
-      {confirmDeactivate&&<div className="confirm-box" style={{marginBottom:24}}>
-        <div className="confirm-title">Deactivate your account?</div>
-        <div className="confirm-body">You'll be signed out and hidden from your teammates' rosters. All your teams, practices, and data stay exactly as they are -- just sign back in any time to pick up right where you left off.</div>
-        <div className="brow"><button className="btn ghost bsm" onClick={()=>setConfirmDeactivate(false)}>Cancel</button><button className="btn danger bsm" onClick={()=>{if(onDeactivate)onDeactivate();}}>Deactivate</button></div>
-      </div>}
-
-      <button className="btn outline bmd bfull" onClick={()=>{if(onSignOut)onSignOut();}}>Sign Out</button>
-    </div>
-  </div>);
+  // No list mode anymore: this component is only mounted with a teamId in
+  // the URL, and the deleted-team effect above navigates away when it stops
+  // resolving -- render nothing during that redirect tick.
+  return null;
 }
 
 function AuthScreen({onBack}){
@@ -720,6 +472,7 @@ export default function App(){
           <Route index element={<HomeRoute/>}/>
           <Route path="library" element={<LibraryRoute/>}/>
           <Route path="teams" element={<TeamsRoute/>}/>
+          <Route path="settings" element={<SettingsRoute/>}/>
           <Route path="builder/:practiceId" element={<BuilderRoute/>}/>
           <Route path="run/:practiceId" element={<RunRoute/>}/>
           {/* Step-3 bridge only: the old cross-team Schedule screen, reachable
@@ -780,6 +533,7 @@ function AuthedShell(){
   const goToSchedule=useCallback(()=>navigate("/schedule"),[navigate]);
   const goToTeam=useCallback(teamId=>navigate("/team/"+teamId+"/schedule"),[navigate]);
   const goToTeamGoals=useCallback(teamId=>navigate("/team/"+teamId+"/goals"),[navigate]);
+  const goToSettings=useCallback(()=>navigate("/settings"),[navigate]);
 
   // Loading initial session
   if(session===undefined)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
@@ -796,7 +550,7 @@ function AuthedShell(){
   // Show data loading spinner after auth but before data loaded
   if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div></div>);
 
-  return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,goToBuilder,goToRun,goHome,goToSchedule,goToTeam,goToTeamGoals}}>
+  return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,goToBuilder,goToRun,goHome,goToSchedule,goToTeam,goToTeamGoals,goToSettings}}>
     <Outlet/>
     {ctx.modal&&<ModalLayer modal={ctx.modal} data={ctx.data} update={ctx.update} closeModal={ctx.closeModal} refreshTeams={ctx.refreshTeams} refreshLibrary={ctx.refreshLibrary} refreshPlanning={ctx.refreshPlanning} coachId={ctx.coachId}/>}
   </AppCtx.Provider>);
@@ -811,8 +565,8 @@ function HelperViewRoute(){ const {token}=useParams(); return <HelperView token=
 function PreviewViewRoute(){ const {token}=useParams(); return <PreviewView token={token}/>; }
 
 function HomeRoute(){
-  const {data,update,goToBuilder,goToRun,goToSchedule,goToTeamGoals,coachId,coachName,coachEmail,refreshPlanning,refreshTeams}=useAppCtx();
-  return <HomeScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeamGoals={goToTeamGoals} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>;
+  const {data,update,goToBuilder,goToRun,goToSchedule,goToTeamGoals,goToSettings,coachId,coachName,coachEmail,refreshPlanning,refreshTeams}=useAppCtx();
+  return <HomeScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeamGoals={goToTeamGoals} goToSettings={goToSettings} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>;
 }
 
 function LibraryRoute(){
@@ -821,8 +575,13 @@ function LibraryRoute(){
 }
 
 function TeamsRoute(){
-  const {data,goToTeam}=useAppCtx();
-  return <TeamsListScreen data={data} goToTeam={goToTeam}/>;
+  const {data,goToTeam,openModal}=useAppCtx();
+  return <TeamsListScreen data={data} goToTeam={goToTeam} openModal={openModal}/>;
+}
+
+function SettingsRoute(){
+  const {data,coachId,openModal,refreshLibrary,refreshPlanning,profile,coachEmail,saveName,onSignOut,onDeactivate}=useAppCtx();
+  return <SettingsScreen data={data} coachId={coachId} openModal={openModal} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate}/>;
 }
 
 // step-3 bridge -- see the router config comment above.
@@ -861,8 +620,8 @@ function TeamIndexRedirect(){
 
 function TeamRosterRoute(){
   const {teamId}=useParams();
-  const {data,update,goToBuilder,goToRun,coachId,openModal,refreshTeams,refreshPlanning,refreshLibrary,profile,coachEmail,saveName,onSignOut,onDeactivate}=useAppCtx();
-  return <ManageScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} openModal={openModal} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate} initialTeamId={teamId}/>;
+  const {data,update,goToBuilder,goToRun,coachId,openModal,refreshTeams,refreshPlanning,refreshLibrary}=useAppCtx();
+  return <ManageScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} openModal={openModal} refreshTeams={refreshTeams} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} initialTeamId={teamId}/>;
 }
 
 function PlanPlaceholder(){

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import { uid, sumMins } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 import { archiveDrill, setDrillShare, copyDrillToMyLibrary, saveTemplateTree, archiveTemplate, swapDrillPositions, createSkillTag, archiveSkillTag } from "../supabase.js";
@@ -16,7 +16,11 @@ const Ic_Chev=({up})=><svg width="16" height="16" viewBox="0 0 16 16" fill="none
 // seeded with starter tags on signup, fully add/removable here after that.
 // Broken out by sport since a category name like "Team Play" exists under
 // both Baseball and Basketball with different tags underneath.
-function SkillsTab({data,coachId,refreshLibrary}){
+// Exported for SettingsScreen (nav restructure, 2026-07-15): the taxonomy is
+// coaching *vocabulary* -- configuration, not content -- so its management
+// page moved out of Library into Settings. The drill editor's own inline
+// Add/Edit Skill Tags flow still covers the frequent in-context case.
+export function SkillsTab({data,coachId,refreshLibrary}){
   const [collapsed,setCollapsed]=useState({});
   const [drafts,setDrafts]=useState({});
   const cats=data.skillCategories||[];
@@ -259,9 +263,17 @@ function TemplateWorkspace({data,template,onBack,openModal,coachId,refreshLibrar
 }
 
 // ── NewLibraryScreen ──────────────────────────────────────────────────────────
+// Library split (nav restructure, 2026-07-15): two shelves -- "My Library"
+// (your drills + templates, with a sub-toggle) and "Explore" (content that
+// isn't yours: org libraries and coach-shared drills today, the deferred
+// chunk-6 curated catalogs later). Establishing Explore now means future
+// browse-others' content lands in an existing mental slot instead of
+// forcing another restructure. The Skills tab moved to Settings (see
+// SkillsTab's comment above). The old window.__ropLibTab global was set
+// here but never read anywhere -- deleted, not migrated.
 export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibrary,coachId,refreshPlanning}){
-  const [libTab,setLibTab]=useState("drills");
-  useEffect(()=>{window.__ropLibTab=setLibTab;return()=>{delete window.__ropLibTab;};},[]);
+  const [section,setSection]=useState("mine"); // "mine" | "explore"
+  const [mineTab,setMineTab]=useState("drills"); // sub-toggle within My Library
   const [openMenu,setOpenMenu]=useState(null);
   const [editingTpl,setEditingTpl]=useState(null);
   const [confirmDel,setConfirmDel]=useState(null);
@@ -277,7 +289,13 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
   const [newTplNameDraft,setNewTplNameDraft]=useState("");
   const toggle=sport=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}));
   const myOrgs=data.myOrgs||[];
-  const shelves=[{key:"mine",label:"My Library"},...myOrgs.flatMap(org=>[{key:"orgLib:"+org.id,label:org.name+" Library",org},{key:"shared:"+org.id,label:"From "+org.name,org}])];
+  const exploreShelves=myOrgs.flatMap(org=>[{key:"orgLib:"+org.id,label:org.name+" Library",org},{key:"shared:"+org.id,label:"From "+org.name,org}]);
+  const goSection=s=>{
+    setSection(s);
+    setShelf(s==="mine"?"mine":(exploreShelves[0]?exploreShelves[0].key:""));
+    setTagFilter([]);setTagSearch("");
+  };
+  const showDrillList=(section==="mine"&&mineTab==="drills")||(section==="explore"&&exploreShelves.length>0);
   const shelfDrillsAll=(()=>{
     if(shelf==="mine")return (data.activityLibrary||[]).filter(a=>a.ownerUserId===coachId);
     if(shelf.startsWith("orgLib:")){const orgId=shelf.slice(7);return (data.activityLibrary||[]).filter(a=>a.organizationId===orgId);}
@@ -324,7 +342,6 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
     setEditingTpl({id:uid(),name:newTplNameDraft.trim(),activities:[],durMin:0});
     setNewTplPrompt(false);
   };
-  const LTABS=["drills","templates","skills"];
   if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>goToBuilder(null,tplId)}/></div>);
   return (<div style={{paddingBottom:80}}>
     <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -333,12 +350,20 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
     </div>
     <div style={{padding:"0 16px 12px"}}>
       <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:0}}>
-        {LTABS.map(t=>(<button key={t} onClick={()=>setLibTab(t)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:libTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:libTab===t?"var(--black)":"var(--td)"}}>{t}</button>))}
+        {[{k:"mine",label:"My Library"},{k:"explore",label:"Explore"}].map(t=>(<button key={t.k} onClick={()=>goSection(t.k)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:section===t.k?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:section===t.k?"var(--black)":"var(--td)"}}>{t.label}</button>))}
       </div>
+      {section==="mine"&&<div style={{display:"flex",gap:14,padding:"10px 2px 0"}}>
+        {[{k:"drills",label:"Drills"},{k:"templates",label:"Templates"}].map(t=>(<button key={t.k} onClick={()=>setMineTab(t.k)} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",color:mineTab===t.k?"var(--green)":"var(--td)",borderBottom:"2px solid "+(mineTab===t.k?"var(--green)":"transparent")}}>{t.label}</button>))}
+      </div>}
     </div>
-    {libTab==="drills"&&<div style={{padding:"0 16px"}} onClick={()=>{setDrillMenu(null);setShareMenuId(null);}}>
-      {shelves.length>1&&<div style={{display:"flex",gap:6,overflowX:"auto",marginBottom:12,paddingBottom:2}}>
-        {shelves.map(s=>(<button key={s.key} onClick={()=>{setShelf(s.key);setTagFilter([]);setTagSearch("");}} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:shelf===s.key?"var(--green)":"var(--s1)",color:shelf===s.key?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{s.label}</button>))}
+    {section==="explore"&&exploreShelves.length===0&&<div style={{padding:"0 16px"}}>
+      <div className="empty">
+        <div className="emtx">Drills and templates shared by other coaches show up here.<br/><br/>Join an organization to browse its shared library -- and curated drill catalogs are coming.</div>
+      </div>
+    </div>}
+    {showDrillList&&<div style={{padding:"0 16px"}} onClick={()=>{setDrillMenu(null);setShareMenuId(null);}}>
+      {section==="explore"&&exploreShelves.length>1&&<div style={{display:"flex",gap:6,overflowX:"auto",marginBottom:12,paddingBottom:2}}>
+        {exploreShelves.map(s=>(<button key={s.key} onClick={()=>{setShelf(s.key);setTagFilter([]);setTagSearch("");}} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:shelf===s.key?"var(--green)":"var(--s1)",color:shelf===s.key?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{s.label}</button>))}
       </div>}
       <div style={{display:"flex",justifyContent:"flex-end",gap:6,marginBottom:12}}>
         {availableTags.length>0&&<button className="btn ghost bsm" onClick={e=>{e.stopPropagation();setShowFilter(true);}}>Filter{tagFilter.length>0?" ("+tagFilter.length+")":""}</button>}
@@ -412,7 +437,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
         })()}
       </div>))}
     </div>}
-    {libTab==="templates"&&<div style={{padding:"0 16px"}}>
+    {section==="mine"&&mineTab==="templates"&&<div style={{padding:"0 16px"}}>
       <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn primary bsm" onClick={()=>{setNewTplNameDraft("");setNewTplPrompt(true);}}>+ New Template</button></div>
       {newTplPrompt&&<div className="movly" onClick={()=>setNewTplPrompt(false)}><div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="mtitle">Name your template</div>
@@ -449,9 +474,6 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
         </div>
       </div>);})}
       {confirmDel&&<div className="movly" onClick={()=>setConfirmDel(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="mtitle">Delete template?</div><div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This cannot be undone.</div><div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDel(null)}>Cancel</button><button className="btn primary bmd" onClick={async()=>{await archiveTemplate(confirmDel);await refreshPlanning();setConfirmDel(null);}}>Delete</button></div></div></div>}
-    </div>}
-    {libTab==="skills"&&<div style={{padding:"0 16px"}}>
-      <SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary}/>
     </div>}
   </div>);
 }
