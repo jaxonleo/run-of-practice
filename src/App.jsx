@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, createContext
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider, Navigate, Outlet, useNavigate, useParams, useBlocker } from "react-router-dom";
 import Layout from "./Layout.jsx";
 import GoalsScreen from "./components/GoalsScreen.jsx";
+import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archivePractice, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, createAsset, updateAsset, archiveAsset, archiveLocation, fetchNoteCountsForPractices, fetchPracticeRunStatus } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy } from "./constants.js";
@@ -718,6 +719,7 @@ export default function App(){
         <Route element={<LayoutRoute/>}>
           <Route index element={<HomeRoute/>}/>
           <Route path="library" element={<LibraryRoute/>}/>
+          <Route path="teams" element={<TeamsRoute/>}/>
           <Route path="builder/:practiceId" element={<BuilderRoute/>}/>
           <Route path="run/:practiceId" element={<RunRoute/>}/>
           {/* Step-3 bridge only: the old cross-team Schedule screen, reachable
@@ -809,13 +811,18 @@ function HelperViewRoute(){ const {token}=useParams(); return <HelperView token=
 function PreviewViewRoute(){ const {token}=useParams(); return <PreviewView token={token}/>; }
 
 function HomeRoute(){
-  const {data,update,goToBuilder,goToRun,goToSchedule,goToTeam,goToTeamGoals,coachId,coachName,coachEmail,refreshPlanning,refreshTeams}=useAppCtx();
-  return <HomeScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeam={goToTeam} goToTeamGoals={goToTeamGoals} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>;
+  const {data,update,goToBuilder,goToRun,goToSchedule,goToTeamGoals,coachId,coachName,coachEmail,refreshPlanning,refreshTeams}=useAppCtx();
+  return <HomeScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeamGoals={goToTeamGoals} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>;
 }
 
 function LibraryRoute(){
   const {data,update,openModal,goToBuilder,refreshLibrary,coachId,refreshPlanning}=useAppCtx();
   return <NewLibraryScreen data={data} update={update} openModal={openModal} goToBuilder={goToBuilder} refreshLibrary={refreshLibrary} coachId={coachId} refreshPlanning={refreshPlanning}/>;
+}
+
+function TeamsRoute(){
+  const {data,goToTeam}=useAppCtx();
+  return <TeamsListScreen data={data} goToTeam={goToTeam}/>;
 }
 
 // step-3 bridge -- see the router config comment above.

@@ -8,8 +8,14 @@ import { Ic } from "./icons.jsx";
 // affordance. Lifted the live-resume bar here (was App.jsx-only before) so
 // it renders across every route, not just the four that used to check
 // view!=="command" directly.
+// Teams added as its own global tab per direct user feedback (2026-07-15):
+// the only way in used to be a pill-styled row on Home, which read as a
+// filter control (tap to toggle something in place) rather than a nav
+// action (tap to leave the page) -- and Library had no path in at all
+// without detouring through Home first.
 const GLOBAL_TABS = [
   { id: "home", label: "Home", path: "/", I: Ic.Home },
+  { id: "teams", label: "Teams", path: "/teams", I: Ic.Teams },
   { id: "library", label: "Library", path: "/library", I: Ic.Lib },
 ];
 
