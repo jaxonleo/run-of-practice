@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { createAsset, updateAsset, archiveAsset, archiveLocation } from "../supabase.js";
+import { createAsset, updateAsset, archiveAsset, archiveLocation, checkIsAdmin } from "../supabase.js";
 import { SkillsTab } from "./NewLibraryScreen.jsx";
 
 // Settings hub (nav restructure, 2026-07-15): one home for the low-frequency
@@ -241,6 +241,10 @@ export default function SettingsScreen({data,coachId,openModal,refreshLibrary,re
   const navigate=useNavigate();
   // null = the top-level list; otherwise which section is drilled into.
   const [section,setSection]=useState(null);
+  // Founder-only row -- checkIsAdmin() resolves false for everyone else, so
+  // this quietly stays absent rather than showing and then disappearing.
+  const [isAdmin,setIsAdmin]=useState(false);
+  useEffect(()=>{checkIsAdmin().then(setIsAdmin);},[]);
   const NAV_ITEMS=[
     {id:"account",label:"Account",sub:coachEmail||undefined},
     {id:"locations",label:"My Locations",sub:data.locations.length+" location"+(data.locations.length===1?"":"s")},
@@ -276,6 +280,10 @@ export default function SettingsScreen({data,coachId,openModal,refreshLibrary,re
         <div className="lim"><div className="lin">{item.label}</div>{item.sub&&<div className="limt">{item.sub}</div>}</div>
         <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
       </div>))}
+      {isAdmin&&<div className="li tap" style={{marginBottom:8}} onClick={()=>navigate("/admin/metrics")}>
+        <div className="lim"><div className="lin">Founder Metrics</div></div>
+        <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+      </div>}
     </div>
   </div>);
 }

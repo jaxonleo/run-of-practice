@@ -516,8 +516,9 @@ function LayoutRoute(){
   return <Layout data={data} liveId={liveId} goToRun={goToRun}/>;
 }
 
-// Founder-only gate. No nav link anywhere -- reachable only by typing the
-// URL. The real enforcement is server-side (is_admin() inside every
+// Founder-only gate. Settings shows a "Founder Metrics" row only when
+// checkIsAdmin() resolves true, so this is otherwise unreachable via nav.
+// The real enforcement is server-side (is_admin() inside every
 // admin_metrics_* RPC); this redirect is UX only, and deliberately gives
 // no "admin exists" hint to a non-founder who lands here.
 function FounderAdminRoute(){
