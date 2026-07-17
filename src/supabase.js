@@ -1273,3 +1273,26 @@ export async function fetchSessionActivityLog(sessionId) {
     adjustedAt: r.adjusted_at,
   }))
 }
+
+// Founder metrics dashboard (/admin/metrics). checkIsAdmin() is the real
+// gate -- the route redirect is UX only, is_admin() is what the RPCs below
+// actually enforce server-side.
+export async function checkIsAdmin() {
+  const { data, error } = await supabase.rpc('is_admin')
+  if (error) { console.error('checkIsAdmin:', error); return false }
+  return !!data
+}
+export async function fetchFounderMetricsSummary(weeks) {
+  const { data, error } = await supabase.rpc('get_founder_metrics_summary', { p_weeks: weeks })
+  if (error) { console.error('fetchFounderMetricsSummary:', error); return null }
+  return data
+}
+export async function fetchFounderMetricsDetail(weeks) {
+  const { data, error } = await supabase.rpc('get_founder_metrics_detail', { p_weeks: weeks })
+  if (error) { console.error('fetchFounderMetricsDetail:', error); return null }
+  return data
+}
+export async function logGoalViewed(teamId) {
+  const { error } = await supabase.rpc('log_goal_viewed_event', { p_team_id: teamId })
+  if (error) console.error('logGoalViewed:', error)
+}

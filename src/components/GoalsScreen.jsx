@@ -3,7 +3,7 @@ import { isHeadCoach } from "../constants.js";
 import {
   fetchTeamGoals, upsertTeamGoal, archiveTeamGoal, updateGoalsWindowWeeks,
   fetchTeamGoalReport, fetchTeamSessionHistory, fetchSessionActivityLog, fetchNotesForPractice,
-  setSessionExclusion, adjustSessionActivity, addSessionActivityRow,
+  setSessionExclusion, adjustSessionActivity, addSessionActivityRow, logGoalViewed,
 } from "../supabase.js";
 
 const fmtMin = n => (Math.round((n || 0) * 10) / 10);
@@ -361,6 +361,9 @@ export default function GoalsScreen({ data, teamId, coachId }) {
   const refreshReport = useCallback(() => fetchTeamGoalReport(teamId).then(setReport), [teamId]);
   const refreshHistory = useCallback(() => fetchTeamSessionHistory(teamId).then(setHistory), [teamId]);
   useEffect(() => { refreshGoals(); refreshReport(); refreshHistory(); }, [refreshGoals, refreshReport, refreshHistory]);
+  // Fire once per team mount, not on every refresh -- same "call once on
+  // view load" convention as log_helper_join_event.
+  useEffect(() => { logGoalViewed(teamId); }, [teamId]);
 
   const refreshAll = () => { refreshReport(); refreshHistory(); };
 

@@ -5,7 +5,7 @@ import PlanScreen from "./components/PlanScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen, { EquipmentTab } from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
-import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences } from "./supabase.js";
+import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy } from "./constants.js";
 import ModalLayer from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
@@ -16,6 +16,7 @@ import ScheduleScreen from "./components/ScheduleScreen.jsx";
 import AbsencePicker from "./components/AbsencePicker.jsx";
 import LandingPage from "./components/LandingPage.jsx";
 import { TermsPage, PrivacyPage } from "./components/LegalPages.jsx";
+import FounderMetricsScreen from "./components/FounderMetricsScreen.jsx";
 
 // INIT, DEMO_INIT, migrateData, uid, fmt, sumMins, etc. imported from constants.js
 
@@ -413,6 +414,7 @@ export default function App(){
       <Route path="/terms" element={<TermsPage/>}/>
       <Route path="/privacy" element={<PrivacyPage/>}/>
       <Route path="/*" element={<AuthedShell/>}>
+        <Route path="admin/metrics" element={<FounderAdminRoute/>}/>
         <Route element={<LayoutRoute/>}>
           <Route index element={<HomeRoute/>}/>
           <Route path="library" element={<LibraryRoute/>}/>
@@ -512,6 +514,18 @@ function AuthedShell(){
 function LayoutRoute(){
   const {data,liveId,goToRun}=useAppCtx();
   return <Layout data={data} liveId={liveId} goToRun={goToRun}/>;
+}
+
+// Founder-only gate. No nav link anywhere -- reachable only by typing the
+// URL. The real enforcement is server-side (is_admin() inside every
+// admin_metrics_* RPC); this redirect is UX only, and deliberately gives
+// no "admin exists" hint to a non-founder who lands here.
+function FounderAdminRoute(){
+  const [isAdmin,setIsAdmin]=useState(null);
+  useEffect(()=>{checkIsAdmin().then(setIsAdmin);},[]);
+  if(isAdmin===null)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
+  if(!isAdmin)return <Navigate to="/" replace/>;
+  return <FounderMetricsScreen/>;
 }
 
 function HelperViewRoute(){ const {token}=useParams(); return <HelperView token={token}/>; }
