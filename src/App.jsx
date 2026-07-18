@@ -6,9 +6,9 @@ import PlanScreen from "./components/PlanScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen, { EquipmentTab } from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
-import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, addPlayerFocusArea, removePlayerFocusArea, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy } from "./constants.js";
-import ModalLayer from "./components/ModalLayer.jsx";
+import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerFocusNote, createSkillTag, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin } from "./supabase.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "./constants.js";
+import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView } from "./components/CommandScreen.jsx";
@@ -931,79 +931,132 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   );
 }
 
-function PlayerProfile({player:playerInit,team:teamInit,data,update,refreshTeams,coachId,refreshLibrary,onBack}){
+// View and edit live in the same screen -- there's no separate "Edit
+// Player" modal anymore. Tapping Edit swaps the relevant cards to their
+// input form in place; everything else (skill notes, Mark Out) stays live
+// underneath since those already save as you go.
+function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachId,refreshLibrary,canManage,onBack}){
   const team=data.teams.find(t=>t.id===teamInit.id)||teamInit;
   const player=team.players.find(p=>p.id===playerInit.id)||playerInit;
   const [markingOut,setMarkingOut]=useState(false);
-  const [picking,setPicking]=useState(false);
-  const [pickedCategoryId,setPickedCategoryId]=useState(null);
-  const [customName,setCustomName]=useState("");
-  const [busy,setBusy]=useState(false);
+  const [editing,setEditing]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const blankForm=()=>({firstName:player.firstName,lastName:player.lastName,jersey:player.jersey||"",positions:player.positions||[],bats:player.bats||"",throws:player.throws||"",notes:player.notes||""});
+  const [f,setF]=useState(blankForm);
+  const setFld=(k,v)=>setF(p=>Object.assign({},p,{[k]:v}));
+  const startEdit=()=>{setF(blankForm());setEditing(true);};
+  const saveEdit=async()=>{
+    if(!f.firstName.trim())return;
+    setSaving(true);
+    await updatePlayer(player.id,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:f.positions||[],bats:f.bats||"",throws:f.throws||"",notes:f.notes||""});
+    await refreshTeams();
+    setSaving(false);setEditing(false);
+  };
+
   const areas=player.focusAreas||[];
+  const areaFor=tagId=>areas.find(a=>a.skillTagId===tagId);
   const categories=(data.skillCategories||[]).filter(c=>c.sport===team.sport).sort((a,b)=>a.sort_order-b.sort_order);
-  const catName=id=>{const c=(data.skillCategories||[]).find(c=>c.id===id);return c?c.name:"";};
   const tagsForCategory=cid=>(data.skillTags||[]).filter(t=>t.categoryId===cid&&(t.scope==="global"||t.scope==="org"||t.ownerUserId===coachId));
-  const alreadyAddedTagIds=new Set(areas.map(a=>a.skillTagId));
-  const startAdd=()=>{setPicking(true);setPickedCategoryId(null);setCustomName("");};
-  const cancelAdd=()=>{setPicking(false);setPickedCategoryId(null);setCustomName("");};
-  const pickTag=async tagId=>{
-    setBusy(true);
-    await addPlayerFocusArea(player.id,tagId,coachId);
+  // Text fields save on blur, not on every keystroke -- `drafts` holds
+  // in-progress edits so a re-render from an unrelated field's save
+  // doesn't clobber what the coach is mid-typing in this one.
+  const [drafts,setDrafts]=useState({});
+  const [savingTagId,setSavingTagId]=useState(null);
+  const draftFor=tagId=>{const a=areaFor(tagId);return drafts[tagId]!==undefined?drafts[tagId]:(a?a.note||"":"");};
+  const setDraft=(tagId,v)=>setDrafts(p=>Object.assign({},p,{[tagId]:v}));
+  const commitNote=async tagId=>{
+    if(drafts[tagId]===undefined)return;
+    const existing=areaFor(tagId);
+    const current=existing?existing.note||"":"";
+    if(drafts[tagId].trim()===current)return;
+    setSavingTagId(tagId);
+    await setPlayerFocusNote(player.id,tagId,drafts[tagId],coachId,existing?existing.id:null);
     await refreshTeams();
-    setBusy(false);cancelAdd();
+    setSavingTagId(null);
   };
-  const addCustomTag=async()=>{
-    if(!customName.trim()||!pickedCategoryId)return;
-    setBusy(true);
-    const{data:tag}=await createSkillTag(coachId,{categoryId:pickedCategoryId,name:customName.trim()});
+  const [newTagName,setNewTagName]=useState({});
+  const addCustomTag=async cid=>{
+    const nm=(newTagName[cid]||"").trim();
+    if(!nm)return;
+    const{data:tag}=await createSkillTag(coachId,{categoryId:cid,name:nm});
     if(refreshLibrary)await refreshLibrary();
-    if(tag)await addPlayerFocusArea(player.id,tag.id,coachId);
-    await refreshTeams();
-    setBusy(false);cancelAdd();
+    setNewTagName(p=>Object.assign({},p,{[cid]:""}));
+    if(tag)await refreshTeams();
   };
-  const delArea=async id=>{
-    await removePlayerFocusArea(id);
-    await refreshTeams();
-  };
+  const throwsLabel=((HAND_FIELDS_BY_SPORT[team.sport]||[]).find(hf=>hf.key==="throws")||{}).label||"Throws";
+
   return (<div style={{paddingBottom:80}}>
-    <div className="row mb10" style={{justifyContent:"space-between"}}>
-      <div>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900}}>{player.firstName} {player.lastName}</div>
-        <div className="td" style={{fontSize:12}}>{team.name}{player.jersey?" - #"+player.jersey:""}</div>
+    <div className="row mb10" style={{justifyContent:"space-between",alignItems:"flex-start"}}>
+      <div style={{flex:1,minWidth:0}}>
+        {!editing?(<>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900}}>{player.firstName} {player.lastName}</div>
+          <div className="td" style={{fontSize:12}}>{team.name}{player.jersey?" · #"+player.jersey:""}</div>
+        </>):(
+          <div className="g2">
+            <div className="fld"><label className="lbl">First Name</label><input className="inp" autoFocus value={f.firstName} onChange={e=>setFld("firstName",e.target.value)}/></div>
+            <div className="fld"><label className="lbl">Last Name</label><input className="inp" value={f.lastName} onChange={e=>setFld("lastName",e.target.value)}/></div>
+          </div>
+        )}
       </div>
-      <button className="btn ghost bxs" onClick={onBack}>Back</button>
+      <div className="row" style={{gap:6,flexShrink:0}}>
+        {canManage&&!editing&&<button className="btn outline bxs" onClick={startEdit}>Edit</button>}
+        <button className="btn ghost bxs" onClick={onBack}>Back</button>
+      </div>
     </div>
     <button className="btn outline bsm bfull" style={{marginBottom:10}} onClick={()=>setMarkingOut(true)}>Mark Out For...</button>
     {markingOut&&<AbsencePicker data={data} coachId={coachId} mode="pickPlayerThenPractices" presetPlayer={Object.assign({},player,{teamId:team.id})} onClose={()=>setMarkingOut(false)}/>}
+
     <div className="card mb10">
-      <div className="clbl mb8">Focus Areas</div>
-      {!areas.length&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>No focus areas yet. Add what this player is working on.</div>}
-      {areas.map(a=>(<div key={a.id} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
-        <div style={{flex:1,fontSize:14,lineHeight:1.5,color:"var(--black)"}}><span style={{color:"var(--td)",fontWeight:600}}>{catName(a.categoryId)}: </span>{a.name}</div>
-        <button className="btn danger bxs" onClick={()=>delArea(a.id)}>x</button>
-      </div>))}
-      {!picking&&<button className="btn primary bsm bfull" onClick={startAdd}>Add Focus Area</button>}
-      {picking&&!pickedCategoryId&&(<div>
-        <div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>Pick a category</div>
-        {!categories.length&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>No skill categories set up yet for {team.sport}.</div>}
-        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
-          {categories.map(c=>(<button key={c.id} className="btn ghost bsm" onClick={()=>setPickedCategoryId(c.id)}>{c.name}</button>))}
-        </div>
-        <button className="btn ghost bsm bfull" onClick={cancelAdd}>Cancel</button>
-      </div>)}
-      {picking&&pickedCategoryId&&(<div>
-        <div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>{catName(pickedCategoryId)} — pick a tag or add your own</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
-          {tagsForCategory(pickedCategoryId).filter(t=>!alreadyAddedTagIds.has(t.id)).map(t=>(<button key={t.id} className="btn ghost bsm" disabled={busy} onClick={()=>pickTag(t.id)}>{t.name}</button>))}
-        </div>
-        <div className="fld"><input className="inp" placeholder="Add your own tag under this category" value={customName} onChange={e=>setCustomName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustomTag()}/></div>
-        <div className="brow">
-          <button className="btn ghost bsm" onClick={cancelAdd}>Cancel</button>
-          <button className="btn primary bsm" onClick={addCustomTag} disabled={!customName.trim()||busy}>Add</button>
-        </div>
-      </div>)}
+      <div className="clbl mb8">Basic Info</div>
+      {editing?<div className="fld" style={{marginBottom:0}}><label className="lbl">Jersey #</label><input className="inp" type="number" inputMode="numeric" value={f.jersey} onChange={e=>setFld("jersey",e.target.value)}/></div>
+        :<div style={{fontSize:14,color:"var(--black)"}}>{player.jersey?"Jersey #"+player.jersey:"No jersey number set"}</div>}
     </div>
-    {player.notes&&(<div className="card"><div className="clbl mb6">Notes</div><div style={{fontSize:14,color:"var(--black)",lineHeight:1.6}}>{player.notes}</div></div>)}
+
+    <div className="card mb10">
+      <div className="clbl mb8">Positions &amp; Handedness</div>
+      {editing?(<>
+        <PositionPicker sport={team.sport} value={f.positions} onChange={v=>setFld("positions",v)}/>
+        <HandednessPicker sport={team.sport} value={f} onChange={(k,v)=>setFld(k,v)}/>
+      </>):(<>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:(player.bats||player.throws)?10:0}}>
+          {(player.positions||[]).map(pos=>(<span key={pos} className="bdg bs">{pos}</span>))}
+          {!(player.positions&&player.positions.length)&&<div style={{fontSize:13,color:"var(--td)"}}>No positions set</div>}
+        </div>
+        {(player.bats||player.throws)&&<div style={{display:"flex",gap:18}}>
+          {player.bats&&<div><div style={{fontSize:10,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em"}}>Bats</div><div style={{fontSize:14,fontWeight:700}}>{HAND_LABELS[player.bats]||player.bats}</div></div>}
+          {player.throws&&<div><div style={{fontSize:10,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em"}}>{throwsLabel}</div><div style={{fontSize:14,fontWeight:700}}>{HAND_LABELS[player.throws]||player.throws}</div></div>}
+        </div>}
+      </>)}
+    </div>
+
+    {editing&&<div className="brow mb10">
+      <button className="btn ghost bmd" style={{flex:1}} onClick={()=>setEditing(false)} disabled={saving}>Cancel</button>
+      <button className="btn primary bmd" style={{flex:1}} onClick={saveEdit} disabled={saving||!f.firstName.trim()}>{saving?"Saving...":"Save"}</button>
+    </div>}
+
+    <div className="clbl mb8" style={{marginTop:4}}>Skill Notes</div>
+    {!categories.length&&<div className="card mb10"><div style={{fontSize:13,color:"var(--td)"}}>No skill categories set up yet for {team.sport}.</div></div>}
+    {categories.map(cat=>{
+      const tags=tagsForCategory(cat.id);
+      return(<div key={cat.id} className="card mb10">
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:800,marginBottom:8}}>{cat.name}</div>
+        {tags.length===0&&<div style={{fontSize:13,color:"var(--td)",marginBottom:8}}>No tags yet under {cat.name}.</div>}
+        {tags.map(t=>(<div key={t.id} style={{marginBottom:8}}>
+          <div style={{fontSize:12,fontWeight:600,color:"var(--black2)",marginBottom:3}}>{t.name}</div>
+          <input className="inp" placeholder="What's this player working on..." value={draftFor(t.id)} onChange={e=>setDraft(t.id,e.target.value)} onBlur={()=>commitNote(t.id)} disabled={!canManage||savingTagId===t.id}/>
+        </div>))}
+        {canManage&&<div style={{display:"flex",gap:6,marginTop:4}}>
+          <input className="inp" style={{flex:1}} placeholder="Add your own tag..." value={newTagName[cat.id]||""} onChange={e=>setNewTagName(p=>Object.assign({},p,{[cat.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addCustomTag(cat.id)}/>
+          <button type="button" className="btn ghost bxs" onClick={()=>addCustomTag(cat.id)}>Add</button>
+        </div>}
+      </div>);
+    })}
+
+    <div className="card">
+      <div className="clbl mb6">General Notes</div>
+      {editing?<textarea className="ta" value={f.notes} onChange={e=>setFld("notes",e.target.value)}/>
+        :(player.notes?<div style={{fontSize:14,color:"var(--black)",lineHeight:1.6}}>{player.notes}</div>:<div style={{fontSize:13,color:"var(--td)"}}>No notes yet.</div>)}
+    </div>
   </div>);
 }
 
@@ -1038,7 +1091,7 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refr
   }):[];
   if(viewPlayer)return(<div style={{paddingBottom:80}}>
     <div className="row mb10"><button className="btn ghost bxs" onClick={()=>setViewPlayer(null)}>&#8249; Roster</button></div>
-    <PlayerProfile player={viewPlayer} team={team} data={data} update={update} refreshTeams={refreshTeams} coachId={coachId} refreshLibrary={refreshLibrary} onBack={()=>setViewPlayer(null)}/>
+    <PlayerProfile player={viewPlayer} team={team} data={data} refreshTeams={refreshTeams} coachId={coachId} refreshLibrary={refreshLibrary} canManage={canManage} onBack={()=>setViewPlayer(null)}/>
   </div>);
   return (<div style={{paddingBottom:80}} onClick={()=>setOpenMenu(null)}>
     {!fixedTeamId&&(<div className="sechdr mb8">
@@ -1089,7 +1142,7 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refr
             {(!p.focusAreas||!p.focusAreas.length)&&p.notes&&<div className="limt">{p.notes}</div>}
           </div>
           {canManage&&<button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===p.id?null:p.id);}}><span/><span/><span/></button>}
-          {canManage&&openMenu===p.id&&<div className="mini-menu"><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setViewPlayer(p);}}>View Profile</button><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editPlayer",{teamId,player:p});}}>Edit</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delP(p.id);}}>Remove</button></div>}
+          {canManage&&openMenu===p.id&&<div className="mini-menu"><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setViewPlayer(p);}}>Player Profile</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delP(p.id);}}>Remove</button></div>}
         </div>))}
         {!team.players.length&&<div className="empty"><div className="emtx">No players yet{canManage?" -- tap + Add.":"."}</div></div>}
       </div>)}

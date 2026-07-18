@@ -1,10 +1,42 @@
 import React, { useState, useRef, useEffect } from "react";
-import { uid, TEAM_COLORS, nextTeamColor } from "../constants.js";
-import { createTeam, updateTeam, createPlayer, updatePlayer, createStaff, updateStaff, createAsset, updateAsset, createDrill, updateDrill, createSkillTag, createLocation, updateLocation, createSublocation, fetchStaffSuggestions } from "../supabase.js";
+import { uid, TEAM_COLORS, nextTeamColor, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "../constants.js";
+import { createTeam, updateTeam, createPlayer, createStaff, updateStaff, createAsset, updateAsset, createDrill, updateDrill, createSkillTag, createLocation, updateLocation, createSublocation, fetchStaffSuggestions } from "../supabase.js";
 import { AutoTextarea } from "./ActivityConfigs.jsx";
 
 const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
 const STAFF_ROLES=["Head Coach","Assistant Coach","Helper"];
+
+// Chip-grid picker for a sport's fixed position list, falling back to a
+// freeform text input for sports with no defined list (Tennis, General,
+// Other, ...) so those rosters aren't blocked from recording anything.
+export function PositionPicker({sport,value,onChange}){
+  const options=POSITIONS_BY_SPORT[sport]||[];
+  const toggle=pos=>{const has=value.includes(pos);onChange(has?value.filter(x=>x!==pos):[...value,pos]);};
+  if(!options.length)return(<div className="fld"><label className="lbl">Positions</label><input className="inp" placeholder="e.g. Forward, Midfielder" value={value.join(", ")} onChange={e=>onChange(e.target.value.split(",").map(x=>x.trim()).filter(Boolean))}/></div>);
+  return(<div className="fld"><label className="lbl">Positions</label>
+    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+      {options.map(pos=>(<button key={pos} type="button" onClick={()=>toggle(pos)} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:value.includes(pos)?"var(--green)":"var(--s1)",color:value.includes(pos)?"#fff":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{pos}</button>))}
+    </div>
+  </div>);
+}
+
+// One button row per applicable hand field (Bats/Throws for baseball,
+// just Throws for football, none at all for sports where it doesn't
+// matter) -- see HAND_FIELDS_BY_SPORT for which sports get which fields.
+export function HandednessPicker({sport,value,onChange}){
+  const fields=HAND_FIELDS_BY_SPORT[sport]||[];
+  if(!fields.length)return null;
+  return(<div className="fld"><label className="lbl">Handedness</label>
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {fields.map(f=>(<div key={f.key}>
+        <div style={{fontSize:11,color:"var(--td)",marginBottom:4}}>{f.label}</div>
+        <div style={{display:"flex",gap:6}}>
+          {f.options.map(opt=>(<button key={opt} type="button" onClick={()=>onChange(f.key,value[f.key]===opt?"":opt)} style={{flex:1,padding:"7px 0",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:value[f.key]===opt?"var(--green)":"var(--s1)",color:value[f.key]===opt?"#fff":"var(--black)",fontSize:13,fontWeight:700,cursor:"pointer"}}>{HAND_LABELS[opt]}</button>))}
+        </div>
+      </div>))}
+    </div>
+  </div>);
+}
 
 // Closed by default: shows only the selected tags as removable chips plus an
 // "Add/Edit" button that opens the full category-grouped, searchable picker
@@ -91,7 +123,9 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     return "Basketball";
   };
   const lastSportRef=useRef(defaultSport());
-  const player=modal.type==="editPlayer"?modal.payload.player:null;
+  const playerTeamId=modal.type==="addPlayer"?modal.payload.teamId:null;
+  const playerTeam=playerTeamId?(data.teams||[]).find(t=>t.id===playerTeamId):null;
+  const playerSport=(playerTeam&&playerTeam.sport)||"General";
   const activity=modal.type==="editActivity"?modal.payload.activity:null;
   const location=modal.type==="editLocation"?modal.payload.location:null;
   const editTeamData=modal.type==="editTeam"?modal.payload.team:null;
@@ -99,7 +133,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
   const coach=modal.type==="editCoach"?modal.payload.coach:null;
   const template=modal.type==="editTemplate"?modal.payload.template:null;
   const [f,setF]=useState(()=>{
-    if(player)return{firstName:player.firstName,lastName:player.lastName,jersey:player.jersey,notes:player.notes||"",positions:(player.positions||[]).join(", ")};
+    if(modal.type==="addPlayer")return{firstName:"",lastName:"",jersey:"",notes:"",positions:[],bats:"",throws:""};
     if(activity){
       lastSportRef.current=activity.sport||"Basketball";
       return{
@@ -122,7 +156,6 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     return{sport:lastSportRef.current||"Basketball",colorPrimary:nextTeamColor(data.teams)};
   });
   const set=(k,v)=>setF(p=>Object.assign({},p,{[k]:v}));
-  const parsePositions=s=>(s||"").split(",").map(x=>x.trim()).filter(Boolean);
   const [saving,setSaving]=useState(false);
   const [saveError,setSaveError]=useState("");
   const savingRef=useRef(false);
@@ -145,8 +178,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     let res=null;
     if(t==="addTeam"){if(!f.name)return;await createTeam(coachId,{name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||nextTeamColor(data.teams)});await refreshTeams();}
     if(t==="editTeam"){if(!f.name)return;await updateTeam(p.team.id,{name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||p.team.colorPrimary});await refreshTeams();}
-    if(t==="addPlayer"){if(!f.firstName)return;await createPlayer(p.teamId,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:parsePositions(f.positions),notes:f.notes||""});await refreshTeams();}
-    if(t==="editPlayer"){if(!f.firstName)return;await updatePlayer(p.player.id,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:parsePositions(f.positions),notes:f.notes||""});await refreshTeams();}
+    if(t==="addPlayer"){if(!f.firstName)return;await createPlayer(p.teamId,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:f.positions||[],bats:f.bats||"",throws:f.throws||"",notes:f.notes||""});await refreshTeams();}
     if(t==="addCoach"){if(!f.name||!f.inviteEmail)return;await createStaff(p.teamId,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail});await refreshTeams();}
     if(t==="editCoach"){if(!f.name)return;if(!coach.userId&&!f.inviteEmail)return;await updateStaff(p.coach.id,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail||""});await refreshTeams();}
     if(t==="addLocation"){if(!f.name)return;await createLocation(coachId,f.name);await refreshPlanning();}
@@ -183,7 +215,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     if(t==="addCoach"){setAddedCoachInfo({name:f.name,email:f.inviteEmail});}else{closeModal();}
     }finally{savingRef.current=false;setSaving(false);}
   };
-  const TITLES={addTemplate:"New Template",editTemplate:"Edit Template",addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",editPlayer:"Edit Player",addCoach:"Add Coach",editCoach:"Edit Coach",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
+  const TITLES={addTemplate:"New Template",editTemplate:"Edit Template",addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",addCoach:"Add Coach",editCoach:"Edit Coach",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
   return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget)closeModal();}}>
       <div className="modal">
         <div className="mhandle"/>
@@ -199,10 +231,11 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
           </div>
         </div>
         )}
-        {(modal.type==="addPlayer"||modal.type==="editPlayer")&&(<div>
+        {modal.type==="addPlayer"&&(<div>
             <div className="g2"><div className="fld"><label className="lbl">First Name</label><input className="inp" autoFocus value={f.firstName||""} onChange={e=>set("firstName",e.target.value)}/></div><div className="fld"><label className="lbl">Last Name</label><input className="inp" value={f.lastName||""} onChange={e=>set("lastName",e.target.value)}/></div></div>
             <div className="fld"><label className="lbl">Jersey #</label><input className="inp" type="number" inputMode="numeric" value={f.jersey||""} onChange={e=>set("jersey",e.target.value)}/></div>
-            <div className="fld"><label className="lbl">Positions</label><input className="inp" placeholder="e.g. 1B, OF" value={f.positions||""} onChange={e=>set("positions",e.target.value)}/></div>
+            <PositionPicker sport={playerSport} value={f.positions||[]} onChange={v=>set("positions",v)}/>
+            <HandednessPicker sport={playerSport} value={f} onChange={(k,v)=>set(k,v)}/>
             <div className="fld"><label className="lbl">Notes</label><textarea className="ta" value={f.notes||""} onChange={e=>set("notes",e.target.value)}/></div>
           </div>
         )}

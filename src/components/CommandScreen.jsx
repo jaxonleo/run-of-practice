@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups } from "../constants.js";
-import { savePracticeTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote } from "../supabase.js";
+import { savePracticeTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote, updateStationLead } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
@@ -23,15 +23,22 @@ function DurStepper({value,min,onChange,step}){
   </div>);
 }
 
-function StationPlayerChip({pid,team}){
+function StationPlayerChip({pid,team,note}){
   const pl=team&&team.players.find(p=>p.id===pid);
   if(!pl)return null;
-  return (<span style={{background:"var(--s2)",border:"1px solid var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>
-    {pl.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--green)"}}>#{pl.jersey}</span>}{pl.firstName}
+  return (<span style={{display:"inline-flex",flexDirection:"column",alignItems:"flex-start",gap:1,maxWidth:note?150:undefined}}>
+    <span style={{background:"var(--s2)",border:"1px solid var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>
+      {pl.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--green)"}}>#{pl.jersey}</span>}{pl.firstName}
+    </span>
+    {note&&<span style={{fontSize:10,color:"var(--green2)",lineHeight:1.3,whiteSpace:"normal"}}>{note}</span>}
   </span>);
 }
 
-function PlayerChipLive({pid,team,onMove,onProfile}){
+// `note` is this player's freeform text for whichever skill tag(s) the
+// active drill has selected -- surfaced right on the chip (not just in the
+// long-press profile popup) so a coach glances at the station and sees
+// what to watch for on this rep, no tap required.
+function PlayerChipLive({pid,team,note,onMove,onProfile}){
   const pl=team&&team.players.find(p=>p.id===pid);
   if(!pl)return null;
   const lpt={current:null};
@@ -41,8 +48,9 @@ function PlayerChipLive({pid,team,onMove,onProfile}){
     onTouchEnd={()=>clearTimeout(lpt.current)}
     onMouseDown={()=>{lpt.current=setTimeout(()=>onProfile(pl),500);}}
     onMouseUp={()=>clearTimeout(lpt.current)}
-    style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--gb)",background:"var(--gbg)",fontSize:14,fontWeight:600,cursor:"pointer",color:"var(--black)",display:"flex",alignItems:"center",gap:5}}>
-    {pl.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:12,color:"var(--green)"}}>#{pl.jersey}</span>}{pl.firstName}
+    style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--gb)",background:"var(--gbg)",fontSize:14,fontWeight:600,cursor:"pointer",color:"var(--black)",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2,maxWidth:note?200:undefined}}>
+    <span style={{display:"flex",alignItems:"center",gap:5}}>{pl.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:12,color:"var(--green)"}}>#{pl.jersey}</span>}{pl.firstName}</span>
+    {note&&<span style={{fontSize:11,fontWeight:500,color:"var(--green2)",whiteSpace:"normal",textAlign:"left",lineHeight:1.3}}>{note}</span>}
   </button>);
 }
 
@@ -759,6 +767,9 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
   const [showROS,setShowROS]=useState(false);
   const [clState,setClState]=useState({});
   const [movePlayer,setMovePlayer]=useState(null);
+  const [reassignStationId,setReassignStationId]=useState(null);
+  const [helperDraft,setHelperDraft]=useState("");
+  const [reassignBusy,setReassignBusy]=useState(false);
   const [showEllipsis,setShowEllipsis]=useState(false);
   const [showEditBuilder,setShowEditBuilder]=useState(false);
   const [focusSt,setFocusSt]=useState(null);
@@ -1184,18 +1195,39 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
   const subName=id=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:null;};
   const pnames=ids=>(ids||[]).map(id=>{const p=team&&team.players.find(p=>p.id===id);return p?p.firstName:null;}).filter(Boolean).join(", ");
   const pname=id=>{const p=team&&team.players.find(p=>p.id===id);return p?p.firstName:id;};
+  // A station's lead can be a roster coach OR a freeform helper name (a
+  // parent running a station who was never added as staff) -- coachId
+  // always wins if somehow both are set, matching updateStationLead's
+  // mutual-exclusion write.
+  const leadName=st=>coachName(st.coachId)||st.helperName||null;
+  const doSetLead=useCallback(async(stationId,{coachId:leadCoachId,helperName})=>{
+    setReassignBusy(true);
+    await updateStationLead(stationId,{coachId:leadCoachId,helperName});
+    await refreshPlanning();
+    setReassignBusy(false);setReassignStationId(null);setHelperDraft("");
+  },[refreshPlanning]);
   // Practice/station rows don't carry their own skillTagIds (they're a
   // snapshot copy of the drill at add-time) -- look the tags up on the
   // source library drill instead, same as the Library screen does.
-  const tagNamesForLibraryId=libraryId=>{
+  const tagIdsForLibraryId=libraryId=>{
     if(!libraryId)return [];
     const drill=(data.activityLibrary||[]).find(a=>a.id===libraryId);
-    if(!drill||!drill.skillTagIds||!drill.skillTagIds.length)return [];
-    return drill.skillTagIds.map(id=>{const t=(data.skillTags||[]).find(t=>t.id===id);return t?t.name:null;}).filter(Boolean);
+    return (drill&&drill.skillTagIds)||[];
   };
+  const tagNamesForLibraryId=libraryId=>tagIdsForLibraryId(libraryId).map(id=>{const t=(data.skillTags||[]).find(t=>t.id===id);return t?t.name:null;}).filter(Boolean);
   const SkillTagRow=({names})=>names.length?(<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
     {names.map(n=>(<span key={n} className="bdg bs" style={{fontSize:10}}>{n}</span>))}
   </div>):null;
+  // What this player is working on for one of the drill's selected skill
+  // tags -- shown right on their chip at the station, not just behind a
+  // tap, per the "visible at a glance" ask.
+  const noteForPlayerAtDrill=(pid,libraryId)=>{
+    const tagIds=tagIdsForLibraryId(libraryId);
+    if(!tagIds.length)return "";
+    const pl=team&&team.players.find(p=>p.id===pid);
+    if(!pl||!pl.focusAreas)return "";
+    return pl.focusAreas.filter(a=>tagIds.includes(a.skillTagId)&&a.note).map(a=>a.note).join(" · ");
+  };
   // Not cleared until the write actually succeeds -- a network hiccup
   // during a live practice silently losing a typed note is exactly the
   // kind of thing that's easy to not notice until it's too late to redo.
@@ -1450,7 +1482,8 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
               <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Station {i+1}</div>
               {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600}}>{subName(st.sublocationId)}</div>}
-              {coachName(st.coachId)&&<div style={{fontSize:11,color:"var(--td)"}}>{coachName(st.coachId)}</div>}
+              {isController?<button type="button" onClick={()=>setReassignStationId(st.id)} style={{background:"none",border:"none",padding:0,fontSize:11,color:"var(--td)",cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{leadName(st)||"Assign a coach"}</button>
+                :leadName(st)&&<div style={{fontSize:11,color:"var(--td)"}}>{leadName(st)}</div>}
             </div>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",marginBottom:6}}>{st.activityName||st.name||"Station "+(i+1)}</div>
             {(stEquip.length>0||st.playerGear)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
@@ -1458,7 +1491,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
               {st.playerGear&&<span style={{border:"1.5px solid #fdba74",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#fff"}}>Player Gear: {st.playerGear}</span>}
             </div>}
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {assignments.map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team}/>))}
+              {assignments.map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team} note={noteForPlayerAtDrill(pid,st.libraryId)}/>))}
             </div>
           </div>);
         })}
@@ -1472,9 +1505,10 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
           <button className="btn ghost bxs" style={{marginBottom:10}} onClick={()=>setFocusSt(null)}>&#8249; All Stations</button>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {focusSt+1}</div>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:6}}>{rotatedStations[focusSt].activityName||rotatedStations[focusSt].name||"Station "+(focusSt+1)}</div>
-          {(coachName(rotatedStations[focusSt].coachId)||subName(rotatedStations[focusSt].sublocationId))&&<div style={{fontSize:14,fontWeight:600,color:"var(--green2)",marginBottom:10}}>
-            {coachName(rotatedStations[focusSt].coachId)&&<span>{coachName(rotatedStations[focusSt].coachId)}</span>}
-            {coachName(rotatedStations[focusSt].coachId)&&subName(rotatedStations[focusSt].sublocationId)&&<span> · </span>}
+          {(leadName(rotatedStations[focusSt])||subName(rotatedStations[focusSt].sublocationId)||isController)&&<div style={{fontSize:14,fontWeight:600,color:"var(--green2)",marginBottom:10,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
+            {isController?<button type="button" onClick={()=>setReassignStationId(rotatedStations[focusSt].id)} style={{background:"none",border:"none",padding:0,font:"inherit",color:"inherit",cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{leadName(rotatedStations[focusSt])||"Assign a coach"}</button>
+              :leadName(rotatedStations[focusSt])&&<span>{leadName(rotatedStations[focusSt])}</span>}
+            {leadName(rotatedStations[focusSt])&&subName(rotatedStations[focusSt].sublocationId)&&<span> · </span>}
             {subName(rotatedStations[focusSt].sublocationId)&&<span>{subName(rotatedStations[focusSt].sublocationId)}</span>}
           </div>}
           {rotatedStations[focusSt].coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
@@ -1489,7 +1523,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
           <div>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {(rotatedStations[focusSt].assignments||[]).map(pid=>(<PlayerChipLive key={pid} pid={pid} team={team} onMove={()=>{if(isController)setMovePlayer(pid);}} onProfile={pl=>setLivePlayerProfile(pl)}/>))}
+              {(rotatedStations[focusSt].assignments||[]).map(pid=>(<PlayerChipLive key={pid} pid={pid} team={team} note={noteForPlayerAtDrill(pid,rotatedStations[focusSt].libraryId)} onMove={()=>{if(isController)setMovePlayer(pid);}} onProfile={pl=>setLivePlayerProfile(pl)}/>))}
             </div>
           </div>
         </div>}
@@ -1501,7 +1535,8 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
             return (<div key={st.id} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}}>
                 <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Station {i+1}</div>
-                {coachName(st.coachId)&&<div style={{fontSize:11,color:"var(--td)"}}>{coachName(st.coachId)}</div>}
+                {isController?<button type="button" onClick={e=>{e.stopPropagation();setReassignStationId(st.id);}} style={{background:"none",border:"none",padding:0,fontSize:11,color:"var(--td)",cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{leadName(st)||"Assign a coach"}</button>
+                  :leadName(st)&&<div style={{fontSize:11,color:"var(--td)"}}>{leadName(st)}</div>}
               </div>
               <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.activityName||st.name||"Station "+(i+1)}</div>
               {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{subName(st.sublocationId)}</div>}
@@ -1511,7 +1546,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
                 {st.playerGear&&<span style={{background:"#fff7ed",border:"1px solid #fdba74",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#9a3412",fontWeight:600}}>Player Gear: {st.playerGear}</span>}
               </div>}
               <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                {(st.assignments||[]).map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team}/>))}
+                {(st.assignments||[]).map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team} note={noteForPlayerAtDrill(pid,st.libraryId)}/>))}
               </div>
               <div style={{fontSize:10,color:"var(--td)",marginTop:6}}>Tap to focus</div>
             </div>);
@@ -1546,11 +1581,12 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
             </div>
             <div>
               {(livePlayerProfile.focusAreas&&livePlayerProfile.focusAreas.length>0)&&<div>
-                <div className="clbl mb8">Focus Areas</div>
+                <div className="clbl mb8">Skill Notes</div>
                 {livePlayerProfile.focusAreas.map(a=>{
                   const cat=(data.skillCategories||[]).find(c=>c.id===a.categoryId);
-                  return(<div key={a.id} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
-                    <div style={{flex:1,fontSize:14,lineHeight:1.5}}><span style={{color:"var(--td)",fontWeight:600}}>{cat?cat.name+": ":""}</span>{a.name}</div>
+                  return(<div key={a.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
+                    <div style={{fontSize:12,fontWeight:700,color:"var(--td)"}}>{cat?cat.name+" — ":""}{a.name}</div>
+                    {a.note&&<div style={{fontSize:14,lineHeight:1.5,marginTop:2}}>{a.note}</div>}
                   </div>);
                 })}
               </div>}
@@ -1580,6 +1616,22 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
           <span style={{fontSize:14,color:"var(--black2)"}}>{a.type==="station_block"?"Station Block":a.name}</span>
           <span className="bdg bs">{a.type==="station_block"?(a.stations.length*a.stationDuration+(a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
         </div>))}
+      </div>}
+      {reassignStationId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setReassignStationId(null);setHelperDraft("");}}}>
+        <div className="modal">
+          <div className="mhandle"/>
+          <div className="mtitle">Who's Leading This Station?</div>
+          <button className="btn ghost bmd bfull" style={{marginBottom:8}} disabled={reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:"",helperName:""})}>Unassign</button>
+          {team&&team.coaches.map(c=>(<button key={c.id} className="btn outline bmd bfull" style={{marginBottom:8}} disabled={reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:c.id,helperName:""})}>{c.name}</button>))}
+          <div className="fld" style={{marginTop:4}}>
+            <label className="lbl">Or a helper not on the roster</label>
+            <div style={{display:"flex",gap:6}}>
+              <input className="inp" style={{flex:1}} placeholder="Helper's name" autoFocus value={helperDraft} onChange={e=>setHelperDraft(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&helperDraft.trim())doSetLead(reassignStationId,{coachId:"",helperName:helperDraft.trim()});}}/>
+              <button className="btn primary bxs" disabled={!helperDraft.trim()||reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:"",helperName:helperDraft.trim()})}>Set</button>
+            </div>
+          </div>
+          <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>{setReassignStationId(null);setHelperDraft("");}}>Cancel</button>
+        </div>
       </div>}
     </div>
     <div className="cc-note-bar">

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { uid } from "../constants.js";
+import { uid, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, groupByAttribute } from "../constants.js";
 import { createAsset } from "../supabase.js";
 
 // Grows to fit its content instead of scrolling internally -- coaches were
@@ -137,6 +137,8 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   const [newEquipIdx,setNewEquipIdx]=useState(null);
   const [newGearIdx,setNewGearIdx]=useState(null);
   const [libraryPickerIdx,setLibraryPickerIdx]=useState(null);
+  const [groupByOpen,setGroupByOpen]=useState(false);
+  const [helperIdx,setHelperIdx]=useState(null);
   const sport=teamSport||"General";
   const players=team?team.players:[];
   const teamEquipAssets=(assets||[]).filter(a=>!a.type||a.type==="team");
@@ -161,6 +163,21 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
     onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:groups[i]||[]}))});
   };
   const clearGroups=()=>onChange({stations:act.stations.map(st=>Object.assign({},st,{assignments:[]}))});
+  // Buckets whole-station assignments by a shared attribute (first listed
+  // position, or a handedness field) instead of shuffling -- e.g. every
+  // catcher ends up at the same station rather than scattered one-per-group
+  // the way Generate Random would leave them.
+  const groupByPosition=()=>{
+    const groups=groupByAttribute(players,act.stations.length,p=>(p.positions&&p.positions[0])||"");
+    onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:groups[i]||[]}))});
+    setGroupByOpen(false);
+  };
+  const groupByHand=key=>{
+    const groups=groupByAttribute(players,act.stations.length,p=>p[key]||"");
+    onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:groups[i]||[]}))});
+    setGroupByOpen(false);
+  };
+  const handFields=HAND_FIELDS_BY_SPORT[sport]||[];
   const addStation=()=>{
     const n=act.stations.length+1;
     onChange({stations:[...act.stations,{id:uid(),name:"Station "+n,activityName:"",coachId:"",coachName:"",sublocationId:"",equipment:[],playerGear:"",coachingPoints:"",assignments:[]}]});
@@ -185,9 +202,17 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
       <div className="fld"><label className="lbl">Time at Station (min)</label><DurStepper value={act.stationDuration||10} min={1} onChange={v=>onChange({stationDuration:v})}/></div>
       {rotate&&<div className="fld"><label className="lbl">Transition (min)</label><DurStepper value={act.transitionDuration||2} min={0} onChange={v=>onChange({transitionDuration:v})}/></div>}
     </div>
-    {players.length>0&&<div className="brow mb10">
+    {players.length>0&&<div className="brow mb10" style={{flexWrap:"wrap"}}>
       <button className="btn outline bmd" style={{flex:1}} onClick={genRandom}>Generate Random Groups</button>
       <button className="btn ghost bmd" style={{flex:1}} onClick={clearGroups}>Clear Groups</button>
+      <div style={{position:"relative",flex:1}}>
+        <button type="button" className="btn ghost bmd bfull" onClick={()=>setGroupByOpen(o=>!o)}>Group By...</button>
+        {groupByOpen&&<div style={{position:"absolute",top:"100%",left:0,right:0,marginTop:4,background:"#fff",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:8,zIndex:20,boxShadow:"0 4px 16px rgba(0,0,0,.12)"}}>
+          <button type="button" className="mm-item" onClick={groupByPosition}>Position</button>
+          {handFields.map(hf=>(<button key={hf.key} type="button" className="mm-item" onClick={()=>groupByHand(hf.key)}>{hf.label}</button>))}
+          <button type="button" className="mm-item" style={{color:"var(--td)"}} onClick={()=>setGroupByOpen(false)}>Cancel</button>
+        </div>}
+      </div>
     </div>}
     {act.stations.map((st,si)=>{
       const stEquip=Array.isArray(st.equipment)?st.equipment:[];
@@ -207,10 +232,17 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
             </div>))}
           </div>}
         </div>
-        {team&&team.coaches.length>0&&<div className="fld"><label className="lbl">Coach</label>
-          <select className="sel" value={st.coachId||""} onChange={e=>{const c=team.coaches.find(c=>c.id===e.target.value);onSt(st.id,{coachId:e.target.value,coachName:c?c.name:""});}}>
-            <option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+        {team&&<div className="fld"><label className="lbl">Coach</label>
+          {!st.helperName&&<>
+            {team.coaches.length>0&&<select className="sel" value={st.coachId||""} onChange={e=>onSt(st.id,{coachId:e.target.value,helperName:""})}>
+              <option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>}
+            <button type="button" className="btn ghost bxs mt6" onClick={()=>{setHelperIdx(si);onSt(st.id,{coachId:""});}}>+ Assign a Helper (not on roster)</button>
+          </>}
+          {(st.helperName||helperIdx===si)&&<div style={{display:"flex",gap:6,marginTop:st.helperName?0:6}}>
+            <input className="inp" style={{flex:1}} placeholder="Helper's name" autoFocus={helperIdx===si&&!st.helperName} value={st.helperName||""} onChange={e=>onSt(st.id,{helperName:e.target.value,coachId:""})}/>
+            <button type="button" className="btn ghost bxs" onClick={()=>{onSt(st.id,{helperName:""});setHelperIdx(null);}}>✕</button>
+          </div>}
         </div>}
         {loc&&loc.sublocations&&loc.sublocations.length>0&&<div className="fld"><label className="lbl">Area</label>
           <select className="sel" value={st.sublocationId||""} onChange={e=>onSt(st.id,{sublocationId:e.target.value})}>

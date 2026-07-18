@@ -350,22 +350,45 @@ function StationsVisual() {
   </div>);
 }
 
-function LocationsVisual() {
-  return (<div className="lp-phone">
-    <div className="card" style={{ marginBottom: 10 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 700 }}>Eastside Park</span>
-        <button className="btn ghost bxs">+ Area</button>
-      </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        <span className="bdg bs" style={{ whiteSpace: "nowrap" }}>Batting Cage 1</span><span className="bdg bs" style={{ whiteSpace: "nowrap" }}>Batting Cage 2</span><span className="bdg bs" style={{ whiteSpace: "nowrap" }}>Infield</span><span className="bdg bs" style={{ whiteSpace: "nowrap" }}>Outfield</span>
+// Modeled directly on PreviewView (CommandScreen.jsx) -- the actual
+// screen behind "Share Setup Link": dark, standalone, opened by whoever's
+// setting up a station before the coach ever gets there. Same literal
+// colors as that component (not the CSS-var palette the rest of the site
+// mocks use) since this dark-on-#0d1512 look IS the real screen, not a
+// reskin of it.
+const PRE_SETUP_STATIONS = [
+  { name: "Ground Ball Fundamentals", area: "Infield", coach: "Coach Mike", equip: ["Bucket of Balls"] },
+  { name: "Front Toss", area: "Batting Cage 1", coach: "Coach Jen", equip: ["L-Screen"] },
+  { name: "Fly Ball Reads", area: "Outfield", coach: "Ava's Dad (helper)", equip: [] },
+];
+function PreSetupVisual() {
+  return (<div className="lp-phone" style={{ background: "#0d1512", borderColor: "#0d1512" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#52b788", display: "inline-block", flexShrink: 0 }} />
+      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#52b788" }}>Practice Setup</span>
+      <span style={{ fontSize: 11, color: "#666" }}>· Eastside Park</span>
+    </div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 24, fontWeight: 900, color: "#fff", marginBottom: 14 }}>12U Red</div>
+    <div style={{ textAlign: "center", padding: "8px 0 16px", borderBottom: "1px solid rgba(255,255,255,.1)", marginBottom: 16 }}>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#52b788", marginBottom: 6 }}>Starts In</div>
+      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 32, fontWeight: 700, color: "#fff" }}>28:41</div>
+      <div style={{ fontSize: 11, color: "#666", marginTop: 4 }}>Use this time to set up stations</div>
+    </div>
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#ca8a04", marginBottom: 8 }}>Equipment Needed</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {["L-Screen", "Bucket of Balls", "Cones"].map(n => (<span key={n} style={{ background: "rgba(202,138,4,.15)", border: "1px solid rgba(202,138,4,.4)", borderRadius: 20, padding: "3px 10px", fontSize: 11, color: "#fde047", fontWeight: 600 }}>{n}</span>))}
       </div>
     </div>
-    <div className="sechdr mb8"><span className="sectitle">Team Equipment</span></div>
-    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">L-Screen</div></div></div>
-    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Bucket of Balls</div></div></div>
-    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Pitching Machine</div></div></div>
-    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Empty Bucket</div></div></div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#666", marginBottom: 8 }}>Run Order</div>
+    {PRE_SETUP_STATIONS.map((st, i) => (<div key={st.name} style={{ padding: "10px 12px", marginBottom: 6, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 10 }}>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, color: "#52b788", letterSpacing: ".05em", marginBottom: 2 }}>Station {i + 1}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 2 }}>{st.name}</div>
+      <div style={{ fontSize: 11, color: "#999" }}><span style={{ color: "#52b788", fontWeight: 600 }}>{st.area}</span> · {st.coach}</div>
+      {st.equip.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+        {st.equip.map(n => (<span key={n} style={{ background: "rgba(202,138,4,.12)", border: "1px solid rgba(202,138,4,.3)", borderRadius: 20, padding: "2px 8px", fontSize: 10, color: "#fde047" }}>{n}</span>))}
+      </div>}
+    </div>))}
   </div>);
 }
 
@@ -592,6 +615,16 @@ function HelperVisual() {
   </div>);
 }
 
+// The pairing the copy is about: build the profile once (left), then that
+// same tag note surfaces on its own at the station (right) -- two mockups,
+// one story, same layout HelperVisual already uses for a related pair.
+function RosterDuoVisual() {
+  return (<div className="lp-duo-fixed">
+    <PlayerProfileVisual />
+    <div className="lp-phoneframe-wrap"><PhoneFrame><StationNoteVisual /></PhoneFrame></div>
+  </div>);
+}
+
 function FocusVisual() {
   return (<div className="lp-phone">
     <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, paddingTop: 4, paddingBottom: 4 }}>
@@ -656,6 +689,66 @@ function HistoryVisual() {
     </div>
     <button className="btn primary bxl bfull mb8">Run Again</button>
     <button className="btn ghost bmd bfull">Save as Template</button>
+  </div>);
+}
+
+function SkillNoteRow({ tag, note }) {
+  return (<div style={{ marginBottom: 8 }}>
+    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--black2)", marginBottom: 3 }}>{tag}</div>
+    {note
+      ? <div style={{ background: "var(--s2)", border: "1px solid var(--b)", borderRadius: "var(--rs)", padding: "7px 10px", fontSize: 12.5, color: "var(--black)", lineHeight: 1.4 }}>{note}</div>
+      : <div style={{ background: "var(--s2)", border: "1px dashed var(--b)", borderRadius: "var(--rs)", padding: "7px 10px", fontSize: 12, color: "var(--td)" }}>What's this player working on...</div>}
+  </div>);
+}
+
+function PlayerProfileVisual() {
+  return (<div className="lp-phone lp-card-primary">
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
+      <div>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900 }}>Ryker Thompson</div>
+        <div style={{ fontSize: 12, color: "var(--td)" }}>12U Red · #4</div>
+      </div>
+      <span className="btn outline bxs" style={{ pointerEvents: "none" }}>Edit</span>
+    </div>
+    <div className="clbl mb8">Positions &amp; Handedness</div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+      <span className="bdg bs">1B</span><span className="bdg bs">RF</span>
+    </div>
+    <div style={{ display: "flex", gap: 18, marginBottom: 16 }}>
+      <div><div style={{ fontSize: 10, color: "var(--td)", textTransform: "uppercase", letterSpacing: ".06em" }}>Bats</div><div style={{ fontSize: 14, fontWeight: 700 }}>Right</div></div>
+      <div><div style={{ fontSize: 10, color: "var(--td)", textTransform: "uppercase", letterSpacing: ".06em" }}>Throws</div><div style={{ fontSize: 14, fontWeight: 700 }}>Right</div></div>
+    </div>
+    <div className="clbl mb8">Skill Notes</div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 14, fontWeight: 800, marginBottom: 8 }}>Hitting</div>
+    <SkillNoteRow tag="Bat Path" note="Getting long to the ball -- drop hands first, stay inside it." />
+    <SkillNoteRow tag="Two-Strike Approach" note="" />
+  </div>);
+}
+
+// Same player, mid-drill: the Bat Path note he has on his profile shows up
+// automatically because Front Toss has that skill tag selected -- no
+// separate step to "assign" it station by station.
+function StationNoteVisual() {
+  const { display, over } = useCountdown(CLOCK_STATION_BLOCK_START);
+  return (<div className="lp-phone">
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 2 }}>Station 2</div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Front Toss</div>
+    <LocationLine text="Batting Cage 1 · Eastside Park" style={{ marginBottom: 3 }} />
+    <div className="limt" style={{ marginBottom: 6 }}>Coach Jen</div>
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
+      <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 40, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
+    </div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+      <span className="bdg bs" style={{ fontSize: 10 }}>Hitting</span><span className="bdg bs" style={{ fontSize: 10 }}>Contact</span>
+    </div>
+    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 8 }}>Players at this station</div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-start" }}>
+      <div style={{ padding: "6px 12px", borderRadius: 20, border: "1.5px solid var(--gb)", background: "var(--gbg)", display: "flex", flexDirection: "column", gap: 2, maxWidth: 190 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><span style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: "var(--green)" }}>#4</span>Ryker</span>
+        <span style={{ fontSize: 11, fontWeight: 500, color: "var(--green2)", lineHeight: 1.3 }}>Getting long to the ball -- drop hands first, stay inside it.</span>
+      </div>
+      <div style={{ padding: "6px 12px", borderRadius: 20, border: "1.5px solid var(--gb)", background: "var(--gbg)", fontSize: 14, fontWeight: 600 }}>Ava</div>
+    </div>
   </div>);
 }
 
@@ -782,7 +875,7 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Transition Support" title="Rotate stations without stopping practice." reverse visual={<TransitionVisual />} body={[
-      "Before each rotation, every coach sees their drill, location, where to send players, and which players are coming. You never call everyone in to explain the next setup.",
+      "Before each rotation, every coach sees their drill, location, where to send players, and which players are coming. More clarity, less confusion.",
     ]} />
 
     <Section eyebrow="Live Adjustments & Timers" title="Practice never goes to plan. That's fine." visual={<AdjustVisual />} body={[
@@ -800,28 +893,32 @@ export default function LandingPage({ onGetStarted }) {
       "Set your total time, then add warmups, drills, stations, breaks and scrimmage. Pull from your library or write something new. The running total tells you whether the plan fits the time you have.",
     ]} />
 
-    <Section eyebrow="Stations and Groupings" title="Groups built from who actually showed up." visual={<StationsVisual />} body={[
-      "Set station lengths, transition time and rotation order. Generate groups from the players at practice: random, balanced, manual or by position. When attendance changes, the groups update. You don't rebuild the practice because two players are out sick.",
+    <Section eyebrow="Player Profiles" title="Positions, handedness, and what each player is working on." reverse wideVisual visual={<RosterDuoVisual />} body={[
+      "Set each player's positions and handedness for the sport you're coaching, then jot a quick note under any skill tag -- what they're working on, in your own words. The next time that tag comes up in a drill, the note is right there on their chip. No digging through a roster mid-practice.",
     ]} />
 
-    <Section eyebrow="Drill Library" title="Save a drill once. Use it all season." reverse visual={<LibraryVisual />} body={[
+    <Section eyebrow="Stations and Groupings" title="Groups built from who actually showed up." visual={<StationsVisual />} body={[
+      "Set station lengths, transition time and rotation order. Generate groups from the players at practice: random, balanced, manual or by position and handedness. When attendance changes, the groups update. You don't rebuild the practice because two players are out sick.",
+    ]} />
+
+    <Section eyebrow="Pre-Practice Setup" title="Everyone knows what to bring and where to go before the first whistle." reverse visual={<PreSetupVisual />} body={[
+      "Share one link with your assistants and helpers. It lays out the equipment needed at each station, who's coaching where, and a countdown to start -- so stations are already set up by the time players show up.",
+    ]} />
+
+    <Section eyebrow="Drill Library" title="Save a drill once. Use it all season." visual={<LibraryVisual />} body={[
       "Each drill keeps its setup, coaching points, skills, default duration and equipment. Add it to any practice in one tap. You never rebuild a drill you've already taught.",
     ]} />
 
-    <Section eyebrow="Locations and Equipment" title="Plan around the space you actually have." visual={<LocationsVisual />} body={[
-      "Save your fields, courts and cages, then define the areas inside them: Batting Cage 2, Court 1, Bullpen. Assign each drill to an area and list the equipment, so helpers know what to set up before players arrive.",
-    ]} />
-
-    <Section eyebrow="Schedule" title="Know which practices still have no plan." reverse visual={<ScheduleVisual />} body={[
+    <Section eyebrow="Schedule" title="Know which practices still need planning" reverse visual={<ScheduleVisual />} body={[
       "Add one-time or recurring practices to your schedule. Each one shows its status so Thursday's practice doesn't sneak up on you Wednesday night.",
     ]} />
 
     <Section eyebrow="Templates and Previous Practices" title="Start with what already works." visual={<TemplatesVisual />} body={[
-      "Save your standard practice as a template, or copy last week's and change two drills. The tenth plan takes five minutes, not an evening.",
+      "Save your standard practice as a template, or copy last week's and change two drills. No need to recreate the wheel every week.",
     ]} />
 
     <Section eyebrow="Practice History" title="Keep the plan and what actually happened together." reverse visual={<HistoryVisual />} body={[
-      "After practice: attendance, actual drill times, what changed on the fly, and notes on what needs more work. That history feeds straight into next week's plan.",
+      "After practice, see attendance, actual drill times, what changed on the fly, and notes on what needs more work. That history feeds straight into next week's plan.",
     ]} />
 
     <div className="lp-section tight">
@@ -831,7 +928,7 @@ export default function LandingPage({ onGetStarted }) {
           <div className="lp-outcome-item">Faster transitions, fewer repeated instructions</div>
           <div className="lp-outcome-item">One coaching message across every station</div>
           <div className="lp-outcome-item">Groups that survive attendance changes</div>
-          <div className="lp-outcome-item">More time to watch, teach and adjust</div>
+          <div className="lp-outcome-item">More time to observe, teach and adjust</div>
         </div>
       </div>
     </div>
@@ -867,6 +964,8 @@ export default function LandingPage({ onGetStarted }) {
       </div>
     </div>
 
+    <FAQ />
+
     <div className="lp-section dark" style={{ textAlign: "center" }}>
       <div className="lp-wrap" style={{ maxWidth: 560 }}>
         <div className="lp-title">Build the plan once. Keep everyone following it.</div>
@@ -875,8 +974,6 @@ export default function LandingPage({ onGetStarted }) {
         <div style={{ marginTop: 12 }}><button className="lp-signin" style={{ color: "var(--td)" }} onClick={onGetStarted}>Already have an account? Sign in</button></div>
       </div>
     </div>
-
-    <FAQ />
 
     <div className="lp-footer">
       <div className="lp-wrap">

@@ -84,7 +84,7 @@ const ROLE_LABELS = { head_coach: 'Head Coach', assistant_coach: 'Assistant Coac
 const ROLE_VALUES = { 'Head Coach': 'head_coach', 'Assistant Coach': 'assistant_coach', 'Helper': 'helper' }
 
 function mapPlayerRow(p) {
-  return { id: p.id, firstName: p.first_name, lastName: p.last_name, jersey: p.jersey_number || '', positions: p.positions || [], notes: p.notes || '' }
+  return { id: p.id, firstName: p.first_name, lastName: p.last_name, jersey: p.jersey_number || '', positions: p.positions || [], bats: p.bats || '', throws: p.throws || '', notes: p.notes || '' }
 }
 function mapStaffRow(s) {
   return { id: s.id, name: (s.first_name + ' ' + s.last_name).trim(), role: ROLE_LABELS[s.role] || s.role, inviteEmail: s.invite_email, userId: s.user_id, addedBy: s.added_by, welcomedAt: s.welcomed_at }
@@ -116,7 +116,7 @@ export async function fetchMyTeams() {
   for (const fa of focusRes.data || []) {
     const tag = tagsById[fa.skill_tag_id]
     if (!tag) continue
-    ;(focusByPlayer[fa.player_id] ||= []).push({ id: fa.id, skillTagId: fa.skill_tag_id, name: tag.name, categoryId: tag.category_id })
+    ;(focusByPlayer[fa.player_id] ||= []).push({ id: fa.id, skillTagId: fa.skill_tag_id, name: tag.name, categoryId: tag.category_id, note: fa.note || '' })
   }
   const deactivatedUserIds = new Set(deactivatedRes.data || [])
 
@@ -156,13 +156,13 @@ export async function archiveTeam(id) {
   return { error }
 }
 
-export async function createPlayer(teamId, { firstName, lastName, jersey, positions, notes }) {
-  const { error } = await supabase.from('players').insert({ team_id: teamId, first_name: firstName, last_name: lastName || '', jersey_number: jersey || null, positions: positions || [], notes: notes || null })
+export async function createPlayer(teamId, { firstName, lastName, jersey, positions, bats, throws, notes }) {
+  const { error } = await supabase.from('players').insert({ team_id: teamId, first_name: firstName, last_name: lastName || '', jersey_number: jersey || null, positions: positions || [], bats: bats || null, throws: throws || null, notes: notes || null })
   if (error) console.error('createPlayer:', error)
   return { error }
 }
-export async function updatePlayer(id, { firstName, lastName, jersey, positions, notes }) {
-  const { error } = await supabase.from('players').update({ first_name: firstName, last_name: lastName || '', jersey_number: jersey || null, positions: positions || [], notes: notes || null }).eq('id', id)
+export async function updatePlayer(id, { firstName, lastName, jersey, positions, bats, throws, notes }) {
+  const { error } = await supabase.from('players').update({ first_name: firstName, last_name: lastName || '', jersey_number: jersey || null, positions: positions || [], bats: bats || null, throws: throws || null, notes: notes || null }).eq('id', id)
   if (error) console.error('updatePlayer:', error)
   return { error }
 }
@@ -175,14 +175,24 @@ export async function archivePlayer(id) {
 // freeform text[]. skillTagId is either an existing tag (global/org/coach)
 // or one just created via createSkillTag for a coach's own detail under a
 // category.
-export async function addPlayerFocusArea(playerId, skillTagId, createdBy) {
-  const { error } = await supabase.from('player_focus_areas').insert({ player_id: playerId, skill_tag_id: skillTagId, created_by: createdBy })
-  if (error) console.error('addPlayerFocusArea:', error)
-  return { error }
-}
 export async function removePlayerFocusArea(id) {
   const { error } = await supabase.from('player_focus_areas').delete().eq('id', id)
   if (error) console.error('removePlayerFocusArea:', error)
+  return { error }
+}
+// One row per (player, skill tag) holds that tag's freeform note -- the
+// roster shows every global tag for the team's sport with its own text
+// field, so this is called on every edit rather than a separate
+// add-then-edit step. Clearing the text back to empty deletes the row
+// instead of leaving a blank one behind.
+export async function setPlayerFocusNote(playerId, skillTagId, note, createdBy, existingId) {
+  const trimmed = (note || '').trim()
+  if (!trimmed) {
+    if (existingId) await removePlayerFocusArea(existingId)
+    return { error: null }
+  }
+  const { error } = await supabase.from('player_focus_areas').upsert({ player_id: playerId, skill_tag_id: skillTagId, note: trimmed, created_by: createdBy }, { onConflict: 'player_id,skill_tag_id' })
+  if (error) console.error('setPlayerFocusNote:', error)
   return { error }
 }
 
@@ -559,7 +569,7 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
     const stations = block ? (stationsByBlock[block.id] || []) : []
     base.stations = stations.map(st => ({
       id: st.id, name: st.name || '', activityName: st.name || '',
-      coachId: st.team_staff_id || '', sublocationId: st.sublocation_id || '',
+      coachId: st.team_staff_id || '', helperName: st.helper_name || '', sublocationId: st.sublocation_id || '',
       coachingPoints: st.coaching_points || '', libraryId: st.library_activity_id || null,
       equipment: stationEquipByStation[st.id] || [], playerGear: '',
       assignments: st.assignments || [],
@@ -701,6 +711,7 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
         }
         if (teamScoped) {
           stRow.team_staff_id = st.coachId || null
+          stRow.helper_name = st.coachId ? null : (st.helperName || null)
           stRow.assignments = st.assignments || []
         }
         let stId = st.id
@@ -746,6 +757,19 @@ export async function savePracticeTree(existingId, { teamId, locationId, subloca
     stationTable: 'stations', stationEquipTable: 'station_equipment', teamScoped: true,
   })
   return { data: { id: practiceId } }
+}
+// Tap-to-reassign during a live run: a single-row update to the one
+// station, not a full savePracticeTree pass -- that goes through
+// saveActivityTree's whole activities/stations/equipment loop, which is
+// unnecessary work for changing one field and (more importantly) no
+// reason to route through here when nothing about ids, positions, or
+// session_groups needs to change. coachId and helperName are mutually
+// exclusive -- picking a roster coach clears any freeform helper name and
+// vice versa.
+export async function updateStationLead(stationId, { coachId, helperName }) {
+  const { error } = await supabase.from('stations').update({ team_staff_id: coachId || null, helper_name: coachId ? null : (helperName || null) }).eq('id', stationId)
+  if (error) console.error('updateStationLead:', error)
+  return { error }
 }
 export async function archivePractice(id) {
   const { error } = await supabase.from('practices').update({ archived_at: new Date().toISOString() }).eq('id', id)

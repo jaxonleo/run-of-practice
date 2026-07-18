@@ -58,6 +58,60 @@ export function assignGroups(players,grouping,numGroups){
   return [arr];
 }
 
+// ── Positions & handedness ──────────────────────────────────────────────────
+// Sport-conditional: a football roster has no use for "Bats", a swim roster
+// has no use for positions at all. Empty list/array = that field doesn't
+// show for that sport (falls back to a freeform text input for positions).
+export const POSITIONS_BY_SPORT={
+  Baseball:["P","C","1B","2B","3B","SS","LF","CF","RF","OF","IF","DH"],
+  Softball:["P","C","1B","2B","3B","SS","LF","CF","RF","OF","IF","DH"],
+  Basketball:["PG","SG","SF","PF","C"],
+  Soccer:["GK","CB","LB","RB","CDM","CM","CAM","LW","RW","ST"],
+  Football:["QB","RB","WR","TE","OL","DL","LB","CB","S","K","P"],
+  Lacrosse:["Attack","Midfield","Defense","Goalie","LSM","FOGO"],
+  Hockey:["G","D","LW","RW","C"],
+  Volleyball:["Setter","Outside Hitter","Middle Blocker","Opposite","Libero","DS"],
+};
+// Which handedness fields apply for a sport, and how to label them. Only
+// bat-and-ball sports get "Bats"; throwing motion matters more broadly.
+export const HAND_FIELDS_BY_SPORT={
+  Baseball:[{key:"bats",label:"Bats",options:["L","R","S"]},{key:"throws",label:"Throws",options:["L","R"]}],
+  Softball:[{key:"bats",label:"Bats",options:["L","R","S"]},{key:"throws",label:"Throws",options:["L","R"]}],
+  Football:[{key:"throws",label:"Throws",options:["L","R"]}],
+  Lacrosse:[{key:"throws",label:"Throws",options:["L","R"]}],
+  Hockey:[{key:"throws",label:"Shoots",options:["L","R"]}],
+};
+export const HAND_LABELS={L:"Left",R:"Right",S:"Switch"};
+
+// Buckets players by an attribute value (first position, bats, throws, ...)
+// and greedily bin-packs whole buckets into `n` groups so players who share
+// a value land together -- e.g. all catchers at one station -- rather than
+// getting scattered the way a plain round-robin shuffle would. Players
+// with no value for the attribute are spread round-robin across whatever's
+// left, last, so they don't all pile onto one group.
+export function groupByAttribute(players,n,getValue){
+  const groups=Array.from({length:n},()=>[]);
+  const buckets={};
+  const none=[];
+  players.forEach(p=>{
+    const v=getValue(p);
+    if(!v){none.push(p);return;}
+    (buckets[v]||(buckets[v]=[])).push(p);
+  });
+  const ordered=Object.values(buckets).sort((a,b)=>b.length-a.length);
+  ordered.forEach(bucket=>{
+    let idx=0;
+    for(let i=1;i<n;i++)if(groups[i].length<groups[idx].length)idx=i;
+    groups[idx].push(...bucket);
+  });
+  none.forEach((p,i)=>{
+    let idx=0;
+    for(let j=1;j<n;j++)if(groups[j].length<groups[idx].length)idx=j;
+    groups[idx].push(p);
+  });
+  return groups.map(g=>g.map(p=>p.id));
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 export const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
 // Curated, contrast-safe team palette -- each color must work as a dot, as
