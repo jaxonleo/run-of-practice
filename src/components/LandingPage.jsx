@@ -278,7 +278,7 @@ function LibraryVisual() {
   return (<div className="lp-phone">
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--s1)", borderRadius: "var(--r) var(--r) 0 0" }}>
       <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>Baseball</span>
-      <span style={{ fontSize: 12, color: "var(--td)" }}>14 drills ▼</span>
+      <span style={{ fontSize: 12, color: "var(--td)" }}>14 drills ▾</span>
     </div>
     <div style={{ border: "1px solid var(--b)", borderTop: "none", padding: "10px 12px" }}>
       <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>Ground Ball Fundamentals</div>
@@ -321,7 +321,7 @@ function LocationLine({ text, style }) {
 
 function StationsVisual() {
   const stations = [
-    { label: "Station 1", area: "Infield", chips: [{ n: "Leo", t: "here" }, { n: "Owen", t: "here" }, { n: "Mason", t: "here" }] },
+    { label: "Station 1", area: "Infield", chips: [{ n: "Ryker", t: "here" }, { n: "Owen", t: "here" }, { n: "Mason", t: "here" }] },
     { label: "Station 2", area: "Batting Cage 1", chips: [{ n: "Ava", t: "here" }, { n: "Jordan", t: "here" }] },
     { label: "Station 3", area: "Outfield", chips: [{ n: "Max", t: "here" }, { n: "Riley", t: "here" }, { n: "Sam", t: "other" }] },
   ];
@@ -354,8 +354,8 @@ function LocationsVisual() {
     <div className="sechdr mb8"><span className="sectitle">Team Equipment</span></div>
     <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">L-Screen</div></div></div>
     <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Bucket of Balls</div></div></div>
-    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Helmets</div></div></div>
-    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Tee</div></div></div>
+    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Pitching Machine</div></div></div>
+    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">Empty Bucket</div></div></div>
   </div>);
 }
 
@@ -428,9 +428,9 @@ function StationOverviewRow({ label, drill, area, coach, chips }) {
 // pausable/adjustable clock. Stations (drill/coach/location) are fixed;
 // only the player groups rotate through them each round.
 const HERO_ROTATION = [
-  { infield: ["Leo", "Owen", "Mason"], cage: ["Ava", "Jordan"] },
+  { infield: ["Ryker", "Owen", "Mason"], cage: ["Ava", "Jordan"] },
   { infield: ["Ava", "Jordan"], cage: ["Max", "Riley", "Sam"] },
-  { infield: ["Max", "Riley", "Sam"], cage: ["Leo", "Owen", "Mason"] },
+  { infield: ["Max", "Riley", "Sam"], cage: ["Ryker", "Owen", "Mason"] },
 ];
 function playerTone(name) { return name === "Sam" ? "other" : "here"; }
 
@@ -574,7 +574,7 @@ function HelperVisual() {
   return (<div className="lp-duo-fixed">
     <div className="lp-phone lp-card-primary">
       <div className="clbl">All Stations</div>
-      <StationOverviewRow label="Station 1" drill="Ground Ball Fundamentals" area="Infield" coach="Coach Mike" chips={<><StationChip name="Leo" tone="here" /><StationChip name="Owen" tone="here" /><StationChip name="Mason" tone="here" /></>} />
+      <StationOverviewRow label="Station 1" drill="Ground Ball Fundamentals" area="Infield" coach="Coach Mike" chips={<><StationChip name="Ryker" tone="here" /><StationChip name="Owen" tone="here" /><StationChip name="Mason" tone="here" /></>} />
       <StationOverviewRow label="Station 2" drill="Front Toss" area="Batting Cage 1" coach="Coach Jen" chips={<><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></>} />
       <StationOverviewRow label="Station 3" drill="Fly Ball Reads" area="Outfield" coach="Coach Dana" chips={<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="here" /><StationChip name="Sam" tone="other" /></>} />
     </div>
@@ -614,7 +614,7 @@ function AdjustVisual() {
 }
 
 const ROTATION_MOVES = [
-  { names: "Leo, Owen, Mason", from: "Station 1: Infield · Coach Mike", to: "Station 2: Batting Cage 1 · Coach Jen", bring: "helmets, bats" },
+  { names: "Ryker, Owen, Mason", from: "Station 1: Infield · Coach Mike", to: "Station 2: Batting Cage 1 · Coach Jen", bring: "helmets, bats" },
   { names: "Ava, Jordan", from: "Station 2: Batting Cage 1 · Coach Jen", to: "Station 3: Outfield · Coach Dana", bring: "gloves" },
   { names: "Max, Riley, Sam", from: "Station 3: Outfield · Coach Dana", to: "Station 1: Infield · Coach Mike", bring: "gloves" },
 ];
@@ -642,7 +642,7 @@ function HistoryVisual() {
     </div>
     <div className="card" style={{ marginBottom: 10 }}>
       <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>End of Practice Notes</div>
-      <div style={{ fontSize: 13, color: "var(--black)" }}>Cage 1 group needs more reps on the outside pitch. Leo's throws sailing high, check grip next week.</div>
+      <div style={{ fontSize: 13, color: "var(--black)" }}>Cage 1 group needs more reps on the outside pitch. Ryker's throws sailing high, check grip next week.</div>
     </div>
     <button className="btn primary bxl bfull mb8">Run Again</button>
     <button className="btn ghost bmd bfull">Save as Template</button>
@@ -695,7 +695,7 @@ function WatchAlertScreen() {
     </div>
     <div className="lp-w-rotate">ROTATE NOW</div>
     <div className="lp-w-move-card">
-      <div className="who">Leo, Owen, Mason</div>
+      <div className="who">Ryker, Owen, Mason</div>
       <div className="to">&rarr; <strong>Batting Cage 1</strong> &middot; Coach Jen</div>
     </div>
     <div className="lp-w-done-btn">GOT IT</div>
@@ -791,7 +791,7 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Stations and Groupings" title="Groups built from who actually showed up." visual={<StationsVisual />} body={[
-      "Set station lengths, transition time and rotation order. Generate groups from the players at practice: random, balanced, manual or by position. When attendance changes, the groups update. You don't rebuild the practice because two kids are out sick.",
+      "Set station lengths, transition time and rotation order. Generate groups from the players at practice: random, balanced, manual or by position. When attendance changes, the groups update. You don't rebuild the practice because two players are out sick.",
     ]} />
 
     <Section id="features" eyebrow="Drill Library" title="Save a drill once. Use it all season." reverse visual={<LibraryVisual />} body={[
@@ -803,7 +803,7 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Schedule" title="Know which practices still have no plan." reverse visual={<ScheduleVisual />} body={[
-      "Add one-time or recurring practices. Each one shows its status at a glance (ready, started, or needs a plan) so Thursday's practice doesn't sneak up on you Wednesday night.",
+      "Add one-time or recurring practices to your schedule. Each one shows its status so Thursday's practice doesn't sneak up on you Wednesday night.",
     ]} />
 
     <Section eyebrow="Templates and Previous Practices" title="Start with what already works." visual={<TemplatesVisual />} body={[
