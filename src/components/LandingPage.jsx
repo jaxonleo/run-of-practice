@@ -43,9 +43,19 @@ function formatClock(totalSeconds) {
   return (neg ? "-" : "") + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
 }
 
+// A card left open indefinitely (backgrounded tab, forgotten browser
+// window...) would otherwise count into the thousands of negative minutes --
+// once a countdown is 5 minutes overdue, loop back to the original start
+// time instead of continuing to run away.
+const LOOP_GRACE_SECONDS = 5 * 60;
+function loopedRemaining(startSeconds, elapsedSeconds) {
+  const cycle = Math.max(startSeconds, 0) + LOOP_GRACE_SECONDS;
+  return startSeconds - (((elapsedSeconds % cycle) + cycle) % cycle);
+}
+
 function useCountdown(startSeconds) {
   const elapsed = useElapsedSeconds();
-  const remaining = startSeconds - elapsed;
+  const remaining = loopedRemaining(startSeconds, elapsed);
   const over = remaining < 0;
   return { display: formatClock(remaining), over, minutesBehind: over ? Math.ceil(Math.abs(remaining) / 60) : 0 };
 }
@@ -64,7 +74,7 @@ function useAdjustableClock(initialSeconds) {
     return () => clearInterval(id);
   }, [reducedMotion, state.paused]);
 
-  const computeRemaining = (s) => (s.paused || reducedMotion) ? s.base : s.base - Math.floor((Date.now() - s.at) / 1000);
+  const computeRemaining = (s) => (s.paused || reducedMotion) ? s.base : loopedRemaining(s.base, Math.floor((Date.now() - s.at) / 1000));
   const remaining = computeRemaining(state);
   const over = remaining < 0;
 
@@ -243,7 +253,7 @@ function Header({ onGetStarted }) {
     <a href="#top" className="lp-brand"><img src="/apple-touch-icon.png" alt="" /><span>Run of Practice</span></a>
     <div className="lp-nav">
       <a className="lp-navlink hideonsm" href="#how-it-works">How It Works</a>
-      <a className="lp-navlink hideonsm" href="#features">Features</a>
+      <a className="lp-navlink hideonsm" href="#how-it-works">Features</a>
       <a className="lp-navlink hideonsm" href="#early-access">Early Access</a>
       <button className="lp-signin" onClick={onGetStarted}>Sign In</button>
       <button className="btn primary bsm" onClick={onGetStarted}>Try It Free</button>
@@ -794,7 +804,7 @@ export default function LandingPage({ onGetStarted }) {
       "Set station lengths, transition time and rotation order. Generate groups from the players at practice: random, balanced, manual or by position. When attendance changes, the groups update. You don't rebuild the practice because two players are out sick.",
     ]} />
 
-    <Section id="features" eyebrow="Drill Library" title="Save a drill once. Use it all season." reverse visual={<LibraryVisual />} body={[
+    <Section eyebrow="Drill Library" title="Save a drill once. Use it all season." reverse visual={<LibraryVisual />} body={[
       "Each drill keeps its setup, coaching points, skills, default duration and equipment. Add it to any practice in one tap. You never rebuild a drill you've already taught.",
     ]} />
 
@@ -874,7 +884,7 @@ export default function LandingPage({ onGetStarted }) {
         <div style={{ fontSize: 13, marginTop: 10, maxWidth: 420 }}>Practice planning and live execution for coaches, assistants and helpers.</div>
         <div className="lp-footer-links">
           <a href="#how-it-works">How It Works</a>
-          <a href="#features">Features</a>
+          <a href="#how-it-works">Features</a>
           <a href="#early-access">Early Access</a>
           <button className="lp-signin" style={{ color: "#c9d6cf" }} onClick={onGetStarted}>Sign In</button>
           <a href={"mailto:" + CONTACT_EMAIL}>Contact</a>

@@ -1280,7 +1280,16 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
     if(error){setNoteError("Couldn't save note. Try again.");return;}
     setNoteText("");
   };
-  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--green)",marginBottom:4}}>Practice Complete</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{team&&team.name} practice complete.</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>{setNoteText(e.target.value);if(noteError)setNoteError("");}}/>{noteError&&<div style={{fontSize:12,color:"var(--red)",marginTop:4}}>{noteError}</div>}<button className="btn primary bsm bfull mt6" onClick={saveEndNote} disabled={savingNote}>{savingNote?"Saving...":"Save Note"}</button></div><button className="btn primary bmd bfull" onClick={()=>{setLiveId(null);setStage("pick");goHome();}}>Done</button></div></div>);
+  // Save Note and Done used to sit right on top of each other (both
+  // full-width primary buttons a few px apart), so a note typed then tapped
+  // in a hurry landed on Done and was silently discarded. Done is now
+  // visually distinct and pushed further away, and still-unsaved text blocks
+  // it with a confirmation instead of losing the note outright.
+  const finishPractice=()=>{
+    if(noteText.trim()&&!window.confirm("You have an unsaved note. Leave without saving it?"))return;
+    setLiveId(null);setStage("pick");goHome();
+  };
+  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--green)",marginBottom:4}}>Practice Complete</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{team&&team.name} practice complete.</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>{setNoteText(e.target.value);if(noteError)setNoteError("");}}/>{noteError&&<div style={{fontSize:12,color:"var(--red)",marginTop:4}}>{noteError}</div>}<button className="btn primary bsm bfull mt6" onClick={saveEndNote} disabled={savingNote}>{savingNote?"Saving...":"Save Note"}</button></div><button className="btn ghost bmd bfull" style={{marginTop:32}} onClick={finishPractice}>Done</button></div></div>);
 
   if(!cur)return null;
 

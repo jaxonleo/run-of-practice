@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ResponsiveContainer, ComposedChart, LineChart, BarChart, Bar, Line, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -118,6 +119,7 @@ function RetentionGrid({ retention, cohortSizes }) {
 }
 
 export default function FounderMetricsScreen() {
+  const navigate = useNavigate();
   const [weeks, setWeeks] = useState(12);
   const { summary, detail } = useFounderMetrics(weeks);
 
@@ -135,6 +137,7 @@ export default function FounderMetricsScreen() {
 
   return (
     <div style={{ height: "100dvh", overflowY: "auto", maxWidth: 480, margin: "0 auto", padding: "16px 14px 40px", display: "flex", flexDirection: "column", gap: 14 }}>
+      <button className="btn ghost bxs" style={{ alignSelf: "flex-start" }} onClick={() => navigate(-1)}>Back</button>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontWeight: 900, fontSize: 22, color: "var(--black)" }}>Founder Metrics</div>
         <div style={{ display: "flex", gap: 4 }}>

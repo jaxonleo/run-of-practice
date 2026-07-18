@@ -691,8 +691,10 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const [bottomMode,setBottomMode]=useState(null);
   const [schedDate,setSchedDate]=useState(editP?(editP.date||localDateStr()):localDateStr());
   const [schedTime,setSchedTime]=useState(editP?(editP.startTime||"16:00"):"16:00");
-  const [schedDur,setSchedDur]=useState(60);
   const [tplName,setTplName]=useState("");
+  const [showScheduleModal,setShowScheduleModal]=useState(false);
+  const [schedSuccess,setSchedSuccess]=useState(false);
+  const [showTplPicker,setShowTplPicker]=useState(false);
   const dragIdx=useRef(null);
   // Snapshot of what's actually persisted, so the router blocker (and the
   // beforeunload guard below) can warn before discarding edits that only
@@ -724,6 +726,11 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const loc=data.locations.find(l=>l.id===locId)||null;
   const teamSport=(team&&team.sport)||"General";
   const filteredLib=data.activityLibrary.filter(a=>(a.sport||"General")===teamSport||(a.sport||"General")==="General");
+  const teamTemplates=(data.templates||[]).filter(t=>(t.sport||"General")===teamSport||(t.sport||"General")==="General");
+  // Appends rather than replaces -- safe to offer regardless of whether acts
+  // is already empty (a fresh/unplanned build) or has drills in it (editing
+  // an already-scheduled practice and wanting to pull in a template on top).
+  const applyTemplate=tpl=>{setActs(p=>[...p,...stripIdsForCopy(tpl.activities)]);setShowTplPicker(false);};
   const headCoach=(team&&(team.coaches.find(c=>c.role==="Head Coach")||team.coaches[0]))||null;
   const headCoachId=(headCoach&&headCoach.id)||"";
   const allPlayerIds=team?team.players.map(p=>p.id):[];
@@ -763,7 +770,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
     const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:dateVal,startTime:timeVal||"",timezone:team&&team.timezone,activities:acts});
     if(saved){setExistingId(saved.id);markSaved();}
     await refreshPlanning();
-    setBottomMode("done_sched");
+    setSchedSuccess(true);
   };
   const doSaveTpl=async(tname)=>{
     if(!tname.trim())return;
@@ -803,19 +810,9 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
       <div style={{padding:"8px 14px",display:"flex",gap:6}}>
         {(!bottomMode||bottomMode==="")&&<div style={{display:"flex",gap:6,width:"100%"}}>
           <button className="btn outline bsm" style={{flex:1}} onClick={handleSave}>Save</button>
-          {!editP&&<button className="btn outline bsm" style={{flex:1}} onClick={()=>setBottomMode("schedule")}>Schedule</button>}
+          {!editP&&<button className="btn outline bsm" style={{flex:1}} onClick={()=>{setSchedSuccess(false);setShowScheduleModal(true);}}>Schedule</button>}
           {!editP&&<button className="btn ghost bsm" style={{flex:1}} onClick={()=>{setTplName("");setBottomMode("template");}}>Template</button>}
           <button className="btn primary bsm" style={{flex:2}} onClick={handleRun}>Run Now</button>
-        </div>}
-        {bottomMode==="schedule"&&<div style={{width:"100%"}}>
-          <div className="g2 mb6">
-            <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/></div>
-            <div className="fld"><label className="lbl">Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
-          </div>
-          <div className="brow">
-            <button className="btn ghost bsm" onClick={()=>setBottomMode(null)}>Cancel</button>
-            <button className="btn primary bsm" onClick={()=>doSchedule(schedDate,schedTime,schedDur)}>Save Schedule</button>
-          </div>
         </div>}
         {bottomMode==="template"&&<div style={{width:"100%"}}>
           <div className="fld mb6"><input className="inp" autoFocus placeholder="Template name..." value={tplName} onChange={e=>setTplName(e.target.value)}/></div>
@@ -824,12 +821,36 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
             <button className="btn primary bsm" onClick={()=>doSaveTpl(tplName)} disabled={!tplName.trim()}>Save Template</button>
           </div>
         </div>}
-        {bottomMode==="done_sched"&&<div style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <span style={{color:"var(--green)",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700}}>Scheduled!</span>
-          <button className="btn ghost bxs" onClick={()=>setBottomMode(null)}>Done</button>
-        </div>}
       </div>
       </div>
+      {showScheduleModal&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowScheduleModal(false);}}>
+        <div className="modal">
+          {!schedSuccess?<>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>Schedule this practice</div>
+            <div style={{fontSize:13,color:"var(--td)",marginBottom:16}}>Sets the date and time this practice runs. You can still change the plan afterward.</div>
+            <div className="g2 mb10">
+              <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/></div>
+              <div className="fld"><label className="lbl">Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
+            </div>
+            <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowScheduleModal(false)}>Cancel</button><button className="btn primary bsm" style={{flex:1}} onClick={()=>doSchedule(schedDate,schedTime)} disabled={!schedDate}>Schedule Practice</button></div>
+          </>:<>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>Practice scheduled</div>
+            <div style={{fontSize:13,color:"var(--td)",marginBottom:16}}>{team?team.name:"Practice"} · {new Date(schedDate+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}{schedTime?" · "+fmt12(schedTime):""}</div>
+            <button className="btn primary bmd bfull" onClick={()=>setShowScheduleModal(false)}>Done</button>
+          </>}
+        </div>
+      </div>}
+      {showTplPicker&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowTplPicker(false);}}>
+        <div className="modal">
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:12}}>Start with a template</div>
+          {teamTemplates.length===0&&<div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>No templates saved yet for {teamSport}.</div>}
+          {teamTemplates.map(tpl=>(<div key={tpl.id} className="li tap" onClick={()=>applyTemplate(tpl)}>
+            <div className="lim"><div className="lin">{tpl.name}</div><div className="limt">{(tpl.activities||[]).length} activities · {tpl.durMin||0}min</div></div>
+            <span style={{color:"var(--green)",fontSize:20,fontWeight:700,flexShrink:0}}>+</span>
+          </div>))}
+          <button className="btn ghost bmd bfull mt10" onClick={()=>setShowTplPicker(false)}>Cancel</button>
+        </div>
+      </div>}
       <div className="card mb10">
         <div className="clbl">Practice Setup</div>
         {!editP&&<div className="fld"><label className="lbl">Team</label>
@@ -850,7 +871,8 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
         </div>
       </div>
       {acts.length===0&&(<div style={{textAlign:"center",padding:"20px 16px",background:"var(--s2)",borderRadius:"var(--r)",marginBottom:10,border:"1.5px dashed var(--b)"}}>
-          <div style={{fontSize:13,color:"var(--td)",lineHeight:1.7}}>Nothing added yet.<br/>Select activities below to begin building your practice.</div>
+          <div style={{fontSize:13,color:"var(--td)",lineHeight:1.7,marginBottom:teamTemplates.length?10:0}}>Nothing added yet.<br/>Select activities below to begin building your practice.</div>
+          {teamTemplates.length>0&&<button className="btn outline bsm" onClick={()=>setShowTplPicker(true)}>Start with a Template</button>}
         </div>
       )}
       {acts.length>0&&(<div className="sechdr mb8">
