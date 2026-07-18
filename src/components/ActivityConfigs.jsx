@@ -132,7 +132,7 @@ export function ChecklistConfig({act,onChange,onDone}){
   </div>);
 }
 
-export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,refreshLibrary,teamSport,libraryDrills}){
+export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,refreshLibrary,teamSport,libraryDrills,skillTags}){
   const rotate=act.rotate!==false;
   const [newEquipIdx,setNewEquipIdx]=useState(null);
   const [newGearIdx,setNewGearIdx]=useState(null);
@@ -144,6 +144,8 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   const teamEquipAssets=(assets||[]).filter(a=>!a.type||a.type==="team");
   const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General"));
   const filteredLibrary=(libraryDrills||[]).filter(a=>(a.sport||"General")===sport||(a.sport||"General")==="General");
+  const skillTagsById=Object.fromEntries((skillTags||[]).map(t=>[t.id,t]));
+  const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
   const chooseFromLibrary=(si,lib)=>{
     const st=act.stations[si];
     onSt(st.id,{
@@ -228,7 +230,13 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
           {libraryPickerIdx===si&&<div style={{marginTop:6,border:"1px solid var(--b)",borderRadius:"var(--rs)",maxHeight:180,overflowY:"auto",background:"#fff"}}>
             {filteredLibrary.length===0&&<div style={{padding:10,fontSize:12,color:"var(--td)"}}>No drills in library for {sport} yet.</div>}
             {filteredLibrary.map(lib=>(<div key={lib.id} className="li tap" style={{marginBottom:0,borderRadius:0,borderLeft:"none",borderRight:"none",borderTop:"none"}} onClick={()=>chooseFromLibrary(si,lib)}>
-              <div className="lim"><div className="lin">{lib.name}</div>{lib.description&&<div className="limt">{lib.description}</div>}</div>
+              <div className="lim">
+                <div className="lin">{lib.name}</div>
+                {lib.description&&<div className="limt">{lib.description}</div>}
+                {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                  {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+                </div>}
+              </div>
             </div>))}
           </div>}
         </div>

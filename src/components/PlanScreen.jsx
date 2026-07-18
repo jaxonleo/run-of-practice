@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { uid } from "../constants.js";
+import { archiveDrill, archiveTemplate } from "../supabase.js";
 import GoalsScreen from "./GoalsScreen.jsx";
+import { SkillsTab, TemplateWorkspace } from "./NewLibraryScreen.jsx";
 
 // Plan tab (nav restructure round 2, 2026-07-15). Folds two things into one
 // tab: "Build" (team-scoped drill/template access -- this tab's original,
@@ -9,60 +12,121 @@ import GoalsScreen from "./GoalsScreen.jsx";
 // planned vs. actual report + History, previously its own top-level tab).
 // Both are fundamentally "how this team spends its practice time," which is
 // why they were merged rather than kept as separate tabs.
-function BuildTab({ data, team, goToBuilder }) {
-  const teamSport = team.sport || "General";
-  const templates = (data.templates || []).filter(t => (t.sport || "General") === teamSport);
-  const defaultTpl = templates.find(t => t.defaultTeamId === team.id);
-  const otherTpls = templates.filter(t => t.id !== (defaultTpl && defaultTpl.id));
-  const drills = (data.activityLibrary || []).filter(a => (a.sport || "General") === teamSport || (a.sport || "General") === "General");
+//
+// Build tab upgrade (2026-07-20): used to show a read-only preview of
+// drills/templates (plain, non-tappable rows, capped at 12 drills, "+N more
+// in Library" for the rest). The team-scoped tab bar has no way back to the
+// global Library tab without detouring through Teams/Home first, so that
+// preview was effectively a dead end. This now reuses the real library
+// interactions (edit, delete, skill tags, template editing) scoped to this
+// team's sport, so a coach never has to leave the team to manage what they
+// see here.
+function BuildTab({data,team,coachId,goToBuilder,openModal,refreshLibrary,refreshPlanning}){
+  const teamSport=team.sport||"General";
+  const templates=(data.templates||[]).filter(t=>(t.sport||"General")===teamSport);
+  const defaultTpl=templates.find(t=>t.defaultTeamId===team.id);
+  const otherTpls=templates.filter(t=>t.id!==(defaultTpl&&defaultTpl.id));
+  const drills=(data.activityLibrary||[]).filter(a=>a.ownerUserId===coachId&&((a.sport||"General")===teamSport||(a.sport||"General")==="General"));
+  const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
+  const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
+  const [drillMenu,setDrillMenu]=useState(null);
+  const [tplMenu,setTplMenu]=useState(null);
+  const [editingTpl,setEditingTpl]=useState(null);
+  const [newTplPrompt,setNewTplPrompt]=useState(false);
+  const [newTplNameDraft,setNewTplNameDraft]=useState("");
+  const [confirmDelTpl,setConfirmDelTpl]=useState(null);
 
-  return (<div>
-    <button className="btn primary bmd bfull" style={{ marginBottom: 14 }} onClick={() => goToBuilder(null, null, team.id)}>+ Build a Practice</button>
+  if(editingTpl)return(<TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>goToBuilder(null,tplId,team.id)}/>);
 
-    {defaultTpl && <div className="card mb10" style={{ borderColor: "var(--gb)", background: "var(--gbg)" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--green)", marginBottom: 4 }}>Default Template</div>
-      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, marginBottom: 8 }}>{defaultTpl.name}</div>
-      <button className="btn primary bsm bfull" onClick={() => goToBuilder(null, defaultTpl.id, team.id)}>Start from Template</button>
+  const createNewTpl=()=>{
+    if(!newTplNameDraft.trim())return;
+    setEditingTpl({id:uid(),name:newTplNameDraft.trim(),sport:teamSport,defaultTeamId:team.id,activities:[],durMin:0});
+    setNewTplPrompt(false);
+  };
+  const delTpl=async id=>{await archiveTemplate(id);await refreshPlanning();setConfirmDelTpl(null);};
+  const delDrill=async id=>{await archiveDrill(id);await refreshLibrary();};
+
+  return (<div onClick={()=>{setDrillMenu(null);setTplMenu(null);}}>
+    <button className="btn primary bmd bfull" style={{marginBottom:14}} onClick={()=>goToBuilder(null,null,team.id)}>+ Build a Practice</button>
+
+    {defaultTpl&&<div className="card mb10" style={{borderColor:"var(--gb)",background:"var(--gbg)"}}>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",marginBottom:4}}>Default Template</div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,marginBottom:8}}>{defaultTpl.name}</div>
+      <button className="btn primary bsm bfull" onClick={()=>goToBuilder(null,defaultTpl.id,team.id)}>Start from Template</button>
     </div>}
 
-    {otherTpls.length > 0 && <div className="mb10">
-      <div className="clbl mb8">{teamSport} Templates</div>
-      {otherTpls.map(t => (<div key={t.id} className="li tap" style={{ marginBottom: 6 }} onClick={() => goToBuilder(null, t.id, team.id)}>
-        <div className="lim"><div className="lin">{t.name}</div><div className="limt">{(t.activities || []).length} activities · {t.durMin || 0}min</div></div>
-        <span style={{ color: "var(--green)", fontSize: 18 }}>&#8250;</span>
-      </div>))}
-    </div>}
-    {templates.length === 0 && <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>No {teamSport} templates yet -- save one from Builder, or browse Library.</div>}
-
-    <div className="clbl mb8">{teamSport} Drills</div>
-    {drills.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>No drills for {teamSport} yet -- add some from Library.</div>}
-    {drills.slice(0, 12).map(d => (<div key={d.id} className="li" style={{ marginBottom: 6 }}>
-      <div className="lim"><div className="lin">{d.name}</div><div className="limt">{d.duration}min{d.description ? " · " + d.description : ""}</div></div>
-      <span className="bdg bp">{d.duration}m</span>
+    <div className="sechdr mb8">
+      <span className="sectitle">{teamSport} Templates</span>
+      <button className="btn ghost bxs" onClick={e=>{e.stopPropagation();setNewTplNameDraft("");setNewTplPrompt(true);}}>+ New Template</button>
+    </div>
+    {newTplPrompt&&<div className="movly" onClick={()=>setNewTplPrompt(false)}><div className="modal" onClick={e=>e.stopPropagation()}>
+      <div className="mtitle">Name your template</div>
+      <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder="e.g. Tuesday Skills Day" value={newTplNameDraft} onChange={e=>setNewTplNameDraft(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createNewTpl()}/></div>
+      <div className="brow"><button className="btn ghost bmd" onClick={()=>setNewTplPrompt(false)}>Cancel</button><button className="btn primary bmd" disabled={!newTplNameDraft.trim()} onClick={createNewTpl}>Create</button></div>
+    </div></div>}
+    {otherTpls.map(t=>(<div key={t.id} className="li" style={{marginBottom:6,position:"relative"}}>
+      <div className="lim" style={{flex:1,cursor:"pointer"}} onClick={()=>goToBuilder(null,t.id,team.id)}>
+        <div className="lin">{t.name}</div><div className="limt">{(t.activities||[]).length} activities · {t.durMin||0}min</div>
+      </div>
+      <button className="ell-btn" onClick={e=>{e.stopPropagation();setTplMenu(tplMenu===t.id?null:t.id);}}><span/><span/><span/></button>
+      {tplMenu===t.id&&<div className="mini-menu" style={{right:0}}>
+        <button className="mm-item" onClick={e=>{e.stopPropagation();setEditingTpl(t);setTplMenu(null);}}>Edit</button>
+        <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setConfirmDelTpl(t.id);setTplMenu(null);}}>Delete</button>
+      </div>}
     </div>))}
-    {drills.length > 12 && <div style={{ fontSize: 12, color: "var(--td)", textAlign: "center", marginTop: 4 }}>+{drills.length - 12} more in Library</div>}
+    {confirmDelTpl&&<div className="movly" onClick={()=>setConfirmDelTpl(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="mtitle">Delete template?</div><div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This cannot be undone.</div><div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDelTpl(null)}>Cancel</button><button className="btn primary bmd" onClick={()=>delTpl(confirmDelTpl)}>Delete</button></div></div></div>}
+    {templates.length===0&&<div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>No {teamSport} templates yet -- save one from Builder.</div>}
+
+    <div className="sechdr mb8">
+      <span className="sectitle">{teamSport} Drills</span>
+      <button className="btn ghost bxs" onClick={e=>{e.stopPropagation();openModal("addActivity");}}>+ Add Drill</button>
+    </div>
+    {drills.length===0&&<div style={{fontSize:13,color:"var(--td)"}}>No drills for {teamSport} yet.</div>}
+    {drills.map(d=>(<div key={d.id} className="li" style={{marginBottom:6,position:"relative"}}>
+      <div className="lim">
+        <div className="lin">{d.name}</div>
+        <div className="limt">{d.duration}min{d.description?" · "+d.description:""}</div>
+        {d.skillTagIds&&d.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+          {tagNames(d.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+        </div>}
+      </div>
+      <button className="ell-btn" onClick={e=>{e.stopPropagation();setDrillMenu(drillMenu===d.id?null:d.id);}}><span/><span/><span/></button>
+      {drillMenu===d.id&&<div className="mini-menu" style={{right:0}}>
+        <button className="mm-item" onClick={e=>{e.stopPropagation();setDrillMenu(null);openModal("editActivity",{activity:d});}}>Edit</button>
+        <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setDrillMenu(null);delDrill(d.id);}}>Delete</button>
+      </div>}
+    </div>))}
   </div>);
 }
 
-export default function PlanScreen({ data, teamId, coachId, goToBuilder }) {
-  const team = data.teams.find(t => t.id === teamId);
+export default function PlanScreen({data,teamId,coachId,goToBuilder,openModal,refreshLibrary,refreshPlanning}){
+  const team=data.teams.find(t=>t.id===teamId);
   // ?tab=goals lets Home's "Last Practice" recap card (goToTeamGoals) land
   // directly on the Goals & Insights sub-tab instead of the Build default.
-  const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState(searchParams.get("tab") === "goals" ? "goals" : "build");
-  if (!team) return null;
-  return (<div style={{ paddingBottom: 80 }}>
-    <div style={{ padding: "20px 16px 12px" }}>
-      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 28, fontWeight: 900 }}>Plan</div>
+  const [searchParams]=useSearchParams();
+  const [tab,setTab]=useState(searchParams.get("tab")==="goals"?"goals":"build");
+  const [showSkills,setShowSkills]=useState(false);
+  if(!team)return null;
+  if(showSkills)return(<div style={{paddingBottom:80}}>
+    <div style={{padding:"20px 16px 12px",display:"flex",alignItems:"center",gap:10}}>
+      <button className="btn ghost bxs" onClick={()=>setShowSkills(false)}>&#8249; Plan</button>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900}}>Skill Tags</div>
     </div>
-    <div style={{ padding: "0 16px 12px" }}>
-      <div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3 }}>
-        {[{ k: "build", label: "Build" }, { k: "goals", label: "Goals & Insights" }].map(t => (<button key={t.k} onClick={() => setTab(t.k)} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: tab === t.k ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: tab === t.k ? "var(--black)" : "var(--td)" }}>{t.label}</button>))}
+    <div style={{padding:"0 16px"}}><SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary}/></div>
+  </div>);
+  return (<div style={{paddingBottom:80}}>
+    <div style={{padding:"20px 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>Plan</div>
+      <button className="btn ghost bsm" onClick={()=>setShowSkills(true)}>Skill Tags</button>
+    </div>
+    <div style={{padding:"0 16px 12px"}}>
+      <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3}}>
+        {[{k:"build",label:"Build"},{k:"goals",label:"Goals & Insights"}].map(t=>(<button key={t.k} onClick={()=>setTab(t.k)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:tab===t.k?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:tab===t.k?"var(--black)":"var(--td)"}}>{t.label}</button>))}
       </div>
     </div>
-    <div style={{ padding: "0 16px" }}>
-      {tab === "build" && <BuildTab data={data} team={team} goToBuilder={goToBuilder} />}
-      {tab === "goals" && <GoalsScreen data={data} teamId={teamId} coachId={coachId} />}
+    <div style={{padding:"0 16px"}}>
+      {tab==="build"&&<BuildTab data={data} team={team} coachId={coachId} goToBuilder={goToBuilder} openModal={openModal} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning}/>}
+      {tab==="goals"&&<GoalsScreen data={data} teamId={teamId} coachId={coachId}/>}
     </div>
   </div>);
 }

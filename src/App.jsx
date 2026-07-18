@@ -596,8 +596,8 @@ function TeamRosterRoute(){
 
 function PlanRoute(){
   const {teamId}=useParams();
-  const {data,coachId,goToBuilder}=useAppCtx();
-  return <PlanScreen data={data} teamId={teamId} coachId={coachId} goToBuilder={goToBuilder}/>;
+  const {data,coachId,goToBuilder,openModal,refreshLibrary,refreshPlanning}=useAppCtx();
+  return <PlanScreen data={data} teamId={teamId} coachId={coachId} goToBuilder={goToBuilder} openModal={openModal} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning}/>;
 }
 
 function BuilderRoute(){
@@ -727,6 +727,8 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const teamSport=(team&&team.sport)||"General";
   const filteredLib=data.activityLibrary.filter(a=>(a.sport||"General")===teamSport||(a.sport||"General")==="General");
   const teamTemplates=(data.templates||[]).filter(t=>(t.sport||"General")===teamSport||(t.sport||"General")==="General");
+  const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
+  const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
   // Appends rather than replaces -- safe to offer regardless of whether acts
   // is already empty (a fresh/unplanned build) or has drills in it (editing
   // an already-scheduled practice and wanting to pull in a template on top).
@@ -783,7 +785,14 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
     const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,activities:acts});
     if(saved){setExistingId(saved.id);markSaved();}
     await refreshPlanning();
-    if(existingId&&setEditPracticeId)setEditPracticeId(null);
+    // Saving an already-scheduled practice's plan is a "make this edit and
+    // leave" action, not a "keep working here" one -- return to wherever
+    // the coach opened Builder from (Home, Schedule, PracticeDetail...),
+    // same destination the Back button already resolves via history.
+    if(editP){
+      if(setEditPracticeId)setEditPracticeId(null);
+      navigate(-1);
+    }
   };
   const handleRun=async()=>{
     const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,activities:acts});
@@ -836,7 +845,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
           </>:<>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>Practice scheduled</div>
             <div style={{fontSize:13,color:"var(--td)",marginBottom:16}}>{team?team.name:"Practice"} · {new Date(schedDate+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}{schedTime?" · "+fmt12(schedTime):""}</div>
-            <button className="btn primary bmd bfull" onClick={()=>setShowScheduleModal(false)}>Done</button>
+            <button className="btn primary bmd bfull" onClick={()=>{setShowScheduleModal(false);navigate(-1);}}>Done</button>
           </>}
         </div>
       </div>}
@@ -902,7 +911,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
             {expandedId===act.id&&(<div className="abbody">
                 {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
                 {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-                {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport} libraryDrills={data.activityLibrary}/>}
+                {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
               </div>
             )}
           </div>
@@ -920,7 +929,14 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
         </div>
         {team&&<div className="clbl" style={{marginBottom:8}}>{teamSport} + General</div>}
         {filteredLib.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>addAct(lib)}>
-            <div className="lim"><div className="lin">{lib.name}</div><div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div>{lib.coachingPoints&&<div style={{fontSize:11,color:"var(--green2)",marginTop:2}}>{lib.coachingPoints}</div>}</div>
+            <div className="lim">
+              <div className="lin">{lib.name}</div>
+              <div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div>
+              {lib.coachingPoints&&<div style={{fontSize:11,color:"var(--green2)",marginTop:2}}>{lib.coachingPoints}</div>}
+              {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+              </div>}
+            </div>
             <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
           </div>
         ))}

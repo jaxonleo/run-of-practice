@@ -90,7 +90,7 @@ export function SkillsTab({data,coachId,refreshLibrary}){
 // separate "Start from Template" action (once the template has been saved)
 // that hands off to Builder as a brand-new, non-editing practice seeded
 // with the template's activities.
-function TemplateWorkspace({data,template,onBack,openModal,coachId,refreshLibrary,refreshPlanning,onStartFromTemplate}){
+export function TemplateWorkspace({data,template,onBack,openModal,coachId,refreshLibrary,refreshPlanning,onStartFromTemplate}){
   const [name,setName]=useState(template.name);
   const [sport,setSport]=useState(template.sport||"General");
   const [teamId,setTeamId]=useState(template.defaultTeamId||"");
@@ -192,7 +192,7 @@ function TemplateWorkspace({data,template,onBack,openModal,coachId,refreshLibrar
         {expandedId===act.id&&(<div className="abbody">
           {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
           {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-          {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={sport} libraryDrills={data.activityLibrary}/>}
+          {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={sport} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
         </div>)}
       </div>
     </div>))}
