@@ -235,6 +235,15 @@ export default function FounderMetricsScreen() {
             <Bar dataKey="signups" fill="var(--green2)" radius={[3, 3, 0, 0]} isAnimationActive={ANIM} />
           </BarChart>
         </ChartCard>
+
+        <Card>
+          <SectionTitle>Landing traffic</SectionTitle>
+          <Subtitle>No self-instrumented visitor funnel yet — Vercel Web Analytics is the traffic source of truth for now.</Subtitle>
+          <a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer"
+            style={{ display: "inline-block", fontSize: 12, fontWeight: 700, color: "var(--green)", textDecoration: "none" }}>
+            View traffic in Vercel Analytics &#8250;
+          </a>
+        </Card>
       </>)}
     </div>
   );
