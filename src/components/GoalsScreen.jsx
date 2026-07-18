@@ -177,6 +177,15 @@ function GlanceView({ report }) {
 }
 
 const fmtClock = iso => iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : null;
+// null while still running (no endedAt yet), otherwise whole minutes.
+const logMinutes = l => l.endedAt ? Math.round((new Date(l.endedAt) - new Date(l.startedAt)) / 60000) : null;
+// Jumping around the Overview list used to leave a real, permanent
+// zero-duration row behind for every activity passed through on the way to
+// the one actually wanted (fixed going forward in CommandScreen, but
+// sessions logged before that fix still have these sitting in the data).
+// They carry no real practice time, so drop them here rather than show
+// "07:35 PM - 07:35 PM" rows that only look like a bug.
+const meaningfulLogs = logs => logs.filter(l => l.endedAt === null || logMinutes(l) > 0);
 // datetime-local wants "YYYY-MM-DDTHH:MM" in local time, no timezone suffix.
 const toLocalInputValue = iso => {
   if (!iso) return "";
@@ -226,8 +235,8 @@ function SessionHistoryDetail({ session, practice, canManage, onBack, onChanged 
   if (!practice) return (<div style={{ paddingBottom: 80 }}><div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>&#8249; History</button></div><div className="empty"><div className="emtx">Practice not found.</div></div></div>);
   if (logs === null) return (<div style={{ padding: "40px 0", textAlign: "center", color: "var(--td)" }}>Loading...</div>);
 
-  const logsForActivity = actId => logs.filter(l => l.practiceActivityId === actId);
-  const logsForStation = stId => logs.filter(l => l.stationId === stId);
+  const logsForActivity = actId => meaningfulLogs(logs.filter(l => l.practiceActivityId === actId));
+  const logsForStation = stId => meaningfulLogs(logs.filter(l => l.stationId === stId));
 
   const startAdjust = log => { setEditingLogId(log.id); setEditStart(toLocalInputValue(log.startedAt)); setEditEnd(toLocalInputValue(log.endedAt)); };
   const saveAdjust = async () => {
@@ -276,11 +285,16 @@ function SessionHistoryDetail({ session, practice, canManage, onBack, onChanged 
         <div style={{ padding: "10px 12px", background: "var(--s2)", fontFamily: "Barlow Condensed,sans-serif", fontWeight: 700, fontSize: 14 }}>Station Block · planned {act.stationDuration}m/station</div>
         {(act.stations || []).map(st => {
           const stLogs = logsForStation(st.id);
+          const stTotalMin = stLogs.reduce((s, l) => s + (logMinutes(l) || 0), 0);
           return (<div key={st.id} style={{ padding: "10px 12px", borderTop: "1px solid var(--b)" }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{st.name}{st.activityName ? ": " + st.activityName : ""}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{st.name}{st.activityName ? ": " + st.activityName : ""}</span>
+              {stLogs.length > 1 && <span style={{ fontSize: 11, fontFamily: "DM Mono,monospace", color: "var(--tm)" }}>{stTotalMin}m total</span>}
+            </div>
             {stLogs.length === 0 && <div style={{ fontSize: 12, color: "var(--td)" }}>No actual time logged.{canManage && <button className="btn ghost bxs" style={{ marginLeft: 8 }} onClick={() => startAddRow(null, st.id)}>Log actual time</button>}</div>}
             {stLogs.map(l => (<div key={l.id} style={{ fontSize: 12, color: "var(--tm)", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
               Actual: {fmtClock(l.startedAt)}{l.endedAt ? " - " + fmtClock(l.endedAt) : " (ongoing)"}
+              {l.endedAt && <span style={{ fontFamily: "DM Mono,monospace" }}>&middot; {logMinutes(l)}m</span>}
               {l.adjustedAt && <span className="bdg bp">adjusted</span>}
               {canManage && <button className="btn ghost bxs" onClick={() => startAdjust(l)}>Edit</button>}
             </div>))}
@@ -291,6 +305,7 @@ function SessionHistoryDetail({ session, practice, canManage, onBack, onChanged 
       </div>);
 
       const actLogs = logsForActivity(act.id);
+      const actTotalMin = actLogs.reduce((s, l) => s + (logMinutes(l) || 0), 0);
       return (<div key={act.id} className="card mb8">
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
           <span style={{ fontSize: 14, fontWeight: 600 }}>{act.name}</span>
@@ -301,9 +316,11 @@ function SessionHistoryDetail({ session, practice, canManage, onBack, onChanged 
         </div>}
         {actLogs.map(l => (<div key={l.id} style={{ fontSize: 12, color: "var(--tm)", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
           Actual: {fmtClock(l.startedAt)}{l.endedAt ? " - " + fmtClock(l.endedAt) : " (ongoing)"}
+          {l.endedAt && <span style={{ fontFamily: "DM Mono,monospace" }}>&middot; {logMinutes(l)}m</span>}
           {l.adjustedAt && <span className="bdg bp">adjusted</span>}
           {canManage && <button className="btn ghost bxs" onClick={() => startAdjust(l)}>Edit</button>}
         </div>))}
+        {actLogs.length > 1 && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--black2)", marginTop: 4 }}>Total actual: {actTotalMin}m</div>}
         {addingFor && addingFor.practiceActivityId === act.id && <TimeRangeForm start={addStart} end={addEnd} setStart={setAddStart} setEnd={setAddEnd} onSave={saveAddRow} onCancel={() => setAddingFor(null)} busy={busy} saveLabel="Log time" />}
         {actLogs.some(l => l.id === editingLogId) && <TimeRangeForm start={editStart} end={editEnd} setStart={setEditStart} setEnd={setEditEnd} onSave={saveAdjust} onCancel={() => setEditingLogId(null)} busy={busy} />}
       </div>);

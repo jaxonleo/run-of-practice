@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups } from "../constants.js";
-import { savePracticeTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote } from "../supabase.js";
+import { savePracticeTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
@@ -768,6 +768,14 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
   const [showShare,setShowShare]=useState(false);
   const spoken=useRef({});
   const activityLogIdRef=useRef(null);
+  // Rapidly tapping through the Overview jump list (browsing for the right
+  // activity before landing on one) used to leave a real, permanent
+  // zero-duration log row behind for every activity passed through --
+  // closeCurrentLog below discards a log instead of closing it when it was
+  // open for under MIN_LOG_MS, so only genuinely-worked-on activities show
+  // up in Planned vs. Actual.
+  const activityLogOpenedAtRef=useRef(null);
+  const MIN_LOG_MS=3000;
 
   // ── Background audio session: a real <audio> element (not a bare
   // AudioContext oscillator, which Safari silently dropped -- see
@@ -912,6 +920,10 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
         if(cancelled)return;
         setPresentIds(new Set(Object.keys(latest).filter(pid=>latest[pid]==="present")));
         activityLogIdRef.current=await findOpenActivityLogId(existing.id);
+        // Reconstructed after a reload -- the real open time is unknown, so
+        // treat it as already past MIN_LOG_MS rather than risk deleting a
+        // genuine in-progress segment on the next transition.
+        activityLogOpenedAtRef.current=activityLogIdRef.current?0:null;
       }else{
         setStage("attend");
       }
@@ -990,10 +1002,16 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
   },[syncOffline]);
 
   const closeCurrentLog=useCallback(async()=>{
-    if(activityLogIdRef.current){await closeActivityLog(activityLogIdRef.current);activityLogIdRef.current=null;}
+    if(!activityLogIdRef.current)return;
+    const openedAt=activityLogOpenedAtRef.current;
+    const barelyOpen=openedAt!==null&&(Date.now()-openedAt)<MIN_LOG_MS;
+    if(barelyOpen)await deleteActivityLog(activityLogIdRef.current);
+    else await closeActivityLog(activityLogIdRef.current);
+    activityLogIdRef.current=null;activityLogOpenedAtRef.current=null;
   },[]);
   const openLogFor=useCallback(async(sessionId,target,presentPlayerIds)=>{
     activityLogIdRef.current=await openActivityLog(sessionId,coachId,target,presentPlayerIds);
+    activityLogOpenedAtRef.current=Date.now();
   },[coachId]);
   const openLogForActivityEntry=useCallback(async(sessionRow,act,stationIdx,presentPlayerIds)=>{
     if(!sessionRow||!act)return;

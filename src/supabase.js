@@ -1118,6 +1118,16 @@ export async function closeActivityLog(logId) {
   if (error) console.error('closeActivityLog:', error)
 }
 
+// Discards a log row instead of closing it -- used when a jump-navigation
+// (Overview list) passed through an activity for under MIN_LOG_MS, so a
+// glance while browsing doesn't leave a permanent zero-duration entry in
+// Planned vs. Actual.
+export async function deleteActivityLog(logId) {
+  if (!logId) return
+  const { error } = await supabase.from('session_activity_log').delete().eq('id', logId)
+  if (error) console.error('deleteActivityLog:', error)
+}
+
 // expires_at is NOT NULL with no default -- 24h covers same-day overrun
 // without leaving a share link valid indefinitely. scope: 'helper_read'
 // (follow-along, default) or 'helper_attendance' (also lets the link mark
