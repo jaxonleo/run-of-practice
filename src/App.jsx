@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } from "react";
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider, Navigate, Outlet, useNavigate, useParams, useBlocker } from "react-router-dom";
+import { Analytics } from '@vercel/analytics/react';
 import Layout from "./Layout.jsx";
 import PlanScreen from "./components/PlanScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
@@ -446,6 +447,7 @@ export default function App(){
 
   return (<AppCtx.Provider value={ctxValue}>
     <RouterProvider router={router}/>
+    <Analytics />
   </AppCtx.Provider>);
 }
 
@@ -1125,4 +1127,3 @@ function NotesTab({data,update}){
     </div>
   );
 }
-
