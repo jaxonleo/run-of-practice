@@ -8,8 +8,7 @@ const CONTACT_EMAIL = "contact@runofpractice.com";
 // no shared state needed, they're all deriving from the same Date.now() math.
 const PAGE_LOAD_MS = Date.now();
 const CLOCK_STATION_BLOCK_START = 4 * 60 + 12; // 04:12, shared by hero/watch/helper detail
-const CLOCK_THROWING_START = 6 * 60 + 45; // 06:45, Live Practice View only
-const CLOCK_BATTING_CAGE_START = -(1 * 60 + 20); // -01:20, already over, counts further negative
+const CLOCK_LIVE_DEFAULT_START = 6 * 60 + 45; // 06:45, Live Practice View only
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(() => window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -154,15 +153,6 @@ const LP_CSS = `
   .lp-row.wide-visual .lp-visual{flex:1 1 auto;}
 }
 .lp-phone{background:#fff;border:1px solid var(--b);border-radius:20px;padding:16px;box-shadow:0 20px 50px rgba(0,0,0,.14);text-align:left;color:var(--black);width:100%;max-width:var(--mock-card-primary);margin:0 auto;}
-.lp-duo{position:relative;display:flex;align-items:flex-end;justify-content:center;width:100%;}
-.lp-duo .lp-phone{margin:0;}
-.lp-duo .lp-card-primary{flex:1 1 var(--mock-card-primary);max-width:var(--mock-card-primary);min-width:0;}
-.lp-duo .lp-card-secondary{flex:0 1 var(--mock-card-secondary);max-width:var(--mock-card-secondary);min-width:0;margin-left:-32px;position:relative;z-index:2;}
-@media (max-width:559px){
-  .lp-duo{flex-direction:column;align-items:stretch;}
-  .lp-duo .lp-card-primary,.lp-duo .lp-card-secondary{flex:none;width:100%;max-width:none;margin-left:0;}
-  .lp-duo .lp-card-secondary{margin-top:14px;}
-}
 .lp-duo-fixed{position:relative;display:flex;align-items:flex-end;justify-content:center;flex-wrap:wrap;width:100%;}
 .lp-duo-fixed .lp-card-primary{flex:0 0 var(--mock-card-primary);width:var(--mock-card-primary);max-width:100%;}
 .lp-duo-fixed .lp-phoneframe-wrap{flex:0 0 300px;width:300px;max-width:100%;margin-left:-32px;position:relative;z-index:2;}
@@ -268,7 +258,7 @@ function Header({ onGetStarted }) {
 // but they render with the exact same design tokens as the live app.
 function ScheduleVisual() {
   const rows = [
-    { day: "Today", t: "12U Red Practice", time: "4:00 PM", icon: "✓", color: "var(--green)", status: "85/90 min" },
+    { day: "Today", t: "12U Red Practice", time: "4:00 PM", icon: "✓", color: "var(--green)", status: "90/90 min" },
     { day: "Today", t: "10U Blue Practice", time: "5:30 PM", icon: null, color: "var(--td)", status: "Needs plan" },
     { day: "Tomorrow", t: "12U Red Practice", time: "4:00 PM", icon: "◐", color: "var(--amber)", status: "40/90 min" },
   ];
@@ -331,7 +321,7 @@ function LocationLine({ text, style }) {
 
 function StationsVisual() {
   const stations = [
-    { label: "Station 1", area: "Infield", chips: [{ n: "Timmy", t: "here" }, { n: "Billy", t: "here" }, { n: "Bobby", t: "here" }] },
+    { label: "Station 1", area: "Infield", chips: [{ n: "Leo", t: "here" }, { n: "Owen", t: "here" }, { n: "Mason", t: "here" }] },
     { label: "Station 2", area: "Batting Cage 1", chips: [{ n: "Ava", t: "here" }, { n: "Jordan", t: "here" }] },
     { label: "Station 3", area: "Outfield", chips: [{ n: "Max", t: "here" }, { n: "Riley", t: "here" }, { n: "Sam", t: "other" }] },
   ];
@@ -383,15 +373,15 @@ function TemplatesVisual() {
 }
 
 function LiveVisual({
-  drill = "Throwing Progression",
+  drill = "Defensive Shell Drill",
   roundLabel = null,
-  location = "Outfield · Eastside Park",
-  startSeconds = CLOCK_THROWING_START,
-  description = "Partners start at 30 feet, step back to 45 and 60 as arms loosen. Focus throws to the chest, receiver gives a target.",
-  focus = "Hit the chest. Point your front shoulder, follow your throw.",
-  skills = ["Arm Care", "Accuracy"],
-  upNextName = "Station Block",
-  upNextMins = "45m",
+  location = "Court 1 · Eastside Rec Center",
+  startSeconds = CLOCK_LIVE_DEFAULT_START,
+  description = "Four defenders in a shell around the key, one ball reversed side to side. Close out low and hard on the catch, stay in a stance.",
+  focus = "Sprint to close out, then chop your feet down. Contest without fouling.",
+  skills = ["Defense", "Footwork"],
+  upNextName = "3-on-3 Scrimmage",
+  upNextMins = "20m",
 }) {
   const { display, over, minutesBehind } = useCountdown(startSeconds);
   return (<div className="lp-phone">
@@ -438,9 +428,9 @@ function StationOverviewRow({ label, drill, area, coach, chips }) {
 // pausable/adjustable clock. Stations (drill/coach/location) are fixed;
 // only the player groups rotate through them each round.
 const HERO_ROTATION = [
-  { infield: ["Timmy", "Billy", "Bobby"], cage: ["Ava", "Jordan"] },
+  { infield: ["Leo", "Owen", "Mason"], cage: ["Ava", "Jordan"] },
   { infield: ["Ava", "Jordan"], cage: ["Max", "Riley", "Sam"] },
-  { infield: ["Max", "Riley", "Sam"], cage: ["Timmy", "Billy", "Bobby"] },
+  { infield: ["Max", "Riley", "Sam"], cage: ["Leo", "Owen", "Mason"] },
 ];
 function playerTone(name) { return name === "Sam" ? "other" : "here"; }
 
@@ -584,7 +574,7 @@ function HelperVisual() {
   return (<div className="lp-duo-fixed">
     <div className="lp-phone lp-card-primary">
       <div className="clbl">All Stations</div>
-      <StationOverviewRow label="Station 1" drill="Ground Ball Fundamentals" area="Infield" coach="Coach Mike" chips={<><StationChip name="Timmy" tone="here" /><StationChip name="Billy" tone="here" /><StationChip name="Bobby" tone="here" /></>} />
+      <StationOverviewRow label="Station 1" drill="Ground Ball Fundamentals" area="Infield" coach="Coach Mike" chips={<><StationChip name="Leo" tone="here" /><StationChip name="Owen" tone="here" /><StationChip name="Mason" tone="here" /></>} />
       <StationOverviewRow label="Station 2" drill="Front Toss" area="Batting Cage 1" coach="Coach Jen" chips={<><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></>} />
       <StationOverviewRow label="Station 3" drill="Fly Ball Reads" area="Outfield" coach="Coach Dana" chips={<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="here" /><StationChip name="Sam" tone="other" /></>} />
     </div>
@@ -604,12 +594,13 @@ function FocusVisual() {
 function AdjustVisual() {
   const t = useStepTimer(13 * 60, 4);
   return (<div className={"lp-phone" + (t.flash ? " lp-flash-green" : "")}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-      <span style={{ color: "var(--black)", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 700 }}>Station Block</span>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+      <span style={{ color: "var(--black)", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 700 }}>Small-Sided Scrimmage</span>
       {t.over
         ? <span style={{ background: "var(--ambg)", color: "var(--amber)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{Math.abs(t.aheadMinutes)}m behind</span>
         : <span style={{ background: "var(--gbg)", color: "var(--green)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{t.aheadMinutes}m ahead</span>}
     </div>
+    <LocationLine text="Field 2 · Riverside Complex" style={{ marginBottom: 8 }} />
     <div className="cc-timer" style={{ fontSize: 34, fontVariantNumeric: "tabular-nums", marginBottom: 8 }}>{t.display}</div>
     <div className="brow" style={{ marginBottom: 8 }}>
       <button className="btn ghost bsm" style={{ flex: 1, minHeight: 44 }} aria-label="Add one minute to activity timer" onClick={() => t.bump(1)}>+1m</button>
@@ -622,24 +613,8 @@ function AdjustVisual() {
   </div>);
 }
 
-function TimerVisual() {
-  const { display } = useCountdown(CLOCK_BATTING_CAGE_START);
-  return (<div className="lp-phone">
-    <div className="cc-act-name">Front Toss</div>
-    <LocationLine text="Batting Cage 1 · Eastside Park" style={{ marginTop: 2, marginBottom: 8 }} />
-    <div className="cc-timer over" style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div>
-  </div>);
-}
-
-function AdjustTimerVisual() {
-  return (<div className="lp-duo">
-    <div className="lp-card-primary"><AdjustVisual /></div>
-    <div className="lp-card-secondary"><TimerVisual /></div>
-  </div>);
-}
-
 const ROTATION_MOVES = [
-  { names: "Timmy, Billy, Bobby", from: "Station 1: Infield · Coach Mike", to: "Station 2: Batting Cage 1 · Coach Jen", bring: "helmets, bats" },
+  { names: "Leo, Owen, Mason", from: "Station 1: Infield · Coach Mike", to: "Station 2: Batting Cage 1 · Coach Jen", bring: "helmets, bats" },
   { names: "Ava, Jordan", from: "Station 2: Batting Cage 1 · Coach Jen", to: "Station 3: Outfield · Coach Dana", bring: "gloves" },
   { names: "Max, Riley, Sam", from: "Station 3: Outfield · Coach Dana", to: "Station 1: Infield · Coach Mike", bring: "gloves" },
 ];
@@ -667,7 +642,7 @@ function HistoryVisual() {
     </div>
     <div className="card" style={{ marginBottom: 10 }}>
       <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>End of Practice Notes</div>
-      <div style={{ fontSize: 13, color: "var(--black)" }}>Cage 1 group needs more reps on the outside pitch. Timmy's throws sailing high, check grip next week.</div>
+      <div style={{ fontSize: 13, color: "var(--black)" }}>Cage 1 group needs more reps on the outside pitch. Leo's throws sailing high, check grip next week.</div>
     </div>
     <button className="btn primary bxl bfull mb8">Run Again</button>
     <button className="btn ghost bmd bfull">Save as Template</button>
@@ -720,7 +695,7 @@ function WatchAlertScreen() {
     </div>
     <div className="lp-w-rotate">ROTATE NOW</div>
     <div className="lp-w-move-card">
-      <div className="who">Timmy, Billy, Bobby</div>
+      <div className="who">Leo, Owen, Mason</div>
       <div className="to">&rarr; <strong>Batting Cage 1</strong> &middot; Coach Jen</div>
     </div>
     <div className="lp-w-done-btn">GOT IT</div>
@@ -797,16 +772,16 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Transition Support" title="Rotate stations without stopping practice." reverse visual={<TransitionVisual />} body={[
-      "Before each rotation, every coach sees their next drill, next location, which players are coming, and what equipment moves with them. Groups rotate on their own. You never call everyone in to explain the next setup.",
+      "Before each rotation, every coach sees their drill, location, where to send players, and which players are coming. You never call everyone in to explain the next setup.",
     ]} />
 
-    <Section eyebrow="Live Adjustments & Timers" title="Practice never goes to plan. That's fine." visual={<AdjustTimerVisual />} body={[
+    <Section eyebrow="Live Adjustments & Timers" title="Practice never goes to plan. That's fine." visual={<AdjustVisual />} body={[
       "Add a minute, cut a drill short, or skip ahead. The schedule recalculates as you go, so you always know if you're ahead or behind. Timers run into negative time: you see a drill went two minutes over instead of losing the thread. Drills that need cleanup can warn the group before time is up.",
     ]} />
 
     <div className="lp-section tight dark" style={{ textAlign: "center" }}>
       <div className="lp-wrap" style={{ maxWidth: 640 }}>
-        <div className="lp-title">A smooth practice starts before you get to the field.</div>
+        <div className="lp-title">A smooth practice starts before you get to the field or the court.</div>
         <div className="lp-body">Everything the live view shows (drills, groups, stations, equipment) comes from a plan you build in minutes, not the night before at the kitchen table.</div>
       </div>
     </div>
@@ -836,7 +811,7 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Practice History" title="Keep the plan and what actually happened together." reverse visual={<HistoryVisual />} body={[
-      "After practice: attendance, actual drill times, what changed on the fly, and notes on what needs more work. Next week's plan starts from what your team actually did, not what you hoped it would do.",
+      "After practice: attendance, actual drill times, what changed on the fly, and notes on what needs more work. That history feeds straight into next week's plan.",
     ]} />
 
     <div className="lp-section tight">
