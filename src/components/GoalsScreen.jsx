@@ -372,7 +372,15 @@ export default function GoalsScreen({ data, teamId, coachId }) {
   const [goals, setGoals] = useState(null);
   const [report, setReport] = useState(null);
   const [history, setHistory] = useState(null);
-  const [openSession, setOpenSession] = useState(null);
+  const [openSessionId, setOpenSessionId] = useState(null);
+  // Re-derived from `history` every render (not stored as its own object)
+  // so that toggling exclude/restore -- which refreshes `history` but was
+  // otherwise leaving this stale -- actually shows up: previously the
+  // Restore button called the right RPC and it succeeded server-side, but
+  // the screen kept rendering the session object captured at the moment you
+  // opened it, so the label never changed and it looked like nothing
+  // happened.
+  const openSession = openSessionId ? (history || []).find(h => h.session_id === openSessionId) || null : null;
 
   const refreshGoals = useCallback(() => fetchTeamGoals(teamId).then(setGoals), [teamId]);
   const refreshReport = useCallback(() => fetchTeamGoalReport(teamId).then(setReport), [teamId]);
@@ -390,7 +398,7 @@ export default function GoalsScreen({ data, teamId, coachId }) {
   if (openSession) {
     const practice = data.practices.find(p => p.id === openSession.practice_id);
     return <SessionHistoryDetail session={openSession} practice={practice} canManage={canManage}
-      onBack={() => setOpenSession(null)}
+      onBack={() => setOpenSessionId(null)}
       onChanged={() => { refreshAll(); }} />;
   }
 
@@ -401,6 +409,6 @@ export default function GoalsScreen({ data, teamId, coachId }) {
     {canManage && <GoalsEditor teamId={teamId} team={team} data={data} coachId={coachId} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
     <GlanceView report={report} />
     <div className="clbl mb8" style={{ marginTop: 4 }}>History</div>
-    <HistoryList history={history} data={data} canManage={canManage} onOpen={setOpenSession} />
+    <HistoryList history={history} data={data} canManage={canManage} onOpen={s => setOpenSessionId(s.session_id)} />
   </div>);
 }
