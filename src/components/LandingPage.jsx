@@ -253,7 +253,7 @@ function Header({ onGetStarted }) {
     <a href="#top" className="lp-brand"><img src="/apple-touch-icon.png" alt="" /><span>Run of Practice</span></a>
     <div className="lp-nav">
       <a className="lp-navlink hideonsm" href="#how-it-works">How It Works</a>
-      <a className="lp-navlink hideonsm" href="#how-it-works">Features</a>
+      <a className="lp-navlink hideonsm" href="#features">Features</a>
       <a className="lp-navlink hideonsm" href="#early-access">Early Access</a>
       <button className="lp-signin" onClick={onGetStarted}>Sign In</button>
       <button className="btn primary bsm" onClick={onGetStarted}>Try It Free</button>
@@ -320,9 +320,16 @@ function BuilderVisual() {
   </div>);
 }
 
-function StationChip({ name, tone }) {
+// `note` mirrors the real app's station chips (CommandScreen.jsx): a
+// player's individual focus note rendered right under their name, not
+// hidden behind a tap -- whoever picked up this station already knows
+// what the coach wants them to say.
+function StationChip({ name, tone, note }) {
   const map = { here: { b: "var(--green)", bg: "var(--green)", c: "#fff" }, other: { b: "#d97706", bg: "#fef3c7", c: "#92400e" }, none: { b: "var(--b)", bg: "var(--s1)", c: "var(--black)" } }[tone];
-  return <span style={{ padding: "5px 9px", borderRadius: 8, border: "1.5px solid " + map.b, background: map.bg, color: map.c, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{name}</span>;
+  return (<span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 1, maxWidth: note ? 150 : undefined }}>
+    <span style={{ padding: "5px 9px", borderRadius: 8, border: "1.5px solid " + map.b, background: map.bg, color: map.c, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{name}</span>
+    {note && <span style={{ fontSize: 10, color: "var(--green2)", lineHeight: 1.3, whiteSpace: "normal" }}>{note}</span>}
+  </span>);
 }
 
 function LocationLine({ text, style }) {
@@ -333,7 +340,7 @@ function StationsVisual() {
   const stations = [
     { label: "Station 1", area: "Infield", chips: [{ n: "Ryker", t: "here" }, { n: "Owen", t: "here" }, { n: "Mason", t: "here" }] },
     { label: "Station 2", area: "Batting Cage 1", chips: [{ n: "Ava", t: "here" }, { n: "Jordan", t: "here" }] },
-    { label: "Station 3", area: "Outfield", chips: [{ n: "Max", t: "here" }, { n: "Riley", t: "here" }, { n: "Sam", t: "other" }] },
+    { label: "Station 3", area: "Outfield", chips: [{ n: "Max", t: "here" }, { n: "Riley", t: "here" }, { n: "Sam", t: "here" }] },
   ];
   return (<div className="lp-phone">
     <div style={{ display: "flex", borderRadius: "var(--r)", overflow: "hidden", border: "1.5px solid var(--b)", marginBottom: 8 }}>
@@ -361,7 +368,9 @@ const PRE_SETUP_STATIONS = [
   { name: "Front Toss", area: "Batting Cage 1", coach: "Coach Jen", equip: ["L-Screen"] },
   { name: "Fly Ball Reads", area: "Outfield", coach: "Ava's Dad (helper)", equip: [] },
 ];
+const CLOCK_PRESETUP_START = 28 * 60 + 41; // 28:41, Pre-Practice Setup only
 function PreSetupVisual() {
+  const { display, over } = useCountdown(CLOCK_PRESETUP_START);
   return (<div className="lp-phone" style={{ background: "#0d1512", borderColor: "#0d1512" }}>
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
       <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#52b788", display: "inline-block", flexShrink: 0 }} />
@@ -370,9 +379,9 @@ function PreSetupVisual() {
     </div>
     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 24, fontWeight: 900, color: "#fff", marginBottom: 14 }}>12U Red</div>
     <div style={{ textAlign: "center", padding: "8px 0 16px", borderBottom: "1px solid rgba(255,255,255,.1)", marginBottom: 16 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#52b788", marginBottom: 6 }}>Starts In</div>
-      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 32, fontWeight: 700, color: "#fff" }}>28:41</div>
-      <div style={{ fontSize: 11, color: "#666", marginTop: 4 }}>Use this time to set up stations</div>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: over ? "#f59e0b" : "#52b788", marginBottom: 6 }}>{over ? "Practice Should Have Started" : "Starts In"}</div>
+      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 32, fontWeight: 700, color: over ? "#f59e0b" : "#fff" }}>{display}</div>
+      <div style={{ fontSize: 11, color: "#666", marginTop: 4 }}>{over ? "Waiting for the coach to start" : "Use this time to set up stations"}</div>
     </div>
     <div style={{ marginBottom: 16 }}>
       <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#ca8a04", marginBottom: 8 }}>Equipment Needed</div>
@@ -465,7 +474,7 @@ const HERO_ROTATION = [
   { infield: ["Ava", "Jordan"], cage: ["Max", "Riley", "Sam"] },
   { infield: ["Max", "Riley", "Sam"], cage: ["Ryker", "Owen", "Mason"] },
 ];
-function playerTone(name) { return name === "Sam" ? "other" : "here"; }
+function playerTone() { return "here"; }
 
 function HeroPrimaryCard({ round, clock, rotateFlash, players, onPauseToggle, onAdjust, onNext }) {
   return (<div className="lp-phone" style={{ position: "relative" }}>
@@ -599,29 +608,26 @@ function StationDetailVisual() {
         <span style={{ border: "1.5px solid #fde047", borderRadius: 20, padding: "3px 10px", fontSize: 12, color: "#854d0e", fontWeight: 600, background: "#fff", whiteSpace: "nowrap" }}>Bucket of Balls</span>
       </div>
     </div>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></div>
+    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 8 }}>Players at this station</div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}><StationChip name="Ava" tone="here" note="Keep the front foot closed, drive through the ball." /><StationChip name="Jordan" tone="here" /></div>
   </div>);
 }
 
+// One list, one detail view -- a coach's per-player note (set once on
+// their profile) shows up right on the chip wherever that player lands,
+// so an assistant or parent helper running any given station already
+// knows what the coach wants them to hear. Folds what used to be a
+// separate "Player Profiles" screenshot into the one story it was
+// actually telling.
 function HelperVisual() {
   return (<div className="lp-duo-fixed">
     <div className="lp-phone lp-card-primary">
       <div className="clbl">All Stations</div>
       <StationOverviewRow label="Station 1" drill="Ground Ball Fundamentals" area="Infield" coach="Coach Mike" chips={<><StationChip name="Ryker" tone="here" /><StationChip name="Owen" tone="here" /><StationChip name="Mason" tone="here" /></>} />
-      <StationOverviewRow label="Station 2" drill="Front Toss" area="Batting Cage 1" coach="Coach Jen" chips={<><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></>} />
-      <StationOverviewRow label="Station 3" drill="Fly Ball Reads" area="Outfield" coach="Coach Dana" chips={<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="here" /><StationChip name="Sam" tone="other" /></>} />
+      <StationOverviewRow label="Station 2" drill="Front Toss" area="Batting Cage 1" coach="Coach Jen" chips={<><StationChip name="Ava" tone="here" note="Keep the front foot closed, drive through the ball." /><StationChip name="Jordan" tone="here" /></>} />
+      <StationOverviewRow label="Station 3" drill="Fly Ball Reads" area="Outfield" coach="Coach Dana" chips={<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="here" /><StationChip name="Sam" tone="here" /></>} />
     </div>
     <div className="lp-phoneframe-wrap"><PhoneFrame><StationDetailVisual /></PhoneFrame></div>
-  </div>);
-}
-
-// The pairing the copy is about: build the profile once (left), then that
-// same tag note surfaces on its own at the station (right) -- two mockups,
-// one story, same layout HelperVisual already uses for a related pair.
-function RosterDuoVisual() {
-  return (<div className="lp-duo-fixed">
-    <PlayerProfileVisual />
-    <div className="lp-phoneframe-wrap"><PhoneFrame><StationNoteVisual /></PhoneFrame></div>
   </div>);
 }
 
@@ -689,66 +695,6 @@ function HistoryVisual() {
     </div>
     <button className="btn primary bxl bfull mb8">Run Again</button>
     <button className="btn ghost bmd bfull">Save as Template</button>
-  </div>);
-}
-
-function SkillNoteRow({ tag, note }) {
-  return (<div style={{ marginBottom: 8 }}>
-    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--black2)", marginBottom: 3 }}>{tag}</div>
-    {note
-      ? <div style={{ background: "var(--s2)", border: "1px solid var(--b)", borderRadius: "var(--rs)", padding: "7px 10px", fontSize: 12.5, color: "var(--black)", lineHeight: 1.4 }}>{note}</div>
-      : <div style={{ background: "var(--s2)", border: "1px dashed var(--b)", borderRadius: "var(--rs)", padding: "7px 10px", fontSize: 12, color: "var(--td)" }}>What's this player working on...</div>}
-  </div>);
-}
-
-function PlayerProfileVisual() {
-  return (<div className="lp-phone lp-card-primary">
-    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
-      <div>
-        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900 }}>Ryker Thompson</div>
-        <div style={{ fontSize: 12, color: "var(--td)" }}>12U Red · #4</div>
-      </div>
-      <span className="btn outline bxs" style={{ pointerEvents: "none" }}>Edit</span>
-    </div>
-    <div className="clbl mb8">Positions &amp; Handedness</div>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-      <span className="bdg bs">1B</span><span className="bdg bs">RF</span>
-    </div>
-    <div style={{ display: "flex", gap: 18, marginBottom: 16 }}>
-      <div><div style={{ fontSize: 10, color: "var(--td)", textTransform: "uppercase", letterSpacing: ".06em" }}>Bats</div><div style={{ fontSize: 14, fontWeight: 700 }}>Right</div></div>
-      <div><div style={{ fontSize: 10, color: "var(--td)", textTransform: "uppercase", letterSpacing: ".06em" }}>Throws</div><div style={{ fontSize: 14, fontWeight: 700 }}>Right</div></div>
-    </div>
-    <div className="clbl mb8">Skill Notes</div>
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 14, fontWeight: 800, marginBottom: 8 }}>Hitting</div>
-    <SkillNoteRow tag="Bat Path" note="Getting long to the ball -- drop hands first, stay inside it." />
-    <SkillNoteRow tag="Two-Strike Approach" note="" />
-  </div>);
-}
-
-// Same player, mid-drill: the Bat Path note he has on his profile shows up
-// automatically because Front Toss has that skill tag selected -- no
-// separate step to "assign" it station by station.
-function StationNoteVisual() {
-  const { display, over } = useCountdown(CLOCK_STATION_BLOCK_START);
-  return (<div className="lp-phone">
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 2 }}>Station 2</div>
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Front Toss</div>
-    <LocationLine text="Batting Cage 1 · Eastside Park" style={{ marginBottom: 3 }} />
-    <div className="limt" style={{ marginBottom: 6 }}>Coach Jen</div>
-    <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
-      <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 40, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
-    </div>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-      <span className="bdg bs" style={{ fontSize: 10 }}>Hitting</span><span className="bdg bs" style={{ fontSize: 10 }}>Contact</span>
-    </div>
-    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 8 }}>Players at this station</div>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-start" }}>
-      <div style={{ padding: "6px 12px", borderRadius: 20, border: "1.5px solid var(--gb)", background: "var(--gbg)", display: "flex", flexDirection: "column", gap: 2, maxWidth: 190 }}>
-        <span style={{ fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><span style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: "var(--green)" }}>#4</span>Ryker</span>
-        <span style={{ fontSize: 11, fontWeight: 500, color: "var(--green2)", lineHeight: 1.3 }}>Getting long to the ball -- drop hands first, stay inside it.</span>
-      </div>
-      <div style={{ padding: "6px 12px", borderRadius: 20, border: "1.5px solid var(--gb)", background: "var(--gbg)", fontSize: 14, fontWeight: 600 }}>Ava</div>
-    </div>
   </div>);
 }
 
@@ -866,8 +812,8 @@ export default function LandingPage({ onGetStarted }) {
       "What's happening now, time remaining, the coaching focus, which players, which coach, which field, and what's next. No clipboard, no stopwatch, no flipping between notes.",
     ]} />
 
-    <Section eyebrow="Assistant and Helper Views" title="The same live plan in every coach's hands." reverse wideVisual visual={<HelperVisual />} body={[
-      "Assistant coaches see their team's practices automatically. Parent helpers get a link: no account, no app to download. Everyone sees their drill, their players, their coaching points, and where they go next.",
+    <Section eyebrow="Assistant and Helper Views" title="Every helper relays exactly what the coach wrote." reverse wideVisual visual={<HelperVisual />} body={[
+      "Assistant coaches see their team's practices automatically. Parent helpers get a link, no account needed and nothing to download. Everyone sees the same timer, the same drill and the same coaching focus. Set a note for a player under a skill like Shooting or Hitting, and it follows them to whatever station they land at, so whoever is running that station already knows what the coach wants them to work on.",
     ]} />
 
     <Section eyebrow="Consistent Coaching" title="Every station teaches the same thing." visual={<FocusVisual />} body={[
@@ -889,12 +835,8 @@ export default function LandingPage({ onGetStarted }) {
       </div>
     </div>
 
-    <Section eyebrow="Practice Builder" title="Build the practice in the order it will happen." reverse visual={<BuilderVisual />} body={[
+    <Section id="features" eyebrow="Practice Builder" title="Build the practice in the order it will happen." reverse visual={<BuilderVisual />} body={[
       "Set your total time, then add warmups, drills, stations, breaks and scrimmage. Pull from your library or write something new. The running total tells you whether the plan fits the time you have.",
-    ]} />
-
-    <Section eyebrow="Player Profiles" title="Positions, handedness, and what each player is working on." reverse wideVisual visual={<RosterDuoVisual />} body={[
-      "Set each player's positions and handedness for the sport you're coaching, then jot a quick note under any skill tag -- what they're working on, in your own words. The next time that tag comes up in a drill, the note is right there on their chip. No digging through a roster mid-practice.",
     ]} />
 
     <Section eyebrow="Stations and Groupings" title="Groups built from who actually showed up." visual={<StationsVisual />} body={[
@@ -902,14 +844,14 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Pre-Practice Setup" title="Everyone knows what to bring and where to go before the first whistle." reverse visual={<PreSetupVisual />} body={[
-      "Share one link with your assistants and helpers. It lays out the equipment needed at each station, who's coaching where, and a countdown to start -- so stations are already set up by the time players show up.",
+      "Share one link with your assistants and helpers. It lays out the equipment needed at each station, who's coaching where, and a countdown to start, so stations are already set up by the time players show up.",
     ]} />
 
     <Section eyebrow="Drill Library" title="Save a drill once. Use it all season." visual={<LibraryVisual />} body={[
       "Each drill keeps its setup, coaching points, skills, default duration and equipment. Add it to any practice in one tap. You never rebuild a drill you've already taught.",
     ]} />
 
-    <Section eyebrow="Schedule" title="Know which practices still need planning" reverse visual={<ScheduleVisual />} body={[
+    <Section eyebrow="Schedule" title="Know which practices still need planning." reverse visual={<ScheduleVisual />} body={[
       "Add one-time or recurring practices to your schedule. Each one shows its status so Thursday's practice doesn't sneak up on you Wednesday night.",
     ]} />
 
@@ -981,7 +923,7 @@ export default function LandingPage({ onGetStarted }) {
         <div style={{ fontSize: 13, marginTop: 10, maxWidth: 420 }}>Practice planning and live execution for coaches, assistants and helpers.</div>
         <div className="lp-footer-links">
           <a href="#how-it-works">How It Works</a>
-          <a href="#how-it-works">Features</a>
+          <a href="#features">Features</a>
           <a href="#early-access">Early Access</a>
           <button className="lp-signin" style={{ color: "#c9d6cf" }} onClick={onGetStarted}>Sign In</button>
           <a href={"mailto:" + CONTACT_EMAIL}>Contact</a>

@@ -770,6 +770,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
   const [reassignStationId,setReassignStationId]=useState(null);
   const [helperDraft,setHelperDraft]=useState("");
   const [reassignBusy,setReassignBusy]=useState(false);
+  const [showPlayerFocus,setShowPlayerFocus]=useState(false);
   const [showEllipsis,setShowEllipsis]=useState(false);
   const [showEditBuilder,setShowEditBuilder]=useState(false);
   const [focusSt,setFocusSt]=useState(null);
@@ -1218,15 +1219,24 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
   const SkillTagRow=({names})=>names.length?(<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
     {names.map(n=>(<span key={n} className="bdg bs" style={{fontSize:10}}>{n}</span>))}
   </div>):null;
-  // What this player is working on for one of the drill's selected skill
-  // tags -- shown right on their chip at the station, not just behind a
-  // tap, per the "visible at a glance" ask.
-  const noteForPlayerAtDrill=(pid,libraryId)=>{
+  // Player notes are per skill category, not per tag -- a drill tagged
+  // Catch-and-Shoot still matches a player's Shooting note. Map the
+  // drill's tags to their categories first, then match on those.
+  const categoryIdsForLibraryId=libraryId=>{
     const tagIds=tagIdsForLibraryId(libraryId);
-    if(!tagIds.length)return "";
+    const catIds=new Set();
+    tagIds.forEach(id=>{const t=(data.skillTags||[]).find(t=>t.id===id);if(t&&t.categoryId)catIds.add(t.categoryId);});
+    return [...catIds];
+  };
+  // What this player is working on for one of the drill's selected skill
+  // categories -- shown right on their chip at the station, not just
+  // behind a tap, per the "visible at a glance" ask.
+  const noteForPlayerAtDrill=(pid,libraryId)=>{
+    const catIds=categoryIdsForLibraryId(libraryId);
+    if(!catIds.length)return "";
     const pl=team&&team.players.find(p=>p.id===pid);
     if(!pl||!pl.focusAreas)return "";
-    return pl.focusAreas.filter(a=>tagIds.includes(a.skillTagId)&&a.note).map(a=>a.note).join(" · ");
+    return pl.focusAreas.filter(a=>catIds.includes(a.categoryId)&&a.note).map(a=>a.note).join(" · ");
   };
   // Not cleared until the write actually succeeds -- a network hiccup
   // during a live practice silently losing a typed note is exactly the
@@ -1410,7 +1420,6 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
         {running?<Ic.Pause/>:<Ic.Play/>}
       </button>}
       <div style={{flex:1}}/>
-      {schedBadge}
     </div>
     {isController&&<div style={{padding:"2px 14px 4px",display:"flex",gap:8,flexShrink:0}}>
       <button className="btn ghost bsm" style={{flex:1}} onClick={()=>nudge(-60)}>+1m</button>
@@ -1440,6 +1449,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
           <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{cur.coachingPoints}</div>
         </div>}
         <SkillTagRow names={tagNamesForLibraryId(cur.libraryId)}/>
+        {categoryIdsForLibraryId(cur.libraryId).length>0&&<button type="button" className="btn ghost bsm" style={{alignSelf:"flex-start"}} onClick={()=>setShowPlayerFocus(true)}>Player Focus</button>}
         {subName(cur.sublocationId)&&<div style={{borderLeft:"3px solid #2563eb",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#2563eb",marginBottom:3}}>📍 Location</div>
           <div style={{fontSize:14,color:"var(--black)",fontWeight:600}}>{subName(cur.sublocationId)}</div>
@@ -1585,7 +1595,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
                 {livePlayerProfile.focusAreas.map(a=>{
                   const cat=(data.skillCategories||[]).find(c=>c.id===a.categoryId);
                   return(<div key={a.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
-                    <div style={{fontSize:12,fontWeight:700,color:"var(--td)"}}>{cat?cat.name+" — ":""}{a.name}</div>
+                    <div style={{fontSize:12,fontWeight:700,color:"var(--td)"}}>{cat?cat.name:""}</div>
                     {a.note&&<div style={{fontSize:14,lineHeight:1.5,marginTop:2}}>{a.note}</div>}
                   </div>);
                 })}
@@ -1631,6 +1641,24 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
             </div>
           </div>
           <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>{setReassignStationId(null);setHelperDraft("");}}>Cancel</button>
+        </div>
+      </div>}
+      {showPlayerFocus&&cur&&<div className="movly" onClick={()=>setShowPlayerFocus(false)}>
+        <div className="modal" onClick={e=>e.stopPropagation()}>
+          <div className="mhandle"/>
+          <div className="mtitle">Player Focus</div>
+          <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>What each present player is working on for {tagNamesForLibraryId(cur.libraryId).join(", ")||"this drill"}.</div>
+          {(()=>{
+            const catIds=categoryIdsForLibraryId(cur.libraryId);
+            const present=(team?team.players:[]).filter(p=>presentIds.has(p.id));
+            const withNotes=present.map(p=>({p,notes:(p.focusAreas||[]).filter(a=>catIds.includes(a.categoryId)&&a.note)})).filter(x=>x.notes.length>0);
+            if(!withNotes.length)return <div style={{fontSize:14,color:"var(--td)",textAlign:"center",padding:"16px 0"}}>No player notes set for this yet.</div>;
+            return withNotes.map(({p,notes})=>(<div key={p.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
+              <div style={{fontSize:14,fontWeight:700,color:"var(--black)"}}>{p.jersey?"#"+p.jersey+" ":""}{p.firstName}</div>
+              {notes.map(n=>(<div key={n.id} style={{fontSize:13,color:"var(--black2)",marginTop:2}}>{n.note}</div>))}
+            </div>));
+          })()}
+          <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>setShowPlayerFocus(false)}>Close</button>
         </div>
       </div>}
     </div>

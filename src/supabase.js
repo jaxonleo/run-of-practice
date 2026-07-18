@@ -105,18 +105,14 @@ export async function fetchMyTeams() {
   const staff = staffRes.data || []
   const teamIds = (teamsRes.data || []).map(t => t.id)
 
-  const [focusRes, tagsRes, deactivatedRes] = await Promise.all([
-    players.length ? supabase.from('player_focus_areas').select('*').in('player_id', players.map(p => p.id)) : Promise.resolve({ data: [] }),
-    supabase.from('skill_tags').select('id, category_id, name').is('archived_at', null),
+  const [focusRes, deactivatedRes] = await Promise.all([
+    players.length ? supabase.from('player_focus_areas').select('id, player_id, category_id, note').in('player_id', players.map(p => p.id)) : Promise.resolve({ data: [] }),
     teamIds.length ? supabase.rpc('get_deactivated_staff_user_ids', { p_team_ids: teamIds }) : Promise.resolve({ data: [] }),
   ])
-  const tagsById = {}
-  for (const t of tagsRes.data || []) tagsById[t.id] = t
   const focusByPlayer = {}
   for (const fa of focusRes.data || []) {
-    const tag = tagsById[fa.skill_tag_id]
-    if (!tag) continue
-    ;(focusByPlayer[fa.player_id] ||= []).push({ id: fa.id, skillTagId: fa.skill_tag_id, name: tag.name, categoryId: tag.category_id, note: fa.note || '' })
+    if (!fa.category_id) continue
+    ;(focusByPlayer[fa.player_id] ||= []).push({ id: fa.id, categoryId: fa.category_id, note: fa.note || '' })
   }
   const deactivatedUserIds = new Set(deactivatedRes.data || [])
 
@@ -180,19 +176,20 @@ export async function removePlayerFocusArea(id) {
   if (error) console.error('removePlayerFocusArea:', error)
   return { error }
 }
-// One row per (player, skill tag) holds that tag's freeform note -- the
-// roster shows every global tag for the team's sport with its own text
-// field, so this is called on every edit rather than a separate
-// add-then-edit step. Clearing the text back to empty deletes the row
-// instead of leaving a blank one behind.
-export async function setPlayerFocusNote(playerId, skillTagId, note, createdBy, existingId) {
+// One row per (player, skill category) holds that category's freeform
+// note -- Shooting gets one note, not a separate one under each of
+// Form/Mechanics, Catch-and-Shoot, Off the Dribble and Free Throws.
+// Called on every edit rather than a separate add-then-edit step;
+// clearing the text back to empty deletes the row instead of leaving a
+// blank one behind.
+export async function setPlayerCategoryNote(playerId, categoryId, note, createdBy, existingId) {
   const trimmed = (note || '').trim()
   if (!trimmed) {
     if (existingId) await removePlayerFocusArea(existingId)
     return { error: null }
   }
-  const { error } = await supabase.from('player_focus_areas').upsert({ player_id: playerId, skill_tag_id: skillTagId, note: trimmed, created_by: createdBy }, { onConflict: 'player_id,skill_tag_id' })
-  if (error) console.error('setPlayerFocusNote:', error)
+  const { error } = await supabase.from('player_focus_areas').upsert({ player_id: playerId, category_id: categoryId, note: trimmed, created_by: createdBy }, { onConflict: 'player_id,category_id' })
+  if (error) console.error('setPlayerCategoryNote:', error)
   return { error }
 }
 
