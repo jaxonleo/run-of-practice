@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { createAsset, updateAsset, archiveAsset, archiveLocation, checkIsAdmin } from "../supabase.js";
+import { createAsset, updateAsset, archiveAsset, archiveLocation, checkIsAdmin, listAdmins, grantAdmin, revokeAdmin } from "../supabase.js";
 import { SkillsTab } from "./NewLibraryScreen.jsx";
 
 // Settings hub (nav restructure, 2026-07-15): one home for the low-frequency
@@ -237,6 +237,49 @@ function LocationsSection({data,openModal,refreshPlanning}){
   </div>);
 }
 
+// ── AdminsSection ──────────────────────────────────────────────────────────
+// Founder-admin only. This IS the extensibility path from the plan: granting
+// the same public-library/skill-tag write rights to another user later is
+// just adding them here by email -- grant_admin/revoke_admin (RLS: caller
+// must already be_admin()), same shape as LocationsSection above.
+function AdminsSection({}){
+  const [admins,setAdmins]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [email,setEmail]=useState("");
+  const [error,setError]=useState("");
+  const load=async()=>{setLoading(true);setAdmins(await listAdmins());setLoading(false);};
+  useEffect(()=>{load();},[]);
+  const add=async()=>{
+    if(!email.trim())return;
+    setError("");
+    const {error}=await grantAdmin(email.trim());
+    if(error){setError("No account found for that email, or it's already an admin.");return;}
+    setEmail("");
+    await load();
+  };
+  const remove=async userId=>{
+    const {error}=await revokeAdmin(userId);
+    if(error){setError("Can't remove the last remaining admin.");return;}
+    await load();
+  };
+  return(<div>
+    <div className="sechdr mb10"><span className="sectitle">{admins.length} Admin{admins.length!==1?"s":""}</span></div>
+    <div style={{fontSize:13,color:"var(--td)",marginBottom:14,lineHeight:1.4}}>Admins can add, edit, and remove Public Library drills and manage the global skill-tag taxonomy for every sport.</div>
+    {loading&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Loading...</div>}
+    {!loading&&admins.map(a=>(<div key={a.user_id} className="card" style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+      <div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700}}>{a.name||a.email}</div>{a.name&&<div style={{fontSize:12,color:"var(--td)"}}>{a.email}</div>}</div>
+      {admins.length>1&&<button className="btn ghost bxs" style={{color:"var(--red)"}} onClick={()=>remove(a.user_id)}>Remove</button>}
+    </div>))}
+    <div className="fld"><label className="lbl">Grant admin by email</label>
+      <div style={{display:"flex",gap:6}}>
+        <input className="inp" type="email" placeholder="coach@example.com" style={{flex:1}} value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()}/>
+        <button type="button" className="btn primary bxs" onClick={add}>Grant</button>
+      </div>
+      {error&&<div style={{fontSize:12,color:"var(--red)",marginTop:6}}>{error}</div>}
+    </div>
+  </div>);
+}
+
 export default function SettingsScreen({data,coachId,openModal,refreshLibrary,refreshPlanning,profile,coachEmail,saveName,onSignOut,onDeactivate}){
   const navigate=useNavigate();
   // null = the top-level list; otherwise which section is drilled into.
@@ -252,7 +295,7 @@ export default function SettingsScreen({data,coachId,openModal,refreshLibrary,re
     {id:"skills",label:"Skill Tags",sub:"Your coaching vocabulary for drills and goals"},
   ];
   const BackRow=()=>(<div style={{padding:"12px 14px 0"}}><button className="btn ghost bxs" onClick={()=>setSection(null)}>&#8249; Settings</button></div>);
-  const titles={account:"Account",locations:"My Locations",equipment:"Equipment & Gear",skills:"Skill Tags"};
+  const titles={account:"Account",locations:"My Locations",equipment:"Equipment & Gear",skills:"Skill Tags",admins:"Admins"};
 
   if(section)return(<div style={{paddingBottom:80}}>
     <BackRow/>
@@ -261,7 +304,8 @@ export default function SettingsScreen({data,coachId,openModal,refreshLibrary,re
       {section==="account"&&<AccountSection profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate}/>}
       {section==="locations"&&<LocationsSection data={data} openModal={openModal} refreshPlanning={refreshPlanning}/>}
       {section==="equipment"&&<EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal}/>}
-      {section==="skills"&&<SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary}/>}
+      {section==="skills"&&<SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} isAdmin={isAdmin}/>}
+      {section==="admins"&&<AdminsSection/>}
     </div>
   </div>);
 
@@ -282,6 +326,10 @@ export default function SettingsScreen({data,coachId,openModal,refreshLibrary,re
       </div>))}
       {isAdmin&&<div className="li tap" style={{marginBottom:8}} onClick={()=>navigate("/admin/metrics")}>
         <div className="lim"><div className="lin">Founder Metrics</div></div>
+        <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+      </div>}
+      {isAdmin&&<div className="li tap" style={{marginBottom:8}} onClick={()=>setSection("admins")}>
+        <div className="lim"><div className="lin">Admins</div><div className="limt">Who can manage the Public Library and skill tags</div></div>
         <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
       </div>}
     </div>

@@ -267,7 +267,7 @@ const EQUIP_TYPE_TO_OLD = { team_equipment: 'team', player_gear: 'player' }
 const OLD_TO_EQUIP_TYPE = { team: 'team_equipment', player: 'player_gear' }
 
 function mapAssetRow(a) {
-  return { id: a.id, name: a.name, type: EQUIP_TYPE_TO_OLD[a.type] || a.type, sport: a.sport, organizationId: a.organization_id, ownerUserId: a.owner_user_id }
+  return { id: a.id, name: a.name, type: EQUIP_TYPE_TO_OLD[a.type] || a.type, sport: a.sport, organizationId: a.organization_id, ownerUserId: a.owner_user_id, sourceCatalogId: a.source_catalog_id }
 }
 function mapSkillTagRow(t) {
   return { id: t.id, categoryId: t.category_id, scope: t.scope, organizationId: t.organization_id, ownerUserId: t.owner_user_id, name: t.name }
@@ -278,22 +278,27 @@ function mapDrillRow(a, equipmentByDrill, tagsByDrill) {
     duration: a.duration_minutes || 10, description: a.description || '', coachingPoints: a.coaching_points || '',
     grouping: a.grouping || 'whole', numGroups: a.num_groups || 2,
     organizationId: a.organization_id, ownerUserId: a.owner_user_id, sharedWithOrganizationId: a.shared_with_organization_id,
+    sourceCatalogId: a.source_catalog_id,
     updatedAt: a.updated_at, position: a.position || 0,
     equipment: equipmentByDrill[a.id] || [],
     skillTagIds: tagsByDrill[a.id] || [],
   }
 }
+function mapCatalogRow(c) {
+  return { id: c.id, name: c.name, sport: c.sport, publisherName: c.publisher_name, publisherType: c.publisher_type, visibility: c.visibility, description: c.description }
+}
 
 export async function fetchLibraryData() {
-  const [assetsRes, categoriesRes, tagsRes, drillsRes, equipRes, drillTagsRes, orgsRes, profilesRes] = await Promise.all([
+  const [assetsRes, categoriesRes, tagsRes, drillsRes, equipRes, drillTagsRes, orgsRes, profilesRes, catalogsRes] = await Promise.all([
     supabase.from('assets').select('*').is('archived_at', null),
-    supabase.from('skill_categories').select('*'),
+    supabase.from('skill_categories').select('*').is('archived_at', null),
     supabase.from('skill_tags').select('*').is('archived_at', null),
     supabase.from('activity_library').select('*').is('archived_at', null).order('position'),
     supabase.from('activity_library_equipment').select('*'),
     supabase.from('drill_tags').select('*'),
     supabase.from('organization_members').select('organization_id, role, organizations(id, name)').is('archived_at', null),
     supabase.from('profiles').select('id, email, first_name, last_name'), // own row + org co-members, per RLS
+    supabase.from('content_catalogs').select('*').is('archived_at', null),
   ])
   if (drillsRes.error) console.error('fetchLibraryData drills:', drillsRes.error)
   if (assetsRes.error) console.error('fetchLibraryData assets:', assetsRes.error)
@@ -312,12 +317,22 @@ export async function fetchLibraryData() {
     activityLibrary: (drillsRes.data || []).map(a => mapDrillRow(a, equipmentByDrill, tagsByDrill)),
     myOrgs: (orgsRes.data || []).map(m => ({ id: m.organization_id, name: m.organizations ? m.organizations.name : '', role: m.role })),
     profilesById,
+    catalogs: (catalogsRes.data || []).map(mapCatalogRow),
   }
 }
 
 export async function createAsset(ownerUserId, { name, sport, type }) {
   const { data, error } = await supabase.from('assets').insert({ name, sport: sport || 'General', type: OLD_TO_EQUIP_TYPE[type] || type || 'team_equipment', owner_user_id: ownerUserId }).select().single()
   if (error) console.error('createAsset:', error)
+  return { data: data ? mapAssetRow(data) : null, error }
+}
+// Founder-admin equivalent of createAsset for public-catalog equipment --
+// owned by the catalog (source_catalog_id) instead of a coach, per the
+// activity_has_owner/asset_has_owner constraint relaxation (no fake system
+// account needed).
+export async function createCatalogAsset(catalogId, { name, sport, type }) {
+  const { data, error } = await supabase.from('assets').insert({ name, sport: sport || 'General', type: OLD_TO_EQUIP_TYPE[type] || type || 'team_equipment', source_catalog_id: catalogId }).select().single()
+  if (error) console.error('createCatalogAsset:', error)
   return { data: data ? mapAssetRow(data) : null, error }
 }
 export async function updateAsset(id, { name, sport }) {
@@ -339,6 +354,26 @@ export async function createSkillTag(ownerUserId, { categoryId, name }) {
 export async function archiveSkillTag(id) {
   const { error } = await supabase.from('skill_tags').update({ archived_at: new Date().toISOString() }).eq('id', id)
   if (error) console.error('archiveSkillTag:', error)
+  return { error }
+}
+// Founder-admin only (RLS: skill_tags_insert_scoped requires is_admin() for
+// scope='global') -- shared by every coach, unlike a personal scope='coach' tag.
+export async function createGlobalSkillTag({ categoryId, name }) {
+  const { data, error } = await supabase.from('skill_tags').insert({ category_id: categoryId, scope: 'global', name }).select().single()
+  if (error) console.error('createGlobalSkillTag:', error)
+  return { data: data ? mapSkillTagRow(data) : null, error }
+}
+// skill_categories: curated taxonomy, admin-only (RLS). archived_at exists
+// specifically so "remove" is a soft archive, not a hard delete that would
+// cascade-drop every tag underneath.
+export async function createSkillCategory({ sport, name, sortOrder }) {
+  const { data, error } = await supabase.from('skill_categories').insert({ sport, name, sort_order: sortOrder || 0 }).select().single()
+  if (error) console.error('createSkillCategory:', error)
+  return { data, error }
+}
+export async function archiveSkillCategory(id) {
+  const { error } = await supabase.from('skill_categories').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  if (error) console.error('archiveSkillCategory:', error)
   return { error }
 }
 // Idempotent (checked server-side) -- safe to call on every sign-in so a
@@ -433,6 +468,42 @@ export async function archiveDrill(id) {
   if (error) console.error('archiveDrill:', error)
   return { error }
 }
+async function nextCatalogDrillPosition(catalogId) {
+  const { data } = await supabase.from('activity_library').select('position').eq('source_catalog_id', catalogId).order('position', { ascending: false }).limit(1)
+  return data && data.length ? data[0].position + 1 : 0
+}
+// Founder-admin drill CRUD for public-catalog drills -- same shape as
+// createDrill/updateDrill/archiveDrill, but owned by the catalog
+// (source_catalog_id) instead of a coach. Reuses syncDrillEquipment/
+// syncDrillTags unchanged; RLS (can_link_asset_to_activity/
+// can_link_tag_to_activity) restricts these drills to that same catalog's
+// own equipment and scope='global' tags only.
+export async function createCatalogDrill(catalogId, { name, sport, duration, description, coachingPoints, grouping, numGroups, equipment, skillTagIds }) {
+  const position = await nextCatalogDrillPosition(catalogId)
+  const { data, error } = await supabase.from('activity_library').insert({
+    source_catalog_id: catalogId, name, sport: sport || 'General', duration_minutes: duration || null,
+    description: description || null, coaching_points: coachingPoints || null,
+    grouping: grouping || 'whole', num_groups: numGroups || null, position,
+  }).select().single()
+  if (error) { console.error('createCatalogDrill:', error); return { error } }
+  if (equipment && equipment.length) { const r = await syncDrillEquipment(data.id, equipment); if (r.error) return { data, error: r.error } }
+  if (skillTagIds && skillTagIds.length) { const r = await syncDrillTags(data.id, skillTagIds); if (r.error) return { data, error: r.error } }
+  return { data }
+}
+export async function updateCatalogDrill(id, { name, sport, duration, description, coachingPoints, grouping, numGroups, equipment, skillTagIds }) {
+  const { error } = await supabase.from('activity_library').update({
+    name, sport: sport || 'General', duration_minutes: duration || null,
+    description: description || null, coaching_points: coachingPoints || null,
+    grouping: grouping || 'whole', num_groups: numGroups || null,
+  }).eq('id', id)
+  if (error) { console.error('updateCatalogDrill:', error); return { error } }
+  if (equipment) { const r = await syncDrillEquipment(id, equipment); if (r.error) return { error: r.error } }
+  if (skillTagIds) { const r = await syncDrillTags(id, skillTagIds); if (r.error) return { error: r.error } }
+  return {}
+}
+export async function archiveCatalogDrill(id) {
+  return archiveDrill(id)
+}
 export async function setDrillShare(id, organizationId) {
   const { error } = await supabase.from('activity_library').update({ shared_with_organization_id: organizationId }).eq('id', id)
   if (error) console.error('setDrillShare:', error)
@@ -443,7 +514,7 @@ export async function setDrillShare(id, organizationId) {
 // into your own library must NOT reference the sharer's asset rows. Resolve
 // by name+type into the recipient's own pool -- match an existing asset, or
 // inline-create one, exactly like the "type a new one" picker behavior.
-export async function copyDrillToMyLibrary(ownerUserId, sourceDrill, sourceAssetsById) {
+export async function copyDrillToMyLibrary(ownerUserId, sourceDrill, sourceAssetsById, sourceSkillTagsById) {
   const { data: created, error } = await supabase.from('activity_library').insert({
     owner_user_id: ownerUserId, name: sourceDrill.name, sport: sourceDrill.sport,
     duration_minutes: sourceDrill.duration || null, description: sourceDrill.description || null,
@@ -467,9 +538,15 @@ export async function copyDrillToMyLibrary(ownerUserId, sourceDrill, sourceAsset
     }
     if (resolvedIds.length) await syncDrillEquipment(created.id, resolvedIds)
   }
-  // Tags deliberately not copied -- coach-scoped tags never transfer, and an
-  // org tag copied outside that org's context would be meaningless. Recipient
-  // re-tags manually if they want to.
+  // Coach/org-scoped tags deliberately not copied -- they'd never transfer
+  // meaningfully outside their owner/org. scope='global' tags mean the same
+  // thing to every coach, though (public-catalog drills use these
+  // exclusively), so those DO copy -- spec §2.5.
+  const tagIds = (sourceDrill.skillTagIds || []).filter(id => {
+    const t = sourceSkillTagsById && sourceSkillTagsById[id]
+    return t && t.scope === 'global'
+  })
+  if (tagIds.length) await syncDrillTags(created.id, tagIds)
   return { data: created }
 }
 
@@ -1322,6 +1399,23 @@ export async function fetchFounderMetricsDetail(weeks) {
   const { data, error } = await supabase.rpc('get_founder_metrics_detail', { p_weeks: weeks })
   if (error) { console.error('fetchFounderMetricsDetail:', error); return null }
   return data
+}
+// admin_users management -- the extensibility path for granting the
+// founder-admin right to more users later, no schema change needed.
+export async function listAdmins() {
+  const { data, error } = await supabase.rpc('list_admins')
+  if (error) { console.error('listAdmins:', error); return [] }
+  return data || []
+}
+export async function grantAdmin(email) {
+  const { error } = await supabase.rpc('grant_admin', { p_email: email })
+  if (error) console.error('grantAdmin:', error)
+  return { error }
+}
+export async function revokeAdmin(userId) {
+  const { error } = await supabase.rpc('revoke_admin', { p_user_id: userId })
+  if (error) console.error('revokeAdmin:', error)
+  return { error }
 }
 export async function logGoalViewed(teamId) {
   const { error } = await supabase.rpc('log_goal_viewed_event', { p_team_id: teamId })

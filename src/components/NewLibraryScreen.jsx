@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { uid, sumMins } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
-import { archiveDrill, setDrillShare, copyDrillToMyLibrary, saveTemplateTree, archiveTemplate, swapDrillPositions, createSkillTag, archiveSkillTag } from "../supabase.js";
+import { archiveDrill, archiveCatalogDrill, setDrillShare, copyDrillToMyLibrary, saveTemplateTree, archiveTemplate, swapDrillPositions, createSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory } from "../supabase.js";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -20,18 +20,22 @@ const Ic_Chev=({up})=><svg width="16" height="16" viewBox="0 0 16 16" fill="none
 // coaching *vocabulary* -- configuration, not content -- so its management
 // page moved out of Library into Settings. The drill editor's own inline
 // Add/Edit Skill Tags flow still covers the frequent in-context case.
-export function SkillsTab({data,coachId,refreshLibrary}){
+export function SkillsTab({data,coachId,refreshLibrary,isAdmin}){
   const [collapsed,setCollapsed]=useState({});
   const [drafts,setDrafts]=useState({});
-  const cats=data.skillCategories||[];
+  const [globalDrafts,setGlobalDrafts]=useState({});
+  const [newCatDrafts,setNewCatDrafts]=useState({});
+  const cats=(data.skillCategories||[]).filter(c=>!c.archived_at);
   const tags=data.skillTags||[];
   // Every coach gets starter tags seeded for every sport with a curated
   // taxonomy, regardless of which teams they actually coach -- a
   // basketball-only coach doesn't want to wade through Baseball's 7
   // categories to find their own. Scope the sport groupings shown here to
-  // the sports of the coach's own teams.
+  // the sports of the coach's own teams -- unless this is the founder-admin
+  // managing the taxonomy itself, who needs every sport regardless of what
+  // teams they personally coach.
   const myTeamSports=new Set((data.teams||[]).map(t=>t.sport).filter(Boolean));
-  const sports=[...new Set(cats.map(c=>c.sport))].filter(s=>myTeamSports.has(s)).sort();
+  const sports=[...new Set(cats.map(c=>c.sport))].filter(s=>isAdmin||myTeamSports.has(s)).sort();
   const del=async id=>{await archiveSkillTag(id);await refreshLibrary();};
   const add=async categoryId=>{
     const name=(drafts[categoryId]||"").trim();
@@ -40,6 +44,23 @@ export function SkillsTab({data,coachId,refreshLibrary}){
     setDrafts(p=>Object.assign({},p,{[categoryId]:""}));
     await refreshLibrary();
   };
+  const addGlobal=async categoryId=>{
+    const name=(globalDrafts[categoryId]||"").trim();
+    if(!name)return;
+    await createGlobalSkillTag({categoryId,name});
+    setGlobalDrafts(p=>Object.assign({},p,{[categoryId]:""}));
+    await refreshLibrary();
+  };
+  const addCategory=async sport=>{
+    const name=(newCatDrafts[sport]||"").trim();
+    if(!name)return;
+    const sportCats=cats.filter(c=>c.sport===sport);
+    const sortOrder=sportCats.length?Math.max(...sportCats.map(c=>c.sort_order||0))+1:0;
+    await createSkillCategory({sport,name,sortOrder});
+    setNewCatDrafts(p=>Object.assign({},p,{[sport]:""}));
+    await refreshLibrary();
+  };
+  const delCategory=async id=>{await archiveSkillCategory(id);await refreshLibrary();};
   if(cats.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No skill categories set up yet.</div>;
   if(sports.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Add a team to see skill tags for its sport here.</div>;
   return(<div>
@@ -56,10 +77,13 @@ export function SkillsTab({data,coachId,refreshLibrary}){
           {sportCats.map((cat,i)=>{
             const catTags=tags.filter(t=>t.categoryId===cat.id);
             return(<div key={cat.id} style={{marginBottom:i<sportCats.length-1?16:0}}>
-              <div style={{fontSize:11,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>{cat.name}</div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em"}}>{cat.name}</div>
+                {isAdmin&&<button type="button" onClick={()=>delCategory(cat.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--td)",fontSize:11}}>Remove category</button>}
+              </div>
               <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
                 {catTags.map(t=>(<span key={t.id} className="bdg bs" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 6px 4px 10px"}}>
-                  {t.name}
+                  {t.name}{t.scope==="global"&&<span style={{opacity:.6,fontSize:10}}>(global)</span>}
                   <button type="button" onClick={()=>del(t.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--td)",fontSize:14,lineHeight:1,padding:"0 2px"}}>×</button>
                 </span>))}
                 {catTags.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No tags yet</span>}
@@ -68,8 +92,16 @@ export function SkillsTab({data,coachId,refreshLibrary}){
                 <input className="inp" placeholder={"Add a "+cat.name.toLowerCase()+" tag..."} style={{flex:1}} value={drafts[cat.id]||""} onChange={e=>setDrafts(p=>Object.assign({},p,{[cat.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&add(cat.id)}/>
                 <button type="button" className="btn ghost bxs" onClick={()=>add(cat.id)}>Add</button>
               </div>
+              {isAdmin&&<div style={{display:"flex",gap:6,marginTop:6}}>
+                <input className="inp" placeholder={"Add a global "+cat.name.toLowerCase()+" tag (visible to everyone)..."} style={{flex:1}} value={globalDrafts[cat.id]||""} onChange={e=>setGlobalDrafts(p=>Object.assign({},p,{[cat.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addGlobal(cat.id)}/>
+                <button type="button" className="btn ghost bxs" onClick={()=>addGlobal(cat.id)}>Add Global</button>
+              </div>}
             </div>);
           })}
+          {isAdmin&&<div style={{display:"flex",gap:6,marginTop:sportCats.length?16:0,paddingTop:sportCats.length?12:0,borderTop:sportCats.length?"1px solid var(--b)":"none"}}>
+            <input className="inp" placeholder="New category name..." style={{flex:1}} value={newCatDrafts[sport]||""} onChange={e=>setNewCatDrafts(p=>Object.assign({},p,{[sport]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addCategory(sport)}/>
+            <button type="button" className="btn ghost bxs" onClick={()=>addCategory(sport)}>+ Category</button>
+          </div>}
         </div>}
       </div>);
     })}
@@ -287,9 +319,13 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
   const [showFilter,setShowFilter]=useState(false);
   const [newTplPrompt,setNewTplPrompt]=useState(false);
   const [newTplNameDraft,setNewTplNameDraft]=useState("");
+  const [isAdmin,setIsAdmin]=useState(false);
+  useEffect(()=>{checkIsAdmin().then(setIsAdmin);},[]);
   const toggle=sport=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}));
   const myOrgs=data.myOrgs||[];
-  const exploreShelves=myOrgs.flatMap(org=>[{key:"orgLib:"+org.id,label:org.name+" Library",org},{key:"shared:"+org.id,label:"From "+org.name,org}]);
+  // Public Library shown regardless of org membership (spec §3 -- public is
+  // public), always first so it's the default Explore landing shelf.
+  const exploreShelves=[{key:"public",label:"Public Library"},...myOrgs.flatMap(org=>[{key:"orgLib:"+org.id,label:org.name+" Library",org},{key:"shared:"+org.id,label:"From "+org.name,org}])];
   const goSection=s=>{
     setSection(s);
     setShelf(s==="mine"?"mine":(exploreShelves[0]?exploreShelves[0].key:""));
@@ -298,11 +334,17 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
   const showDrillList=(section==="mine"&&mineTab==="drills")||(section==="explore"&&exploreShelves.length>0);
   const shelfDrillsAll=(()=>{
     if(shelf==="mine")return (data.activityLibrary||[]).filter(a=>a.ownerUserId===coachId);
+    if(shelf==="public")return (data.activityLibrary||[]).filter(a=>a.sourceCatalogId);
     if(shelf.startsWith("orgLib:")){const orgId=shelf.slice(7);return (data.activityLibrary||[]).filter(a=>a.organizationId===orgId);}
     if(shelf.startsWith("shared:")){const orgId=shelf.slice(7);return (data.activityLibrary||[]).filter(a=>a.sharedWithOrganizationId===orgId&&a.ownerUserId!==coachId);}
     return [];
   })();
   const isMine=shelf==="mine";
+  // Founder-admin can manage (add/edit/archive) Public Library drills the
+  // same way they manage their own -- everyone else browsing that shelf
+  // only gets Copy to My Library, same as an org-shared drill.
+  const canManage=isMine||(shelf==="public"&&isAdmin);
+  const catalogsBySport=Object.fromEntries((data.catalogs||[]).filter(c=>c.publisherType==="system").map(c=>[c.sport,c]));
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
   // Only offer tags that at least one drill on this shelf actually has --
@@ -318,7 +360,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
   const assetsById=Object.fromEntries((data.assets||[]).map(a=>[a.id,a]));
   const equipNames=ids=>(ids||[]).map(id=>assetsById[id]?assetsById[id].name:null).filter(Boolean);
   const doShare=async(drillId,orgId)=>{await setDrillShare(drillId,orgId);setShareMenuId(null);await refreshLibrary();};
-  const doCopy=async(drill)=>{setCopyingId(drill.id);await copyDrillToMyLibrary(coachId,drill,assetsById);await refreshLibrary();setCopyingId(null);};
+  const doCopy=async(drill)=>{setCopyingId(drill.id);await copyDrillToMyLibrary(coachId,drill,assetsById,skillTagsById);await refreshLibrary();setCopyingId(null);};
   const templates=data.templates||[];
   const fmtShort=iso=>iso?new Date(iso).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):null;
   // Templates snapshot drill fields at add-time and don't carry their own
@@ -356,18 +398,13 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
         {[{k:"drills",label:"Drills"},{k:"templates",label:"Templates"}].map(t=>(<button key={t.k} onClick={()=>setMineTab(t.k)} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",color:mineTab===t.k?"var(--green)":"var(--td)",borderBottom:"2px solid "+(mineTab===t.k?"var(--green)":"transparent")}}>{t.label}</button>))}
       </div>}
     </div>
-    {section==="explore"&&exploreShelves.length===0&&<div style={{padding:"0 16px"}}>
-      <div className="empty">
-        <div className="emtx">Drills and templates shared by other coaches show up here.<br/><br/>Join an organization to browse its shared library -- and curated drill catalogs are coming.</div>
-      </div>
-    </div>}
     {showDrillList&&<div style={{padding:"0 16px"}} onClick={()=>{setDrillMenu(null);setShareMenuId(null);}}>
       {section==="explore"&&exploreShelves.length>1&&<div style={{display:"flex",gap:6,overflowX:"auto",marginBottom:12,paddingBottom:2}}>
         {exploreShelves.map(s=>(<button key={s.key} onClick={()=>{setShelf(s.key);setTagFilter([]);setTagSearch("");}} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:shelf===s.key?"var(--green)":"var(--s1)",color:shelf===s.key?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{s.label}</button>))}
       </div>}
       <div style={{display:"flex",justifyContent:"flex-end",gap:6,marginBottom:12}}>
         {availableTags.length>0&&<button className="btn ghost bsm" onClick={e=>{e.stopPropagation();setShowFilter(true);}}>Filter{tagFilter.length>0?" ("+tagFilter.length+")":""}</button>}
-        {isMine&&<button className="btn primary bsm" onClick={()=>openModal("addActivity")}>+ Add Drill</button>}
+        {canManage&&<button className="btn primary bsm" onClick={()=>openModal("addActivity",shelf==="public"?{isPublicLibrary:true}:undefined)}>+ Add Drill</button>}
       </div>
       {tagFilter.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center",marginBottom:12}} onClick={e=>e.stopPropagation()}>
         {tagFilter.map(id=>{const t=skillTagsById[id];if(!t)return null;return(<span key={id} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 4px 3px 10px",borderRadius:20,background:"var(--green)",color:"#fff",fontSize:12,fontWeight:600}}>
@@ -392,7 +429,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
           <button type="button" className="btn primary bmd bfull" style={{marginTop:14}} onClick={()=>setShowFilter(false)}>Done</button>
         </div>
       </div>}
-      {shelfDrillsAll.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>{isMine?"No drills yet. Tap + Add Drill.":shelf.startsWith("orgLib:")?"No drills shared to this org yet -- share one from My Library.":"No drills shared by other coaches yet."}</div>}
+      {shelfDrillsAll.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>{isMine?"No drills yet. Tap + Add Drill.":shelf==="public"?"No public library drills yet.":shelf.startsWith("orgLib:")?"No drills shared to this org yet -- share one from My Library.":"No drills shared by other coaches yet."}</div>}
       {shelfDrillsAll.length>0&&shelfDrills.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No drills match the selected skill tags.</div>}
       {sports.map(sport=>(<div key={sport} style={{marginBottom:8}}>
         <button onClick={()=>toggle(sport)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
@@ -400,9 +437,9 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
           <span style={{fontSize:12,color:"var(--td)"}}>{shelfDrills.filter(a=>(a.sport||"General")===sport).length} drills {collapsed[sport]?"":"v"}</span>
         </button>
         {!collapsed[sport]&&(()=>{
-          const sportDrills=shelfDrills.filter(a=>(a.sport||"General")===sport).slice().sort((a,b)=>isMine?a.position-b.position:a.name.localeCompare(b.name));
+          const sportDrills=shelfDrills.filter(a=>(a.sport||"General")===sport).slice().sort((a,b)=>canManage?a.position-b.position:a.name.localeCompare(b.name));
           return sportDrills.map((act,idx)=>(<div key={act.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderBottom:"1px solid var(--b)",background:"#fff"}}>
-            {isMine&&<div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
+            {canManage&&<div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
               <button onClick={async()=>{if(idx>0){await swapDrillPositions(act.id,sportDrills[idx-1].id);await refreshLibrary();}}} disabled={idx===0} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:idx===0?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8593;</button>
               <button onClick={async()=>{if(idx<sportDrills.length-1){await swapDrillPositions(act.id,sportDrills[idx+1].id);await refreshLibrary();}}} disabled={idx===sportDrills.length-1} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:idx===sportDrills.length-1?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8595;</button>
             </div>}
@@ -418,16 +455,17 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
               {act.skillTagIds&&act.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
                 {tagNames(act.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
               </div>}
-              {!isMine&&<div style={{fontSize:11,color:"var(--green2)",marginTop:4}}>Shared by {(data.profilesById&&data.profilesById[act.ownerUserId]&&data.profilesById[act.ownerUserId].name)||"a coach"}</div>}
-              {!isMine&&shelf.startsWith("shared:")&&<button className="btn outline bxs" style={{marginTop:6}} onClick={()=>doCopy(act)} disabled={copyingId===act.id}>{copyingId===act.id?"Copying...":"Copy to My Library"}</button>}
+              {!isMine&&shelf==="public"&&<div style={{fontSize:11,color:"var(--green2)",marginTop:4}}>Published by {(catalogsBySport[act.sport]&&catalogsBySport[act.sport].publisherName)||"Run of Practice"}</div>}
+              {!isMine&&shelf!=="public"&&<div style={{fontSize:11,color:"var(--green2)",marginTop:4}}>Shared by {(data.profilesById&&data.profilesById[act.ownerUserId]&&data.profilesById[act.ownerUserId].name)||"a coach"}</div>}
+              {!isMine&&(shelf==="public"||shelf.startsWith("shared:"))&&<button className="btn outline bxs" style={{marginTop:6}} onClick={()=>doCopy(act)} disabled={copyingId===act.id}>{copyingId===act.id?"Copying...":"Copy to My Library"}</button>}
             </div>
-            {isMine&&<div style={{position:"relative",flexShrink:0}}>
+            {canManage&&<div style={{position:"relative",flexShrink:0}}>
               <button className="ell-btn" onClick={e=>{e.stopPropagation();setDrillMenu(drillMenu===act.id?null:act.id);setShareMenuId(null);}}><span/><span/><span/></button>
               {drillMenu===act.id&&<div className="mini-menu" style={{right:0,minWidth:140}}>
                 <button className="mm-item" onClick={()=>{setDrillMenu(null);openModal("editActivity",{activity:act});}}>Edit</button>
-                {myOrgs.length>0&&<button className="mm-item" onClick={e=>{e.stopPropagation();setDrillMenu(null);setShareMenuId(shareMenuId===act.id?null:act.id);}}>{act.sharedWithOrganizationId?"Change Sharing":"Share..."}</button>}
-                {act.sharedWithOrganizationId&&<button className="mm-item" onClick={()=>doShare(act.id,null)}>Make Private</button>}
-                <button className="mm-item mm-danger" onClick={async()=>{setDrillMenu(null);await archiveDrill(act.id);await refreshLibrary();}}>Delete</button>
+                {isMine&&myOrgs.length>0&&<button className="mm-item" onClick={e=>{e.stopPropagation();setDrillMenu(null);setShareMenuId(shareMenuId===act.id?null:act.id);}}>{act.sharedWithOrganizationId?"Change Sharing":"Share..."}</button>}
+                {isMine&&act.sharedWithOrganizationId&&<button className="mm-item" onClick={()=>doShare(act.id,null)}>Make Private</button>}
+                <button className="mm-item mm-danger" onClick={async()=>{setDrillMenu(null);if(act.sourceCatalogId)await archiveCatalogDrill(act.id);else await archiveDrill(act.id);await refreshLibrary();}}>Delete</button>
               </div>}
               {shareMenuId===act.id&&<div className="mini-menu" style={{right:0,top:"100%",minWidth:160}} onClick={e=>e.stopPropagation()}>
                 {myOrgs.map(org=>(<button key={org.id} className="mm-item" onClick={()=>doShare(act.id,org.id)}>{act.sharedWithOrganizationId===org.id?"✓ ":""}{org.name}</button>))}

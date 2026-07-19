@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { uid, TEAM_COLORS, nextTeamColor, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "../constants.js";
-import { createTeam, updateTeam, createPlayer, createStaff, updateStaff, createAsset, updateAsset, createDrill, updateDrill, createSkillTag, createLocation, updateLocation, createSublocation, fetchStaffSuggestions } from "../supabase.js";
+import { createTeam, updateTeam, createPlayer, createStaff, updateStaff, createAsset, updateAsset, createDrill, updateDrill, createSkillTag, createLocation, updateLocation, createSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
 import { AutoTextarea } from "./ActivityConfigs.jsx";
 
 const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
@@ -44,21 +44,26 @@ export function HandednessPicker({sport,value,onChange}){
 // tag set grew past a handful of categories (56 seeded tags across 7
 // categories x2 sports) -- most of that space was pills the coach hadn't
 // picked and never would for this particular drill.
-function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshLibrary}){
+// catalogId set = editing/adding a public-catalog drill -- spec §2.4, these
+// may only carry scope='global' tags (never a personal/org one that would
+// be invisible to other viewers), and new tags added here go global too.
+function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshLibrary,catalogId}){
   const [open,setOpen]=useState(false);
   const [search,setSearch]=useState("");
   const [newTagName,setNewTagName]=useState("");
   const [newTagCategoryId,setNewTagCategoryId]=useState("");
-  const cats=(data.skillCategories||[]).filter(c=>c.sport===sport);
+  const cats=(data.skillCategories||[]).filter(c=>c.sport===sport&&!c.archived_at);
   if(cats.length===0)return null;
-  const allTags=data.skillTags||[];
+  const allTags=(data.skillTags||[]).filter(t=>!catalogId||t.scope==="global");
   const selectedTags=selectedIds.map(id=>allTags.find(t=>t.id===id)).filter(Boolean);
   const toggleTag=id=>{const has=selectedIds.includes(id);onChange(has?selectedIds.filter(x=>x!==id):[...selectedIds,id]);};
   const addTag=async()=>{
     if(!newTagName.trim())return;
     const catId=newTagCategoryId||(cats[0]&&cats[0].id);
     if(!catId)return;
-    const{data:newTag}=await createSkillTag(coachId,{categoryId:catId,name:newTagName.trim()});
+    const{data:newTag}=catalogId
+      ?await createGlobalSkillTag({categoryId:catId,name:newTagName.trim()})
+      :await createSkillTag(coachId,{categoryId:catId,name:newTagName.trim()});
     if(newTag)onChange([...selectedIds,newTag.id]);
     setNewTagName("");
     await refreshLibrary();
@@ -94,7 +99,7 @@ function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshLibrary}
           <select className="sel" style={{maxWidth:140}} value={newTagCategoryId||cats[0].id} onChange={e=>setNewTagCategoryId(e.target.value)}>
             {cats.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <input className="inp" placeholder="Add my own tag..." style={{flex:1}} value={newTagName} onChange={e=>setNewTagName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTag()}/>
+          <input className="inp" placeholder={catalogId?"Add a global tag...":"Add my own tag..."} style={{flex:1}} value={newTagName} onChange={e=>setNewTagName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTag()}/>
           <button type="button" className="btn ghost bxs" onClick={addTag}>Add</button>
         </div>
         <button type="button" className="btn primary bmd bfull" style={{marginTop:14}} onClick={()=>setOpen(false)}>Done</button>
@@ -127,6 +132,12 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
   const playerTeam=playerTeamId?(data.teams||[]).find(t=>t.id===playerTeamId):null;
   const playerSport=(playerTeam&&playerTeam.sport)||"General";
   const activity=modal.type==="editActivity"?modal.payload.activity:null;
+  // Public-library authoring: editing an existing catalog drill carries its
+  // own source_catalog_id; adding a brand-new one only knows "this is going
+  // into the public library" (isPublicLibrary), and resolves which sport's
+  // catalog once the Sport field below is set, since one catalog exists per
+  // sport (spec §2.2). Recomputed on every render since f.sport is state.
+  const isPublicLibraryAdd=modal.type==="addActivity"&&modal.payload&&modal.payload.isPublicLibrary;
   const location=modal.type==="editLocation"?modal.payload.location:null;
   const editTeamData=modal.type==="editTeam"?modal.payload.team:null;
   const asset=modal.type==="editAsset"?modal.payload.asset:null;
@@ -156,6 +167,9 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     return{sport:lastSportRef.current||"Basketball",colorPrimary:nextTeamColor(data.teams)};
   });
   const set=(k,v)=>setF(p=>Object.assign({},p,{[k]:v}));
+  const catalogId=activity?activity.sourceCatalogId:(
+    isPublicLibraryAdd?((data.catalogs||[]).find(c=>c.sport===(f.sport||"General")&&c.publisherType==="system")||{}).id:null
+  );
   const [saving,setSaving]=useState(false);
   const [saveError,setSaveError]=useState("");
   const savingRef=useRef(false);
@@ -188,22 +202,25 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     if(t==="editAsset"){if(!f.name)return;await updateAsset(p.asset.id,{name:f.name,sport:p.asset.sport||"General"});await refreshLibrary();}
     if(t==="addActivity"){
       if(!f.name)return;
-      res=await createDrill(coachId,{
+      if(isPublicLibraryAdd&&!catalogId){setSaveError("No public catalog exists for "+(f.sport||"this sport")+" yet.");return;}
+      const payload={
         name:f.name,sport:f.sport||"General",duration:+(f.duration||10),
         description:f.description||"",coachingPoints:f.coachingPoints||"",
         grouping:f.grouping||"whole",numGroups:f.numGroups||2,
         equipment:f.equipment||[],skillTagIds:f.skillTagIds||[],
-      });
+      };
+      res=isPublicLibraryAdd?await createCatalogDrill(catalogId,payload):await createDrill(coachId,payload);
       await refreshLibrary();
     }
     if(t==="editActivity"){
       if(!f.name)return;
-      res=await updateDrill(p.activity.id,{
+      const payload={
         name:f.name,sport:f.sport||"General",duration:+(f.duration||10),
         description:f.description||"",coachingPoints:f.coachingPoints||"",
         grouping:f.grouping||"whole",numGroups:f.numGroups||2,
         equipment:f.equipment||[],skillTagIds:f.skillTagIds||[],
-      });
+      };
+      res=activity.sourceCatalogId?await updateCatalogDrill(p.activity.id,payload):await updateDrill(p.activity.id,payload);
       await refreshLibrary();
     }
     if(t==="editTemplate"){if(!f.name)return;update(d=>{const tpl=d.templates.find(t=>t.id===p.template.id);if(tpl){tpl.name=f.name;tpl.sport=f.sport||"General";}return d;});}
@@ -309,13 +326,19 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
                 const el=document.getElementById(inputId);
                 if(!el||!el.value.trim())return;
                 const nm=el.value.trim();
-                const {data:newAsset}=await createAsset(coachId,{name:nm,type,sport:type==="player"?drillSport:"General"});
+                const {data:newAsset}=catalogId
+                  ?await createCatalogAsset(catalogId,{name:nm,type,sport:drillSport})
+                  :await createAsset(coachId,{name:nm,type,sport:type==="player"?drillSport:"General"});
                 if(newAsset)set("equipment",[...(f.equipment||[]),newAsset.id]);
                 el.value="";
                 await refreshLibrary();
               };
-              const teamAssets=(data.assets||[]).filter(a=>a.type==="team");
-              const playerAssets=(data.assets||[]).filter(a=>a.type==="player"&&(a.sport===drillSport||a.sport==="General"));
+              // Catalog drills may only use that SAME catalog's own equipment
+              // (RLS: can_link_asset_to_activity) -- a personal/org drill's
+              // picker excludes catalog-owned assets the same way, since
+              // linking them would be rejected server-side anyway.
+              const teamAssets=(data.assets||[]).filter(a=>a.type==="team"&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId));
+              const playerAssets=(data.assets||[]).filter(a=>a.type==="player"&&(a.sport===drillSport||a.sport==="General")&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId));
               return(<div>
                 <div className="fld"><label className="lbl">Team Equipment</label>
                   <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
@@ -339,7 +362,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
                 </div>
               </div>);
             })()}
-            <SkillTagPicker data={data} coachId={coachId} sport={f.sport||"General"} selectedIds={f.skillTagIds||[]} onChange={ids=>set("skillTagIds",ids)} refreshLibrary={refreshLibrary}/>
+            <SkillTagPicker data={data} coachId={coachId} sport={f.sport||"General"} selectedIds={f.skillTagIds||[]} onChange={ids=>set("skillTagIds",ids)} refreshLibrary={refreshLibrary} catalogId={catalogId}/>
           </div>
         )}
         {saveError&&<div style={{fontSize:13,color:"var(--red)",marginTop:4}}>{saveError}</div>}
