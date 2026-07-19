@@ -1315,16 +1315,16 @@ export async function submitPublicFeedback({ email, message, pageContext }) {
 export async function fetchTeamGoals(teamId) {
   const { data, error } = await supabase.from('team_goals').select('*').eq('team_id', teamId).is('archived_at', null)
   if (error) { console.error('fetchTeamGoals:', error); return [] }
-  return (data || []).map(g => ({ id: g.id, teamId: g.team_id, skillTagId: g.skill_tag_id, targetPct: Number(g.target_pct) }))
+  return (data || []).map(g => ({ id: g.id, teamId: g.team_id, categoryId: g.skill_category_id, targetPct: Number(g.target_pct) }))
 }
-// Slider-per-global-tag editor (2026-07-19): one atomic replace instead of
-// N separate row writes -- archives whatever's no longer in the set, upserts
-// everything else. Server-side re-validates the sum (0 or 100) so a stale
-// client can't slip a partial save through.
+// Slider-per-category editor (2026-07-19, category-level not tag-level --
+// team_goals.skill_category_id, not skill_tag_id): one atomic replace
+// instead of N separate row writes. Server-side re-validates the sum
+// (0 or 100) so a stale client can't slip a partial save through.
 export async function setTeamGoals(teamId, targets) {
   const { error } = await supabase.rpc('set_team_goals', {
     p_team_id: teamId,
-    p_targets: targets.map(t => ({ skill_tag_id: t.skillTagId, target_pct: t.targetPct })),
+    p_targets: targets.map(t => ({ skill_category_id: t.categoryId, target_pct: t.targetPct })),
   })
   if (error) console.error('setTeamGoals:', error)
   return { error }

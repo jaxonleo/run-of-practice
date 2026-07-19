@@ -48,45 +48,25 @@ function SkillRow({ skill }) {
   </div>);
 }
 
-// Slider-per-global-tag editor (Jax's call, 2026-07-19, replacing the old
-// one-goal-at-a-time picker): every global skill tag for the sport gets a
-// slider, grouped by category; the total across all of them must land on
-// exactly 100 (or exactly 0, meaning "not configured yet") before Save is
-// enabled. Saving is one atomic RPC (set_team_goals) rather than N separate
-// row writes, so a coach adjusting several sliders can't leave team_goals in
-// a partially-saved state if one write fails midway.
+// Slider-per-category editor (Jax's call, 2026-07-19, take 2 -- goals moved
+// up from individual skill tags to their global category: "Shooting," not
+// "Catch-and-shoot" beneath it). One slider per skill_category for the
+// team's sport, no tag-level breakdown; the total across all of them must
+// land on exactly 100 (or exactly 0, meaning "not configured yet") before
+// Save is enabled. Saving is one atomic RPC (set_team_goals) rather than N
+// separate row writes.
 function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
   const [windowWeeks, setWindowWeeks] = useState(team.goalsWindowWeeks || 4);
   useEffect(() => setWindowWeeks(team.goalsWindowWeeks || 4), [team.goalsWindowWeeks]);
   const [savingWindow, setSavingWindow] = useState(false);
   const [values, setValues] = useState({});
-  const [collapsed, setCollapsed] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const categories = (data.skillCategories || []).filter(c => c.sport === team.sport && !c.archived_at).sort((a, b) => a.sort_order - b.sort_order);
-  const globalTagsByCategory = {};
-  (data.skillTags || []).filter(t => t.scope === "global").forEach(t => { (globalTagsByCategory[t.categoryId] ||= []).push(t); });
-  Object.values(globalTagsByCategory).forEach(arr => arr.sort((a, b) => a.name.localeCompare(b.name)));
 
-  // Seed slider values from existing goals, resolved to their global
-  // equivalent -- a goal set before this redesign may still point at a
-  // coach-scope tag, and should still show up as a starting slider position
-  // here rather than silently vanishing.
   useEffect(() => {
-    const skillTagsById = Object.fromEntries((data.skillTags || []).map(t => [t.id, t]));
-    const init = {};
-    goals.forEach(g => {
-      const t = skillTagsById[g.skillTagId];
-      let globalId = g.skillTagId;
-      if (t && t.scope !== "global") {
-        const match = (data.skillTags || []).find(g2 => g2.scope === "global" && g2.categoryId === t.categoryId && g2.name === t.name);
-        if (match) globalId = match.id;
-      }
-      init[globalId] = g.targetPct;
-    });
-    setValues(init);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setValues(Object.fromEntries(goals.map(g => [g.categoryId, g.targetPct])));
   }, [goals]);
 
   const total = Object.values(values).reduce((s, v) => s + (v || 0), 0);
@@ -97,12 +77,11 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
     await updateGoalsWindowWeeks(teamId, windowWeeks);
     setSavingWindow(false);
   };
-  const setValue = (tagId, pct) => setValues(p => ({ ...p, [tagId]: pct }));
-  const toggle = cid => setCollapsed(p => ({ ...p, [cid]: !p[cid] }));
+  const setValue = (categoryId, pct) => setValues(p => ({ ...p, [categoryId]: pct }));
   const save = async () => {
     if (!canSave) return;
     setSaving(true); setError("");
-    const targets = Object.entries(values).filter(([, pct]) => pct > 0).map(([skillTagId, targetPct]) => ({ skillTagId, targetPct }));
+    const targets = Object.entries(values).filter(([, pct]) => pct > 0).map(([categoryId, targetPct]) => ({ categoryId, targetPct }));
     const { error } = await setTeamGoals(teamId, targets);
     setSaving(false);
     if (error) { setError("Something went wrong saving. Try again."); return; }
@@ -111,7 +90,7 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
 
   return (<div className="card mb10">
     <div className="clbl mb8">Goals</div>
-    <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>Set targets for how your team spends practice time. The total across every skill must reach exactly 100% (or 0% to clear all goals) before saving.</div>
+    <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>Set targets for how your team spends practice time. The total must reach exactly 100% (or 0% to clear all goals) before saving.</div>
 
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: "var(--r)", marginBottom: 14, background: total === 100 ? "var(--gbg)" : total > 100 ? "#fef2f2" : "var(--s1)", border: "1px solid " + (total === 100 ? "var(--gb)" : total > 100 ? "#fecaca" : "var(--b)") }}>
       <span style={{ fontWeight: 700, fontSize: 14 }}>{total}% allocated</span>
@@ -122,25 +101,13 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
 
     {categories.length === 0 && <div style={{ fontSize: 12, color: "var(--td)" }}>No skill categories set up for {team.sport} yet.</div>}
     {categories.map(cat => {
-      const tags = globalTagsByCategory[cat.id] || [];
-      if (!tags.length) return null;
-      const catTotal = tags.reduce((s, t) => s + (values[t.id] || 0), 0);
-      const isCollapsed = collapsed[cat.id];
-      return (<div key={cat.id} style={{ marginBottom: 12 }}>
-        <button onClick={() => toggle(cat.id)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", border: "none", background: "none", cursor: "pointer" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--td)", textTransform: "uppercase", letterSpacing: ".06em" }}>{cat.name}</span>
-          <span style={{ fontSize: 11, color: "var(--td)" }}>{catTotal}% {isCollapsed ? "▶" : "▼"}</span>
-        </button>
-        {!isCollapsed && tags.map(t => {
-          const v = values[t.id] || 0;
-          return (<div key={t.id} style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-              <span style={{ fontSize: 13 }}>{t.name}</span>
-              <span style={{ fontFamily: "DM Mono,monospace", fontSize: 13, color: "var(--tm)" }}>{v}%</span>
-            </div>
-            <input type="range" min="0" max="100" step="1" value={v} onChange={e => setValue(t.id, Number(e.target.value))} style={{ width: "100%", accentColor: "var(--green)" }} />
-          </div>);
-        })}
+      const v = values[cat.id] || 0;
+      return (<div key={cat.id} style={{ marginBottom: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{cat.name}</span>
+          <span style={{ fontFamily: "DM Mono,monospace", fontSize: 13, color: "var(--tm)" }}>{v}%</span>
+        </div>
+        <input type="range" min="0" max="100" step="1" value={v} onChange={e => setValue(cat.id, Number(e.target.value))} style={{ width: "100%", accentColor: "var(--green)" }} />
       </div>);
     })}
 
@@ -174,7 +141,7 @@ function GlanceView({ report }) {
   return (<div className="card mb10">
     <div className="clbl mb8">Target vs. Planned vs. Actual <span style={{ textTransform: "none", fontWeight: 400 }}>· last {report.window_weeks} week{report.window_weeks === 1 ? "" : "s"}</span></div>
     {skills.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>No goals set and nothing tagged yet this window.</div>}
-    {skills.map(s => (<SkillRow key={s.skill_tag_id} skill={s} />))}
+    {skills.map(s => (<SkillRow key={s.skill_category_id} skill={s} />))}
 
     <div style={{ borderTop: "1px solid var(--b)", paddingTop: 10, marginTop: skills.length ? 4 : 0 }}>
       <SkillRow skill={{ name: "Untagged", target_pct: null, planned_pct: untagged.planned_pct, actual_pct: untagged.actual_pct }} />
