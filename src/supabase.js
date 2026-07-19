@@ -127,6 +127,7 @@ export async function fetchMyTeams() {
     colorPrimary: t.color_primary,
     colorSecondary: t.color_secondary,
     goalsWindowWeeks: t.goals_window_weeks || 4,
+    goalsSavedAt: t.goals_saved_at,
     players: players.filter(p => p.team_id === t.id).map(p => Object.assign(mapPlayerRow(p), { focusAreas: focusByPlayer[p.id] || [] })),
     coaches: staff.filter(s => s.team_id === t.id && !(s.user_id && deactivatedUserIds.has(s.user_id))).map(mapStaffRow),
   }))

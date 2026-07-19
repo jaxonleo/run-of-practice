@@ -7,6 +7,7 @@ import {
 } from "../supabase.js";
 
 const fmtMin = n => (Math.round((n || 0) * 10) / 10);
+const fmtSavedAt = iso => iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
 
 // Bullet-chart-style row (handoff §5.2): a target tick overlaid on stacked
 // planned/actual bars, with a delta chip only when the gap is real (>=3
@@ -62,6 +63,12 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
   const [values, setValues] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // teams.goals_saved_at (set by set_team_goals itself, server-side) is the
+  // source of truth on next load; updated optimistically right after a
+  // successful save here so it doesn't wait on a full team refetch, same
+  // pattern as windowWeeks above.
+  const [savedAt, setSavedAt] = useState(team.goalsSavedAt || null);
+  useEffect(() => setSavedAt(team.goalsSavedAt || null), [team.goalsSavedAt]);
 
   const categories = (data.skillCategories || []).filter(c => c.sport === team.sport && !c.archived_at).sort((a, b) => a.sort_order - b.sort_order);
 
@@ -85,6 +92,7 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
     const { error } = await setTeamGoals(teamId, targets);
     setSaving(false);
     if (error) { setError("Something went wrong saving. Try again."); return; }
+    setSavedAt(new Date().toISOString());
     await refreshGoals();
   };
 
@@ -113,6 +121,7 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
 
     {error && <div style={{ fontSize: 12, color: "var(--red)", marginBottom: 10 }}>{error}</div>}
     <button className="btn primary bmd bfull" onClick={save} disabled={!canSave || saving}>{saving ? "Saving..." : "Save Goals"}</button>
+    {savedAt && <div style={{ fontSize: 11, color: "var(--td)", textAlign: "center", marginTop: 6 }}>Last saved {fmtSavedAt(savedAt)}</div>}
 
     <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--b)" }}>
       <label className="lbl">Measure over the last</label>
