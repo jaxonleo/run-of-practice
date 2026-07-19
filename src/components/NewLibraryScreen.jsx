@@ -257,7 +257,10 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
       </div>
       {(()=>{
         const tplSport=sport||"General";
-        const filtered=(data.activityLibrary||[]).filter(a=>(a.sport||"General")===tplSport||(a.sport||"General")==="General");
+        // Same exclusion as StationConfig's quick-picker -- public-catalog
+        // drills reference catalog-owned equipment, which can't link to a
+        // personal template. Copy from Explore first.
+        const filtered=(data.activityLibrary||[]).filter(a=>!a.sourceCatalogId).filter(a=>(a.sport||"General")===tplSport||(a.sport||"General")==="General");
         if(filtered.length===0)return(<div style={{padding:"16px 0",textAlign:"center",color:"var(--td)",fontSize:13}}>No drills in library for {tplSport} yet.</div>);
         return(<div>
           <div className="clbl" style={{marginBottom:8}}>{tplSport} + General</div>

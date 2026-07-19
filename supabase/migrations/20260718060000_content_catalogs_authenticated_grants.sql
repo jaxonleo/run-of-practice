@@ -1,0 +1,11 @@
+-- Bug found live: content_catalogs was created with RLS policies but never
+-- granted to `authenticated` (same class of gap as the pre-existing
+-- 20260710030000_service_role_grants_for_notify_fn.sql, this time for the
+-- role real signed-in users query as). Since activity_library_select_access
+-- and assets_select_access reference content_catalogs directly inside their
+-- USING expressions (not through a SECURITY DEFINER function), Postgres
+-- checks table privileges for content_catalogs at plan time for the WHOLE
+-- query -- missing the grant made the entire activity_library select error
+-- out, not just the public-catalog branch, which is why personal drills
+-- disappeared too, not only the Public Library shelf.
+grant select, insert, update on public.content_catalogs to authenticated;

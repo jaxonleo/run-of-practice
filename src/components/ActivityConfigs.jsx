@@ -27,9 +27,13 @@ function DurStepper({value,min,onChange,step}){
 
 export function ActConfig({act,team,loc,onChange,onDone,assets,coachId,refreshLibrary,libraryDrills,skillTags}){
   const [newGearOpen,setNewGearOpen]=useState(false);
-  const teamEquip=(assets||[]).filter(a=>!a.type||a.type==="team");
+  // Builder assigns equipment a coach actually owns to a real practice --
+  // catalog-owned equipment (public library) is excluded here the same way
+  // it's excluded from a personal drill's picker in ModalLayer, never
+  // surfaced until a coach explicitly copies a drill into their own library.
+  const teamEquip=(assets||[]).filter(a=>(!a.type||a.type==="team")&&!a.sourceCatalogId);
   const sport=act.sport||"General";
-  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General"));
+  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General")&&!a.sourceCatalogId);
   const equip=Array.isArray(act.equipment)?act.equipment:[];
   const toggleEquip=id=>{const has=equip.includes(id);onChange({equipment:has?equip.filter(x=>x!==id):[...equip,id]});};
   // Practice/template activities are a snapshot copy of the drill at
@@ -141,9 +145,15 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   const [helperIdx,setHelperIdx]=useState(null);
   const sport=teamSport||"General";
   const players=team?team.players:[];
-  const teamEquipAssets=(assets||[]).filter(a=>!a.type||a.type==="team");
-  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General"));
-  const filteredLibrary=(libraryDrills||[]).filter(a=>(a.sport||"General")===sport||(a.sport||"General")==="General");
+  // Same catalog-equipment exclusion as ActConfig -- see its comment.
+  const teamEquipAssets=(assets||[]).filter(a=>(!a.type||a.type==="team")&&!a.sourceCatalogId);
+  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General")&&!a.sourceCatalogId);
+  // Public-catalog drills are excluded from this quick-pick list -- their
+  // equipment is catalog-owned, which can't be linked to a real team's
+  // practice (same "copy not reference" rule org-shared equipment already
+  // follows). Copy from Explore's Public Library shelf first; the copy is a
+  // normal personal drill and shows up here like any other.
+  const filteredLibrary=(libraryDrills||[]).filter(a=>!a.sourceCatalogId).filter(a=>(a.sport||"General")===sport||(a.sport||"General")==="General");
   const skillTagsById=Object.fromEntries((skillTags||[]).map(t=>[t.id,t]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
   const chooseFromLibrary=(si,lib)=>{
