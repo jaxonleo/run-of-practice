@@ -124,7 +124,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
         <div style={{display: "flex", justifyContent: "space-between", alignItems: "flex-start"}}>
           <div className="lim">
             <div className="lin">{highlightMatch(d.name, q)}</div>
-            <div className="limt" style={{color: "var(--green2)"}}>Published by {(catalog && catalog.publisherName) || "Jaxon Leo"}</div>
+            <div className="limt" style={{color: "var(--green2)"}}>Published by {(catalog && catalog.publisherName) || "Staff Editor"}{catalog && catalog.organizationName ? " - " + catalog.organizationName : ""}</div>
           </div>
           {isAdmin && <div style={{position: "relative", flexShrink: 0}}>
             <button className="ell-btn" onClick={e => { e.stopPropagation(); setDrillMenu(drillMenu === d.id ? null : d.id); }}><span/><span/><span/></button>

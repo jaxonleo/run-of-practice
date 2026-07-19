@@ -285,7 +285,7 @@ function mapDrillRow(a, equipmentByDrill, tagsByDrill) {
   }
 }
 function mapCatalogRow(c) {
-  return { id: c.id, name: c.name, sport: c.sport, publisherName: c.publisher_name, publisherType: c.publisher_type, visibility: c.visibility, description: c.description }
+  return { id: c.id, name: c.name, sport: c.sport, publisherName: c.publisher_name, organizationName: c.organization_name, publisherType: c.publisher_type, visibility: c.visibility, description: c.description }
 }
 
 export async function fetchLibraryData() {
