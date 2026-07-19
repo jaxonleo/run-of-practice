@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { isHeadCoach } from "../constants.js";
 import {
-  fetchTeamGoals, upsertTeamGoal, archiveTeamGoal, updateGoalsWindowWeeks,
+  fetchTeamGoals, setTeamGoals, updateGoalsWindowWeeks,
   fetchTeamGoalReport, fetchTeamSessionHistory, fetchSessionActivityLog, fetchNotesForPractice,
   setSessionExclusion, adjustSessionActivity, addSessionActivityRow, logGoalViewed,
 } from "../supabase.js";
@@ -48,104 +48,104 @@ function SkillRow({ skill }) {
   </div>);
 }
 
-function GoalsEditor({ teamId, team, data, coachId, goals, refreshGoals }) {
+// Slider-per-global-tag editor (Jax's call, 2026-07-19, replacing the old
+// one-goal-at-a-time picker): every global skill tag for the sport gets a
+// slider, grouped by category; the total across all of them must land on
+// exactly 100 (or exactly 0, meaning "not configured yet") before Save is
+// enabled. Saving is one atomic RPC (set_team_goals) rather than N separate
+// row writes, so a coach adjusting several sliders can't leave team_goals in
+// a partially-saved state if one write fails midway.
+function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
   const [windowWeeks, setWindowWeeks] = useState(team.goalsWindowWeeks || 4);
   useEffect(() => setWindowWeeks(team.goalsWindowWeeks || 4), [team.goalsWindowWeeks]);
-  const [addingGoal, setAddingGoal] = useState(false);
-  const [pickingCategory, setPickingCategory] = useState(null);
-  const [pickingTag, setPickingTag] = useState(null);
-  const [newPct, setNewPct] = useState(20);
   const [savingWindow, setSavingWindow] = useState(false);
+  const [values, setValues] = useState({});
+  const [collapsed, setCollapsed] = useState({});
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const categories = (data.skillCategories || []).filter(c => c.sport === team.sport).sort((a, b) => a.sort_order - b.sort_order);
-  const skillTagsById = Object.fromEntries((data.skillTags || []).map(t => [t.id, t]));
-  // Goals are global-tag-only (Jax's call, 2026-07-19) -- less noisy than
-  // offering every coach-scope duplicate too, and it matches how
-  // get_team_goal_report now rolls planned/actual up to the global tag.
-  // A goal set before this change may still point at a coach-scope tag; find
-  // its global equivalent (same category + name) so re-adding it here is
-  // blocked, not offered as if it were a brand-new goal.
-  const globalEquivalentId = t => {
-    if (!t) return null;
-    if (t.scope === "global") return t.id;
-    const g = (data.skillTags || []).find(g2 => g2.scope === "global" && g2.categoryId === t.categoryId && g2.name === t.name);
-    return g ? g.id : t.id;
-  };
-  const goaledGlobalIds = new Set(goals.map(g => globalEquivalentId(skillTagsById[g.skillTagId])).filter(Boolean));
-  const tagsForCategory = cid => (data.skillTags || []).filter(t => t.categoryId === cid && t.scope === "global" && !goaledGlobalIds.has(t.id));
-  const tagName = id => { const t = skillTagsById[id]; return t ? t.name : "(tag)"; };
-  const total = goals.reduce((s, g) => s + g.targetPct, 0);
+  const categories = (data.skillCategories || []).filter(c => c.sport === team.sport && !c.archived_at).sort((a, b) => a.sort_order - b.sort_order);
+  const globalTagsByCategory = {};
+  (data.skillTags || []).filter(t => t.scope === "global").forEach(t => { (globalTagsByCategory[t.categoryId] ||= []).push(t); });
+  Object.values(globalTagsByCategory).forEach(arr => arr.sort((a, b) => a.name.localeCompare(b.name)));
+
+  // Seed slider values from existing goals, resolved to their global
+  // equivalent -- a goal set before this redesign may still point at a
+  // coach-scope tag, and should still show up as a starting slider position
+  // here rather than silently vanishing.
+  useEffect(() => {
+    const skillTagsById = Object.fromEntries((data.skillTags || []).map(t => [t.id, t]));
+    const init = {};
+    goals.forEach(g => {
+      const t = skillTagsById[g.skillTagId];
+      let globalId = g.skillTagId;
+      if (t && t.scope !== "global") {
+        const match = (data.skillTags || []).find(g2 => g2.scope === "global" && g2.categoryId === t.categoryId && g2.name === t.name);
+        if (match) globalId = match.id;
+      }
+      init[globalId] = g.targetPct;
+    });
+    setValues(init);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goals]);
+
+  const total = Object.values(values).reduce((s, v) => s + (v || 0), 0);
+  const canSave = total === 100 || total === 0;
 
   const saveWindow = async () => {
     setSavingWindow(true);
     await updateGoalsWindowWeeks(teamId, windowWeeks);
     setSavingWindow(false);
   };
-
-  const startAdd = () => { setAddingGoal(true); setPickingCategory(null); setPickingTag(null); setNewPct(20); setError(""); };
-  const cancelAdd = () => { setAddingGoal(false); setPickingCategory(null); setPickingTag(null); setError(""); };
-  const addGoal = async () => {
-    if (!pickingTag) return;
-    if (total + newPct > 100) { setError("Active targets would total over 100% -- lower this one or remove another first."); return; }
-    setError("");
-    await upsertTeamGoal(teamId, pickingTag, newPct, coachId);
-    cancelAdd();
+  const setValue = (tagId, pct) => setValues(p => ({ ...p, [tagId]: pct }));
+  const toggle = cid => setCollapsed(p => ({ ...p, [cid]: !p[cid] }));
+  const save = async () => {
+    if (!canSave) return;
+    setSaving(true); setError("");
+    const targets = Object.entries(values).filter(([, pct]) => pct > 0).map(([skillTagId, targetPct]) => ({ skillTagId, targetPct }));
+    const { error } = await setTeamGoals(teamId, targets);
+    setSaving(false);
+    if (error) { setError("Something went wrong saving. Try again."); return; }
     await refreshGoals();
   };
-  const updateTarget = async (goal, pct) => {
-    if (pct <= 0) return;
-    if (total - goal.targetPct + pct > 100) { setError("That would push active targets over 100%."); return; }
-    setError("");
-    await upsertTeamGoal(teamId, goal.skillTagId, pct, coachId);
-    await refreshGoals();
-  };
-  const removeGoal = async goal => { await archiveTeamGoal(goal.id); await refreshGoals(); };
 
   return (<div className="card mb10">
     <div className="clbl mb8">Goals</div>
-    {goals.length === 0 && <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>Set targets for how your team spends practice time.</div>}
-    {goals.map(g => (<div key={g.id} className="li" style={{ marginBottom: 6 }}>
-      <div className="lim"><div className="lin">{tagName(g.skillTagId)}</div></div>
-      <div className="row">
-        <input className="inp" type="number" min="1" max="100" style={{ width: 64, padding: "6px 8px" }} value={g.targetPct}
-          onChange={e => updateTarget(g, Number(e.target.value) || 0)} />
-        <span style={{ fontSize: 12, color: "var(--td)" }}>%</span>
-        <button className="btn danger bxs" onClick={() => removeGoal(g)}>x</button>
-      </div>
-    </div>))}
-    {goals.length > 0 && <div style={{ fontSize: 12, color: total > 100 ? "var(--red)" : "var(--td)", marginBottom: 10 }}>
-      {total}% of practice time targeted{total > 100 ? " -- over 100%, adjust before this reconciles" : ""}
-    </div>}
+    <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>Set targets for how your team spends practice time. The total across every skill must reach exactly 100% (or 0% to clear all goals) before saving.</div>
+
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: "var(--r)", marginBottom: 14, background: total === 100 ? "var(--gbg)" : total > 100 ? "#fef2f2" : "var(--s1)", border: "1px solid " + (total === 100 ? "var(--gb)" : total > 100 ? "#fecaca" : "var(--b)") }}>
+      <span style={{ fontWeight: 700, fontSize: 14 }}>{total}% allocated</span>
+      <span style={{ fontSize: 12, color: total === 100 ? "var(--green2)" : total > 100 ? "var(--red)" : "var(--td)" }}>
+        {total === 100 ? "Ready to save" : total > 100 ? (total - 100) + "% over, reduce before saving" : (100 - total) + "% remaining"}
+      </span>
+    </div>
+
+    {categories.length === 0 && <div style={{ fontSize: 12, color: "var(--td)" }}>No skill categories set up for {team.sport} yet.</div>}
+    {categories.map(cat => {
+      const tags = globalTagsByCategory[cat.id] || [];
+      if (!tags.length) return null;
+      const catTotal = tags.reduce((s, t) => s + (values[t.id] || 0), 0);
+      const isCollapsed = collapsed[cat.id];
+      return (<div key={cat.id} style={{ marginBottom: 12 }}>
+        <button onClick={() => toggle(cat.id)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", border: "none", background: "none", cursor: "pointer" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--td)", textTransform: "uppercase", letterSpacing: ".06em" }}>{cat.name}</span>
+          <span style={{ fontSize: 11, color: "var(--td)" }}>{catTotal}% {isCollapsed ? "▶" : "▼"}</span>
+        </button>
+        {!isCollapsed && tags.map(t => {
+          const v = values[t.id] || 0;
+          return (<div key={t.id} style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+              <span style={{ fontSize: 13 }}>{t.name}</span>
+              <span style={{ fontFamily: "DM Mono,monospace", fontSize: 13, color: "var(--tm)" }}>{v}%</span>
+            </div>
+            <input type="range" min="0" max="100" step="1" value={v} onChange={e => setValue(t.id, Number(e.target.value))} style={{ width: "100%", accentColor: "var(--green)" }} />
+          </div>);
+        })}
+      </div>);
+    })}
+
     {error && <div style={{ fontSize: 12, color: "var(--red)", marginBottom: 10 }}>{error}</div>}
-
-    {!addingGoal && <button className="btn outline bsm" onClick={startAdd}>+ Add Goal</button>}
-    {!addingGoal && !categories.length && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 8 }}>No skill categories set up for {team.sport} yet.</div>}
-
-    {addingGoal && pickingCategory === null && (<div style={{ marginTop: 10 }}>
-      <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>Pick a category</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-        {categories.map(c => (<button key={c.id} className="btn ghost bsm" onClick={() => setPickingCategory(c.id)}>{c.name}</button>))}
-      </div>
-      <button className="btn ghost bsm" onClick={cancelAdd}>Cancel</button>
-    </div>)}
-
-    {addingGoal && pickingCategory !== null && (<div style={{ marginTop: 10 }}>
-      <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>Pick a skill tag</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-        {tagsForCategory(pickingCategory).map(t => (<button key={t.id} className={"btn bsm " + (pickingTag === t.id ? "primary" : "ghost")} onClick={() => setPickingTag(t.id)}>{t.name}</button>))}
-        {!tagsForCategory(pickingCategory).length && <div style={{ fontSize: 12, color: "var(--td)" }}>No tags left in this category (or all already have a goal).</div>}
-      </div>
-      {pickingTag && <div className="row" style={{ marginBottom: 10 }}>
-        <label className="lbl" style={{ marginBottom: 0 }}>Target</label>
-        <input className="inp" type="number" min="1" max="100" style={{ width: 64, padding: "6px 8px" }} value={newPct} onChange={e => setNewPct(Number(e.target.value) || 0)} />
-        <span style={{ fontSize: 12, color: "var(--td)" }}>%</span>
-      </div>}
-      <div className="brow">
-        <button className="btn ghost bsm" onClick={() => setPickingCategory(null)}>Back</button>
-        <button className="btn primary bsm" onClick={addGoal} disabled={!pickingTag}>Add</button>
-      </div>
-    </div>)}
+    <button className="btn primary bmd bfull" onClick={save} disabled={!canSave || saving}>{saving ? "Saving..." : "Save Goals"}</button>
 
     <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--b)" }}>
       <label className="lbl">Measure over the last</label>
@@ -419,7 +419,7 @@ export default function GoalsScreen({ data, teamId, coachId }) {
   // header + Build/Goals & Insights toggle (nav restructure round 2,
   // 2026-07-15; this used to be its own top-level tab).
   return (<div>
-    {canManage && <GoalsEditor teamId={teamId} team={team} data={data} coachId={coachId} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
+    {canManage && <GoalsEditor teamId={teamId} team={team} data={data} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
     <GlanceView report={report} />
     <div className="clbl mb8" style={{ marginTop: 4 }}>History</div>
     <HistoryList history={history} data={data} canManage={canManage} onOpen={s => setOpenSessionId(s.session_id)} />

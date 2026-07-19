@@ -1317,23 +1317,16 @@ export async function fetchTeamGoals(teamId) {
   if (error) { console.error('fetchTeamGoals:', error); return [] }
   return (data || []).map(g => ({ id: g.id, teamId: g.team_id, skillTagId: g.skill_tag_id, targetPct: Number(g.target_pct) }))
 }
-// Upsert-by-(team,tag): re-setting a goal for a tag that already has one
-// updates the existing active row (team_goals_active_unique), rather than
-// archiving and re-inserting.
-export async function upsertTeamGoal(teamId, skillTagId, targetPct, createdBy) {
-  const { data: existing } = await supabase.from('team_goals').select('id').eq('team_id', teamId).eq('skill_tag_id', skillTagId).is('archived_at', null).maybeSingle()
-  if (existing) {
-    const { error } = await supabase.from('team_goals').update({ target_pct: targetPct }).eq('id', existing.id)
-    if (error) { console.error('upsertTeamGoal (update):', error); return { error } }
-    return { data: { id: existing.id } }
-  }
-  const { data, error } = await supabase.from('team_goals').insert({ team_id: teamId, skill_tag_id: skillTagId, target_pct: targetPct, created_by: createdBy }).select().single()
-  if (error) { console.error('upsertTeamGoal (insert):', error); return { error } }
-  return { data: { id: data.id } }
-}
-export async function archiveTeamGoal(id) {
-  const { error } = await supabase.from('team_goals').update({ archived_at: new Date().toISOString() }).eq('id', id)
-  if (error) console.error('archiveTeamGoal:', error)
+// Slider-per-global-tag editor (2026-07-19): one atomic replace instead of
+// N separate row writes -- archives whatever's no longer in the set, upserts
+// everything else. Server-side re-validates the sum (0 or 100) so a stale
+// client can't slip a partial save through.
+export async function setTeamGoals(teamId, targets) {
+  const { error } = await supabase.rpc('set_team_goals', {
+    p_team_id: teamId,
+    p_targets: targets.map(t => ({ skill_tag_id: t.skillTagId, target_pct: t.targetPct })),
+  })
+  if (error) console.error('setTeamGoals:', error)
   return { error }
 }
 export async function updateGoalsWindowWeeks(teamId, weeks) {
