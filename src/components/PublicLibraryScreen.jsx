@@ -28,7 +28,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
   const [sourceFilter, setSourceFilter] = useState(null);
   const [publisherFilter, setPublisherFilter] = useState(null);
   const [tagFilter, setTagFilter] = useState([]);
-  const [showTagFilter, setShowTagFilter] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [drillMenu, setDrillMenu] = useState(null);
 
@@ -76,6 +76,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
   const equipNames = ids => (ids || []).map(id => assetsById[id] ? assetsById[id].name : null).filter(Boolean);
   const tagNames = ids => (ids || []).map(id => skillTagsById[id] ? skillTagsById[id].name : null).filter(Boolean);
   const hasActiveFilters = sourceFilter || publisherFilter || tagFilter.length > 0;
+  const activeFilterCount = (sourceFilter ? 1 : 0) + (publisherFilter ? 1 : 0) + tagFilter.length;
   const clearFilters = () => { setSourceFilter(null); setPublisherFilter(null); setTagFilter([]); };
 
   return (<div onClick={() => setDrillMenu(null)}>
@@ -85,28 +86,34 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
     </div>
     <input className="inp" placeholder={"Search " + selectedSport + " drills..."} value={search} onChange={e => setSearch(e.target.value)} style={{marginBottom: 10}}/>
     <div style={{display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12}} onClick={e => e.stopPropagation()}>
-      {sportCatalogs.length > 1 && (<select className="sel" value={sourceFilter || ""} onChange={e => setSourceFilter(e.target.value || null)} style={{maxWidth: 170}}>
-        <option value="">All Sources</option>
-        {sportCatalogs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-      </select>)}
-      {publishers.length > 1 && (<select className="sel" value={publisherFilter || ""} onChange={e => setPublisherFilter(e.target.value || null)} style={{maxWidth: 170}}>
-        <option value="">All Publishers</option>
-        {publishers.map(p => <option key={p} value={p}>{p}</option>)}
-      </select>)}
-      {availableTags.length > 0 && <button className="btn ghost bsm" onClick={() => setShowTagFilter(true)}>Skill Tag{tagFilter.length > 0 ? " (" + tagFilter.length + ")" : ""}</button>}
+      <button className="btn ghost bsm" onClick={() => setShowFilter(true)}>Filter{activeFilterCount > 0 ? " (" + activeFilterCount + ")" : ""}</button>
       {hasActiveFilters && <button className="btn ghost bsm" onClick={clearFilters}>Clear Filters</button>}
     </div>
-    {showTagFilter && <div className="movly" style={{zIndex: 300}} onClick={e => { if (e.target === e.currentTarget) setShowTagFilter(false); }}>
+    {showFilter && <div className="movly" style={{zIndex: 300}} onClick={e => { if (e.target === e.currentTarget) setShowFilter(false); }}>
       <div className="modal">
         <div style={{display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12}}>
-          <div style={{fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900}}>Filter by Skill Tag</div>
-          <button type="button" className="btn ghost bxs" onClick={() => setShowTagFilter(false)}>Done</button>
+          <div style={{fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900}}>Filter</div>
+          <button type="button" className="btn ghost bxs" onClick={() => setShowFilter(false)}>Done</button>
         </div>
+        {sportCatalogs.length > 1 && (<div className="fld"><label className="lbl">Library Source</label>
+          <select className="sel" value={sourceFilter || ""} onChange={e => setSourceFilter(e.target.value || null)}>
+            <option value="">All Sources</option>
+            {sportCatalogs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>)}
+        {publishers.length > 1 && (<div className="fld"><label className="lbl">Publisher</label>
+          <select className="sel" value={publisherFilter || ""} onChange={e => setPublisherFilter(e.target.value || null)}>
+            <option value="">All Publishers</option>
+            {publishers.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>)}
+        <div className="clbl mb8">Skill Tags</div>
         <div style={{display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10}}>
           {availableTags.map(t => (<button key={t.id} type="button" onClick={() => setTagFilter(p => p.includes(t.id) ? p.filter(x => x !== t.id) : [...p, t.id])} style={{padding: "4px 10px", borderRadius: 20, border: "1.5px solid var(--b)", background: tagFilter.includes(t.id) ? "var(--green)" : "var(--s1)", color: tagFilter.includes(t.id) ? "#fff" : "var(--black)", fontSize: 13, cursor: "pointer"}}>{t.name} <span style={{opacity: .7}}>{tagCounts[t.id]}</span></button>))}
+          {availableTags.length === 0 && <span style={{fontSize: 13, color: "var(--td)"}}>No skill tags on these drills.</span>}
         </div>
-        {tagFilter.length > 0 && <button type="button" className="btn ghost bxs" onClick={() => setTagFilter([])}>Clear all</button>}
-        <button type="button" className="btn primary bmd bfull" style={{marginTop: 14}} onClick={() => setShowTagFilter(false)}>Done</button>
+        {hasActiveFilters && <button type="button" className="btn ghost bxs" onClick={clearFilters}>Clear all filters</button>}
+        <button type="button" className="btn primary bmd bfull" style={{marginTop: 14}} onClick={() => setShowFilter(false)}>Done</button>
       </div>
     </div>}
     {drills.length === 0 && <div style={{padding: "40px 0", textAlign: "center", color: "var(--td)", fontSize: 14}}>No drills match{q ? " \"" + search + "\"" : ""}{hasActiveFilters ? " with these filters" : ""}.</div>}
@@ -117,7 +124,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
         <div style={{display: "flex", justifyContent: "space-between", alignItems: "flex-start"}}>
           <div className="lim">
             <div className="lin">{highlightMatch(d.name, q)}</div>
-            <div className="limt" style={{color: "var(--green2)"}}>Published by {(catalog && catalog.publisherName) || "Run of Practice"}</div>
+            <div className="limt" style={{color: "var(--green2)"}}>Published by {(catalog && catalog.publisherName) || "Jaxon Leo"}</div>
           </div>
           {isAdmin && <div style={{position: "relative", flexShrink: 0}}>
             <button className="ell-btn" onClick={e => { e.stopPropagation(); setDrillMenu(drillMenu === d.id ? null : d.id); }}><span/><span/><span/></button>

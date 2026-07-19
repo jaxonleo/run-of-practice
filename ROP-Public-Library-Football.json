@@ -8,8 +8,12 @@
       "duration": 10,
       "grouping": "partners",
       "numGroups": null,
-      "skillTags": ["Passing: Throwing mechanics"],
-      "teamEquipment": ["Footballs"],
+      "skillTags": [
+        "Passing: Throwing mechanics"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
       "playerGear": []
     },
     {
@@ -19,8 +23,13 @@
       "duration": 10,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Passing: Footwork & drops"],
-      "teamEquipment": ["Footballs", "Cones"],
+      "skillTags": [
+        "Passing: Footwork & drops"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
       "playerGear": []
     },
     {
@@ -30,19 +39,29 @@
       "duration": 10,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Passing: Throwing on the move"],
-      "teamEquipment": ["Footballs", "Cones"],
+      "skillTags": [
+        "Passing: Throwing on the move"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
       "playerGear": []
     },
     {
       "name": "Route Tree on Air",
-      "description": "Receivers run the route tree one route at a time against no defense — slant, out, curl, post, go — with a throw on every rep.",
+      "description": "Receivers run the route tree one route at a time against no defense: slant, out, curl, post, go. Throw on every rep.",
       "coachingPoints": "Sell every route like a go until the break, then snap it off sharp.",
       "duration": 15,
       "grouping": "groups",
       "numGroups": 3,
-      "skillTags": ["Receiving: Route running"],
-      "teamEquipment": ["Footballs", "Cones"],
+      "skillTags": [
+        "Receiving: Route running"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
       "playerGear": []
     },
     {
@@ -52,19 +71,27 @@
       "duration": 12,
       "grouping": "partners",
       "numGroups": null,
-      "skillTags": ["Receiving: Catching fundamentals"],
-      "teamEquipment": ["Footballs"],
+      "skillTags": [
+        "Receiving: Catching fundamentals"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
       "playerGear": []
     },
     {
       "name": "High-Point Fade Balls",
       "description": "Receiver and defender jog side by side down the sideline; coach lofts a fade and both compete to catch it at its highest point. Switch roles each rep.",
-      "coachingPoints": "Attack the ball at its peak — go get it, don't wait for it.",
+      "coachingPoints": "Attack the ball at its peak. Go get it, don't wait for it.",
       "duration": 10,
       "grouping": "partners",
       "numGroups": null,
-      "skillTags": ["Receiving: Contested catches"],
-      "teamEquipment": ["Footballs"],
+      "skillTags": [
+        "Receiving: Contested catches"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
       "playerGear": []
     },
     {
@@ -74,19 +101,28 @@
       "duration": 8,
       "grouping": "partners",
       "numGroups": null,
-      "skillTags": ["Receiving: Releases & separation"],
-      "teamEquipment": ["Cones"],
+      "skillTags": [
+        "Receiving: Releases & separation"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
       "playerGear": []
     },
     {
       "name": "Gauntlet Ball Security",
       "description": "Ball carrier runs a tight lane between two lines of teammates who punch, slap, and rip at the ball the whole way through.",
-      "coachingPoints": "Five points of pressure — eagle claw, forearm, bicep, chest, high and tight.",
+      "coachingPoints": "Five points of pressure. Eagle claw, forearm, bicep, chest, high and tight.",
       "duration": 8,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Rushing: Ball security"],
-      "teamEquipment": ["Footballs", "Cones"],
+      "skillTags": [
+        "Rushing: Ball security"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
       "playerGear": []
     },
     {
@@ -96,42 +132,64 @@
       "duration": 8,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Rushing: Vision & cuts", "Conditioning: Agility & change of direction"],
-      "teamEquipment": ["Footballs", "Cones"],
+      "skillTags": [
+        "Rushing: Vision & cuts",
+        "Conditioning: Agility & change of direction"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
       "playerGear": []
     },
     {
       "name": "Handoff Exchange Circle",
       "description": "Players jog a continuous circle exchanging one ball with proper mesh: quarterback seats the ball, runner forms the pocket, secures, and hands to the next.",
-      "coachingPoints": "Inside elbow up, eyes forward — take the ball with your pocket, never your eyes.",
+      "coachingPoints": "Inside elbow up, eyes forward. Take the ball with your pocket, never your eyes.",
       "duration": 8,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Rushing: Handoff exchange"],
-      "teamEquipment": ["Footballs"],
+      "skillTags": [
+        "Rushing: Handoff exchange"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
       "playerGear": []
     },
     {
       "name": "2v1 Open Field",
       "description": "Two ball carriers with one ball attack one defender in a 15-yard-wide alley; the runner uses the extra man, a cut, or speed to cross the line untouched.",
-      "coachingPoints": "Make one decisive move — hesitation is what gets you caught in space.",
+      "coachingPoints": "Make one decisive move. Hesitation is what gets you caught in space.",
       "duration": 12,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Rushing: Open-field running", "Tackling: Open-field tackling"],
-      "teamEquipment": ["Footballs", "Cones", "Pinnies"],
+      "skillTags": [
+        "Rushing: Open-field running",
+        "Tackling: Open-field tackling"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones",
+        "Pinnies"
+      ],
       "playerGear": []
     },
     {
       "name": "Fit and Freeze Form Tackle",
-      "description": "Partners walk through the tackle fit: leverage step, chest to thigh, head across, arms wrapped — then freeze so the coach checks every position. No one goes to the ground.",
-      "coachingPoints": "Eyes up, head across the body, hips low — see what you hit.",
+      "description": "Partners walk through the tackle fit: leverage step, chest to thigh, head across, arms wrapped. Then freeze so the coach checks every position. No one goes to the ground.",
+      "coachingPoints": "Eyes up, head across the body, hips low. See what you hit.",
       "duration": 10,
       "grouping": "partners",
       "numGroups": null,
-      "skillTags": ["Tackling: Form tackling"],
+      "skillTags": [
+        "Tackling: Form tackling"
+      ],
       "teamEquipment": [],
-      "playerGear": ["Helmet", "Shoulder Pads"]
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
     },
     {
       "name": "Angle Pursuit to the Sideline",
@@ -140,53 +198,88 @@
       "duration": 10,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Tackling: Pursuit angles", "Conditioning: Speed & acceleration"],
-      "teamEquipment": ["Footballs", "Cones"],
+      "skillTags": [
+        "Tackling: Pursuit angles",
+        "Conditioning: Speed & acceleration"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
       "playerGear": []
     },
     {
       "name": "Bag Wrap and Drive",
       "description": "Defender fits on a tackle bag, wraps, and drives it back five yards with churning feet while a partner braces it. Three reps, rotate.",
-      "coachingPoints": "Wrap and run your feet through contact — the tackle ends five yards later.",
+      "coachingPoints": "Wrap and run your feet through contact. The tackle ends five yards later.",
       "duration": 8,
       "grouping": "groups",
       "numGroups": 3,
-      "skillTags": ["Tackling: Wrap & drive"],
-      "teamEquipment": ["Tackle Bags"],
-      "playerGear": ["Helmet", "Shoulder Pads"]
+      "skillTags": [
+        "Tackling: Wrap & drive"
+      ],
+      "teamEquipment": [
+        "Tackle Bags"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
     },
     {
       "name": "Stance and Get-Off",
       "description": "Linemen align in a three-point stance; on a varied cadence, everyone fires out three steps low and flat. Coach checks stance and first step every rep.",
-      "coachingPoints": "Flat back, weight balanced, explode on the sound — not the guess.",
+      "coachingPoints": "Flat back, weight balanced, explode on the sound. Not the guess.",
       "duration": 8,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Blocking: Stance & first step"],
-      "teamEquipment": ["Cones"],
-      "playerGear": ["Helmet", "Shoulder Pads"]
+      "skillTags": [
+        "Blocking: Stance & first step"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
     },
     {
       "name": "Mirror Punch Pass Pro",
       "description": "Blocker kick-slides to mirror a partner's lateral rushes inside a five-yard lane, landing a two-hand punch to the chest plate each time the rusher closes.",
-      "coachingPoints": "Thumbs up, elbows in, punch on their move — feet never cross.",
+      "coachingPoints": "Thumbs up, elbows in, punch on their move. Feet never cross.",
       "duration": 10,
       "grouping": "partners",
       "numGroups": null,
-      "skillTags": ["Blocking: Pass protection", "Blocking: Hand placement"],
-      "teamEquipment": ["Cones"],
-      "playerGear": ["Helmet", "Shoulder Pads"]
+      "skillTags": [
+        "Blocking: Pass protection",
+        "Blocking: Hand placement"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
     },
     {
       "name": "Drive Block on Bags",
       "description": "Blocker fires from stance into a held blocking pad, strikes with hands inside, and drives it five yards on a straight line. Three reps, rotate holders.",
-      "coachingPoints": "Low pad wins — strike up and through with your hips behind your hands.",
+      "coachingPoints": "Low pad wins. Strike up and through with your hips behind your hands.",
       "duration": 10,
       "grouping": "groups",
       "numGroups": 3,
-      "skillTags": ["Blocking: Drive blocking"],
-      "teamEquipment": ["Blocking Pads"],
-      "playerGear": ["Helmet", "Shoulder Pads"]
+      "skillTags": [
+        "Blocking: Drive blocking"
+      ],
+      "teamEquipment": [
+        "Blocking Pads"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
     },
     {
       "name": "Sprint Ladder and Pro Agility",
@@ -195,61 +288,164 @@
       "duration": 10,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Conditioning: Speed & acceleration", "Conditioning: Agility & change of direction"],
-      "teamEquipment": ["Agility Ladder", "Cones"],
+      "skillTags": [
+        "Conditioning: Speed & acceleration",
+        "Conditioning: Agility & change of direction"
+      ],
+      "teamEquipment": [
+        "Agility Ladder",
+        "Cones"
+      ],
       "playerGear": []
     },
     {
       "name": "Play Execution on Air",
       "description": "Full offense runs the install plays against no defense at full speed: break the huddle, align, execute assignments, finish ten yards downfield.",
-      "coachingPoints": "Perfect alignment and full-speed finish — walkthrough pace teaches walkthrough habits.",
+      "coachingPoints": "Perfect alignment and full-speed finish. Walkthrough pace teaches walkthrough habits.",
       "duration": 15,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Team Play: Play execution", "Team Play: Communication"],
-      "teamEquipment": ["Footballs", "Cones"],
+      "skillTags": [
+        "Team Play: Play execution",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
       "playerGear": []
     },
     {
       "name": "Situational 7-on-7",
-      "description": "Skill players run 7-on-7 with the coach calling down, distance, and clock before each snap — third and long, red zone, two-minute drill.",
-      "coachingPoints": "Know the situation before the snap — the down and distance picks your decision for you.",
+      "description": "Skill players run 7-on-7 with the coach calling down, distance, and clock before each snap. Third and long, red zone, two-minute drill.",
+      "coachingPoints": "Know the situation before the snap. The down and distance picks your decision for you.",
       "duration": 20,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Team Play: Situational football", "Passing: Reading coverage"],
-      "teamEquipment": ["Footballs", "Cones", "Pinnies"],
+      "skillTags": [
+        "Team Play: Situational football",
+        "Passing: Reading coverage"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones",
+        "Pinnies"
+      ],
       "playerGear": []
     }
   ],
   "newTagProposals": [
-    { "category": "Passing", "name": "Throwing mechanics" },
-    { "category": "Passing", "name": "Footwork & drops" },
-    { "category": "Passing", "name": "Throwing on the move" },
-    { "category": "Passing", "name": "Reading coverage" },
-    { "category": "Receiving", "name": "Catching fundamentals" },
-    { "category": "Receiving", "name": "Route running" },
-    { "category": "Receiving", "name": "Contested catches" },
-    { "category": "Receiving", "name": "Releases & separation" },
-    { "category": "Rushing", "name": "Ball security" },
-    { "category": "Rushing", "name": "Vision & cuts" },
-    { "category": "Rushing", "name": "Handoff exchange" },
-    { "category": "Rushing", "name": "Open-field running" },
-    { "category": "Blocking", "name": "Stance & first step" },
-    { "category": "Blocking", "name": "Hand placement" },
-    { "category": "Blocking", "name": "Drive blocking" },
-    { "category": "Blocking", "name": "Pass protection" },
-    { "category": "Tackling", "name": "Form tackling" },
-    { "category": "Tackling", "name": "Pursuit angles" },
-    { "category": "Tackling", "name": "Wrap & drive" },
-    { "category": "Tackling", "name": "Open-field tackling" },
-    { "category": "Conditioning", "name": "Speed & acceleration" },
-    { "category": "Conditioning", "name": "Agility & change of direction" },
-    { "category": "Conditioning", "name": "Explosiveness" },
-    { "category": "Conditioning", "name": "Endurance" },
-    { "category": "Team Play", "name": "Play execution" },
-    { "category": "Team Play", "name": "Situational football" },
-    { "category": "Team Play", "name": "Communication" },
-    { "category": "Team Play", "name": "Special teams basics" }
+    {
+      "category": "Passing",
+      "name": "Throwing mechanics"
+    },
+    {
+      "category": "Passing",
+      "name": "Footwork & drops"
+    },
+    {
+      "category": "Passing",
+      "name": "Throwing on the move"
+    },
+    {
+      "category": "Passing",
+      "name": "Reading coverage"
+    },
+    {
+      "category": "Receiving",
+      "name": "Catching fundamentals"
+    },
+    {
+      "category": "Receiving",
+      "name": "Route running"
+    },
+    {
+      "category": "Receiving",
+      "name": "Contested catches"
+    },
+    {
+      "category": "Receiving",
+      "name": "Releases & separation"
+    },
+    {
+      "category": "Rushing",
+      "name": "Ball security"
+    },
+    {
+      "category": "Rushing",
+      "name": "Vision & cuts"
+    },
+    {
+      "category": "Rushing",
+      "name": "Handoff exchange"
+    },
+    {
+      "category": "Rushing",
+      "name": "Open-field running"
+    },
+    {
+      "category": "Blocking",
+      "name": "Stance & first step"
+    },
+    {
+      "category": "Blocking",
+      "name": "Hand placement"
+    },
+    {
+      "category": "Blocking",
+      "name": "Drive blocking"
+    },
+    {
+      "category": "Blocking",
+      "name": "Pass protection"
+    },
+    {
+      "category": "Tackling",
+      "name": "Form tackling"
+    },
+    {
+      "category": "Tackling",
+      "name": "Pursuit angles"
+    },
+    {
+      "category": "Tackling",
+      "name": "Wrap & drive"
+    },
+    {
+      "category": "Tackling",
+      "name": "Open-field tackling"
+    },
+    {
+      "category": "Conditioning",
+      "name": "Speed & acceleration"
+    },
+    {
+      "category": "Conditioning",
+      "name": "Agility & change of direction"
+    },
+    {
+      "category": "Conditioning",
+      "name": "Explosiveness"
+    },
+    {
+      "category": "Conditioning",
+      "name": "Endurance"
+    },
+    {
+      "category": "Team Play",
+      "name": "Play execution"
+    },
+    {
+      "category": "Team Play",
+      "name": "Situational football"
+    },
+    {
+      "category": "Team Play",
+      "name": "Communication"
+    },
+    {
+      "category": "Team Play",
+      "name": "Special teams basics"
+    }
   ]
 }

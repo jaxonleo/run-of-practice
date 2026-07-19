@@ -8,42 +8,70 @@
       "duration": 10,
       "grouping": "partners",
       "numGroups": null,
-      "skillTags": ["Passing: Stationary passing & catching", "Passing: Off-hand development"],
-      "teamEquipment": ["Lacrosse Balls"],
-      "playerGear": ["Lacrosse Stick"]
+      "skillTags": [
+        "Passing: Stationary passing & catching",
+        "Passing: Off-hand development"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls"
+      ],
+      "playerGear": [
+        "Lacrosse Stick"
+      ]
     },
     {
       "name": "Down-the-Line Passing on the Run",
       "description": "Two lines face each other 20 yards apart. Player sprints toward the opposite line, passes on the run at the midpoint cone, and joins the back of that line.",
-      "coachingPoints": "Pass across your body while running — don't stop your feet to throw.",
+      "coachingPoints": "Pass across your body while running. Don't stop your feet to throw.",
       "duration": 10,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Passing: Passing on the run"],
-      "teamEquipment": ["Lacrosse Balls", "Cones"],
-      "playerGear": ["Lacrosse Stick"]
+      "skillTags": [
+        "Passing: Passing on the run"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls",
+        "Cones"
+      ],
+      "playerGear": [
+        "Lacrosse Stick"
+      ]
     },
     {
       "name": "Quick Stick Triangle",
       "description": "Three players form a ten-yard triangle and move one ball with one-touch catch-and-release passes. Add a second ball once the first is clean.",
-      "coachingPoints": "Soft hands, catch and release in one motion — the ball never sits in your stick.",
+      "coachingPoints": "Soft hands, catch and release in one motion. The ball never sits in your stick.",
       "duration": 8,
       "grouping": "groups",
       "numGroups": 3,
-      "skillTags": ["Passing: Quick stick"],
-      "teamEquipment": ["Lacrosse Balls"],
-      "playerGear": ["Lacrosse Stick"]
+      "skillTags": [
+        "Passing: Quick stick"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls"
+      ],
+      "playerGear": [
+        "Lacrosse Stick"
+      ]
     },
     {
       "name": "Wall Ball Circuit",
       "description": "Each player faces a wall or rebounder: 25 right, 25 left, 25 quick sticks, 25 one-handed. Time the full circuit and race your own score.",
-      "coachingPoints": "Same clean mechanics at full speed — the wall punishes lazy hands.",
+      "coachingPoints": "Same clean mechanics at full speed. The wall punishes lazy hands.",
       "duration": 12,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Passing: Off-hand development", "Conditioning: Endurance"],
-      "teamEquipment": ["Lacrosse Balls", "Rebounder"],
-      "playerGear": ["Lacrosse Stick"]
+      "skillTags": [
+        "Passing: Off-hand development",
+        "Conditioning: Endurance"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls",
+        "Rebounder"
+      ],
+      "playerGear": [
+        "Lacrosse Stick"
+      ]
     },
     {
       "name": "Shooting on the Run Arc",
@@ -52,9 +80,19 @@
       "duration": 12,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Shooting: Shooting on the run"],
-      "teamEquipment": ["Lacrosse Balls", "Cones", "Goals"],
-      "playerGear": ["Lacrosse Stick", "Helmet", "Gloves"]
+      "skillTags": [
+        "Shooting: Shooting on the run"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls",
+        "Cones",
+        "Goals"
+      ],
+      "playerGear": [
+        "Lacrosse Stick",
+        "Helmet",
+        "Gloves"
+      ]
     },
     {
       "name": "Time and Room Catch-and-Shoot",
@@ -63,31 +101,60 @@
       "duration": 10,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Shooting: Time & room shooting"],
-      "teamEquipment": ["Lacrosse Balls", "Goals"],
-      "playerGear": ["Lacrosse Stick", "Helmet", "Gloves"]
+      "skillTags": [
+        "Shooting: Time & room shooting"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls",
+        "Goals"
+      ],
+      "playerGear": [
+        "Lacrosse Stick",
+        "Helmet",
+        "Gloves"
+      ]
     },
     {
       "name": "Corner Placement Shooting",
       "description": "Hang targets or call corners: each shooter gets five shots to hit the called corner from ten yards. Track makes; winner picks the next corner.",
-      "coachingPoints": "Look the corner in, aim for far pipe low — placement beats power.",
+      "coachingPoints": "Look the corner in, aim for far pipe low. Placement beats power.",
       "duration": 10,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Shooting: Shot placement"],
-      "teamEquipment": ["Lacrosse Balls", "Goals", "Shooting Targets"],
-      "playerGear": ["Lacrosse Stick", "Helmet", "Gloves"]
+      "skillTags": [
+        "Shooting: Shot placement"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls",
+        "Goals",
+        "Shooting Targets"
+      ],
+      "playerGear": [
+        "Lacrosse Stick",
+        "Helmet",
+        "Gloves"
+      ]
     },
     {
       "name": "Crease Feed and Finish",
       "description": "Feeder at X, finisher posts on the crease. Finisher cuts across the mouth of the goal, catches, and finishes in one motion. Five reps, rotate.",
-      "coachingPoints": "Catch and finish in the same motion — any cradle gives the goalie time.",
+      "coachingPoints": "Catch and finish in the same motion. Any cradle gives the goalie time.",
       "duration": 10,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Shooting: Crease finishing", "Team Play: Off-ball movement"],
-      "teamEquipment": ["Lacrosse Balls", "Goals"],
-      "playerGear": ["Lacrosse Stick", "Helmet", "Gloves"]
+      "skillTags": [
+        "Shooting: Crease finishing",
+        "Team Play: Off-ball movement"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls",
+        "Goals"
+      ],
+      "playerGear": [
+        "Lacrosse Stick",
+        "Helmet",
+        "Gloves"
+      ]
     },
     {
       "name": "Split Dodge Cone Line",
@@ -96,9 +163,17 @@
       "duration": 8,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Dodging: Split dodge", "Conditioning: Acceleration"],
-      "teamEquipment": ["Lacrosse Balls", "Cones"],
-      "playerGear": ["Lacrosse Stick"]
+      "skillTags": [
+        "Dodging: Split dodge",
+        "Conditioning: Acceleration"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls",
+        "Cones"
+      ],
+      "playerGear": [
+        "Lacrosse Stick"
+      ]
     },
     {
       "name": "Roll Dodge Mirror",
@@ -107,75 +182,137 @@
       "duration": 8,
       "grouping": "partners",
       "numGroups": null,
-      "skillTags": ["Dodging: Roll dodge"],
-      "teamEquipment": ["Lacrosse Balls"],
-      "playerGear": ["Lacrosse Stick", "Helmet", "Gloves"]
+      "skillTags": [
+        "Dodging: Roll dodge"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls"
+      ],
+      "playerGear": [
+        "Lacrosse Stick",
+        "Helmet",
+        "Gloves"
+      ]
     },
     {
       "name": "1v1 from X",
       "description": "Attacker starts behind the goal at X against one defender and has eight seconds to dodge topside and score. Rotate winner-stays.",
-      "coachingPoints": "Attack the island above goal line extended — make the defender turn his hips.",
+      "coachingPoints": "Attack the island above goal line extended. Make the defender turn his hips.",
       "duration": 12,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Dodging: Dodging from X", "Defending: Body positioning"],
-      "teamEquipment": ["Lacrosse Balls", "Goals", "Pinnies"],
-      "playerGear": ["Lacrosse Stick", "Helmet", "Gloves"]
+      "skillTags": [
+        "Dodging: Dodging from X",
+        "Defending: Body positioning"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls",
+        "Goals",
+        "Pinnies"
+      ],
+      "playerGear": [
+        "Lacrosse Stick",
+        "Helmet",
+        "Gloves"
+      ]
     },
     {
       "name": "Change of Pace Alley",
       "description": "Ball carrier jogs down a five-yard cone alley, then explodes to full speed at a random cone of their choosing, finishing with a shot on the run.",
-      "coachingPoints": "Lull them at jog speed — the burst only works if the slow looks real.",
+      "coachingPoints": "Lull them at jog speed. The burst only works if the slow looks real.",
       "duration": 8,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Dodging: Change of pace"],
-      "teamEquipment": ["Lacrosse Balls", "Cones", "Goals"],
-      "playerGear": ["Lacrosse Stick", "Helmet", "Gloves"]
+      "skillTags": [
+        "Dodging: Change of pace"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls",
+        "Cones",
+        "Goals"
+      ],
+      "playerGear": [
+        "Lacrosse Stick",
+        "Helmet",
+        "Gloves"
+      ]
     },
     {
       "name": "Approach and Breakdown",
       "description": "Defenders sprint from the crease toward a coach-held ball, break down into a controlled stance in the last three yards, and mirror two lateral moves.",
-      "coachingPoints": "Sprint, chop your feet, stick out front — never arrive out of control.",
+      "coachingPoints": "Sprint, chop your feet, stick out front. Never arrive out of control.",
       "duration": 8,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Defending: Approach & breakdown footwork"],
-      "teamEquipment": ["Cones"],
-      "playerGear": ["Lacrosse Stick"]
+      "skillTags": [
+        "Defending: Approach & breakdown footwork"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": [
+        "Lacrosse Stick"
+      ]
     },
     {
       "name": "Poke and Lift Check Reps",
       "description": "Ball carrier cradles at walking pace; defender throws controlled poke checks at the bottom hand and lift checks under the glove. Ten of each, switch.",
-      "coachingPoints": "Short, sharp checks that return to position — never wind up or swing.",
+      "coachingPoints": "Short, sharp checks that return to position. Never wind up or swing.",
       "duration": 8,
       "grouping": "partners",
       "numGroups": null,
-      "skillTags": ["Defending: Stick checks"],
-      "teamEquipment": ["Lacrosse Balls"],
-      "playerGear": ["Lacrosse Stick", "Helmet", "Gloves"]
+      "skillTags": [
+        "Defending: Stick checks"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls"
+      ],
+      "playerGear": [
+        "Lacrosse Stick",
+        "Helmet",
+        "Gloves"
+      ]
     },
     {
       "name": "Hot Slide Triangle",
       "description": "Three defenders guard three attackers around the arc. On the coach's call of 'hot,' the nearest defender slides to the ball while the other two rotate to cover.",
-      "coachingPoints": "Call 'hot' early and loud — the slide starts with your voice, not your feet.",
+      "coachingPoints": "Call 'hot' early and loud. The slide starts with your voice, not your feet.",
       "duration": 12,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Defending: Slides & recovery", "Team Play: Man-up / man-down basics"],
-      "teamEquipment": ["Lacrosse Balls", "Pinnies", "Goals"],
-      "playerGear": ["Lacrosse Stick", "Helmet", "Gloves"]
+      "skillTags": [
+        "Defending: Slides & recovery",
+        "Team Play: Man-up / man-down basics"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls",
+        "Pinnies",
+        "Goals"
+      ],
+      "playerGear": [
+        "Lacrosse Stick",
+        "Helmet",
+        "Gloves"
+      ]
     },
     {
       "name": "Scoop Through Lines",
       "description": "Coach rolls balls out; players attack the ball one at a time, scoop through without stopping, and cradle away to the back of the line.",
-      "coachingPoints": "Butt of the stick low, back flat, run through the ball — never rake.",
+      "coachingPoints": "Butt of the stick low, back flat, run through the ball. Never rake.",
       "duration": 8,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Ground Balls: Scooping technique"],
-      "teamEquipment": ["Lacrosse Balls"],
-      "playerGear": ["Lacrosse Stick", "Helmet", "Gloves"]
+      "skillTags": [
+        "Ground Balls: Scooping technique"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls"
+      ],
+      "playerGear": [
+        "Lacrosse Stick",
+        "Helmet",
+        "Gloves"
+      ]
     },
     {
       "name": "1v1 Ground Ball Battles",
@@ -184,9 +321,18 @@
       "duration": 10,
       "grouping": "partners",
       "numGroups": null,
-      "skillTags": ["Ground Balls: Contested ground balls", "Ground Balls: Boxing out"],
-      "teamEquipment": ["Lacrosse Balls"],
-      "playerGear": ["Lacrosse Stick", "Helmet", "Gloves"]
+      "skillTags": [
+        "Ground Balls: Contested ground balls",
+        "Ground Balls: Boxing out"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls"
+      ],
+      "playerGear": [
+        "Lacrosse Stick",
+        "Helmet",
+        "Gloves"
+      ]
     },
     {
       "name": "Ground Ball to 3v2 Break",
@@ -195,20 +341,42 @@
       "duration": 15,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Ground Balls: Ground ball to fast break", "Team Play: Fast break offense"],
-      "teamEquipment": ["Lacrosse Balls", "Goals", "Pinnies"],
-      "playerGear": ["Lacrosse Stick", "Helmet", "Gloves"]
+      "skillTags": [
+        "Ground Balls: Ground ball to fast break",
+        "Team Play: Fast break offense"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls",
+        "Goals",
+        "Pinnies"
+      ],
+      "playerGear": [
+        "Lacrosse Stick",
+        "Helmet",
+        "Gloves"
+      ]
     },
     {
       "name": "Full-Field Clear Relay",
       "description": "Goalie outlets to a defender, and the team moves the ball goal-to-goal through midfield cones with a minimum of four passes, finishing with a shot. Race the clock.",
-      "coachingPoints": "Move the ball faster than anyone can run — pass ahead, never backward under pressure.",
+      "coachingPoints": "Move the ball faster than anyone can run. Pass ahead, never backward under pressure.",
       "duration": 15,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Team Play: Clearing", "Conditioning: Transition running"],
-      "teamEquipment": ["Lacrosse Balls", "Cones", "Goals"],
-      "playerGear": ["Lacrosse Stick", "Helmet", "Gloves"]
+      "skillTags": [
+        "Team Play: Clearing",
+        "Conditioning: Transition running"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls",
+        "Cones",
+        "Goals"
+      ],
+      "playerGear": [
+        "Lacrosse Stick",
+        "Helmet",
+        "Gloves"
+      ]
     },
     {
       "name": "Cut and Feed Circuit",
@@ -217,39 +385,133 @@
       "duration": 12,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Team Play: Off-ball movement", "Passing: Passing on the run"],
-      "teamEquipment": ["Lacrosse Balls", "Goals"],
-      "playerGear": ["Lacrosse Stick", "Helmet", "Gloves"]
+      "skillTags": [
+        "Team Play: Off-ball movement",
+        "Passing: Passing on the run"
+      ],
+      "teamEquipment": [
+        "Lacrosse Balls",
+        "Goals"
+      ],
+      "playerGear": [
+        "Lacrosse Stick",
+        "Helmet",
+        "Gloves"
+      ]
     }
   ],
   "newTagProposals": [
-    { "category": "Passing", "name": "Stationary passing & catching" },
-    { "category": "Passing", "name": "Passing on the run" },
-    { "category": "Passing", "name": "Quick stick" },
-    { "category": "Passing", "name": "Off-hand development" },
-    { "category": "Shooting", "name": "Shooting on the run" },
-    { "category": "Shooting", "name": "Time & room shooting" },
-    { "category": "Shooting", "name": "Shot placement" },
-    { "category": "Shooting", "name": "Crease finishing" },
-    { "category": "Dodging", "name": "Split dodge" },
-    { "category": "Dodging", "name": "Roll dodge" },
-    { "category": "Dodging", "name": "Dodging from X" },
-    { "category": "Dodging", "name": "Change of pace" },
-    { "category": "Defending", "name": "Approach & breakdown footwork" },
-    { "category": "Defending", "name": "Stick checks" },
-    { "category": "Defending", "name": "Body positioning" },
-    { "category": "Defending", "name": "Slides & recovery" },
-    { "category": "Ground Balls", "name": "Scooping technique" },
-    { "category": "Ground Balls", "name": "Contested ground balls" },
-    { "category": "Ground Balls", "name": "Ground ball to fast break" },
-    { "category": "Ground Balls", "name": "Boxing out" },
-    { "category": "Conditioning", "name": "Speed & agility" },
-    { "category": "Conditioning", "name": "Acceleration" },
-    { "category": "Conditioning", "name": "Endurance" },
-    { "category": "Conditioning", "name": "Transition running" },
-    { "category": "Team Play", "name": "Fast break offense" },
-    { "category": "Team Play", "name": "Clearing" },
-    { "category": "Team Play", "name": "Off-ball movement" },
-    { "category": "Team Play", "name": "Man-up / man-down basics" }
+    {
+      "category": "Passing",
+      "name": "Stationary passing & catching"
+    },
+    {
+      "category": "Passing",
+      "name": "Passing on the run"
+    },
+    {
+      "category": "Passing",
+      "name": "Quick stick"
+    },
+    {
+      "category": "Passing",
+      "name": "Off-hand development"
+    },
+    {
+      "category": "Shooting",
+      "name": "Shooting on the run"
+    },
+    {
+      "category": "Shooting",
+      "name": "Time & room shooting"
+    },
+    {
+      "category": "Shooting",
+      "name": "Shot placement"
+    },
+    {
+      "category": "Shooting",
+      "name": "Crease finishing"
+    },
+    {
+      "category": "Dodging",
+      "name": "Split dodge"
+    },
+    {
+      "category": "Dodging",
+      "name": "Roll dodge"
+    },
+    {
+      "category": "Dodging",
+      "name": "Dodging from X"
+    },
+    {
+      "category": "Dodging",
+      "name": "Change of pace"
+    },
+    {
+      "category": "Defending",
+      "name": "Approach & breakdown footwork"
+    },
+    {
+      "category": "Defending",
+      "name": "Stick checks"
+    },
+    {
+      "category": "Defending",
+      "name": "Body positioning"
+    },
+    {
+      "category": "Defending",
+      "name": "Slides & recovery"
+    },
+    {
+      "category": "Ground Balls",
+      "name": "Scooping technique"
+    },
+    {
+      "category": "Ground Balls",
+      "name": "Contested ground balls"
+    },
+    {
+      "category": "Ground Balls",
+      "name": "Ground ball to fast break"
+    },
+    {
+      "category": "Ground Balls",
+      "name": "Boxing out"
+    },
+    {
+      "category": "Conditioning",
+      "name": "Speed & agility"
+    },
+    {
+      "category": "Conditioning",
+      "name": "Acceleration"
+    },
+    {
+      "category": "Conditioning",
+      "name": "Endurance"
+    },
+    {
+      "category": "Conditioning",
+      "name": "Transition running"
+    },
+    {
+      "category": "Team Play",
+      "name": "Fast break offense"
+    },
+    {
+      "category": "Team Play",
+      "name": "Clearing"
+    },
+    {
+      "category": "Team Play",
+      "name": "Off-ball movement"
+    },
+    {
+      "category": "Team Play",
+      "name": "Man-up / man-down basics"
+    }
   ]
 }

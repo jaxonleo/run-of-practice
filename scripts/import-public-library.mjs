@@ -33,7 +33,7 @@ async function upsertCatalog(sport) {
   if (existing) return existing
   const { data, error } = await supabase.from('content_catalogs').insert({
     name: `Run of Practice: ${sport} Fundamentals`,
-    sport, publisher_name: 'Run of Practice', publisher_type: 'system', visibility: 'public',
+    sport, publisher_name: 'Jaxon Leo', publisher_type: 'system', visibility: 'public',
   }).select().single()
   if (error) throw error
   return data

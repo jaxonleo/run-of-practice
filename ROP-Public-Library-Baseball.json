@@ -8,31 +8,54 @@
       "duration": 10,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Fielding: Glove work / fundamentals", "Fielding: Footwork on ground balls"],
-      "teamEquipment": ["Bucket of Balls"],
+      "skillTags": [
+        "Fielding: Glove work / fundamentals",
+        "Fielding: Footwork on ground balls"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
       "playerGear": []
     },
     {
       "name": "Tee Work: Bat Path",
       "description": "Hitters rotate through tee stations into a net: middle tee, inside tee moved up, outside tee moved back. Five swings per station.",
-      "coachingPoints": "Short to the ball, long through it — match the tee depth to the pitch location.",
+      "coachingPoints": "Short to the ball, long through it. Match the tee depth to the pitch location.",
       "duration": 12,
       "grouping": "groups",
       "numGroups": 3,
-      "skillTags": ["Hitting: Bat path"],
-      "teamEquipment": ["Batting Tees", "Bucket of Balls", "Hitting Net"],
-      "playerGear": ["Bat", "Batting Helmet"]
+      "skillTags": [
+        "Hitting: Bat path"
+      ],
+      "teamEquipment": [
+        "Batting Tees",
+        "Bucket of Balls",
+        "Hitting Net"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
     },
     {
       "name": "Front Toss Rhythm Rounds",
       "description": "Coach front-tosses from behind an L-screen at game-like rhythm, mixing speeds slightly. Hitters take rounds of six, calling ball or strike before swinging.",
-      "coachingPoints": "See it early, load on time — let your eyes decide before your hands do.",
+      "coachingPoints": "See it early, load on time. Let your eyes decide before your hands do.",
       "duration": 15,
       "grouping": "groups",
       "numGroups": 3,
-      "skillTags": ["Hitting: Timing / pitch recognition"],
-      "teamEquipment": ["L-Screen", "Bucket of Balls", "Hitting Net"],
-      "playerGear": ["Bat", "Batting Helmet"]
+      "skillTags": [
+        "Hitting: Timing / pitch recognition"
+      ],
+      "teamEquipment": [
+        "L-Screen",
+        "Bucket of Balls",
+        "Hitting Net"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
     },
     {
       "name": "Opposite-Field Rounds",
@@ -41,130 +64,208 @@
       "duration": 10,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Hitting: Contact to all fields"],
-      "teamEquipment": ["L-Screen", "Bucket of Balls"],
-      "playerGear": ["Bat", "Batting Helmet"]
+      "skillTags": [
+        "Hitting: Contact to all fields"
+      ],
+      "teamEquipment": [
+        "L-Screen",
+        "Bucket of Balls"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
     },
     {
       "name": "Two-Strike Battle",
       "description": "Every at-bat starts 1-2. Coach mixes locations and takes; hitter earns a point for any ball put in play, loses one for a called strike three or chase.",
-      "coachingPoints": "Choke up, widen out, shorten the swing — win the pitch, not the highlight.",
+      "coachingPoints": "Choke up, widen out, shorten the swing. Win the pitch, not the highlight.",
       "duration": 12,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Hitting: Two-strike approach", "Hitting: Timing / pitch recognition"],
-      "teamEquipment": ["L-Screen", "Bucket of Balls"],
-      "playerGear": ["Bat", "Batting Helmet"]
+      "skillTags": [
+        "Hitting: Two-strike approach",
+        "Hitting: Timing / pitch recognition"
+      ],
+      "teamEquipment": [
+        "L-Screen",
+        "Bucket of Balls"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
     },
     {
       "name": "First-Step Reads off the Bat",
       "description": "Fielders at their positions; coach hits live fungos in any direction. Players read contact and take only their first three steps at full speed, then reset.",
-      "coachingPoints": "Read the angle of the bat, not the flight of the ball — your first step decides the play.",
+      "coachingPoints": "Read the angle of the bat, not the flight of the ball. Your first step decides the play.",
       "duration": 10,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Fielding: First-step reads"],
-      "teamEquipment": ["Fungo Bat", "Bucket of Balls"],
+      "skillTags": [
+        "Fielding: First-step reads"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls"
+      ],
       "playerGear": []
     },
     {
       "name": "Pop-Up Priority",
       "description": "Coach lofts pop-ups into the seams between infielders and outfielders. Players call it by priority rules, everyone else peels off loudly.",
-      "coachingPoints": "Call it three times, early and loud — the outfielder coming in owns the seam.",
+      "coachingPoints": "Call it three times, early and loud. The outfielder coming in owns the seam.",
       "duration": 10,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Fielding: Pop-up communication", "Team Play: Communication"],
-      "teamEquipment": ["Fungo Bat", "Bucket of Balls"],
+      "skillTags": [
+        "Fielding: Pop-up communication",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls"
+      ],
       "playerGear": []
     },
     {
       "name": "Four-Corner Quick Throws",
       "description": "Four lines form a square 60 feet apart. Ball moves around the horn with quick transfers; on the whistle, reverse direction. Race two squares against each other.",
-      "coachingPoints": "Catch moving toward your target — glove to pocket in one motion.",
+      "coachingPoints": "Catch moving toward your target. Glove to pocket in one motion.",
       "duration": 10,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Throwing: Crow hops / transfers", "Throwing: Accuracy"],
-      "teamEquipment": ["Bucket of Balls"],
+      "skillTags": [
+        "Throwing: Crow hops / transfers",
+        "Throwing: Accuracy"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
       "playerGear": []
     },
     {
       "name": "Long Toss Ladder",
       "description": "Pairs start at 60 feet and back up ten feet after every five clean throws, out to each player's max distance, then walk it back in with firm low throws.",
-      "coachingPoints": "Stay tall and finish out front — stretch the distance, never the mechanics.",
+      "coachingPoints": "Stay tall and finish out front. Stretch the distance, never the mechanics.",
       "duration": 12,
       "grouping": "partners",
       "numGroups": null,
-      "skillTags": ["Throwing: Long toss", "Throwing: Arm action"],
-      "teamEquipment": ["Bucket of Balls"],
+      "skillTags": [
+        "Throwing: Long toss",
+        "Throwing: Arm action"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
       "playerGear": []
     },
     {
       "name": "Bullpen Command Grid",
       "description": "Catcher splits the zone into four quadrants; pitcher throws a 20-pitch pen calling the quadrant before each pitch. Score a point per hit target.",
-      "coachingPoints": "Commit to the quadrant before you lift your leg — aim small, miss small.",
+      "coachingPoints": "Commit to the quadrant before you lift your leg. Aim small, miss small.",
       "duration": 15,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Pitching: Command", "Pitching: Mechanics / delivery"],
-      "teamEquipment": ["Bucket of Balls", "Throw-Down Bases"],
-      "playerGear": ["Catcher's Gear"]
+      "skillTags": [
+        "Pitching: Command",
+        "Pitching: Mechanics / delivery"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Catcher's Gear"
+      ]
     },
     {
       "name": "Dry Mechanics Mirror",
-      "description": "Pitchers pair up without a ball and work delivery checkpoints — balance point, hand break, stride, finish — while the partner freezes them at each one to check positions.",
-      "coachingPoints": "Pause at the balance point in full control — if you can't hold it, you rushed it.",
+      "description": "Pitchers pair up without a ball and work delivery checkpoints: balance point, hand break, stride, finish. The partner freezes them at each one to check positions.",
+      "coachingPoints": "Pause at the balance point in full control. If you can't hold it, you rushed it.",
       "duration": 8,
       "grouping": "partners",
       "numGroups": null,
-      "skillTags": ["Pitching: Mechanics / delivery"],
+      "skillTags": [
+        "Pitching: Mechanics / delivery"
+      ],
       "teamEquipment": [],
       "playerGear": []
     },
     {
       "name": "Pickoffs vs Live Leads",
       "description": "Pitcher works from the stretch with a live runner at first taking real leads. Pitcher mixes pitches home, holds, and pickoff throws; runner works reads and dives back.",
-      "coachingPoints": "Vary your looks and your timing — the pattern is what runners steal, not the pitch.",
+      "coachingPoints": "Vary your looks and your timing. The pattern is what runners steal, not the pitch.",
       "duration": 12,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Pitching: Pickoff moves", "Baserunning: Leads and reads"],
-      "teamEquipment": ["Bucket of Balls", "Throw-Down Bases"],
-      "playerGear": ["Batting Helmet"]
+      "skillTags": [
+        "Pitching: Pickoff moves",
+        "Baserunning: Leads and reads"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
     },
     {
       "name": "Steal Jumps off the Pitcher",
       "description": "Runners at first read a pitcher's live moves: break on first movement home, dive back on a pickoff. Three reads each, rotate runners through.",
-      "coachingPoints": "Read the heel and the front shoulder — cross over and go, no false step.",
+      "coachingPoints": "Read the heel and the front shoulder. Cross over and go, no false step.",
       "duration": 10,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Baserunning: Stealing bags", "Baserunning: Leads and reads"],
-      "teamEquipment": ["Throw-Down Bases"],
-      "playerGear": ["Batting Helmet"]
+      "skillTags": [
+        "Baserunning: Stealing bags",
+        "Baserunning: Leads and reads"
+      ],
+      "teamEquipment": [
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
     },
     {
       "name": "First-to-Third Reads",
       "description": "Runner at first, coach fungos base hits to different outfield spots. Runner reads the ball's angle rounding second and decides to take third or hold, with a base coach signaling.",
-      "coachingPoints": "Pick up the ball at the cut of second and find your coach — decide early, run hard through the decision.",
+      "coachingPoints": "Pick up the ball at the cut of second and find your coach. Decide early, run hard through the decision.",
       "duration": 12,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Baserunning: First-to-third"],
-      "teamEquipment": ["Fungo Bat", "Bucket of Balls", "Throw-Down Bases"],
-      "playerGear": ["Batting Helmet"]
+      "skillTags": [
+        "Baserunning: First-to-third"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
     },
     {
       "name": "Sliding Technique Station",
       "description": "On grass or a sliding mat, players run at three-quarter speed and work bent-leg slides into a loose base, progressing to slides to either side of the bag.",
-      "coachingPoints": "Sit, don't jump — hands up, slide past the tag side of the base.",
+      "coachingPoints": "Sit, don't jump. Hands up, slide past the tag side of the base.",
       "duration": 10,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Baserunning: Sliding technique"],
-      "teamEquipment": ["Throw-Down Bases", "Sliding Mat"],
-      "playerGear": ["Batting Helmet"]
+      "skillTags": [
+        "Baserunning: Sliding technique"
+      ],
+      "teamEquipment": [
+        "Throw-Down Bases",
+        "Sliding Mat"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
     },
     {
       "name": "Home-to-First Sprints",
@@ -173,41 +274,66 @@
       "duration": 8,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Conditioning: Speed / sprint work"],
-      "teamEquipment": ["Throw-Down Bases"],
-      "playerGear": ["Batting Helmet"]
+      "skillTags": [
+        "Conditioning: Speed / sprint work"
+      ],
+      "teamEquipment": [
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
     },
     {
       "name": "Base Path Agility Relays",
       "description": "Two teams race a cone circuit shaped like the base paths: sprint, round the cone tight, shuffle a segment, backpedal home, tag the next runner.",
-      "coachingPoints": "Lean into every turn and cut the corner tight — wide turns lose the race.",
+      "coachingPoints": "Lean into every turn and cut the corner tight. Wide turns lose the race.",
       "duration": 8,
       "grouping": "groups",
       "numGroups": 2,
-      "skillTags": ["Conditioning: Agility", "Conditioning: Speed / sprint work"],
-      "teamEquipment": ["Cones"],
+      "skillTags": [
+        "Conditioning: Agility",
+        "Conditioning: Speed / sprint work"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
       "playerGear": []
     },
     {
       "name": "Cutoffs and Relays",
       "description": "Coach fungos balls to the outfield gaps with a called play; outfielder hits the cutoff man, who relays to the called base. Rotate outfield, cutoff, and base positions.",
-      "coachingPoints": "Line up the relay with your hands up and call the base — two low, hard throws beat one rainbow.",
+      "coachingPoints": "Line up the relay with your hands up and call the base. Two low, hard throws beat one rainbow.",
       "duration": 15,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Team Play: Cutoffs and relays", "Throwing: Accuracy"],
-      "teamEquipment": ["Fungo Bat", "Bucket of Balls", "Throw-Down Bases"],
+      "skillTags": [
+        "Team Play: Cutoffs and relays",
+        "Throwing: Accuracy"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
       "playerGear": []
     },
     {
       "name": "Freeze Situations",
-      "description": "Full defense on the field. Coach calls outs and runners, fungos a live ball, and yells freeze after the play — every player explains where they went and why.",
-      "coachingPoints": "Know your job before the pitch — the play is decided before the ball is hit.",
+      "description": "Full defense on the field. Coach calls outs and runners, fungos a live ball, and yells freeze after the play. Every player explains where they went and why.",
+      "coachingPoints": "Know your job before the pitch. The play is decided before the ball is hit.",
       "duration": 15,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Team Play: Situational awareness", "Team Play: Communication"],
-      "teamEquipment": ["Fungo Bat", "Bucket of Balls", "Throw-Down Bases"],
+      "skillTags": [
+        "Team Play: Situational awareness",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
       "playerGear": []
     },
     {
@@ -217,8 +343,14 @@
       "duration": 12,
       "grouping": "whole",
       "numGroups": null,
-      "skillTags": ["Team Play: Bunt defense", "Team Play: Communication"],
-      "teamEquipment": ["Bucket of Balls", "Throw-Down Bases"],
+      "skillTags": [
+        "Team Play: Bunt defense",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
       "playerGear": []
     }
   ],
