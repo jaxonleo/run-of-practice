@@ -63,9 +63,23 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
   if (publisherFilter) drills = drills.filter(a => catalogsById[a.sourceCatalogId] && catalogsById[a.sourceCatalogId].publisherName === publisherFilter);
 
   const skillTagsById = Object.fromEntries((data.skillTags || []).map(t => [t.id, t]));
+  const categoriesById = Object.fromEntries((data.skillCategories || []).map(c => [c.id, c]));
   const tagCounts = {};
   drills.forEach(a => (a.skillTagIds || []).forEach(id => { tagCounts[id] = (tagCounts[id] || 0) + 1; }));
   const availableTags = Object.keys(tagCounts).map(id => skillTagsById[id]).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+  // Grouped by global category (Shooting, Ball Handling, ...) so a coach can
+  // narrow to a whole category at once, not just one tag at a time.
+  const tagsByCategory = {};
+  availableTags.forEach(t => { (tagsByCategory[t.categoryId] ||= []).push(t); });
+  const tagCategoryGroups = Object.keys(tagsByCategory)
+    .map(catId => ({category: categoriesById[catId], tags: tagsByCategory[catId]}))
+    .filter(g => g.category)
+    .sort((a, b) => (a.category.sort_order || 0) - (b.category.sort_order || 0));
+  const toggleCategoryFilter = tags => {
+    const ids = tags.map(t => t.id);
+    const allSelected = ids.every(id => tagFilter.includes(id));
+    setTagFilter(p => allSelected ? p.filter(id => !ids.includes(id)) : [...new Set([...p, ...ids])]);
+  };
   if (tagFilter.length) drills = drills.filter(a => (a.skillTagIds || []).some(id => tagFilter.includes(id)));
 
   const q = search.trim().toLowerCase();
@@ -108,10 +122,20 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
           </select>
         </div>)}
         <div className="clbl mb8">Skill Tags</div>
-        <div style={{display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10}}>
-          {availableTags.map(t => (<button key={t.id} type="button" onClick={() => setTagFilter(p => p.includes(t.id) ? p.filter(x => x !== t.id) : [...p, t.id])} style={{padding: "4px 10px", borderRadius: 20, border: "1.5px solid var(--b)", background: tagFilter.includes(t.id) ? "var(--green)" : "var(--s1)", color: tagFilter.includes(t.id) ? "#fff" : "var(--black)", fontSize: 13, cursor: "pointer"}}>{t.name} <span style={{opacity: .7}}>{tagCounts[t.id]}</span></button>))}
-          {availableTags.length === 0 && <span style={{fontSize: 13, color: "var(--td)"}}>No skill tags on these drills.</span>}
-        </div>
+        {tagCategoryGroups.length === 0 && <div style={{fontSize: 13, color: "var(--td)", marginBottom: 10}}>No skill tags on these drills.</div>}
+        {tagCategoryGroups.map(({category, tags}) => {
+          const ids = tags.map(t => t.id);
+          const allSelected = ids.every(id => tagFilter.includes(id));
+          const someSelected = ids.some(id => tagFilter.includes(id));
+          return (<div key={category.id} style={{marginBottom: 10}}>
+            <button type="button" onClick={() => toggleCategoryFilter(tags)} style={{width: "100%", textAlign: "left", padding: "4px 0", border: "none", background: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, color: allSelected ? "var(--green)" : "var(--td)", textTransform: "uppercase", letterSpacing: ".06em"}}>
+              {category.name}{someSelected ? (allSelected ? " (all selected)" : " (some selected)") : ""}
+            </button>
+            <div style={{display: "flex", flexWrap: "wrap", gap: 6}}>
+              {tags.map(t => (<button key={t.id} type="button" onClick={() => setTagFilter(p => p.includes(t.id) ? p.filter(x => x !== t.id) : [...p, t.id])} style={{padding: "4px 10px", borderRadius: 20, border: "1.5px solid var(--b)", background: tagFilter.includes(t.id) ? "var(--green)" : "var(--s1)", color: tagFilter.includes(t.id) ? "#fff" : "var(--black)", fontSize: 13, cursor: "pointer"}}>{t.name} <span style={{opacity: .7}}>{tagCounts[t.id]}</span></button>))}
+            </div>
+          </div>);
+        })}
         {hasActiveFilters && <button type="button" className="btn ghost bxs" onClick={clearFilters}>Clear all filters</button>}
         <button type="button" className="btn primary bmd bfull" style={{marginTop: 14}} onClick={() => setShowFilter(false)}>Done</button>
       </div>
