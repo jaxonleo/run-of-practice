@@ -59,9 +59,22 @@ function GoalsEditor({ teamId, team, data, coachId, goals, refreshGoals }) {
   const [error, setError] = useState("");
 
   const categories = (data.skillCategories || []).filter(c => c.sport === team.sport).sort((a, b) => a.sort_order - b.sort_order);
-  const goaledTagIds = new Set(goals.map(g => g.skillTagId));
-  const tagsForCategory = cid => (data.skillTags || []).filter(t => t.categoryId === cid && (t.scope === "global" || t.scope === "org" || t.ownerUserId === coachId) && !goaledTagIds.has(t.id));
-  const tagName = id => { const t = (data.skillTags || []).find(t => t.id === id); return t ? t.name : "(tag)"; };
+  const skillTagsById = Object.fromEntries((data.skillTags || []).map(t => [t.id, t]));
+  // Goals are global-tag-only (Jax's call, 2026-07-19) -- less noisy than
+  // offering every coach-scope duplicate too, and it matches how
+  // get_team_goal_report now rolls planned/actual up to the global tag.
+  // A goal set before this change may still point at a coach-scope tag; find
+  // its global equivalent (same category + name) so re-adding it here is
+  // blocked, not offered as if it were a brand-new goal.
+  const globalEquivalentId = t => {
+    if (!t) return null;
+    if (t.scope === "global") return t.id;
+    const g = (data.skillTags || []).find(g2 => g2.scope === "global" && g2.categoryId === t.categoryId && g2.name === t.name);
+    return g ? g.id : t.id;
+  };
+  const goaledGlobalIds = new Set(goals.map(g => globalEquivalentId(skillTagsById[g.skillTagId])).filter(Boolean));
+  const tagsForCategory = cid => (data.skillTags || []).filter(t => t.categoryId === cid && t.scope === "global" && !goaledGlobalIds.has(t.id));
+  const tagName = id => { const t = skillTagsById[id]; return t ? t.name : "(tag)"; };
   const total = goals.reduce((s, g) => s + g.targetPct, 0);
 
   const saveWindow = async () => {
