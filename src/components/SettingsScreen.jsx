@@ -71,7 +71,20 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,mode,sportFi
   const [newSport,setNewSport]=useState(sportFilter||"General");
   const [showAdd,setShowAdd]=useState(false);
   const [collapsed,setCollapsed]=useState({});
-  const matchesSport=a=>!sportFilter||(a.sport||"General")===sportFilter||(a.sport||"General")==="General";
+  // Settings' unfiltered view (no sportFilter -- across every team) used to
+  // show every sport a coach had EVER used equipment for, personal gear
+  // included, org equipment included via RLS but with no sport-relevance
+  // check at all. Narrowed to the sports of teams this coach can actually
+  // access right now (own + org + staff -- same set data.teams already is,
+  // same "myTeamSports" pattern SkillsTab uses) -- a coach with no football
+  // team, personal or org, shouldn't see football gear here. General stays
+  // a shared/generic bucket, same as the existing per-team sportFilter path.
+  const coachTeamSports=new Set((data.teams||[]).map(t=>t.sport).filter(Boolean));
+  const matchesSport=a=>{
+    const sport=a.sport||"General";
+    if(sportFilter)return sport===sportFilter||sport==="General";
+    return coachTeamSports.has(sport)||sport==="General";
+  };
   const teamAssets=(data.assets||[]).filter(a=>(!a.type||a.type==="team")&&matchesSport(a));
   const playerAssets=(data.assets||[]).filter(a=>a.type==="player"&&matchesSport(a));
   const addNew=async()=>{
