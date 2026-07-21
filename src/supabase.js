@@ -1446,6 +1446,16 @@ export async function fetchPendingOrgInvites() {
   if (error) { console.error('fetchPendingOrgInvites:', error); return [] }
   return (data || []).map(i => ({ id: i.id, organizationId: i.organization_id, organizationName: i.organizations ? i.organizations.name : '', teamId: i.team_id, teamRole: i.team_role, invitedBy: i.invited_by, createdAt: i.created_at }))
 }
+// Org creation itself was never covered by the handoff's RPC list (it's
+// entirely upstream of everything org-scoped) -- organizations_insert_self
+// already permits a direct authenticated insert (created_by = auth.uid()),
+// and handle_new_organization's trigger auto-adds the creator to org_staff
+// as director, so a plain insert is enough; no new RPC needed.
+export async function createOrganization(coachId, name) {
+  const { data, error } = await supabase.from('organizations').insert({ name, created_by: coachId }).select().single()
+  if (error) console.error('createOrganization:', error)
+  return { data, error }
+}
 // Director's view: every pending invite this org has sent (org_invites_select
 // RLS shows these to any is_org_admin of the org, separate from the
 // invitee-facing fetchPendingOrgInvites above).

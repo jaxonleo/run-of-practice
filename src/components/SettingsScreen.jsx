@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { createAsset, updateAsset, archiveAsset, archiveLocation, checkIsAdmin, listAdmins, grantAdmin, revokeAdmin } from "../supabase.js";
+import { createAsset, updateAsset, archiveAsset, archiveLocation, checkIsAdmin, listAdmins, grantAdmin, revokeAdmin, createOrganization } from "../supabase.js";
 import { SkillsTab } from "./NewLibraryScreen.jsx";
 
 // Settings hub (nav restructure, 2026-07-15): one home for the low-frequency
@@ -317,6 +317,20 @@ export default function SettingsScreen({data,coachId,openModal,refreshLibrary,re
   // this quietly stays absent rather than showing and then disappearing.
   const [isAdmin,setIsAdmin]=useState(false);
   useEffect(()=>{checkIsAdmin().then(setIsAdmin);},[]);
+  // No RPC needed here (see createOrganization's comment in supabase.js) --
+  // this is the one piece the org handoff never covered, since everything
+  // else assumes an org already exists.
+  const [showCreateOrg,setShowCreateOrg]=useState(false);
+  const [newOrgName,setNewOrgName]=useState("");
+  const [creatingOrg,setCreatingOrg]=useState(false);
+  const submitCreateOrg=async()=>{
+    if(!newOrgName.trim())return;
+    setCreatingOrg(true);
+    const {data:org}=await createOrganization(coachId,newOrgName.trim());
+    setNewOrgName("");setCreatingOrg(false);setShowCreateOrg(false);
+    if(refreshLibrary)await refreshLibrary();
+    if(org)navigate("/org/"+org.id);
+  };
   const NAV_ITEMS=[
     {id:"account",label:"Account",sub:coachEmail||undefined},
     {id:"locations",label:"My Locations",sub:data.locations.length+" location"+(data.locations.length===1?"":"s")},
@@ -357,6 +371,15 @@ export default function SettingsScreen({data,coachId,openModal,refreshLibrary,re
         <div className="lim"><div className="lin">{org.name}</div><div className="limt">Organization</div></div>
         <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
       </div>))}
+      {showCreateOrg?(<div className="card" style={{padding:12,marginBottom:8,display:"flex",gap:6}}>
+        <input className="inp" style={{flex:1}} placeholder="Organization name" value={newOrgName} onChange={e=>setNewOrgName(e.target.value)} autoFocus/>
+        <button className="btn primary bxs" disabled={creatingOrg} onClick={submitCreateOrg}>{creatingOrg?"Creating...":"Create"}</button>
+        <button className="btn ghost bxs" onClick={()=>{setShowCreateOrg(false);setNewOrgName("");}}>Cancel</button>
+      </div>):(
+        <div className="li tap" style={{marginBottom:8}} onClick={()=>setShowCreateOrg(true)}>
+          <div className="lim"><div className="lin">+ Create Organization</div></div>
+        </div>
+      )}
       {isAdmin&&<div className="li tap" style={{marginBottom:8}} onClick={()=>navigate("/admin/metrics")}>
         <div className="lim"><div className="lin">Founder Metrics</div></div>
         <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
