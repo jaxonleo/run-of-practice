@@ -501,8 +501,8 @@ function FounderAdminRoute(){
 // Founder Metrics -- not a tab, its own way in and out.
 function OrgHomeRoute(){
   const {orgId}=useParams();
-  const {data,goToTeam,coachId}=useAppCtx();
-  return <OrgHomeScreen data={data} orgId={orgId} goToTeam={goToTeam} coachId={coachId}/>;
+  const {data,goToTeam,coachId,refreshTeams}=useAppCtx();
+  return <OrgHomeScreen data={data} orgId={orgId} goToTeam={goToTeam} coachId={coachId} refreshTeams={refreshTeams}/>;
 }
 
 function HelperViewRoute(){ const {token}=useParams(); return <HelperView token={token}/>; }

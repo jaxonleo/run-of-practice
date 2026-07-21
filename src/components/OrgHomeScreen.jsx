@@ -6,7 +6,7 @@ import { fetchOrgSentInvites, orgInviteCoach, orgCreateTeam, fetchOrgWeeklyPract
 // invites & member-management shortcuts, (2) team roster/overview grid,
 // (3) org-wide weekly-practices-run rollup. Org-library activity feed is
 // explicitly deferred per the handoff, not built here.
-export default function OrgHomeScreen({ data, orgId, goToTeam, coachId }) {
+export default function OrgHomeScreen({ data, orgId, goToTeam, coachId, refreshTeams }) {
   const navigate = useNavigate();
   const org = (data.myOrgs || []).find(o => o.id === orgId);
   const orgTeams = (data.teams || []).filter(t => t.organizationId === orgId);
@@ -38,6 +38,13 @@ export default function OrgHomeScreen({ data, orgId, goToTeam, coachId }) {
     if (!newTeamName.trim()) return;
     setCreatingTeam(true);
     const { data: teamId } = await orgCreateTeam(orgId, { name: newTeamName.trim(), sport: "General" });
+    // The app-wide teams list (data.teams) has to be refreshed before
+    // navigating there, or Layout's team-workspace tab bar, the Teams tab,
+    // and this very screen's own team grid all silently fail to find the
+    // just-created team (they all read data.teams, which nothing else here
+    // touches) -- same convention every other team-mutating action in the
+    // app already follows (see ModalLayer.jsx's addTeam/editTeam handlers).
+    if (teamId && refreshTeams) await refreshTeams();
     setNewTeamName("");
     setCreatingTeam(false);
     setShowCreateTeam(false);
