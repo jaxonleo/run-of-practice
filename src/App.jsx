@@ -918,18 +918,32 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   const team=data.teams.find(t=>t.id===teamInit.id)||teamInit;
   const player=team.players.find(p=>p.id===playerInit.id)||playerInit;
   const [markingOut,setMarkingOut]=useState(false);
-  const [editing,setEditing]=useState(false);
   const [saving,setSaving]=useState(false);
   const blankForm=()=>({firstName:player.firstName,lastName:player.lastName,jersey:player.jersey||"",positions:player.positions||[],bats:player.bats||"",throws:player.throws||"",notes:player.notes||""});
+  // Every field is directly editable the moment you open the profile -- no
+  // separate Edit-mode toggle -- so "unsaved changes" is tracked as a dirty
+  // check against the last-saved snapshot instead of an editing/not-editing
+  // flag. savedSnapshot only moves on a successful save, never from
+  // refreshTeams() re-renders, so an in-progress edit here can't get
+  // clobbered by an unrelated save elsewhere on the page (e.g. a skill note).
   const [f,setF]=useState(blankForm);
+  const [savedSnapshot,setSavedSnapshot]=useState(blankForm);
   const setFld=(k,v)=>setF(p=>Object.assign({},p,{[k]:v}));
-  const startEdit=()=>{setF(blankForm());setEditing(true);};
+  const isDirty=JSON.stringify(f)!==JSON.stringify(savedSnapshot);
+  const discardEdits=()=>setF(savedSnapshot);
   const saveEdit=async()=>{
     if(!f.firstName.trim())return;
     setSaving(true);
     await updatePlayer(player.id,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:f.positions||[],bats:f.bats||"",throws:f.throws||"",notes:f.notes||""});
     await refreshTeams();
-    setSaving(false);setEditing(false);
+    setSavedSnapshot(f);
+    setSaving(false);
+  };
+  // Same "leave without saving?" confirm CommandScreen's finishPractice
+  // already uses for an unsaved end-of-practice note.
+  const handleBack=()=>{
+    if(isDirty&&!window.confirm("You have unsaved changes. Leave without saving?"))return;
+    onBack();
   };
 
   const areas=player.focusAreas||[];
@@ -959,19 +973,18 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   return (<div style={{paddingBottom:80}}>
     <div className="row mb10" style={{justifyContent:"space-between",alignItems:"flex-start"}}>
       <div style={{flex:1,minWidth:0}}>
-        {!editing?(<>
+        {!canManage?(<>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900}}>{player.firstName} {player.lastName}</div>
           <div className="td" style={{fontSize:12}}>{team.name}{player.jersey?" · #"+player.jersey:""}</div>
         </>):(
           <div className="g2">
-            <div className="fld"><label className="lbl">First Name</label><input className="inp" autoFocus value={f.firstName} onChange={e=>setFld("firstName",e.target.value)}/></div>
+            <div className="fld"><label className="lbl">First Name</label><input className="inp" value={f.firstName} onChange={e=>setFld("firstName",e.target.value)}/></div>
             <div className="fld"><label className="lbl">Last Name</label><input className="inp" value={f.lastName} onChange={e=>setFld("lastName",e.target.value)}/></div>
           </div>
         )}
       </div>
       <div className="row" style={{gap:6,flexShrink:0}}>
-        {canManage&&!editing&&<button className="btn outline bxs" onClick={startEdit}>Edit</button>}
-        <button className="btn ghost bxs" onClick={onBack}>Back</button>
+        <button className="btn ghost bxs" onClick={handleBack}>Back</button>
       </div>
     </div>
     <button className="btn outline bsm bfull" style={{marginBottom:10}} onClick={()=>setMarkingOut(true)}>Mark Out For...</button>
@@ -979,13 +992,13 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
 
     <div className="card mb10">
       <div className="clbl mb8">Basic Info</div>
-      {editing?<div className="fld" style={{marginBottom:0}}><label className="lbl">Jersey #</label><input className="inp" type="number" inputMode="numeric" value={f.jersey} onChange={e=>setFld("jersey",e.target.value)}/></div>
+      {canManage?<div className="fld" style={{marginBottom:0}}><label className="lbl">Jersey #</label><input className="inp" type="number" inputMode="numeric" value={f.jersey} onChange={e=>setFld("jersey",e.target.value)}/></div>
         :<div style={{fontSize:14,color:"var(--black)"}}>{player.jersey?"Jersey #"+player.jersey:"No jersey number set"}</div>}
     </div>
 
     <div className="card mb10">
       <div className="clbl mb8">Positions &amp; Handedness</div>
-      {editing?(<>
+      {canManage?(<>
         <PositionPicker sport={team.sport} value={f.positions} onChange={v=>setFld("positions",v)}/>
         <HandednessPicker sport={team.sport} value={f} onChange={(k,v)=>setFld(k,v)}/>
       </>):(<>
@@ -1000,12 +1013,18 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
       </>)}
     </div>
 
-    {editing&&<div className="brow mb10">
-      <button className="btn ghost bmd" style={{flex:1}} onClick={()=>setEditing(false)} disabled={saving}>Cancel</button>
+    <div className="card">
+      <div className="clbl mb6">General Notes</div>
+      {canManage?<textarea className="ta" value={f.notes} onChange={e=>setFld("notes",e.target.value)}/>
+        :(player.notes?<div style={{fontSize:14,color:"var(--black)",lineHeight:1.6}}>{player.notes}</div>:<div style={{fontSize:13,color:"var(--td)"}}>No notes yet.</div>)}
+    </div>
+
+    {canManage&&isDirty&&<div className="brow mt10 mb10">
+      <button className="btn ghost bmd" style={{flex:1}} onClick={discardEdits} disabled={saving}>Discard Changes</button>
       <button className="btn primary bmd" style={{flex:1}} onClick={saveEdit} disabled={saving||!f.firstName.trim()}>{saving?"Saving...":"Save"}</button>
     </div>}
 
-    <div className="clbl mb8" style={{marginTop:4}}>Skill Notes</div>
+    <div className="clbl mb8" style={{marginTop:16}}>Skill Notes</div>
     {!categories.length&&<div className="card mb10"><div style={{fontSize:13,color:"var(--td)"}}>No skill categories set up yet for {team.sport}.</div></div>}
     {categories.length>0&&<div className="card mb10">
       {categories.map(cat=>(<div key={cat.id} style={{marginBottom:12}}>
@@ -1013,12 +1032,6 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
         <input className="inp" placeholder="What's this player working on..." value={draftFor(cat.id)} onChange={e=>setDraft(cat.id,e.target.value)} onBlur={()=>commitNote(cat.id)} disabled={!canManage||savingCategoryId===cat.id}/>
       </div>))}
     </div>}
-
-    <div className="card">
-      <div className="clbl mb6">General Notes</div>
-      {editing?<textarea className="ta" value={f.notes} onChange={e=>setFld("notes",e.target.value)}/>
-        :(player.notes?<div style={{fontSize:14,color:"var(--black)",lineHeight:1.6}}>{player.notes}</div>:<div style={{fontSize:13,color:"var(--td)"}}>No notes yet.</div>)}
-    </div>
   </div>);
 }
 
