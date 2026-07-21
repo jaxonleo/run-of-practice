@@ -623,43 +623,6 @@ function RunRoute(){
   return <CommandScreen data={data} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} goHome={goHome} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>;
 }
 
-function PracticeLog({data,update,launchRun}){
-  const [viewPractice,setViewPractice]=useState(null);
-  const fmtDate=ds=>{
-    const today=localDateStr();
-    const yest=localDateStr(new Date(Date.now()-864e5));
-    if(ds===today)return "Today";
-    if(ds===yest)return "Yesterday";
-    return new Date(ds+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"});
-  };
-  const sorted=[...data.practices].sort((a,b)=>b.date.localeCompare(a.date));
-  const standalone=data.notes.filter(n=>!n.practiceId);
-  if(viewPractice)return(<div style={{paddingBottom:80}}><HistoryViewer data={data} update={update} practice={viewPractice} onRunAgain={()=>{const now=new Date();const newId=uid();const copy=JSON.parse(JSON.stringify(viewPractice));copy.id=newId;copy.date=localDateStr(now);copy.startTime=now.toTimeString().slice(0,5);update(d=>{d.practices.push(copy);return d;});setViewPractice(null);launchRun(newId);}} onBack={()=>setViewPractice(null)}/></div>);
-  if(!sorted.length&&!standalone.length)return(<div className="empty"><div className="emtx">No practice history yet. Run a practice to see it here.</div></div>);
-  return(<div>
-    {sorted.map(p=>{
-      const practiceNotes=(data.notes||[]).filter(n=>n.practiceId===p.id);
-      const team=data.teams.find(t=>t.id===p.teamId);
-      return(<div key={p.id} className="card" style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setViewPractice(p)}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div>
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{team?team.name:"Practice"}</div>
-            <div className="limt">{fmtDate(p.date)}{p.startTime?" at "+fmt12(p.startTime):""} · {sumMins(p.activities)}m{practiceNotes.length>0?" · "+practiceNotes.length+" note"+(practiceNotes.length>1?"s":""):""}</div>
-          </div>
-          <span style={{color:"var(--td)",fontSize:13}}>&#8250;</span>
-        </div>
-      </div>);
-    })}
-    {standalone.length>0&&(<div>
-      <div className="clbl" style={{marginTop:8,marginBottom:8}}>Standalone Notes</div>
-      {standalone.map(n=>(<div key={n.id} className="notec">
-        <div className="notect">{n.context&&<span style={{color:"var(--green2)",fontWeight:700,marginRight:4}}>{n.context} -</span>}{new Date(n.date).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"})}</div>
-        <div className="notetx">{n.text}</div>
-      </div>))}
-    </div>)}
-  </div>);
-}
-
 function DurStepper({value,min,onChange,step}){
   const s=step||1;
   const mn=min||1;

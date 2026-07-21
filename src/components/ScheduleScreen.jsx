@@ -120,7 +120,7 @@ export default function ScheduleScreen({ data, update, goToBuilder, goToRun, coa
     if (saved) goToRun(saved.id);
   };
 
-  if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} update={update} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} /></div>);
+  if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} update={update} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} coachId={coachId} refreshPlanning={refreshPlanning} /></div>);
   if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning} onBack={() => setViewPractice(null)} /></div>);
 
   const teamById = id => data.teams.find(t => t.id === id);

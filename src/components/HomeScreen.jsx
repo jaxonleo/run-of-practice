@@ -221,7 +221,7 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
   const [leavingTeamId, setLeavingTeamId] = useState(null);
   const handleLeave = async teamId => { setLeavingTeamId(teamId); await leaveTeam(teamId); if (refreshTeams) await refreshTeams(); setLeavingTeamId(null); };
 
-  if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} update={update} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} /></div>);
+  if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} update={update} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} coachId={coachId} refreshPlanning={refreshPlanning} /></div>);
   if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} onBack={() => setViewPractice(null)} /></div>);
 
   return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}>

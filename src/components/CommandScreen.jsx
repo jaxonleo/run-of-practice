@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups } from "../constants.js";
-import { savePracticeTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote, updateStationLead } from "../supabase.js";
+import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, stripIdsForCopy } from "../constants.js";
+import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote, updateStationLead } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
@@ -115,8 +115,10 @@ function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPre
   </div>);
 }
 
-function HistoryViewer({data,update,practice,onRunAgain,onBack}){
+function HistoryViewer({data,update,practice,onRunAgain,onBack,coachId,refreshPlanning}){
   const [tplSaved,setTplSaved]=useState(false);
+  const [tplError,setTplError]=useState("");
+  const [savingTpl,setSavingTpl]=useState(false);
   const [expandedId,setExpandedId]=useState(null);
   const team=data.teams.find(t=>t.id===practice.teamId)||null;
   const loc=data.locations.find(l=>l.id===practice.locationId)||null;
@@ -135,16 +137,26 @@ function HistoryViewer({data,update,practice,onRunAgain,onBack}){
   const notesForActivity=activityId=>practiceNotes.filter(n=>n.practiceActivityId===activityId&&!n.stationId);
   const notesForStation=stationId=>practiceNotes.filter(n=>n.stationId===stationId);
   const generalNotes=practiceNotes.filter(n=>!n.practiceActivityId);
-  const handleSaveAsTpl=()=>{
-    if(!tplNameInput.trim())return;
+  // Used to only mutate the local `data` blob (a plain uid(), never a real
+  // template row) -- looked like it worked (button flips to "Saved as
+  // Template") but nothing ever reached the templates table, so it vanished
+  // on refresh and never showed up in Library. stripIdsForCopy matches
+  // runAgainFrom's pattern just below (App.jsx/HomeScreen.jsx/
+  // ScheduleScreen.jsx): a completed practice's activity ids are real
+  // practice_activities rows, not template_activities ones, so they need
+  // fresh ids or saveActivityTree would try to update rows that don't exist
+  // in the destination table.
+  const handleSaveAsTpl=async()=>{
+    if(!tplNameInput.trim()||savingTpl)return;
+    setSavingTpl(true);setTplError("");
     const sport=(team&&team.sport)||"General";
-    update(d=>{
-      if(!d.templates)d.templates=[];
-      const idx=d.templates.findIndex(t=>t.name===tplNameInput&&t.sport===sport);
-      const tpl={id:idx>=0?d.templates[idx].id:uid(),name:tplNameInput,sport,teamId:practice.teamId,activities:JSON.parse(JSON.stringify(practice.activities))};
-      if(idx>=0)d.templates[idx]=tpl; else d.templates.push(tpl);
-      return d;
+    const {error}=await saveTemplateTree(coachId,null,{
+      name:tplNameInput,sport,teamId:practice.teamId,
+      activities:stripIdsForCopy(practice.activities),
     });
+    setSavingTpl(false);
+    if(error){setTplError("Something went wrong saving. Try again.");return;}
+    if(refreshPlanning)await refreshPlanning();
     setTplSaved(true);setShowTplInput(false);setTplNameInput("");
     setTimeout(()=>setTplSaved(false),2500);
   };
@@ -242,8 +254,9 @@ function HistoryViewer({data,update,practice,onRunAgain,onBack}){
     <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--b)"}}>
       <button className="btn primary bxl bfull" style={{marginBottom:8}} onClick={onRunAgain}>Run Again</button>
       {showTplInput&&<div>
-        <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder={(team?team.name:"Practice")+" Template"} value={tplNameInput} onChange={e=>setTplNameInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSaveAsTpl()}/></div>
-        <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowTplInput(false)}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsTpl} disabled={!tplNameInput.trim()}>Save</button></div>
+        <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder={(team?team.name:"Practice")+" Template"} value={tplNameInput} onChange={e=>{setTplNameInput(e.target.value);if(tplError)setTplError("");}} onKeyDown={e=>e.key==="Enter"&&handleSaveAsTpl()}/></div>
+        {tplError&&<div style={{fontSize:12,color:"var(--red)",marginBottom:6}}>{tplError}</div>}
+        <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowTplInput(false)}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsTpl} disabled={!tplNameInput.trim()||savingTpl}>{savingTpl?"Saving...":"Save"}</button></div>
       </div>}
       {!showTplInput&&<button className="btn ghost bmd bfull" onClick={()=>setShowTplInput(true)}>{tplSaved?"Saved as Template":"Save as Template"}</button>}
     </div>
@@ -749,6 +762,10 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
   const liveActs=practice?practice.activities:[];
 
   const [stage,setStage]=useState("pick");
+  // Distinguishes the shared "stage==='end'" screen's copy between a real
+  // finish and an abort -- same screen, same end-of-practice-notes flow,
+  // just different framing (see endPractice/abortPractice below).
+  const [endReason,setEndReason]=useState("completed");
   const [session,setSession]=useState(null);
   const [now,setNow]=useState(Date.now());
   const [plannedAbsentIds,setPlannedAbsentIds]=useState(new Set());
@@ -1123,6 +1140,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
     }else{
       await closeCurrentLog();
       await writeSession({status:"completed",ended_at:new Date().toISOString(),paused_at:null});
+      setEndReason("completed");
       setStage("end");
     }
   },[session,cur,isBlock,inBlockIntro,blockRotate,inTrans,stIdx,idx,liveActs,coachId,transitionTo,writeSession,closeCurrentLog]);
@@ -1169,6 +1187,27 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
     await submitOperation(session.id,coachId,"end_practice");
     await closeCurrentLog();
     await writeSession({status:"completed",ended_at:new Date().toISOString(),paused_at:null});
+    setEndReason("completed");
+    setStage("end");
+  },[session,coachId,writeSession,closeCurrentLog]);
+
+  // Abort: for a mistaken/test run (e.g. testing new features on tonight's
+  // real practice hours early) -- ends the session without it counting as a
+  // real completed run (status='abandoned', not 'completed', matching the
+  // schema's original design -- see 20260704004000_practice_live_sessions.sql
+  // and the is_session_active() immutability guard, both already built for
+  // this exact status, just never wired to a UI action until now). Since
+  // findActiveLiveSession only ever looks for status='active', a fresh
+  // "Run Now" on this same practice afterward just starts a brand-new
+  // session cleanly -- no restart-specific plumbing needed beyond this.
+  const abortPractice=useCallback(async()=>{
+    setShowEllipsis(false);
+    if(!session)return;
+    if(!window.confirm("Abort this practice? It won't count as completed, and you can start a fresh run any time."))return;
+    await submitOperation(session.id,coachId,"abort_practice");
+    await closeCurrentLog();
+    await writeSession({status:"abandoned",ended_at:new Date().toISOString(),paused_at:null});
+    setEndReason("abandoned");
     setStage("end");
   },[session,coachId,writeSession,closeCurrentLog]);
 
@@ -1349,7 +1388,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
     if(noteText.trim()&&!window.confirm("You have an unsaved note. Leave without saving it?"))return;
     setLiveId(null);setStage("pick");goHome();
   };
-  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--green)",marginBottom:4}}>Practice Complete</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{team&&team.name} practice complete.</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>{setNoteText(e.target.value);if(noteError)setNoteError("");}}/>{noteError&&<div style={{fontSize:12,color:"var(--red)",marginTop:4}}>{noteError}</div>}<button className="btn primary bsm bfull mt6" onClick={saveEndNote} disabled={savingNote}>{savingNote?"Saving...":"Save Note"}</button></div><button className="btn ghost bmd bfull" style={{marginTop:32}} onClick={finishPractice}>Done</button></div></div>);
+  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:endReason==="abandoned"?"var(--amber)":"var(--green)",marginBottom:4}}>{endReason==="abandoned"?"Practice Aborted":"Practice Complete"}</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{endReason==="abandoned"?(team&&team.name)+" practice aborted -- it won't count as completed. Start a fresh run any time.":(team&&team.name)+" practice complete."}</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>{setNoteText(e.target.value);if(noteError)setNoteError("");}}/>{noteError&&<div style={{fontSize:12,color:"var(--red)",marginTop:4}}>{noteError}</div>}<button className="btn primary bsm bfull mt6" onClick={saveEndNote} disabled={savingNote}>{savingNote?"Saving...":"Save Note"}</button></div><button className="btn ghost bmd bfull" style={{marginTop:32}} onClick={finishPractice}>Done</button></div></div>);
 
   if(!cur)return null;
 
@@ -1403,6 +1442,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
             {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_attendance");}}>Share for Attendance</button>}
             {isController&&<button className="mm-item" onClick={endPractice}>End Practice</button>}
             {isController&&<button className="mm-item" onClick={restartPractice}>Restart Practice</button>}
+            {isController&&<button className="mm-item mm-danger" onClick={abortPractice}>Abort Practice</button>}
           </div>}
         </div>
       </div>
