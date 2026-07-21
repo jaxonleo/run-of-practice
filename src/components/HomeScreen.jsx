@@ -88,12 +88,17 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 };
 
-export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSchedule, goToTeamGoals, goToSettings, coachId, coachName, coachEmail, refreshPlanning, refreshTeams }) {
+export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSchedule, goToTeam, goToSettings, coachId, coachName, coachEmail, refreshPlanning, refreshTeams }) {
   const now = new Date();
   const todayStr = localDateStr(now);
   const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
-  // "My week" (handoff §4.3): was a 14-day window, now 7.
+  // "This Week" (handoff §4.3): was a 14-day window, now 7. The needs-a-plan
+  // nudge below is separate and stays 14 -- its own copy always said "next
+  // 14 days" even though the filter behind it was quietly reusing this same
+  // 7-day cutoff (a real bug, not a design choice: a practice 8-13 days out
+  // needing a plan was invisible to the nudge that claims to cover it).
   const in7Str = localDateStr(new Date(Date.now() + 7 * 864e5));
+  const in14Str = localDateStr(new Date(Date.now() + 14 * 864e5));
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
@@ -122,12 +127,14 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
   const active = data.practices.filter(p => !isCancelled(p));
   // Raw date-window candidates, before the ran() filter -- runStatus/absence
   // counts are fetched for this set first (ran() reads runStatus, so the
-  // filtered-out set can't be known until that fetch resolves).
-  const windowCandidates = active.filter(p => p.date >= todayStr && p.date <= in7Str).sort((a, b) => a.date === b.date ? (a.startTime || "").localeCompare(b.startTime || "") : a.date.localeCompare(b.date));
+  // filtered-out set can't be known until that fetch resolves). Widened to
+  // 14 days so the needs-a-plan nudge (below) has real run-status data for
+  // its full claimed window; "This Week" narrows this same set back to 7.
+  const windowCandidates = active.filter(p => p.date >= todayStr && p.date <= in14Str).sort((a, b) => a.date === b.date ? (a.startTime || "").localeCompare(b.startTime || "") : a.date.localeCompare(b.date));
   // Completed practices leave the list entirely (handoff §4.3) -- Home used
   // to only badge them "· Completed" inline; Schedule already excludes them
   // from its "upcoming" bucket the same way.
-  const agendaWindow = windowCandidates.filter(p => !ran(p));
+  const agendaWindow = windowCandidates.filter(p => !ran(p) && p.date <= in7Str);
 
   const agendaIdsKey = JSON.stringify(windowCandidates.map(p => p.id));
   const refreshAbsenceCounts = () => {
@@ -146,33 +153,6 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
     fetchPracticeRunStatus(ids).then(setRunStatus);
   }, [agendaIdsKey]);
 
-  // Last-practice recap, one per team (handoff §4.3) -- needs run status
-  // across ALL practices, not just this week's window, since the most
-  // recent completed practice for a team could be older than 7 days.
-  const [allRunStatus, setAllRunStatus] = useState({});
-  const allPracticeIdsKey = JSON.stringify(data.practices.map(p => p.id));
-  useEffect(() => {
-    const ids = data.practices.map(p => p.id);
-    if (!ids.length) { setAllRunStatus({}); return; }
-    fetchPracticeRunStatus(ids).then(setAllRunStatus);
-  }, [allPracticeIdsKey]);
-  const lastPracticePerTeam = data.teams.map(team => {
-    const completed = data.practices
-      .filter(p => p.teamId === team.id && allRunStatus[p.id] === "completed")
-      .sort((a, b) => b.date === a.date ? (b.startTime || "").localeCompare(a.startTime || "") : b.date.localeCompare(a.date));
-    return completed[0] ? { team, practice: completed[0] } : null;
-  }).filter(Boolean);
-  const [recapAbsenceCounts, setRecapAbsenceCounts] = useState({});
-  const recapIdsKey = JSON.stringify(lastPracticePerTeam.map(r => r.practice.id));
-  useEffect(() => {
-    const ids = lastPracticePerTeam.map(r => r.practice.id);
-    if (!ids.length) { setRecapAbsenceCounts({}); return; }
-    fetchPlannedAbsences(ids).then(rows => {
-      const counts = {};
-      for (const r of rows) counts[r.practice_id] = (counts[r.practice_id] || 0) + 1;
-      setRecapAbsenceCounts(counts);
-    });
-  }, [recapIdsKey]);
   const openPractice = p => {
     if (ran(p) && isPlanned(p)) setHistoryPractice(p);
     else setViewPractice(p);
@@ -204,7 +184,7 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
   // §3: the nudge strip is a to-do list for whoever can act on it -- filter
   // to practices on teams this user actually head-coaches, per-team (not a
   // global assistant/head-coach flag, since roles can differ by team).
-  const needsPlanning = agendaWindow.filter(p => !isPlanned(p) && isHeadCoach(teamById(p.teamId), coachId));
+  const needsPlanning = windowCandidates.filter(p => !ran(p) && !isPlanned(p) && isHeadCoach(teamById(p.teamId), coachId));
   const canManageAnyTeam = data.teams.some(t => isHeadCoach(t, coachId));
   const delPractice = async id => { await archivePractice(id); await refreshPlanning(); if (viewPractice && viewPractice.id === id) setViewPractice(null); };
 
@@ -253,14 +233,23 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
       <button style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 12, color: "var(--td)", textDecoration: "underline" }} disabled={leavingTeamId === pendingWelcome.team.id} onClick={() => handleLeave(pendingWelcome.team.id)}>Not your team? Leave</button>
     </div></div>}
 
-    {/* A per-team quick-pick row used to live here (a pill/chip style row
-        that navigated away on tap). Removed per direct feedback -- pills
-        read as an in-place filter control, not "leave this page," and a
-        dedicated Teams tab (Layout.jsx's GLOBAL_TABS) is now the one clear
-        place to pick a team from anywhere, not just from Home. Home still
-        surfaces team identity contextually via the hero/recap cards below. */}
-
     <div style={{ padding: "0 16px" }}>
+      {/* Your Teams quick-jump (2026-07-2x): a per-team row lived here once
+          before, styled as pills, and got removed per direct feedback --
+          pills read as an in-place filter control, not "leave this page."
+          Brought back deliberately card-styled instead (matching the
+          outgoing Last Practice cards' own look, which never had that
+          confusion) so it reads as navigation, not filtering. */}
+      {data.teams.length > 0 && <div style={{ marginBottom: 16 }}>
+        <div className="clbl mb8">Your Teams</div>
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
+          {data.teams.map(team => (<div key={team.id} className="card" style={{ flexShrink: 0, minWidth: 140, cursor: "pointer", borderLeft: "4px solid " + (team.colorPrimary || "transparent"), padding: "10px 12px" }} onClick={() => goToTeam(team.id)}>
+            <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700, whiteSpace: "nowrap" }}>{team.name}</div>
+            <div style={{ fontSize: 11, color: "var(--td)" }}>{team.sport}</div>
+          </div>))}
+        </div>
+      </div>}
+
       {!nextPractice && <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px" }}>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{data.teams.length === 0 ? "Set up your practice schedule" : "Nothing on the schedule"}</div>
         <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 16 }}>{!canManageAnyTeam ? "Nothing planned yet." : data.teams.length === 0 ? "Add a team, then set up a recurring schedule to get started." : "Build a practice or set up a recurring schedule."}</div>
@@ -293,28 +282,6 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
           {planned && soon && <button className="btn primary bxl bfull" onClick={() => goToRun(nextPractice.id)}>Start Practice &#8594;</button>}
         </div>);
       })()}
-
-      {lastPracticePerTeam.length > 0 && <div style={{ marginBottom: 16 }}>
-        <div className="clbl mb8">Last Practice</div>
-        {lastPracticePerTeam.map(({ team, practice }) => {
-          const mins = sumMins(practice.activities || []);
-          const absent = recapAbsenceCounts[practice.id] || 0;
-          const headcount = Math.max(0, team.players.length - absent);
-          return (<div key={team.id} className="card" style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => goToTeamGoals(team.id)}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-              {team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", background: team.colorPrimary, flexShrink: 0 }} />}
-              <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 14, fontWeight: 700 }}>{team.name}</span>
-            </div>
-            <div style={{ fontSize: 12, color: "var(--td)" }}>
-              {new Date(practice.date + "T12:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · {mins} min · {headcount} of {team.players.length} there
-            </div>
-            {/* Goals delta is stubbed here per the handoff (§4.3) -- the real
-                target-vs-actual insight is built in the Goals tab (§5.2),
-                which this links to. */}
-            <div style={{ fontSize: 12, color: "var(--green)", marginTop: 4 }}>See goals insights &#8594;</div>
-          </div>);
-        })}
-      </div>}
 
       {needsPlanning.length > 0 && <div className="li" style={{ marginBottom: 16, cursor: "pointer" }} onClick={goToSchedule}>
         <div className="lim"><div className="lin">{needsPlanning.length} practice{needsPlanning.length > 1 ? "s" : ""} in the next 14 days need{needsPlanning.length === 1 ? "s" : ""} a plan</div></div>

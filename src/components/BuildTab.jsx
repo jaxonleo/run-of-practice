@@ -1,17 +1,18 @@
 import React, { useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { uid } from "../constants.js";
 import { archiveDrill, archiveTemplate } from "../supabase.js";
-import GoalsScreen from "./GoalsScreen.jsx";
-import { SkillsTab, TemplateWorkspace } from "./NewLibraryScreen.jsx";
+import { TemplateWorkspace } from "./NewLibraryScreen.jsx";
 
-// Plan tab (nav restructure round 2, 2026-07-15). Folds two things into one
-// tab: "Build" (team-scoped drill/template access -- this tab's original,
-// never-built scope: templates/drills filtered to the team's sport, the
-// team's default template promoted) and "Goals & Insights" (the target vs.
-// planned vs. actual report + History, previously its own top-level tab).
-// Both are fundamentally "how this team spends its practice time," which is
-// why they were merged rather than kept as separate tabs.
+// Build tab -- team-scoped drill/template access, reached via the team
+// workspace's top tab bar (/team/:teamId/build). Formerly PlanScreen.jsx's
+// "Build" half of a Build/Goals & Insights toggle (nav restructure round 2,
+// 2026-07-15); the flattened top-tabs redesign (2026-07-2x) gave Goals &
+// Insights its own route (GoalsScreen, rendered directly) and promoted this
+// to a standalone top-bar destination too, so the outer toggle container is
+// gone -- this file now holds nothing but BuildTab itself. Skill Tags (the
+// toggle container's other former sub-section) stays reachable via
+// Settings > Skill Tags, which was always the same underlying screen, not
+// team-specific data.
 //
 // Build tab upgrade (2026-07-20): used to show a read-only preview of
 // drills/templates (plain, non-tappable rows, capped at 12 drills, "+N more
@@ -21,7 +22,7 @@ import { SkillsTab, TemplateWorkspace } from "./NewLibraryScreen.jsx";
 // interactions (edit, delete, skill tags, template editing) scoped to this
 // team's sport, so a coach never has to leave the team to manage what they
 // see here.
-function BuildTab({data,team,coachId,goToBuilder,openModal,refreshLibrary,refreshPlanning}){
+export function BuildTab({data,team,coachId,goToBuilder,openModal,refreshLibrary,refreshPlanning}){
   const teamSport=team.sport||"General";
   const templates=(data.templates||[]).filter(t=>(t.sport||"General")===teamSport);
   const defaultTpl=templates.find(t=>t.defaultTeamId===team.id);
@@ -46,7 +47,7 @@ function BuildTab({data,team,coachId,goToBuilder,openModal,refreshLibrary,refres
   const delTpl=async id=>{await archiveTemplate(id);await refreshPlanning();setConfirmDelTpl(null);};
   const delDrill=async id=>{await archiveDrill(id);await refreshLibrary();};
 
-  return (<div onClick={()=>{setDrillMenu(null);setTplMenu(null);}}>
+  return (<div style={{paddingBottom:"calc(var(--tab) + 20px)"}} onClick={()=>{setDrillMenu(null);setTplMenu(null);}}>
     <button className="btn primary bmd bfull" style={{marginBottom:14}} onClick={()=>goToBuilder(null,null,team.id)}>+ Build a Practice</button>
 
     {defaultTpl&&<div className="card mb10" style={{borderColor:"var(--gb)",background:"var(--gbg)"}}>
@@ -96,37 +97,5 @@ function BuildTab({data,team,coachId,goToBuilder,openModal,refreshLibrary,refres
         <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setDrillMenu(null);delDrill(d.id);}}>Delete</button>
       </div>}
     </div>))}
-  </div>);
-}
-
-export default function PlanScreen({data,teamId,coachId,goToBuilder,openModal,refreshLibrary,refreshPlanning}){
-  const team=data.teams.find(t=>t.id===teamId);
-  // ?tab=goals lets Home's "Last Practice" recap card (goToTeamGoals) land
-  // directly on the Goals & Insights sub-tab instead of the Build default.
-  const [searchParams]=useSearchParams();
-  const [tab,setTab]=useState(searchParams.get("tab")==="goals"?"goals":"build");
-  const [showSkills,setShowSkills]=useState(false);
-  if(!team)return null;
-  if(showSkills)return(<div style={{paddingBottom:80}}>
-    <div style={{padding:"20px 16px 12px",display:"flex",alignItems:"center",gap:10}}>
-      <button className="btn ghost bxs" onClick={()=>setShowSkills(false)}>&#8249; Plan</button>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900}}>Skill Tags</div>
-    </div>
-    <div style={{padding:"0 16px"}}><SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary}/></div>
-  </div>);
-  return (<div style={{paddingBottom:80}}>
-    <div style={{padding:"20px 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>Plan</div>
-      <button className="btn ghost bsm" onClick={()=>setShowSkills(true)}>Skill Tags</button>
-    </div>
-    <div style={{padding:"0 16px 12px"}}>
-      <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3}}>
-        {[{k:"build",label:"Build"},{k:"goals",label:"Goals & Insights"}].map(t=>(<button key={t.k} onClick={()=>setTab(t.k)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:tab===t.k?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:tab===t.k?"var(--black)":"var(--td)"}}>{t.label}</button>))}
-      </div>
-    </div>
-    <div style={{padding:"0 16px"}}>
-      {tab==="build"&&<BuildTab data={data} team={team} coachId={coachId} goToBuilder={goToBuilder} openModal={openModal} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning}/>}
-      {tab==="goals"&&<GoalsScreen data={data} teamId={teamId} coachId={coachId}/>}
-    </div>
   </div>);
 }

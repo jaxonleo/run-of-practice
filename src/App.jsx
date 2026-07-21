@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, createContext
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider, Navigate, Outlet, useNavigate, useParams, useBlocker } from "react-router-dom";
 import { Analytics } from '@vercel/analytics/react';
 import Layout from "./Layout.jsx";
-import PlanScreen from "./components/PlanScreen.jsx";
+import { BuildTab } from "./components/BuildTab.jsx";
+import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen, { EquipmentTab } from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
@@ -174,53 +175,17 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 export const AppCtx=createContext(null);
 export const useAppCtx=()=>useContext(AppCtx);
 
-// The team workspace's "Team" tab (roster/practices/history). Was the old
-// Manage screen; its top-level list mode (My Teams / Locations / Equipment /
-// Gear / Account) is gone -- team picking moved to /teams, everything else
-// moved to /settings (SettingsScreen.jsx) in the 2026-07-15 nav restructure.
-// Team tab (nav restructure round 2, 2026-07-15): "people, places, and
-// things" for one team -- Roster (players + coaches/helpers, via the
-// existing RostersTab) and Equipment (team equipment + player gear,
-// sport-filtered to this team -- see EquipmentTab's own comment on why).
-// Practices and History are gone from here entirely: Schedule already
-// covers both (forward-looking agenda/month and its own collapsible
-// completed/history section), so this was pure duplication, not a second
-// source of truth worth keeping. Locations and Skill Tags stayed in
-// Settings on purpose (a location or a skill tag isn't owned by one team,
-// unlike equipment/gear/roster).
-function ManageScreen({data,update,coachId,openModal,refreshTeams,refreshLibrary,initialTeamId}){
-  const navigate=useNavigate();
-  // initialTeamId (from /team/:teamId/team) jumps straight into that team's
-  // workspace -- same fixedTeamId precedent RostersTab already uses.
-  const [selectedTeam,setSelectedTeam]=useState(initialTeamId||null);
-  useEffect(()=>{if(initialTeamId&&initialTeamId!==selectedTeam)setSelectedTeam(initialTeamId);},[initialTeamId]);
-  const [teamTab,setTeamTab]=useState("roster");
-  // If the selected team was just deleted (e.g. via the Roster tab's
-  // Delete Team), this route's teamId no longer resolves -- leave for the
-  // Teams list instead of rendering blank.
-  useEffect(()=>{if(selectedTeam&&!data.teams.some(t=>t.id===selectedTeam))navigate("/teams");},[selectedTeam,data.teams]);
-  if(selectedTeam){
-    const team=data.teams.find(t=>t.id===selectedTeam);
-    if(!team)return null;
-    const TTABS=["roster","equipment"];
-    return (<div style={{paddingBottom:80}}>
-      <div style={{padding:"8px 16px 12px"}}>
-        <div style={{borderLeft:"4px solid "+(team.colorPrimary||"transparent"),paddingLeft:10,marginBottom:14}}>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2}}>{team.name}</div>
-          <div style={{fontSize:13,color:"var(--td)"}}>{team.sport} - {team.players.length} players</div>
-        </div>
-        <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:16}}>
-          {TTABS.map(t=>(<button key={t} onClick={()=>setTeamTab(t)} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:teamTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",color:teamTab===t?"var(--black)":"var(--td)"}}>{t}</button>))}
-        </div>
-        {teamTab==="roster"&&<div><RostersTab data={data} update={update} openModal={openModal} fixedTeamId={selectedTeam} refreshTeams={refreshTeams} coachId={coachId} refreshLibrary={refreshLibrary}/></div>}
-        {teamTab==="equipment"&&<EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} sportFilter={team.sport}/>}
-      </div>
-    </div>);
-  }
-  // No list mode anymore: this component is only mounted with a teamId in
-  // the URL, and the deleted-team effect above navigates away when it stops
-  // resolving -- render nothing during that redirect tick.
-  return null;
+// Small header repeated at the top of the Roster and Equipment routes --
+// team name/sport/player-count with the same colored-left-border "themed"
+// treatment TeamsListScreen and the old ManageScreen both already used.
+// Layout.jsx's own team-name header (above the new top tab row) is a
+// smaller, secondary label; this bigger one is the actual page identity for
+// these two routes, same as it always was under the old Team tab.
+function TeamWorkspaceHeader({team}){
+  return (<div style={{borderLeft:"4px solid "+(team.colorPrimary||"transparent"),paddingLeft:10,marginBottom:14}}>
+    <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2}}>{team.name}</div>
+    <div style={{fontSize:13,color:"var(--td)"}}>{team.sport} - {team.players.length} players</div>
+  </div>);
 }
 
 function AuthScreen({onBack}){
@@ -430,8 +395,10 @@ export default function App(){
           <Route path="schedule" element={<ScheduleLegacyRoute/>}/>
           <Route path="team/:teamId" element={<TeamIndexRedirect/>}/>
           <Route path="team/:teamId/schedule" element={<TeamScheduleRoute/>}/>
-          <Route path="team/:teamId/plan" element={<PlanRoute/>}/>
-          <Route path="team/:teamId/team" element={<TeamRosterRoute/>}/>
+          <Route path="team/:teamId/roster" element={<TeamRosterRoute/>}/>
+          <Route path="team/:teamId/equipment" element={<TeamEquipmentRoute/>}/>
+          <Route path="team/:teamId/goals" element={<TeamGoalsRoute/>}/>
+          <Route path="team/:teamId/build" element={<TeamBuildRoute/>}/>
         </Route>
       </Route>
     </>
@@ -487,9 +454,6 @@ function AuthedShell(){
   // once step 4 folds Schedule into /team/:teamId/schedule.
   const goToSchedule=useCallback(()=>navigate("/schedule"),[navigate]);
   const goToTeam=useCallback(teamId=>navigate("/team/"+teamId+"/schedule"),[navigate]);
-  // Goals is a Plan sub-tab now, not its own route -- ?tab=goals tells
-  // PlanScreen which sub-tab to default to (read via useSearchParams there).
-  const goToTeamGoals=useCallback(teamId=>navigate("/team/"+teamId+"/plan?tab=goals"),[navigate]);
   const goToSettings=useCallback(()=>navigate("/settings"),[navigate]);
 
   // Loading initial session
@@ -507,7 +471,7 @@ function AuthedShell(){
   // Show data loading spinner after auth but before data loaded
   if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div></div>);
 
-  return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,setPresetTeamId,goToBuilder,goToRun,goHome,goToSchedule,goToTeam,goToTeamGoals,goToSettings}}>
+  return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,setPresetTeamId,goToBuilder,goToRun,goHome,goToSchedule,goToTeam,goToSettings}}>
     <Outlet/>
     {ctx.modal&&<ModalLayer modal={ctx.modal} data={ctx.data} update={ctx.update} closeModal={ctx.closeModal} refreshTeams={ctx.refreshTeams} refreshLibrary={ctx.refreshLibrary} refreshPlanning={ctx.refreshPlanning} coachId={ctx.coachId}/>}
   </AppCtx.Provider>);
@@ -535,8 +499,8 @@ function HelperViewRoute(){ const {token}=useParams(); return <HelperView token=
 function PreviewViewRoute(){ const {token}=useParams(); return <PreviewView token={token}/>; }
 
 function HomeRoute(){
-  const {data,update,goToBuilder,goToRun,goToSchedule,goToTeamGoals,goToSettings,coachId,coachName,coachEmail,refreshPlanning,refreshTeams}=useAppCtx();
-  return <HomeScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeamGoals={goToTeamGoals} goToSettings={goToSettings} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>;
+  const {data,update,goToBuilder,goToRun,goToSchedule,goToTeam,goToSettings,coachId,coachName,coachEmail,refreshPlanning,refreshTeams}=useAppCtx();
+  return <HomeScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeam={goToTeam} goToSettings={goToSettings} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>;
 }
 
 function LibraryRoute(){
@@ -590,14 +554,47 @@ function TeamIndexRedirect(){
 
 function TeamRosterRoute(){
   const {teamId}=useParams();
+  const navigate=useNavigate();
   const {data,update,coachId,openModal,refreshTeams,refreshLibrary}=useAppCtx();
-  return <ManageScreen data={data} update={update} coachId={coachId} openModal={openModal} refreshTeams={refreshTeams} refreshLibrary={refreshLibrary} initialTeamId={teamId}/>;
+  const team=data.teams.find(t=>t.id===teamId);
+  // Team was just deleted (e.g. via this same tab's Delete Team) and this
+  // route's teamId no longer resolves -- leave for the Teams list instead
+  // of rendering blank, same guard the old ManageScreen had.
+  useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
+  if(!team)return null;
+  return (<div style={{padding:"8px 0 calc(var(--tab) + 20px)"}}>
+    <TeamWorkspaceHeader team={team}/>
+    <RostersTab data={data} update={update} openModal={openModal} fixedTeamId={teamId} refreshTeams={refreshTeams} coachId={coachId} refreshLibrary={refreshLibrary}/>
+  </div>);
 }
 
-function PlanRoute(){
+function TeamEquipmentRoute(){
   const {teamId}=useParams();
+  const navigate=useNavigate();
+  const {data,coachId,openModal,refreshLibrary}=useAppCtx();
+  const team=data.teams.find(t=>t.id===teamId);
+  useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
+  if(!team)return null;
+  return (<div style={{padding:"8px 0 calc(var(--tab) + 20px)"}}>
+    <TeamWorkspaceHeader team={team}/>
+    <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} sportFilter={team.sport}/>
+  </div>);
+}
+
+function TeamGoalsRoute(){
+  const {teamId}=useParams();
+  const {data,coachId}=useAppCtx();
+  return <GoalsScreen data={data} teamId={teamId} coachId={coachId}/>;
+}
+
+function TeamBuildRoute(){
+  const {teamId}=useParams();
+  const navigate=useNavigate();
   const {data,coachId,goToBuilder,openModal,refreshLibrary,refreshPlanning}=useAppCtx();
-  return <PlanScreen data={data} teamId={teamId} coachId={coachId} goToBuilder={goToBuilder} openModal={openModal} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning}/>;
+  const team=data.teams.find(t=>t.id===teamId);
+  useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
+  if(!team)return null;
+  return <BuildTab data={data} team={team} coachId={coachId} goToBuilder={goToBuilder} openModal={openModal} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning}/>;
 }
 
 function BuilderRoute(){

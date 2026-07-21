@@ -391,10 +391,13 @@ export default function GoalsScreen({ data, teamId, coachId }) {
       onChanged={() => { refreshAll(); }} />;
   }
 
-  // No own page header/title here -- embedded under PlanScreen.jsx's "Plan"
-  // header + Build/Goals & Insights toggle (nav restructure round 2,
-  // 2026-07-15; this used to be its own top-level tab).
-  return (<div>
+  // No own page header/title here -- the active "Goals & Insights" top tab
+  // (Layout.jsx's team-workspace tab row) already says where you are, same
+  // as Schedule/Roster/Equipment/Build don't repeat their own name either.
+  // Was embedded under PlanScreen.jsx's Build/Goals & Insights toggle before
+  // the 2026-07-2x flattened top-tabs redesign gave this its own direct
+  // route (/team/:teamId/goals).
+  return (<div style={{ paddingBottom: "calc(var(--tab) + 20px)" }}>
     {canManage && <GoalsEditor teamId={teamId} team={team} data={data} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
     <GlanceView report={report} />
     <div className="clbl mb8" style={{ marginTop: 4 }}>History</div>

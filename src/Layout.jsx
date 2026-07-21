@@ -19,6 +19,20 @@ const GLOBAL_TABS = [
   { id: "library", label: "Library", path: "/library", I: Ic.Lib },
 ];
 
+// Flattened team-workspace nav (2026-07-2x): replaces the old nested
+// Schedule/Plan/Team bottom-tab set (Plan hiding a Build/Goals toggle, Team
+// hiding a Roster/Equipment toggle) with 5 direct routes in one horizontal,
+// side-scrolling top row, so nothing is two taps deep anymore. The bottom
+// bar itself no longer switches contents inside a team -- it's always
+// GLOBAL_TABS, addressing the "no common bottom menu" complaint directly.
+const teamWorkspaceTabs = teamId => [
+  { id: "schedule", label: "Schedule", path: `/team/${teamId}/schedule` },
+  { id: "roster", label: "Roster", path: `/team/${teamId}/roster` },
+  { id: "equipment", label: "Equipment", path: `/team/${teamId}/equipment` },
+  { id: "goals", label: "Goals & Insights", path: `/team/${teamId}/goals` },
+  { id: "build", label: "Build", path: `/team/${teamId}/build` },
+];
+
 export default function Layout({ data, liveId, goToRun }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -27,15 +41,7 @@ export default function Layout({ data, liveId, goToRun }) {
   const hideTabBar = location.pathname.startsWith("/run/");
 
   const team = inTeam ? (data.teams || []).find(t => t.id === teamId) : null;
-  // 3 tabs, not 4 (nav-restructure round 2, 2026-07-15): Goals folded into
-  // Plan as a sub-toggle (Build / Goals & Insights) -- both are "how this
-  // team spends its practice time," and Plan's own team-scoped-build
-  // content was still an empty placeholder, so nothing built was lost.
-  const teamTabs = inTeam ? [
-    { id: "schedule", label: "Schedule", path: `/team/${teamId}/schedule`, I: Ic.Cal },
-    { id: "plan", label: "Plan", path: `/team/${teamId}/plan`, I: Ic.Plan },
-    { id: "team", label: "Team", path: `/team/${teamId}/team`, I: Ic.Admin },
-  ] : [];
+  const workspaceTabs = inTeam ? teamWorkspaceTabs(teamId) : [];
 
   const livePractice = liveId ? (data.practices || []).find(p => p.id === liveId) : null;
   const liveTeam = livePractice ? (data.teams || []).find(t => t.id === livePractice.teamId) : null;
@@ -51,12 +57,20 @@ export default function Layout({ data, liveId, goToRun }) {
         <button className="btn ghost bxs" onClick={() => navigate("/teams")}>&#8249; Teams</button>
         <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700 }}>{team.name}</span>
       </div>}
+      {inTeam && team && <div style={{ display: "flex", gap: 18, overflowX: "auto", padding: "10px 14px 0", flexShrink: 0 }}>
+        {workspaceTabs.map(({ id, label, path }) => {
+          const active = location.pathname.startsWith(path);
+          return (<button key={id} onClick={() => navigate(path)} style={{ flexShrink: 0, whiteSpace: "nowrap", padding: "0 0 8px", border: "none", background: "none", cursor: "pointer", fontFamily: "Barlow Condensed,sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: ".02em", color: active ? "var(--green)" : "var(--td)", borderBottom: "2px solid " + (active ? "var(--green)" : "transparent") }}>
+            {label}
+          </button>);
+        })}
+      </div>}
       <div className="screen">
         <Outlet/>
       </div>
       {!hideTabBar && <nav className="tabbar">
-        {(inTeam ? teamTabs : GLOBAL_TABS).map(({ id, label, path, I }) => {
-          const active = inTeam ? location.pathname.startsWith(path) : (path === "/" ? location.pathname === "/" : location.pathname.startsWith(path));
+        {GLOBAL_TABS.map(({ id, label, path, I }) => {
+          const active = path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
           return (<button key={id} className={"ti " + (active ? "on" : "")} onClick={() => navigate(path)}>
             <I/>{label}
           </button>);

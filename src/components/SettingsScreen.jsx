@@ -44,8 +44,10 @@ function GearEditRow({asset,refreshLibrary,onDone}){
 // ── EquipmentTab ──────────────────────────────────────────────────────────────
 // Used two ways: unfiltered from Settings (no `mode`, no `sportFilter` --
 // everything the coach owns, across every sport), and sport-filtered from
-// inside a team's workspace (mode + sportFilter=team.sport). Exported so
-// ManageScreen's Team tab (App.jsx) can reuse it.
+// inside a team's workspace (sportFilter=team.sport). Exported so App.jsx's
+// TeamEquipmentRoute (/team/:teamId/equipment, one of the flattened
+// top-tabs, formerly nested inside the old ManageScreen's Team tab) can
+// reuse it.
 //
 // sportFilter (added 2026-07-15, per direct feedback: showing baseball gear
 // while looking at a basketball team would be "weird"): Team Equipment
