@@ -63,6 +63,27 @@ function GearEditRow({asset,refreshLibrary,onDone}){
 // play the *same* sport still share one identical equipment pool -- that
 // needs real team-scoped ownership in the data model, deliberately deferred
 // (confirmed with Jax) as its own project once org equipment is real too.
+// Shared by EquipmentTab and the Settings home list's "N items" preview --
+// the two must agree, or the count you see before tapping in doesn't match
+// what you actually find (exactly the bug this was added to fix: the
+// preview counted every asset visible via RLS across every sport, while the
+// tab itself was already scoped to the coach's own teams' sports).
+// Settings' unfiltered view (no sportFilter -- across every team) used to
+// show every sport a coach had EVER used equipment for, personal gear
+// included, org equipment included via RLS but with no sport-relevance
+// check at all. Narrowed to the sports of teams this coach can actually
+// access right now (own + org + staff -- same set data.teams already is,
+// same "myTeamSports" pattern SkillsTab uses) -- a coach with no football
+// team, personal or org, shouldn't see football gear here. General stays
+// a shared/generic bucket, same as the existing per-team sportFilter path.
+export function visibleEquipment(data){
+  const coachTeamSports=new Set((data.teams||[]).map(t=>t.sport).filter(Boolean));
+  return (data.assets||[]).filter(a=>{
+    const sport=a.sport||"General";
+    return coachTeamSports.has(sport)||sport==="General";
+  });
+}
+
 export function EquipmentTab({data,coachId,refreshLibrary,openModal,mode,sportFilter}){
   const [equipTabState,setEquipTabState]=useState(mode||"team");
   const equipTab=mode||equipTabState;
@@ -71,22 +92,15 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,mode,sportFi
   const [newSport,setNewSport]=useState(sportFilter||"General");
   const [showAdd,setShowAdd]=useState(false);
   const [collapsed,setCollapsed]=useState({});
-  // Settings' unfiltered view (no sportFilter -- across every team) used to
-  // show every sport a coach had EVER used equipment for, personal gear
-  // included, org equipment included via RLS but with no sport-relevance
-  // check at all. Narrowed to the sports of teams this coach can actually
-  // access right now (own + org + staff -- same set data.teams already is,
-  // same "myTeamSports" pattern SkillsTab uses) -- a coach with no football
-  // team, personal or org, shouldn't see football gear here. General stays
-  // a shared/generic bucket, same as the existing per-team sportFilter path.
-  const coachTeamSports=new Set((data.teams||[]).map(t=>t.sport).filter(Boolean));
-  const matchesSport=a=>{
-    const sport=a.sport||"General";
-    if(sportFilter)return sport===sportFilter||sport==="General";
-    return coachTeamSports.has(sport)||sport==="General";
-  };
-  const teamAssets=(data.assets||[]).filter(a=>(!a.type||a.type==="team")&&matchesSport(a));
-  const playerAssets=(data.assets||[]).filter(a=>a.type==="player"&&matchesSport(a));
+  // Per-team context (sportFilter set) checks against that one exact sport;
+  // Settings' cross-team view (no sportFilter) reuses the shared
+  // visibleEquipment scoping above instead of a second, easily-divergent
+  // copy of it.
+  const baseAssets=sportFilter
+    ?(data.assets||[]).filter(a=>(a.sport||"General")===sportFilter||(a.sport||"General")==="General")
+    :visibleEquipment(data);
+  const teamAssets=baseAssets.filter(a=>!a.type||a.type==="team");
+  const playerAssets=baseAssets.filter(a=>a.type==="player");
   const addNew=async()=>{
     if(!newName.trim())return;
     const sport=equipTab==="player"?newSport:(sportFilter||"General");
@@ -304,7 +318,7 @@ export default function SettingsScreen({data,coachId,openModal,refreshLibrary,re
   const NAV_ITEMS=[
     {id:"account",label:"Account",sub:coachEmail||undefined},
     {id:"locations",label:"My Locations",sub:data.locations.length+" location"+(data.locations.length===1?"":"s")},
-    {id:"equipment",label:"Equipment & Gear",sub:(data.assets||[]).length+" item"+((data.assets||[]).length===1?"":"s")},
+    {id:"equipment",label:"Equipment & Gear",sub:visibleEquipment(data).length+" item"+(visibleEquipment(data).length===1?"":"s")},
     {id:"skills",label:"Skill Tags",sub:"Your coaching vocabulary for drills and goals"},
   ];
   const BackRow=()=>(<div style={{padding:"12px 14px 0"}}><button className="btn ghost bxs" onClick={()=>setSection(null)}>&#8249; Settings</button></div>);

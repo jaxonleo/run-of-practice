@@ -80,6 +80,11 @@ export const HAND_FIELDS_BY_SPORT={
   Football:[{key:"throws",label:"Throws",options:["L","R"]}],
   Lacrosse:[{key:"throws",label:"Throws",options:["L","R"]}],
   Hockey:[{key:"throws",label:"Shoots",options:["L","R"]}],
+  // Reuses the generic `throws` column (no schema change needed -- it's
+  // already sport-agnostic L/R) as "Dominant Hand": which hand a player
+  // favors for dribbling/shooting, useful for spotting why one kid struggles
+  // with an off-hand dribble drill while the rest look fine.
+  Basketball:[{key:"throws",label:"Dominant Hand",options:["L","R"]}],
 };
 export const HAND_LABELS={L:"Left",R:"Right",S:"Switch"};
 
