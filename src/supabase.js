@@ -121,6 +121,7 @@ export async function fetchMyTeams() {
     name: t.name,
     sport: t.sport,
     ownerUserId: t.owner_user_id,
+    organizationId: t.organization_id,
     timezone: t.timezone,
     startDate: t.start_date,
     endDate: t.end_date,
@@ -273,12 +274,12 @@ function mapAssetRow(a) {
 function mapSkillTagRow(t) {
   return { id: t.id, categoryId: t.category_id, scope: t.scope, organizationId: t.organization_id, ownerUserId: t.owner_user_id, name: t.name }
 }
-function mapDrillRow(a, equipmentByDrill, tagsByDrill) {
+function mapDrillRow(a, equipmentByDrill, tagsByDrill, sharesByDrill) {
   return {
     id: a.id, name: a.name, sport: a.sport,
     duration: a.duration_minutes || 10, description: a.description || '', coachingPoints: a.coaching_points || '',
     grouping: a.grouping || 'whole', numGroups: a.num_groups || 2,
-    organizationId: a.organization_id, ownerUserId: a.owner_user_id, sharedWithOrganizationId: a.shared_with_organization_id,
+    organizationId: a.organization_id, ownerUserId: a.owner_user_id, sharedWithOrganizationIds: (sharesByDrill && sharesByDrill[a.id]) || [],
     sourceCatalogId: a.source_catalog_id,
     updatedAt: a.updated_at, position: a.position || 0,
     equipment: equipmentByDrill[a.id] || [],
@@ -290,17 +291,22 @@ function mapCatalogRow(c) {
 }
 
 export async function fetchLibraryData() {
-  const [assetsRes, categoriesRes, tagsRes, drillsRes, equipRes, drillTagsRes, orgsRes, profilesRes, catalogsRes] = await Promise.all([
+  const [assetsRes, categoriesRes, tagsRes, drillsRes, equipRes, drillTagsRes, orgsRes, profilesRes, catalogsRes, drillSharesRes] = await Promise.all([
     supabase.from('assets').select('*').is('archived_at', null),
     supabase.from('skill_categories').select('*').is('archived_at', null),
     supabase.from('skill_tags').select('*').is('archived_at', null),
     supabase.from('activity_library').select('*').is('archived_at', null).order('position'),
     supabase.from('activity_library_equipment').select('*'),
     supabase.from('drill_tags').select('*'),
-    supabase.from('organization_members').select('organization_id, role, organizations(id, name)').is('archived_at', null),
+    supabase.from('org_staff').select('organization_id, role, organizations(id, name)').is('archived_at', null),
     supabase.from('profiles').select('id, email, first_name, last_name'), // own row + org co-members, per RLS
     supabase.from('content_catalogs').select('*').is('archived_at', null),
+    supabase.from('activity_library_org_shares').select('activity_library_id, organization_id'),
   ])
+  // Pending org invites (Org Experience handoff Sec 5) -- fetched here too so
+  // the existing app-wide refreshLibrary() call is what surfaces "you've
+  // been invited" on Home, same as the rest of this function's data.
+  const pendingOrgInvites = await fetchPendingOrgInvites()
   if (drillsRes.error) console.error('fetchLibraryData drills:', drillsRes.error)
   if (assetsRes.error) console.error('fetchLibraryData assets:', assetsRes.error)
 
@@ -308,6 +314,8 @@ export async function fetchLibraryData() {
   for (const e of equipRes.data || []) (equipmentByDrill[e.activity_library_id] ||= []).push(e.asset_id)
   const tagsByDrill = {}
   for (const t of drillTagsRes.data || []) (tagsByDrill[t.activity_library_id] ||= []).push(t.skill_tag_id)
+  const sharesByDrill = {}
+  for (const s of drillSharesRes.data || []) (sharesByDrill[s.activity_library_id] ||= []).push(s.organization_id)
   const profilesById = {}
   for (const p of profilesRes.data || []) profilesById[p.id] = { name: (p.first_name && p.last_name) ? (p.first_name + ' ' + p.last_name) : (p.email || 'A coach') }
 
@@ -315,8 +323,9 @@ export async function fetchLibraryData() {
     assets: (assetsRes.data || []).map(mapAssetRow),
     skillCategories: categoriesRes.data || [],
     skillTags: (tagsRes.data || []).map(mapSkillTagRow),
-    activityLibrary: (drillsRes.data || []).map(a => mapDrillRow(a, equipmentByDrill, tagsByDrill)),
+    activityLibrary: (drillsRes.data || []).map(a => mapDrillRow(a, equipmentByDrill, tagsByDrill, sharesByDrill)),
     myOrgs: (orgsRes.data || []).map(m => ({ id: m.organization_id, name: m.organizations ? m.organizations.name : '', role: m.role })),
+    pendingOrgInvites,
     profilesById,
     catalogs: (catalogsRes.data || []).map(mapCatalogRow),
   }
@@ -505,10 +514,21 @@ export async function updateCatalogDrill(id, { name, sport, duration, descriptio
 export async function archiveCatalogDrill(id) {
   return archiveDrill(id)
 }
-export async function setDrillShare(id, organizationId) {
-  const { error } = await supabase.from('activity_library').update({ shared_with_organization_id: organizationId }).eq('id', id)
-  if (error) console.error('setDrillShare:', error)
+// Full replace, not a toggle: pass the complete set of org ids this drill
+// should be shared with (empty array = make private). A drill can be
+// shared into more than one org (a coach may be director of one org while
+// coaching a team in another), so this can't be a single id like the old
+// single-org column was.
+export async function setDrillOrgShares(drillId, organizationIds) {
+  const { error } = await supabase.rpc('set_drill_org_shares', { p_drill_ids: [drillId], p_organization_ids: organizationIds || [] })
+  if (error) console.error('setDrillOrgShares:', error)
   return { error }
+}
+
+export async function promoteDrillToOrgLibrary(drillId, organizationId) {
+  const { data, error } = await supabase.rpc('promote_drill_to_org_library', { p_drill_id: drillId, p_organization_id: organizationId })
+  if (error) console.error('promoteDrillToOrgLibrary:', error)
+  return { data, error }
 }
 
 // Copy semantics (addendum, "recurring bug" section): copying a shared drill
@@ -1414,4 +1434,66 @@ export async function revokeAdmin(userId) {
 export async function logGoalViewed(teamId) {
   const { error } = await supabase.rpc('log_goal_viewed_event', { p_team_id: teamId })
   if (error) console.error('logGoalViewed:', error)
+}
+
+// Org Experience (ROP-Org-Experience-Handoff.md). myOrgs (director
+// memberships) already comes back from fetchLibraryData -- these cover the
+// rest: pending invites, org-scoped team/staff/player writes, and the
+// invite lifecycle. All authorization happens server-side in the RPCs;
+// nothing here re-derives a permission check client-side.
+export async function fetchPendingOrgInvites() {
+  const { data, error } = await supabase.from('org_invites').select('id, organization_id, team_id, team_role, invited_by, created_at, organizations(id, name)').eq('status', 'pending')
+  if (error) { console.error('fetchPendingOrgInvites:', error); return [] }
+  return (data || []).map(i => ({ id: i.id, organizationId: i.organization_id, organizationName: i.organizations ? i.organizations.name : '', teamId: i.team_id, teamRole: i.team_role, invitedBy: i.invited_by, createdAt: i.created_at }))
+}
+// Director's view: every pending invite this org has sent (org_invites_select
+// RLS shows these to any is_org_admin of the org, separate from the
+// invitee-facing fetchPendingOrgInvites above).
+export async function fetchOrgSentInvites(organizationId) {
+  const { data, error } = await supabase.from('org_invites').select('id, email, team_id, team_role, created_at').eq('organization_id', organizationId).eq('status', 'pending').order('created_at', { ascending: false })
+  if (error) { console.error('fetchOrgSentInvites:', error); return [] }
+  return (data || []).map(i => ({ id: i.id, email: i.email, teamId: i.team_id, teamRole: i.team_role, createdAt: i.created_at }))
+}
+export async function orgInviteCoach(organizationId, email, teamId, teamRole) {
+  const { data, error } = await supabase.rpc('org_invite_coach', { p_organization_id: organizationId, p_email: email, p_team_id: teamId || null, p_team_role: teamRole || null })
+  if (error) console.error('orgInviteCoach:', error)
+  return { data, error }
+}
+export async function acceptOrgInvite(inviteId) {
+  const { error } = await supabase.rpc('accept_org_invite', { p_invite_id: inviteId })
+  if (error) console.error('acceptOrgInvite:', error)
+  return { error }
+}
+export async function declineOrgInvite(inviteId) {
+  const { error } = await supabase.rpc('decline_org_invite', { p_invite_id: inviteId })
+  if (error) console.error('declineOrgInvite:', error)
+  return { error }
+}
+export async function orgCreateTeam(organizationId, { name, sport, seasonLabel, startDate, endDate, timezone, colorPrimary, colorSecondary }) {
+  const { data, error } = await supabase.rpc('org_create_team', {
+    p_organization_id: organizationId, p_name: name, p_sport: sport || 'General',
+    p_season_label: seasonLabel || null, p_start_date: startDate || null, p_end_date: endDate || null,
+    p_timezone: timezone || null, p_color_primary: colorPrimary || null, p_color_secondary: colorSecondary || null,
+  })
+  if (error) console.error('orgCreateTeam:', error)
+  return { data, error }
+}
+export async function orgAssignTeamStaff(teamId, userId, role) {
+  const { data, error } = await supabase.rpc('org_assign_team_staff', { p_team_id: teamId, p_user_id: userId, p_role: role })
+  if (error) console.error('orgAssignTeamStaff:', error)
+  return { data, error }
+}
+export async function orgAssignPlayer(teamId, { firstName, lastName, jerseyNumber, positions }) {
+  const { data, error } = await supabase.rpc('org_assign_player', { p_team_id: teamId, p_first_name: firstName, p_last_name: lastName, p_jersey_number: jerseyNumber || null, p_positions: positions || [] })
+  if (error) console.error('orgAssignPlayer:', error)
+  return { data, error }
+}
+// Org-wide practices-run rollup for the Org Home page (handoff Sec 4.3) --
+// reuses the founder-metrics RPC pattern (weekly counts), scoped to one
+// org's teams instead of the whole platform. is_org_member(organizationId)
+// gates it, not is_admin().
+export async function fetchOrgWeeklyPracticeRollup(organizationId, weeks) {
+  const { data, error } = await supabase.rpc('get_org_weekly_practice_rollup', { p_organization_id: organizationId, p_weeks: weeks || 8 })
+  if (error) { console.error('fetchOrgWeeklyPracticeRollup:', error); return [] }
+  return data || []
 }

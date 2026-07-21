@@ -353,6 +353,10 @@ export default function SettingsScreen({data,coachId,openModal,refreshLibrary,re
         <div className="lim"><div className="lin">{item.label}</div>{item.sub&&<div className="limt">{item.sub}</div>}</div>
         <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
       </div>))}
+      {(data.myOrgs||[]).map(org=>(<div key={org.id} className="li tap" style={{marginBottom:8}} onClick={()=>navigate("/org/"+org.id)}>
+        <div className="lim"><div className="lin">{org.name}</div><div className="limt">Organization</div></div>
+        <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+      </div>))}
       {isAdmin&&<div className="li tap" style={{marginBottom:8}} onClick={()=>navigate("/admin/metrics")}>
         <div className="lim"><div className="lin">Founder Metrics</div></div>
         <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>

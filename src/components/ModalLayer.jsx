@@ -337,8 +337,13 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
               // (RLS: can_link_asset_to_activity) -- a personal/org drill's
               // picker excludes catalog-owned assets the same way, since
               // linking them would be rejected server-side anyway.
-              const teamAssets=(data.assets||[]).filter(a=>a.type==="team"&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId));
-              const playerAssets=(data.assets||[]).filter(a=>a.type==="player"&&(a.sport===drillSport||a.sport==="General")&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId));
+              // Own equipment sorted first, then org/team-shared -- RLS
+              // (can_access_asset_owned) already unions own+org+team-scoped
+              // assets into data.assets, this just orders the picker per
+              // handoff Sec 3.6.
+              const ownFirst=(a,b)=>(a.ownerUserId===coachId?0:1)-(b.ownerUserId===coachId?0:1);
+              const teamAssets=(data.assets||[]).filter(a=>a.type==="team"&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId)).sort(ownFirst);
+              const playerAssets=(data.assets||[]).filter(a=>a.type==="player"&&(a.sport===drillSport||a.sport==="General")&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId)).sort(ownFirst);
               return(<div>
                 <div className="fld"><label className="lbl">Team Equipment</label>
                   <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>

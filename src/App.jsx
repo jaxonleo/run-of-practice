@@ -19,6 +19,7 @@ import AbsencePicker from "./components/AbsencePicker.jsx";
 import LandingPage from "./components/LandingPage.jsx";
 import { TermsPage, PrivacyPage } from "./components/LegalPages.jsx";
 import FounderMetricsScreen from "./components/FounderMetricsScreen.jsx";
+import OrgHomeScreen from "./components/OrgHomeScreen.jsx";
 
 // INIT, DEMO_INIT, migrateData, uid, fmt, sumMins, etc. imported from constants.js
 
@@ -348,7 +349,7 @@ export default function App(){
     setTeams(await fetchMyTeams());
   },[coachId]);
   useEffect(()=>{refreshTeams();},[refreshTeams]);
-  const [library,setLibrary]=useState({assets:[],skillCategories:[],skillTags:[],activityLibrary:[],myOrgs:[],profilesById:{}});
+  const [library,setLibrary]=useState({assets:[],skillCategories:[],skillTags:[],activityLibrary:[],myOrgs:[],pendingOrgInvites:[],profilesById:{}});
   const refreshLibrary=useCallback(async()=>{
     if(!coachId)return;
     setLibrary(await fetchLibraryData());
@@ -381,6 +382,7 @@ export default function App(){
       <Route path="/privacy" element={<PrivacyPage/>}/>
       <Route path="/*" element={<AuthedShell/>}>
         <Route path="admin/metrics" element={<FounderAdminRoute/>}/>
+        <Route path="org/:orgId" element={<OrgHomeRoute/>}/>
         <Route element={<LayoutRoute/>}>
           <Route index element={<HomeRoute/>}/>
           <Route path="library" element={<LibraryRoute/>}/>
@@ -495,12 +497,20 @@ function FounderAdminRoute(){
   return <FounderMetricsScreen/>;
 }
 
+// Org Home page (handoff Sec 4). Reached via Settings, same pattern as
+// Founder Metrics -- not a tab, its own way in and out.
+function OrgHomeRoute(){
+  const {orgId}=useParams();
+  const {data,goToTeam,coachId}=useAppCtx();
+  return <OrgHomeScreen data={data} orgId={orgId} goToTeam={goToTeam} coachId={coachId}/>;
+}
+
 function HelperViewRoute(){ const {token}=useParams(); return <HelperView token={token}/>; }
 function PreviewViewRoute(){ const {token}=useParams(); return <PreviewView token={token}/>; }
 
 function HomeRoute(){
-  const {data,update,goToBuilder,goToRun,goToSchedule,goToTeam,goToSettings,coachId,coachName,coachEmail,refreshPlanning,refreshTeams}=useAppCtx();
-  return <HomeScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeam={goToTeam} goToSettings={goToSettings} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams}/>;
+  const {data,update,goToBuilder,goToRun,goToSchedule,goToTeam,goToSettings,coachId,coachName,coachEmail,refreshPlanning,refreshTeams,refreshLibrary}=useAppCtx();
+  return <HomeScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeam={goToTeam} goToSettings={goToSettings} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams} refreshLibrary={refreshLibrary}/>;
 }
 
 function LibraryRoute(){

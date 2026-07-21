@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { sumMins, isHeadCoach, planningState, localDateStr, stripIdsForCopy } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback, savePracticeTree } from "../supabase.js";
+import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
@@ -88,7 +88,7 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 };
 
-export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSchedule, goToTeam, goToSettings, coachId, coachName, coachEmail, refreshPlanning, refreshTeams }) {
+export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSchedule, goToTeam, goToSettings, coachId, coachName, coachEmail, refreshPlanning, refreshTeams, refreshLibrary }) {
   const now = new Date();
   const todayStr = localDateStr(now);
   const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
@@ -201,6 +201,21 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
   const [leavingTeamId, setLeavingTeamId] = useState(null);
   const handleLeave = async teamId => { setLeavingTeamId(teamId); await leaveTeam(teamId); if (refreshTeams) await refreshTeams(); setLeavingTeamId(null); };
 
+  // Org Experience handoff Sec 5: unlike the team_staff welcome card above
+  // (already-added, just an FYI), an org invite is a real consent gate --
+  // nothing is granted until accept/decline runs. Surfaced here since Home
+  // is where every signed-in coach lands regardless of org membership.
+  const [respondingInviteId, setRespondingInviteId] = useState(null);
+  const pendingOrgInvite = (data.pendingOrgInvites || [])[0] || null;
+  const respondToInvite = async (accept) => {
+    if (!pendingOrgInvite) return;
+    setRespondingInviteId(pendingOrgInvite.id);
+    if (accept) await acceptOrgInvite(pendingOrgInvite.id); else await declineOrgInvite(pendingOrgInvite.id);
+    if (refreshLibrary) await refreshLibrary();
+    if (accept && refreshTeams) await refreshTeams();
+    setRespondingInviteId(null);
+  };
+
   if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} update={update} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} coachId={coachId} refreshPlanning={refreshPlanning} /></div>);
   if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} onBack={() => setViewPractice(null)} /></div>);
 
@@ -231,6 +246,13 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
     {pendingWelcome && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 14, marginBottom: 6 }}>You've been added to <strong>{pendingWelcome.team.name}</strong> by {adderName}.</div>
       <button style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 12, color: "var(--td)", textDecoration: "underline" }} disabled={leavingTeamId === pendingWelcome.team.id} onClick={() => handleLeave(pendingWelcome.team.id)}>Not your team? Leave</button>
+    </div></div>}
+    {pendingOrgInvite && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
+      <div style={{ fontSize: 14, marginBottom: 8 }}>You've been invited to join <strong>{pendingOrgInvite.organizationName}</strong>{pendingOrgInvite.teamRole ? " as " + pendingOrgInvite.teamRole.replace("_", " ") : ""}.</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button className="btn primary bxs" disabled={respondingInviteId === pendingOrgInvite.id} onClick={() => respondToInvite(true)}>Accept</button>
+        <button className="btn ghost bxs" disabled={respondingInviteId === pendingOrgInvite.id} onClick={() => respondToInvite(false)}>Decline</button>
+      </div>
     </div></div>}
 
     <div style={{ padding: "0 16px" }}>
