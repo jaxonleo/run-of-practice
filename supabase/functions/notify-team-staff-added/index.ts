@@ -12,6 +12,7 @@
 // endpoint and the open internet.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { renderEmailHtml } from '../_shared/emailTemplate.ts'
 
 Deno.serve(async (req) => {
   if (req.headers.get('x-webhook-secret') !== Deno.env.get('WEBHOOK_SECRET')) {
@@ -49,6 +50,14 @@ Deno.serve(async (req) => {
   const teamName = team?.name || 'a team'
   const adderName = adder ? `${adder.first_name} ${adder.last_name}`.trim() : 'a coach'
 
+  const html = renderEmailHtml({
+    headline: `You've been added to ${teamName}`,
+    bodyHtml: `<p style="margin:0 0 12px;">${adderName} added you to <strong>${teamName}</strong> on Run of Practice.</p>
+<p style="margin:0;">This is just an FYI — nothing to click or confirm here.</p>`,
+    ctaLabel: 'Sign In',
+    signInEmail: staff.invite_email,
+  })
+
   const resendRes = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -59,9 +68,7 @@ Deno.serve(async (req) => {
       from: 'Run of Practice <noreply@runofpractice.com>',
       to: [staff.invite_email],
       subject: `You've been added to ${teamName} on Run of Practice`,
-      html: `<p>${adderName} added you to <strong>${teamName}</strong> on Run of Practice.</p>
-<p>Sign in any time at <a href="https://www.runofpractice.com">runofpractice.com</a> with this email address (${staff.invite_email}) — we'll send a one-time code, no password needed.</p>
-<p>This is just an FYI, nothing to click or confirm here.</p>`,
+      html,
     }),
   })
 
