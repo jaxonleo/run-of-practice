@@ -47,6 +47,28 @@ export function myTeamRole(team,coachId){
   return null;
 }
 export function isHeadCoach(team,coachId){return myTeamRole(team,coachId)==="Head Coach";}
+
+// Coach/Org mode scoping (Org Experience follow-up, per-device toggle):
+// Coach mode = teams this person personally coaches (has a team_staff row
+// or owns), regardless of which org they belong to. Org mode = every team
+// in the org being viewed, regardless of whether this director personally
+// coaches each one -- that's the whole point of the distinction, oversight
+// vs. personal responsibilities.
+export function teamsForMode(teams,mode,coachId){
+  const all=teams||[];
+  if(mode&&mode.type==="org")return all.filter(t=>t.organizationId===mode.orgId);
+  return all.filter(t=>myTeamRole(t,coachId)!==null);
+}
+// "Can manage" for UI-gating purposes (show +Add Coach/Player, Plan
+// Practice, etc.), mode-aware: in Org mode a director can manage every team
+// in that org regardless of personal team_staff role, matching what RLS
+// (can_manage_team's is_org_admin branch) already allows server-side --
+// this just teaches the client-side check the same thing for org-scoped
+// screens. In Coach mode, unchanged: only personal head-coach role counts.
+export function canManageTeamInMode(team,coachId,mode){
+  if(mode&&mode.type==="org")return !!(team&&team.organizationId===mode.orgId);
+  return isHeadCoach(team,coachId);
+}
 export const shuffle=(arr)=>[...arr].sort(()=>Math.random()-.5);
 export function mkGroups(ids,n){const s=shuffle(ids),g=Array.from({length:n},()=>[]);s.forEach((id,i)=>g[i%n].push(id));return g;}
 export function rebalanceKeep(stations,presentIds){return stations.map(st=>Object.assign({},st,{assignments:(st.assignments||[]).filter(id=>presentIds.has(id))}));}

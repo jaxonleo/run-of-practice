@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { uid, TEAM_COLORS, nextTeamColor, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "../constants.js";
-import { createTeam, updateTeam, createPlayer, createStaff, updateStaff, createAsset, updateAsset, createDrill, updateDrill, createSkillTag, createLocation, updateLocation, createSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
+import { createTeam, orgCreateTeam, updateTeam, createPlayer, createStaff, updateStaff, createAsset, updateAsset, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, createSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
 import { AutoTextarea } from "./ActivityConfigs.jsx";
 
 const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
@@ -190,12 +190,23 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     try{
     const t=modal.type,p=modal.payload;
     let res=null;
-    if(t==="addTeam"){if(!f.name)return;await createTeam(coachId,{name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||nextTeamColor(data.teams)});await refreshTeams();}
+    if(t==="addTeam"){
+      if(!f.name)return;
+      const teamFields={name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||nextTeamColor(data.teams)};
+      if(p&&p.organizationId)await orgCreateTeam(p.organizationId,teamFields);
+      else await createTeam(coachId,teamFields);
+      await refreshTeams();
+    }
     if(t==="editTeam"){if(!f.name)return;await updateTeam(p.team.id,{name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||p.team.colorPrimary});await refreshTeams();}
     if(t==="addPlayer"){if(!f.firstName)return;await createPlayer(p.teamId,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:f.positions||[],bats:f.bats||"",throws:f.throws||"",notes:f.notes||""});await refreshTeams();}
     if(t==="addCoach"){if(!f.name||!f.inviteEmail)return;await createStaff(p.teamId,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail});await refreshTeams();}
     if(t==="editCoach"){if(!f.name)return;if(!coach.userId&&!f.inviteEmail)return;await updateStaff(p.coach.id,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail||""});await refreshTeams();}
-    if(t==="addLocation"){if(!f.name)return;await createLocation(coachId,f.name);await refreshPlanning();}
+    if(t==="addLocation"){
+      if(!f.name)return;
+      if(p&&p.organizationId)await createOrgLocation(p.organizationId,f.name);
+      else await createLocation(coachId,f.name);
+      await refreshPlanning();
+    }
     if(t==="editLocation"){if(!f.name)return;await updateLocation(p.location.id,f.name);await refreshPlanning();}
     if(t==="addSublocation"){if(!f.name)return;await createSublocation(p.locationId,f.name);await refreshPlanning();}
     if(t==="addAsset"){if(!f.name)return;await createAsset(coachId,{name:f.name,type:f.assetType||"team",sport:f.assetSport||"General"});await refreshLibrary();}

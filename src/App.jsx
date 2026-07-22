@@ -5,12 +5,12 @@ import Layout from "./Layout.jsx";
 import { BuildTab } from "./components/BuildTab.jsx";
 import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
-import SettingsScreen, { EquipmentTab } from "./components/SettingsScreen.jsx";
+import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "./constants.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode } from "./constants.js";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
-import NewLibraryScreen from "./components/NewLibraryScreen.jsx";
+import NewLibraryScreen, { EquipmentTab } from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView } from "./components/CommandScreen.jsx";
 import HomeScreen from "./components/HomeScreen.jsx";
@@ -19,7 +19,6 @@ import AbsencePicker from "./components/AbsencePicker.jsx";
 import LandingPage from "./components/LandingPage.jsx";
 import { TermsPage, PrivacyPage } from "./components/LegalPages.jsx";
 import FounderMetricsScreen from "./components/FounderMetricsScreen.jsx";
-import OrgHomeScreen from "./components/OrgHomeScreen.jsx";
 
 // INIT, DEMO_INIT, migrateData, uid, fmt, sumMins, etc. imported from constants.js
 
@@ -49,6 +48,15 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .live-resume{position:fixed;bottom:var(--tab);left:50%;transform:translateX(-50%);width:100%;max-width:480px;z-index:99;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 14px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border:none;border-top:1px solid rgba(255,255,255,.15);}
 .ti{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:none;border:none;cursor:pointer;color:var(--td);font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 2px;position:relative;}
 .ti.on{color:var(--green);}.ti svg{width:20px;height:20px;stroke-width:1.8;stroke:var(--td);}.ti.on svg{stroke:var(--green);}
+/* Org mode (per-device Coach/Organization toggle): same three tabs, solid
+   green bar as the persistent visual cue -- color alone isn't enough for
+   accessibility, so Layout.jsx also shows the org name near the top in
+   this mode, this is just the tab bar's own look. */
+.tabbar.org{background:var(--green);border-top-color:var(--green);}
+.tabbar.org .ti{color:rgba(255,255,255,.65);}
+.tabbar.org .ti.on{color:#fff;}
+.tabbar.org .ti svg{stroke:rgba(255,255,255,.65);}
+.tabbar.org .ti.on svg{stroke:#fff;}
 .phdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
 .ptitle{font-size:26px;font-weight:900;letter-spacing:.02em;font-family:'Barlow Condensed',sans-serif;}
 .card{background:var(--s1);border:1px solid var(--b);border-radius:var(--r);padding:14px;margin-bottom:10px;}
@@ -363,6 +371,26 @@ export default function App(){
   },[coachId]);
   useEffect(()=>{refreshPlanning();},[refreshPlanning]);
   const fullData=useMemo(()=>Object.assign({},data,{teams},library,planning),[data,teams,library,planning]);
+
+  // Coach vs Organization mode (persisted per device -- a director doing
+  // org work daily shouldn't have to re-toggle every launch). {type:'coach'}
+  // or {type:'org',orgId} rather than a plain boolean, since a director can
+  // belong to more than one org (the whole reason org_staff/multi-org drill
+  // sharing exist) -- this shape extends to an org picker without rework.
+  const [mode,setMode]=useState(()=>{
+    try{
+      const saved=JSON.parse(localStorage.getItem("rop_mode")||"null");
+      if(saved&&saved.type==="org"&&saved.orgId)return saved;
+    }catch(e){}
+    return {type:"coach"};
+  });
+  useEffect(()=>{try{localStorage.setItem("rop_mode",JSON.stringify(mode));}catch(e){}},[mode]);
+  // Guard against a persisted org the coach is no longer a director of
+  // (left, or it was archived) -- falls back to Coach mode instead of
+  // showing a broken/empty org view.
+  useEffect(()=>{
+    if(mode.type==="org"&&library.myOrgs&&!library.myOrgs.some(o=>o.id===mode.orgId))setMode({type:"coach"});
+  },[library.myOrgs]);
   const openModal=(t,p)=>setModal({type:t,payload:p||{}});
   const closeModal=()=>setModal(null);
   const coachName=profile&&profile.first_name?profile.first_name:(session?(session.user.email||"Coach"):"Coach");
@@ -382,7 +410,6 @@ export default function App(){
       <Route path="/privacy" element={<PrivacyPage/>}/>
       <Route path="/*" element={<AuthedShell/>}>
         <Route path="admin/metrics" element={<FounderAdminRoute/>}/>
-        <Route path="org/:orgId" element={<OrgHomeRoute/>}/>
         <Route element={<LayoutRoute/>}>
           <Route index element={<HomeRoute/>}/>
           <Route path="library" element={<LibraryRoute/>}/>
@@ -412,7 +439,8 @@ export default function App(){
     openModal,closeModal,modal,
     refreshTeams,refreshLibrary,refreshPlanning,
     saveName,onSignOut:signOut,onDeactivate:handleDeactivate,
-  }),[fullData,update,coachId,profile,coachName,coachEmailStr,session,wantsAuth,loaded,modal,refreshTeams,refreshLibrary,refreshPlanning,saveName,handleDeactivate]);
+    mode,setMode,
+  }),[fullData,update,coachId,profile,coachName,coachEmailStr,session,wantsAuth,loaded,modal,refreshTeams,refreshLibrary,refreshPlanning,saveName,handleDeactivate,mode]);
 
   return (<AppCtx.Provider value={ctxValue}>
     <RouterProvider router={router}/>
@@ -480,8 +508,8 @@ function AuthedShell(){
 }
 
 function LayoutRoute(){
-  const {data,liveId,goToRun}=useAppCtx();
-  return <Layout data={data} liveId={liveId} goToRun={goToRun}/>;
+  const {data,liveId,goToRun,mode}=useAppCtx();
+  return <Layout data={data} liveId={liveId} goToRun={goToRun} mode={mode}/>;
 }
 
 // Founder-only gate. Settings shows a "Founder Metrics" row only when
@@ -497,35 +525,40 @@ function FounderAdminRoute(){
   return <FounderMetricsScreen/>;
 }
 
-// Org Home page (handoff Sec 4). Reached via Settings, same pattern as
-// Founder Metrics -- not a tab, its own way in and out.
-function OrgHomeRoute(){
-  const {orgId}=useParams();
-  const {data,goToTeam,coachId,refreshTeams}=useAppCtx();
-  return <OrgHomeScreen data={data} orgId={orgId} goToTeam={goToTeam} coachId={coachId} refreshTeams={refreshTeams}/>;
-}
-
 function HelperViewRoute(){ const {token}=useParams(); return <HelperView token={token}/>; }
 function PreviewViewRoute(){ const {token}=useParams(); return <PreviewView token={token}/>; }
 
 function HomeRoute(){
-  const {data,update,goToBuilder,goToRun,goToSchedule,goToTeam,goToSettings,coachId,coachName,coachEmail,refreshPlanning,refreshTeams,refreshLibrary}=useAppCtx();
-  return <HomeScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeam={goToTeam} goToSettings={goToSettings} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams} refreshLibrary={refreshLibrary}/>;
+  const {data,update,goToBuilder,goToRun,goToSchedule,goToTeam,goToSettings,coachId,coachName,coachEmail,refreshPlanning,refreshTeams,refreshLibrary,mode,setMode}=useAppCtx();
+  // Coach mode: teams I personally coach, across any org. Org mode: every
+  // team in the org being viewed, regardless of my personal involvement --
+  // the whole point of the two modes. Scoped once here so HomeScreen's own
+  // internals (already all keyed off data.teams/data.practices) need no
+  // changes at all.
+  const scopedTeams=teamsForMode(data.teams,mode,coachId);
+  const scopedTeamIds=new Set(scopedTeams.map(t=>t.id));
+  const scopedData=useMemo(()=>Object.assign({},data,{
+    teams:scopedTeams,
+    practices:(data.practices||[]).filter(p=>scopedTeamIds.has(p.teamId)),
+  }),[data,mode,coachId]);
+  return <HomeScreen data={scopedData} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeam={goToTeam} goToSettings={goToSettings} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams} refreshLibrary={refreshLibrary} mode={mode} setMode={setMode}/>;
 }
 
 function LibraryRoute(){
-  const {data,update,openModal,goToBuilder,refreshLibrary,coachId,refreshPlanning}=useAppCtx();
-  return <NewLibraryScreen data={data} update={update} openModal={openModal} goToBuilder={goToBuilder} refreshLibrary={refreshLibrary} coachId={coachId} refreshPlanning={refreshPlanning}/>;
+  const {data,update,openModal,goToBuilder,refreshLibrary,coachId,refreshPlanning,mode}=useAppCtx();
+  return <NewLibraryScreen data={data} update={update} openModal={openModal} goToBuilder={goToBuilder} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} coachId={coachId} mode={mode}/>;
 }
 
 function TeamsRoute(){
-  const {data,goToTeam,openModal}=useAppCtx();
-  return <TeamsListScreen data={data} goToTeam={goToTeam} openModal={openModal}/>;
+  const {data,goToTeam,openModal,coachId,mode}=useAppCtx();
+  const scopedTeams=teamsForMode(data.teams,mode,coachId);
+  const scopedData=useMemo(()=>Object.assign({},data,{teams:scopedTeams}),[data,mode,coachId]);
+  return <TeamsListScreen data={scopedData} goToTeam={goToTeam} openModal={openModal} mode={mode}/>;
 }
 
 function SettingsRoute(){
-  const {data,coachId,openModal,refreshLibrary,refreshPlanning,profile,coachEmail,saveName,onSignOut,onDeactivate}=useAppCtx();
-  return <SettingsScreen data={data} coachId={coachId} openModal={openModal} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate}/>;
+  const {data,coachId,refreshLibrary,profile,coachEmail,saveName,onSignOut,onDeactivate,setMode}=useAppCtx();
+  return <SettingsScreen data={data} coachId={coachId} refreshLibrary={refreshLibrary} profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate} setMode={setMode}/>;
 }
 
 // step-3 bridge -- see the router config comment above.

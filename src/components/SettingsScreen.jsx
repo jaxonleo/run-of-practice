@@ -1,201 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { createAsset, updateAsset, archiveAsset, archiveLocation, checkIsAdmin, listAdmins, grantAdmin, revokeAdmin, createOrganization } from "../supabase.js";
-import { SkillsTab } from "./NewLibraryScreen.jsx";
+import { checkIsAdmin, listAdmins, grantAdmin, revokeAdmin, createOrganization } from "../supabase.js";
 
-// Settings hub (nav restructure, 2026-07-15): one home for the low-frequency
-// "manage my setup" tasks that were orphaned when the old Manage screen
-// dissolved into the team-first navigation -- Account, Locations, Equipment &
-// Gear, and Skill Tags. These are configuration, not coaching content, which
-// is exactly why none of them belonged in Library (content you browse) or a
-// team workspace (they're all coach-owned and cross-team). Entered via the
-// gear icon on Home. All four sections keep their inline-create escape
-// hatches where they're actually used (drill editor creates equipment,
-// scheduling creates locations), so living one level deep costs nothing
-// day-to-day.
-//
-// GearEditRow / EquipmentTab / AccountSection moved here verbatim from
-// App.jsx (they had no other call sites); SkillsTab is imported from
-// NewLibraryScreen (one-way import, no cycle), where it no longer has a tab.
-
-// ── GearEditRow — inline edit for a player gear item ─────────────────────────
-function GearEditRow({asset,refreshLibrary,onDone}){
-  const [name,setName]=useState(asset.name);
-  const [sport,setSport]=useState(asset.sport||"General");
-  const save=async()=>{
-    if(!name.trim())return;
-    await updateAsset(asset.id,{name:name.trim(),sport});
-    await refreshLibrary();
-    onDone();
-  };
-  return(<div style={{padding:"10px 12px",background:"var(--s2)",borderBottom:"1px solid var(--b)"}}>
-    <div className="g2" style={{marginBottom:8}}>
-      <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}/></div>
-      <div className="fld"><label className="lbl">Sport</label>
-        <select className="sel" value={sport} onChange={e=>setSport(e.target.value)}>
-          {["General","Baseball","Basketball","Football","Soccer","Softball","Lacrosse","Hockey","Volleyball","Tennis","Swimming","Other"].map(s=><option key={s} value={s}>{s}</option>)}
-        </select>
-      </div>
-    </div>
-    <div className="brow"><button className="btn ghost bxs" onClick={onDone}>Cancel</button><button className="btn primary bxs" onClick={save} disabled={!name.trim()}>Save</button></div>
-  </div>);
-}
-
-// ── EquipmentTab ──────────────────────────────────────────────────────────────
-// Used two ways: unfiltered from Settings (no `mode`, no `sportFilter` --
-// everything the coach owns, across every sport), and sport-filtered from
-// inside a team's workspace (sportFilter=team.sport). Exported so App.jsx's
-// TeamEquipmentRoute (/team/:teamId/equipment, one of the flattened
-// top-tabs, formerly nested inside the old ManageScreen's Team tab) can
-// reuse it.
-//
-// sportFilter (added 2026-07-15, per direct feedback: showing baseball gear
-// while looking at a basketball team would be "weird"): Team Equipment
-// never actually had per-item sport before this -- creation hardcoded
-// sport='General' for every team-equipment row, so there was no way to tell
-// them apart. New team-equipment items now stamp the current team's sport
-// automatically (no picker needed, since the context already answers it);
-// existing 'General' rows still show everywhere as a shared/generic bucket,
-// which is deliberate backward-compat, not a bug -- no migration needed.
-// Player gear already had a real sport picker; sportFilter only changes its
-// *default* selection, since gear can legitimately be sport-specific in a
-// way team equipment generally isn't (a player might own gear for a sport
-// other than the team you're currently viewing them through).
-// NOTE: this only prevents cross-*sport* bleed. Two different teams that
-// play the *same* sport still share one identical equipment pool -- that
-// needs real team-scoped ownership in the data model, deliberately deferred
-// (confirmed with Jax) as its own project once org equipment is real too.
-// Shared by EquipmentTab and the Settings home list's "N items" preview --
-// the two must agree, or the count you see before tapping in doesn't match
-// what you actually find (exactly the bug this was added to fix: the
-// preview counted every asset visible via RLS across every sport, while the
-// tab itself was already scoped to the coach's own teams' sports).
-// Settings' unfiltered view (no sportFilter -- across every team) used to
-// show every sport a coach had EVER used equipment for, personal gear
-// included, org equipment included via RLS but with no sport-relevance
-// check at all. Narrowed to the sports of teams this coach can actually
-// access right now (own + org + staff -- same set data.teams already is,
-// same "myTeamSports" pattern SkillsTab uses) -- a coach with no football
-// team, personal or org, shouldn't see football gear here. General stays
-// a shared/generic bucket, same as the existing per-team sportFilter path.
-export function visibleEquipment(data){
-  const coachTeamSports=new Set((data.teams||[]).map(t=>t.sport).filter(Boolean));
-  return (data.assets||[]).filter(a=>{
-    const sport=a.sport||"General";
-    return coachTeamSports.has(sport)||sport==="General";
-  });
-}
-
-export function EquipmentTab({data,coachId,refreshLibrary,openModal,mode,sportFilter}){
-  const [equipTabState,setEquipTabState]=useState(mode||"team");
-  const equipTab=mode||equipTabState;
-  const [openMenu,setOpenMenu]=useState(null);
-  const [newName,setNewName]=useState("");
-  const [newSport,setNewSport]=useState(sportFilter||"General");
-  const [showAdd,setShowAdd]=useState(false);
-  const [collapsed,setCollapsed]=useState({});
-  // Per-team context (sportFilter set) checks against that one exact sport;
-  // Settings' cross-team view (no sportFilter) reuses the shared
-  // visibleEquipment scoping above instead of a second, easily-divergent
-  // copy of it.
-  const baseAssets=sportFilter
-    ?(data.assets||[]).filter(a=>(a.sport||"General")===sportFilter||(a.sport||"General")==="General")
-    :visibleEquipment(data);
-  const teamAssets=baseAssets.filter(a=>!a.type||a.type==="team");
-  const playerAssets=baseAssets.filter(a=>a.type==="player");
-  const addNew=async()=>{
-    if(!newName.trim())return;
-    const sport=equipTab==="player"?newSport:(sportFilter||"General");
-    await createAsset(coachId,{name:newName.trim(),type:equipTab,sport});
-    await refreshLibrary();
-    setNewName("");setShowAdd(false);
-  };
-  const del=async id=>{await archiveAsset(id);await refreshLibrary();};
-  return(<div onClick={()=>setOpenMenu(null)}>
-    {/* Toggle */}
-    {!mode&&<div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:16}}>
-      {["team","player"].map(t=>(<button key={t} onClick={()=>{setEquipTabState(t);setShowAdd(false);}} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:equipTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:equipTab===t?"var(--black)":"var(--td)"}}>{t==="team"?"Team Equipment":"Player Gear"}</button>))}
-    </div>}
-
-    {/* Team Equipment */}
-    {equipTab==="team"&&<div>
-      <div className="sechdr mb10">
-        <span className="sectitle">{teamAssets.length} items</span>
-        <button className="btn primary bsm" onClick={()=>setShowAdd(s=>!s)}>+ Add</button>
-      </div>
-      {showAdd&&<div className="card mb10">
-        <div className="fld"><label className="lbl">Equipment Name</label><input className="inp" autoFocus placeholder="e.g. Ball Rack" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNew()}/></div>
-        <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowAdd(false)}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
-      </div>}
-      {teamAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No team equipment yet.</div>}
-      {teamAssets.map(a=>(<div key={a.id} className="li" style={{position:"relative",marginBottom:6}}>
-        <div className="lim">
-          <div className="lin">{a.name}</div>
-        </div>
-        <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
-        {openMenu===a.id&&<div className="mini-menu">
-          <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editAsset",{asset:a});}}>Edit</button>
-          <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
-        </div>}
-      </div>))}
-    </div>}
-
-    {/* Player Gear */}
-    {equipTab==="player"&&<div>
-      <div className="sechdr mb10">
-        <span className="sectitle">{playerAssets.length} items</span>
-        <button className="btn primary bsm" onClick={()=>setShowAdd(s=>!s)}>+ Add Gear</button>
-      </div>
-      {showAdd&&<div className="card mb12">
-        <div className="g2">
-          <div className="fld"><label className="lbl">Gear Name</label><input className="inp" autoFocus placeholder="e.g. Batting Helmet" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNew()}/></div>
-          <div className="fld"><label className="lbl">Sport</label>
-            <select className="sel" value={newSport} onChange={e=>setNewSport(e.target.value)}>
-              {["General","Baseball","Basketball","Football","Soccer","Softball","Lacrosse","Hockey","Volleyball","Tennis","Swimming","Other"].map(s=><option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-        </div>
-        <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowAdd(false);setNewName("");}}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
-      </div>}
-      {playerAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>
-        <div style={{marginBottom:8}}>No player gear yet.</div>
-        <div style={{fontSize:12}}>Add gear here and it will appear as chips when building drills for that sport. Basketball coaches may not need this at all.</div>
-      </div>}
-      {(()=>{
-        // Group by sport
-        const bySport={};
-        playerAssets.forEach(a=>{const s=a.sport||"General";if(!bySport[s])bySport[s]=[];bySport[s].push(a);});
-        const sportKeys=Object.keys(bySport).sort();
-        return sportKeys.map(sport=>{
-          const isCollapsed=collapsed["pg_"+sport];
-          const items=bySport[sport];
-          return(<div key={sport} style={{marginBottom:8}}>
-            <button onClick={()=>setCollapsed(c=>Object.assign({},c,{["pg_"+sport]:!c["pg_"+sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:isCollapsed?"var(--r)":"var(--r) var(--r) 0 0",cursor:"pointer"}}>
-              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--black)"}}>{sport}</span>
-              <span style={{fontSize:12,color:"var(--td)"}}>{items.length} item{items.length!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
-            </button>
-            {!isCollapsed&&<div style={{border:"1px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)"}}>
-              {items.map((a,i)=>{
-                const isEditing=openMenu==="edit_"+a.id;
-                return(<div key={a.id}>
-                  {!isEditing&&<div className="li" style={{position:"relative",borderBottom:i<items.length-1?"1px solid var(--b)":"none",borderRadius:0}}>
-                    <div className="lim"><div className="lin">{a.name}</div></div>
-                    <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
-                    {openMenu===a.id&&<div className="mini-menu">
-                      <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu("edit_"+a.id);}}>Edit</button>
-                      <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
-                    </div>}
-                  </div>}
-                  {isEditing&&<GearEditRow asset={a} refreshLibrary={refreshLibrary} onDone={()=>setOpenMenu(null)}/>}
-                </div>);
-              })}
-            </div>}
-          </div>);
-        });
-      })()}
-    </div>}
-  </div>);
-}
+// Settings hub (nav restructure, 2026-07-15; narrowed again in the Library
+// 5-tab redesign): originally held Account, Locations, Equipment & Gear, and
+// Skill Tags as "configuration, not coaching content." Locations/Equipment/
+// Skill Tags moved to Library, since a director managing an org's shared
+// stuff wants one place for all five content types (drills, templates,
+// locations, equipment, skill tags -- they already share the identical
+// coach-or-org ownership pattern in the schema). What's left here is
+// genuinely per-device account config, plus founder-admin and org-creation
+// entry points that don't belong anywhere else.
 
 // ── AccountSection ────────────────────────────────────────────────────────────
 function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate}){
@@ -240,31 +55,7 @@ function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate}){
   </div>);
 }
 
-// ── LocationsSection ──────────────────────────────────────────────────────────
-function LocationsSection({data,openModal,refreshPlanning}){
-  const [menu,setMenu]=useState(null);
-  return(<div onClick={()=>setMenu(null)}>
-    <div className="sechdr mb10"><span className="sectitle">{data.locations.length} Locations</span><button className="btn primary bsm" onClick={()=>openModal("addLocation")}>+ Add</button></div>
-    {data.locations.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No locations yet.</div>}
-    {data.locations.map(loc=>(<div key={loc.id} className="card" style={{position:"relative",marginBottom:10}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-        <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{loc.name}</span>
-        <div className="row">
-          <button className="btn ghost bxs" onClick={()=>openModal("addSublocation",{locationId:loc.id})}>+ Area</button>
-          <button className="ell-btn" onClick={e=>{e.stopPropagation();setMenu(menu===loc.id?null:loc.id);}}><span/><span/><span/></button>
-        </div>
-      </div>
-      {menu===loc.id&&<div className="mini-menu" style={{right:8,top:44}}>
-        <button className="mm-item" onClick={e=>{e.stopPropagation();setMenu(null);openModal("editLocation",{location:loc});}}>Edit</button>
-        <button className="mm-item mm-danger" onClick={async e=>{e.stopPropagation();setMenu(null);await archiveLocation(loc.id);await refreshPlanning();}}>Delete</button>
-      </div>}
-      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-        {loc.sublocations.map(sl=>(<span key={sl.id} className="bdg bs">{sl.name}</span>))}
-        {!loc.sublocations.length&&<span style={{fontSize:12,color:"var(--td)"}}>No areas yet</span>}
-      </div>
-    </div>))}
-  </div>);
-}
+// LocationsSection moved to NewLibraryScreen.jsx (Library 5-tab redesign).
 
 // ── AdminsSection ──────────────────────────────────────────────────────────
 // Founder-admin only. This IS the extensibility path from the plan: granting
@@ -309,7 +100,7 @@ function AdminsSection({}){
   </div>);
 }
 
-export default function SettingsScreen({data,coachId,openModal,refreshLibrary,refreshPlanning,profile,coachEmail,saveName,onSignOut,onDeactivate}){
+export default function SettingsScreen({data,coachId,refreshLibrary,profile,coachEmail,saveName,onSignOut,onDeactivate,setMode}){
   const navigate=useNavigate();
   // null = the top-level list; otherwise which section is drilled into.
   const [section,setSection]=useState(null);
@@ -329,25 +120,24 @@ export default function SettingsScreen({data,coachId,openModal,refreshLibrary,re
     const {data:org}=await createOrganization(coachId,newOrgName.trim());
     setNewOrgName("");setCreatingOrg(false);setShowCreateOrg(false);
     if(refreshLibrary)await refreshLibrary();
-    if(org)navigate("/org/"+org.id);
+    // Org Home was folded into Home's Organization mode -- switching mode
+    // and returning there is now the entry point, not a separate route.
+    if(org){setMode({type:"org",orgId:org.id});navigate("/");}
   };
+  // Locations/Equipment & Gear/Skill Tags moved to Library (5-tab redesign,
+  // ROP-Org-Experience follow-up) -- Account is what's left here that's
+  // genuinely per-device configuration, not coaching content.
   const NAV_ITEMS=[
     {id:"account",label:"Account",sub:coachEmail||undefined},
-    {id:"locations",label:"My Locations",sub:data.locations.length+" location"+(data.locations.length===1?"":"s")},
-    {id:"equipment",label:"Equipment & Gear",sub:visibleEquipment(data).length+" item"+(visibleEquipment(data).length===1?"":"s")},
-    {id:"skills",label:"Skill Tags",sub:"Your coaching vocabulary for drills and goals"},
   ];
   const BackRow=()=>(<div style={{padding:"12px 14px 0"}}><button className="btn ghost bxs" onClick={()=>setSection(null)}>&#8249; Settings</button></div>);
-  const titles={account:"Account",locations:"My Locations",equipment:"Equipment & Gear",skills:"Skill Tags",admins:"Admins"};
+  const titles={account:"Account",admins:"Admins"};
 
   if(section)return(<div style={{paddingBottom:80}}>
     <BackRow/>
     <div style={{padding:"12px 16px 0"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,marginBottom:14}}>{titles[section]}</div>
       {section==="account"&&<AccountSection profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate}/>}
-      {section==="locations"&&<LocationsSection data={data} openModal={openModal} refreshPlanning={refreshPlanning}/>}
-      {section==="equipment"&&<EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal}/>}
-      {section==="skills"&&<SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} isAdmin={isAdmin}/>}
       {section==="admins"&&<AdminsSection/>}
     </div>
   </div>);
@@ -367,8 +157,8 @@ export default function SettingsScreen({data,coachId,openModal,refreshLibrary,re
         <div className="lim"><div className="lin">{item.label}</div>{item.sub&&<div className="limt">{item.sub}</div>}</div>
         <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
       </div>))}
-      {(data.myOrgs||[]).map(org=>(<div key={org.id} className="li tap" style={{marginBottom:8}} onClick={()=>navigate("/org/"+org.id)}>
-        <div className="lim"><div className="lin">{org.name}</div><div className="limt">Organization</div></div>
+      {(data.myOrgs||[]).map(org=>(<div key={org.id} className="li tap" style={{marginBottom:8}} onClick={()=>{setMode({type:"org",orgId:org.id});navigate("/");}}>
+        <div className="lim"><div className="lin">{org.name}</div><div className="limt">Switch to Organization mode</div></div>
         <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
       </div>))}
       {showCreateOrg?(<div className="card" style={{padding:12,marginBottom:8,display:"flex",gap:6}}>

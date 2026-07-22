@@ -345,6 +345,14 @@ export async function createCatalogAsset(catalogId, { name, sport, type }) {
   if (error) console.error('createCatalogAsset:', error)
   return { data: data ? mapAssetRow(data) : null, error }
 }
+// Org-owned counterpart -- assets_insert_manage's RLS
+// (can_manage_asset_owned) already permits a director inserting with
+// organization_id set directly, no RPC needed.
+export async function createOrgAsset(organizationId, { name, sport, type }) {
+  const { data, error } = await supabase.from('assets').insert({ name, sport: sport || 'General', type: OLD_TO_EQUIP_TYPE[type] || type || 'team_equipment', organization_id: organizationId }).select().single()
+  if (error) console.error('createOrgAsset:', error)
+  return { data: data ? mapAssetRow(data) : null, error }
+}
 export async function updateAsset(id, { name, sport }) {
   const { error } = await supabase.from('assets').update({ name, sport }).eq('id', id)
   if (error) console.error('updateAsset:', error)
@@ -359,6 +367,14 @@ export async function archiveAsset(id) {
 export async function createSkillTag(ownerUserId, { categoryId, name }) {
   const { data, error } = await supabase.from('skill_tags').insert({ category_id: categoryId, scope: 'coach', owner_user_id: ownerUserId, name }).select().single()
   if (error) console.error('createSkillTag:', error)
+  return { data: data ? mapSkillTagRow(data) : null, error }
+}
+// Org-owned counterpart -- skill_tags_insert_scoped's RLS already has a
+// scope='org' + is_org_admin(organization_id) branch, no RPC needed.
+// skill_tag_scope_matches_owner requires owner_user_id null when scope='org'.
+export async function createOrgSkillTag(organizationId, { categoryId, name }) {
+  const { data, error } = await supabase.from('skill_tags').insert({ category_id: categoryId, scope: 'org', organization_id: organizationId, name }).select().single()
+  if (error) console.error('createOrgSkillTag:', error)
   return { data: data ? mapSkillTagRow(data) : null, error }
 }
 export async function archiveSkillTag(id) {
@@ -579,13 +595,21 @@ export async function fetchLocations() {
   ])
   if (locsRes.error) console.error('fetchLocations:', locsRes.error)
   return (locsRes.data || []).map(l => ({
-    id: l.id, name: l.name,
+    id: l.id, name: l.name, organizationId: l.organization_id, ownerUserId: l.owner_user_id,
     sublocations: (subsRes.data || []).filter(s => s.location_id === l.id).map(s => ({ id: s.id, name: s.name })),
   }))
 }
 export async function createLocation(ownerUserId, name) {
   const { data, error } = await supabase.from('locations').insert({ owner_user_id: ownerUserId, name }).select().single()
   if (error) console.error('createLocation:', error)
+  return { data, error }
+}
+// Org-owned counterpart -- locations_insert_manage's RLS (can_manage_owned)
+// already permits a director inserting with organization_id set directly,
+// no RPC needed, same as createOrganization.
+export async function createOrgLocation(organizationId, name) {
+  const { data, error } = await supabase.from('locations').insert({ organization_id: organizationId, name }).select().single()
+  if (error) console.error('createOrgLocation:', error)
   return { data, error }
 }
 export async function updateLocation(id, name) {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { uid, sumMins } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
-import { archiveDrill, setDrillOrgShares, copyDrillToMyLibrary, saveTemplateTree, archiveTemplate, swapDrillPositions, createSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory } from "../supabase.js";
+import { archiveDrill, setDrillOrgShares, copyDrillToMyLibrary, saveTemplateTree, archiveTemplate, swapDrillPositions, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, archiveAsset, archiveLocation, createOrgLocation } from "../supabase.js";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -10,6 +10,190 @@ const Ic_Chev=({up})=><svg width="16" height="16" viewBox="0 0 16 16" fill="none
 
 // ── ActConfig, ChecklistConfig, StationConfig ─────────────────────────────────
 // (kept here since they are only used inside Library/Builder/TemplateWorkspace)
+
+// ── LocationsSection ──────────────────────────────────────────────────────────
+// Moved from SettingsScreen.jsx (Library 5-tab redesign) -- a director
+// managing an org's shared stuff wants one place for all five content types.
+export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
+  const [menu,setMenu]=useState(null);
+  const isOrgMode=mode&&mode.type==="org";
+  const locations=(data.locations||[]).filter(l=>isOrgMode?l.organizationId===mode.orgId:l.ownerUserId===coachId);
+  const addPayload=isOrgMode?{organizationId:mode.orgId}:undefined;
+  return(<div onClick={()=>setMenu(null)}>
+    <div className="sechdr mb10"><span className="sectitle">{locations.length} Locations</span><button className="btn primary bsm" onClick={()=>openModal("addLocation",addPayload)}>+ Add</button></div>
+    {locations.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No locations yet.</div>}
+    {locations.map(loc=>(<div key={loc.id} className="card" style={{position:"relative",marginBottom:10}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+        <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{loc.name}</span>
+        <div className="row">
+          <button className="btn ghost bxs" onClick={()=>openModal("addSublocation",{locationId:loc.id})}>+ Area</button>
+          <button className="ell-btn" onClick={e=>{e.stopPropagation();setMenu(menu===loc.id?null:loc.id);}}><span/><span/><span/></button>
+        </div>
+      </div>
+      {menu===loc.id&&<div className="mini-menu" style={{right:8,top:44}}>
+        <button className="mm-item" onClick={e=>{e.stopPropagation();setMenu(null);openModal("editLocation",{location:loc});}}>Edit</button>
+        <button className="mm-item mm-danger" onClick={async e=>{e.stopPropagation();setMenu(null);await archiveLocation(loc.id);await refreshPlanning();}}>Delete</button>
+      </div>}
+      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+        {loc.sublocations.map(sl=>(<span key={sl.id} className="bdg bs">{sl.name}</span>))}
+        {!loc.sublocations.length&&<span style={{fontSize:12,color:"var(--td)"}}>No areas yet</span>}
+      </div>
+    </div>))}
+  </div>);
+}
+
+// ── GearEditRow — inline edit for a player gear item ─────────────────────────
+function GearEditRow({asset,refreshLibrary,onDone}){
+  const [name,setName]=useState(asset.name);
+  const [sport,setSport]=useState(asset.sport||"General");
+  const save=async()=>{
+    if(!name.trim())return;
+    await updateAsset(asset.id,{name:name.trim(),sport});
+    await refreshLibrary();
+    onDone();
+  };
+  return(<div style={{padding:"10px 12px",background:"var(--s2)",borderBottom:"1px solid var(--b)"}}>
+    <div className="g2" style={{marginBottom:8}}>
+      <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}/></div>
+      <div className="fld"><label className="lbl">Sport</label>
+        <select className="sel" value={sport} onChange={e=>setSport(e.target.value)}>
+          {["General","Baseball","Basketball","Football","Soccer","Softball","Lacrosse","Hockey","Volleyball","Tennis","Swimming","Other"].map(s=><option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+    </div>
+    <div className="brow"><button className="btn ghost bxs" onClick={onDone}>Cancel</button><button className="btn primary bxs" onClick={save} disabled={!name.trim()}>Save</button></div>
+  </div>);
+}
+
+// ── EquipmentTab ──────────────────────────────────────────────────────────────
+// Moved from SettingsScreen.jsx (Library 5-tab redesign). Used two ways:
+// unfiltered from Library's Equipment tab (no `forceType`, no `sportFilter`
+// -- everything visible for the current Coach/Org mode, across every sport),
+// and sport-filtered from inside a team's workspace (sportFilter=team.sport,
+// still imported by App.jsx's TeamEquipmentRoute, always Coach-owned there
+// since team equipment isn't part of the org/coach split).
+// (Renamed the old `mode` param to `forceType` -- it meant "team"/"player"
+// equipment-type, a naming collision with the app-wide Coach/Org `mode`
+// this function now also needs. It was never actually passed by any call
+// site either way.)
+export function visibleEquipment(data,coachId,mode){
+  const coachTeamSports=new Set((data.teams||[]).map(t=>t.sport).filter(Boolean));
+  const isOrgMode=mode&&mode.type==="org";
+  return (data.assets||[]).filter(a=>{
+    const sport=a.sport||"General";
+    if(!(coachTeamSports.has(sport)||sport==="General"))return false;
+    // Team-owned equipment (assets.team_id set, organization_id/owner_user_id
+    // both null per the exactly-one-owner constraint) never matches either
+    // branch below, so it's excluded here the same way it always was --
+    // it has its own dedicated per-team Equipment screen.
+    return isOrgMode?a.organizationId===mode.orgId:a.ownerUserId===coachId;
+  });
+}
+
+export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sportFilter,mode}){
+  const [equipTabState,setEquipTabState]=useState(forceType||"team");
+  const equipTab=forceType||equipTabState;
+  const [openMenu,setOpenMenu]=useState(null);
+  const [newName,setNewName]=useState("");
+  const [newSport,setNewSport]=useState(sportFilter||"General");
+  const [showAdd,setShowAdd]=useState(false);
+  const [collapsed,setCollapsed]=useState({});
+  const isOrgMode=mode&&mode.type==="org";
+  const baseAssets=sportFilter
+    ?(data.assets||[]).filter(a=>(a.sport||"General")===sportFilter||(a.sport||"General")==="General")
+    :visibleEquipment(data,coachId,mode);
+  const teamAssets=baseAssets.filter(a=>!a.type||a.type==="team");
+  const playerAssets=baseAssets.filter(a=>a.type==="player");
+  const addNew=async()=>{
+    if(!newName.trim())return;
+    const sport=equipTab==="player"?newSport:(sportFilter||"General");
+    if(isOrgMode&&!sportFilter)await createOrgAsset(mode.orgId,{name:newName.trim(),type:equipTab,sport});
+    else await createAsset(coachId,{name:newName.trim(),type:equipTab,sport});
+    await refreshLibrary();
+    setNewName("");setShowAdd(false);
+  };
+  const del=async id=>{await archiveAsset(id);await refreshLibrary();};
+  return(<div onClick={()=>setOpenMenu(null)}>
+    {!forceType&&<div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:16}}>
+      {["team","player"].map(t=>(<button key={t} onClick={()=>{setEquipTabState(t);setShowAdd(false);}} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:equipTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:equipTab===t?"var(--black)":"var(--td)"}}>{t==="team"?"Team Equipment":"Player Gear"}</button>))}
+    </div>}
+
+    {equipTab==="team"&&<div>
+      <div className="sechdr mb10">
+        <span className="sectitle">{teamAssets.length} items</span>
+        <button className="btn primary bsm" onClick={()=>setShowAdd(s=>!s)}>+ Add</button>
+      </div>
+      {showAdd&&<div className="card mb10">
+        <div className="fld"><label className="lbl">Equipment Name</label><input className="inp" autoFocus placeholder="e.g. Ball Rack" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNew()}/></div>
+        <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowAdd(false)}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
+      </div>}
+      {teamAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No team equipment yet.</div>}
+      {teamAssets.map(a=>(<div key={a.id} className="li" style={{position:"relative",marginBottom:6}}>
+        <div className="lim">
+          <div className="lin">{a.name}</div>
+        </div>
+        <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
+        {openMenu===a.id&&<div className="mini-menu">
+          <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editAsset",{asset:a});}}>Edit</button>
+          <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
+        </div>}
+      </div>))}
+    </div>}
+
+    {equipTab==="player"&&<div>
+      <div className="sechdr mb10">
+        <span className="sectitle">{playerAssets.length} items</span>
+        <button className="btn primary bsm" onClick={()=>setShowAdd(s=>!s)}>+ Add Gear</button>
+      </div>
+      {showAdd&&<div className="card mb12">
+        <div className="g2">
+          <div className="fld"><label className="lbl">Gear Name</label><input className="inp" autoFocus placeholder="e.g. Batting Helmet" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNew()}/></div>
+          <div className="fld"><label className="lbl">Sport</label>
+            <select className="sel" value={newSport} onChange={e=>setNewSport(e.target.value)}>
+              {["General","Baseball","Basketball","Football","Soccer","Softball","Lacrosse","Hockey","Volleyball","Tennis","Swimming","Other"].map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowAdd(false);setNewName("");}}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
+      </div>}
+      {playerAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>
+        <div style={{marginBottom:8}}>No player gear yet.</div>
+        <div style={{fontSize:12}}>Add gear here and it will appear as chips when building drills for that sport. Basketball coaches may not need this at all.</div>
+      </div>}
+      {(()=>{
+        const bySport={};
+        playerAssets.forEach(a=>{const s=a.sport||"General";if(!bySport[s])bySport[s]=[];bySport[s].push(a);});
+        const sportKeys=Object.keys(bySport).sort();
+        return sportKeys.map(sport=>{
+          const isCollapsed=collapsed["pg_"+sport];
+          const items=bySport[sport];
+          return(<div key={sport} style={{marginBottom:8}}>
+            <button onClick={()=>setCollapsed(c=>Object.assign({},c,{["pg_"+sport]:!c["pg_"+sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:isCollapsed?"var(--r)":"var(--r) var(--r) 0 0",cursor:"pointer"}}>
+              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--black)"}}>{sport}</span>
+              <span style={{fontSize:12,color:"var(--td)"}}>{items.length} item{items.length!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
+            </button>
+            {!isCollapsed&&<div style={{border:"1px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)"}}>
+              {items.map((a,i)=>{
+                const isEditing=openMenu==="edit_"+a.id;
+                return(<div key={a.id}>
+                  {!isEditing&&<div className="li" style={{position:"relative",borderBottom:i<items.length-1?"1px solid var(--b)":"none",borderRadius:0}}>
+                    <div className="lim"><div className="lin">{a.name}</div></div>
+                    <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
+                    {openMenu===a.id&&<div className="mini-menu">
+                      <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu("edit_"+a.id);}}>Edit</button>
+                      <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
+                    </div>}
+                  </div>}
+                  {isEditing&&<GearEditRow asset={a} refreshLibrary={refreshLibrary} onDone={()=>setOpenMenu(null)}/>}
+                </div>);
+              })}
+            </div>}
+          </div>);
+        });
+      })()}
+    </div>}
+  </div>);
+}
 
 // ── SkillsTab ─────────────────────────────────────────────────────────────────
 // skill_categories are curated/read-only (no coach-writable INSERT policy),
@@ -21,13 +205,17 @@ const Ic_Chev=({up})=><svg width="16" height="16" viewBox="0 0 16 16" fill="none
 // coaching *vocabulary* -- configuration, not content -- so its management
 // page moved out of Library into Settings. The drill editor's own inline
 // Add/Edit Skill Tags flow still covers the frequent in-context case.
-export function SkillsTab({data,coachId,refreshLibrary,isAdmin}){
+export function SkillsTab({data,coachId,refreshLibrary,isAdmin,mode}){
   const [collapsed,setCollapsed]=useState({});
   const [drafts,setDrafts]=useState({});
   const [globalDrafts,setGlobalDrafts]=useState({});
   const [newCatDrafts,setNewCatDrafts]=useState({});
   const cats=(data.skillCategories||[]).filter(c=>!c.archived_at);
-  const tags=data.skillTags||[];
+  const isOrgMode=mode&&mode.type==="org";
+  // Global tags (curated, everyone's) always show. Coach mode adds this
+  // coach's own scope='coach' tags; Org mode adds the org's scope='org'
+  // tags instead -- mirrors the Drills/Templates own-vs-org split.
+  const tags=(data.skillTags||[]).filter(t=>t.scope==="global"||(isOrgMode?(t.scope==="org"&&t.organizationId===mode.orgId):(t.scope==="coach"&&t.ownerUserId===coachId)));
   // Every coach gets starter tags seeded for every sport with a curated
   // taxonomy, regardless of which teams they actually coach -- a
   // basketball-only coach doesn't want to wade through Baseball's 7
@@ -41,7 +229,8 @@ export function SkillsTab({data,coachId,refreshLibrary,isAdmin}){
   const add=async categoryId=>{
     const name=(drafts[categoryId]||"").trim();
     if(!name)return;
-    await createSkillTag(coachId,{categoryId,name});
+    if(isOrgMode)await createOrgSkillTag(mode.orgId,{categoryId,name});
+    else await createSkillTag(coachId,{categoryId,name});
     setDrafts(p=>Object.assign({},p,{[categoryId]:""}));
     await refreshLibrary();
   };
@@ -307,7 +496,8 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
 // forcing another restructure. The Skills tab moved to Settings (see
 // SkillsTab's comment above). The old window.__ropLibTab global was set
 // here but never read anywhere -- deleted, not migrated.
-export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibrary,coachId,refreshPlanning}){
+export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibrary,coachId,refreshPlanning,mode}){
+  const isOrgMode = mode && mode.type === "org";
   const [section,setSection]=useState("mine"); // "mine" | "explore"
   const [mineTab,setMineTab]=useState("drills"); // sub-toggle within My Library
   const [openMenu,setOpenMenu]=useState(null);
@@ -339,7 +529,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
   // shelf==="public" is handled entirely by PublicLibraryScreen (search-first
   // browsing, 2026-07-19) -- not computed here at all.
   const shelfDrillsAll=(()=>{
-    if(shelf==="mine")return (data.activityLibrary||[]).filter(a=>a.ownerUserId===coachId);
+    if(shelf==="mine")return (data.activityLibrary||[]).filter(a=>isOrgMode?a.organizationId===mode.orgId:a.ownerUserId===coachId);
     if(shelf.startsWith("orgLib:")){const orgId=shelf.slice(7);return (data.activityLibrary||[]).filter(a=>a.organizationId===orgId);}
     if(shelf.startsWith("shared:")){const orgId=shelf.slice(7);return (data.activityLibrary||[]).filter(a=>(a.sharedWithOrganizationIds||[]).includes(orgId)&&a.ownerUserId!==coachId);}
     return [];
@@ -364,7 +554,12 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
   const toggleShare=async(drillId,orgId)=>{const drill=(data.activityLibrary||[]).find(a=>a.id===drillId);const cur=(drill&&drill.sharedWithOrganizationIds)||[];const next=cur.includes(orgId)?cur.filter(id=>id!==orgId):[...cur,orgId];await setDrillOrgShares(drillId,next);await refreshLibrary();};
   const makePrivate=async(drillId)=>{setShareMenuId(null);await setDrillOrgShares(drillId,[]);await refreshLibrary();};
   const doCopy=async(drill)=>{setCopyingId(drill.id);await copyDrillToMyLibrary(coachId,drill,assetsById,skillTagsById);await refreshLibrary();setCopyingId(null);};
-  const templates=data.templates||[];
+  // Coach mode: templates I own. Org mode: the org's own templates. (Coach
+  // mode's own-only filter is new here -- this list previously showed every
+  // RLS-visible template unfiltered, which happened to work when org
+  // templates didn't really exist yet; now that Org mode is a real
+  // destination for those, Coach mode needs to actually exclude them.)
+  const templates=(data.templates||[]).filter(t=>isOrgMode?t.organizationId===mode.orgId:t.ownerUserId===coachId);
   const fmtShort=iso=>iso?new Date(iso).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):null;
   // Templates snapshot drill fields at add-time and don't carry their own
   // skillTagIds -- same lookup-through-libraryId approach as the drill rows
@@ -390,17 +585,26 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
   if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>goToBuilder(null,tplId)}/></div>);
   return (<div style={{paddingBottom:80}}>
     <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>Library</div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>{isOrgMode?"Club Library":"Library"}</div>
       <button className="btn primary bsm" onClick={()=>goToBuilder(null)}>+ Build Practice</button>
     </div>
     <div style={{padding:"0 16px 12px"}}>
       <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:0}}>
-        {[{k:"mine",label:"My Library"},{k:"explore",label:"Explore"}].map(t=>(<button key={t.k} onClick={()=>goSection(t.k)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:section===t.k?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:section===t.k?"var(--black)":"var(--td)"}}>{t.label}</button>))}
+        {[{k:"mine",label:isOrgMode?"Org Library":"My Library"},{k:"explore",label:"Explore"}].map(t=>(<button key={t.k} onClick={()=>goSection(t.k)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:section===t.k?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:section===t.k?"var(--black)":"var(--td)"}}>{t.label}</button>))}
       </div>
-      {section==="mine"&&<div style={{display:"flex",gap:14,padding:"10px 2px 0"}}>
-        {[{k:"drills",label:"Drills"},{k:"templates",label:"Templates"}].map(t=>(<button key={t.k} onClick={()=>setMineTab(t.k)} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",color:mineTab===t.k?"var(--green)":"var(--td)",borderBottom:"2px solid "+(mineTab===t.k?"var(--green)":"transparent")}}>{t.label}</button>))}
+      {/* 5-tab content-type sub-nav (Drills default): Locations/Equipment/
+          Skill Tags moved here from Settings -- a director managing an
+          org's shared stuff wants one place for all five content types,
+          which already share the identical coach-or-org ownership pattern
+          in the schema. Explore only applies to drills (cross-coach/org
+          browsing), so this row is My/Org Library only, same as before. */}
+      {section==="mine"&&<div style={{display:"flex",gap:16,padding:"10px 2px 0",overflowX:"auto"}}>
+        {[{k:"drills",label:"Drills"},{k:"templates",label:"Templates"},{k:"locations",label:"Locations"},{k:"equipment",label:"Equipment"},{k:"skills",label:"Skill Tags"}].map(t=>(<button key={t.k} onClick={()=>setMineTab(t.k)} style={{flexShrink:0,background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap",color:mineTab===t.k?"var(--green)":"var(--td)",borderBottom:"2px solid "+(mineTab===t.k?"var(--green)":"transparent")}}>{t.label}</button>))}
       </div>}
     </div>
+    {section==="mine"&&mineTab==="locations"&&<div style={{padding:"0 16px"}}><LocationsSection data={data} openModal={openModal} refreshPlanning={refreshPlanning} coachId={coachId} mode={mode}/></div>}
+    {section==="mine"&&mineTab==="equipment"&&<div style={{padding:"0 16px"}}><EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode={mode}/></div>}
+    {section==="mine"&&mineTab==="skills"&&<div style={{padding:"0 16px"}}><SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} isAdmin={isAdmin} mode={mode}/></div>}
     {showDrillList&&<div style={{padding:"0 16px"}} onClick={()=>{setDrillMenu(null);setShareMenuId(null);}}>
       {section==="explore"&&exploreShelves.length>1&&<div style={{display:"flex",gap:6,overflowX:"auto",marginBottom:12,paddingBottom:2}}>
         {exploreShelves.map(s=>(<button key={s.key} onClick={()=>{setShelf(s.key);setTagFilter([]);setTagSearch("");}} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:shelf===s.key?"var(--green)":"var(--s1)",color:shelf===s.key?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{s.label}</button>))}

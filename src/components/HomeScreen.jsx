@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { sumMins, isHeadCoach, planningState, localDateStr, stripIdsForCopy } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite } from "../supabase.js";
+import { sumMins, isHeadCoach, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy } from "../constants.js";
+import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, orgInviteCoach, fetchOrgSentInvites, fetchOrgWeeklyPracticeRollup } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
@@ -88,7 +88,9 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 };
 
-export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSchedule, goToTeam, goToSettings, coachId, coachName, coachEmail, refreshPlanning, refreshTeams, refreshLibrary }) {
+export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSchedule, goToTeam, goToSettings, coachId, coachName, coachEmail, refreshPlanning, refreshTeams, refreshLibrary, mode, setMode }) {
+  const isOrgMode = mode && mode.type === "org";
+  const activeOrg = isOrgMode ? (data.myOrgs || []).find(o => o.id === mode.orgId) : null;
   const now = new Date();
   const todayStr = localDateStr(now);
   const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
@@ -184,8 +186,8 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
   // §3: the nudge strip is a to-do list for whoever can act on it -- filter
   // to practices on teams this user actually head-coaches, per-team (not a
   // global assistant/head-coach flag, since roles can differ by team).
-  const needsPlanning = windowCandidates.filter(p => !ran(p) && !isPlanned(p) && isHeadCoach(teamById(p.teamId), coachId));
-  const canManageAnyTeam = data.teams.some(t => isHeadCoach(t, coachId));
+  const needsPlanning = windowCandidates.filter(p => !ran(p) && !isPlanned(p) && canManageTeamInMode(teamById(p.teamId), coachId, mode));
+  const canManageAnyTeam = data.teams.some(t => canManageTeamInMode(t, coachId, mode));
   const delPractice = async id => { await archivePractice(id); await refreshPlanning(); if (viewPractice && viewPractice.id === id) setViewPractice(null); };
 
   // §2(f): one-time welcome card for a staff row someone else added (addedBy
@@ -216,6 +218,41 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
     setRespondingInviteId(null);
   };
 
+  // Coach/Org mode toggle. Switching to Org with more than one org shows a
+  // picker instead of jumping straight in -- with exactly one, no picker
+  // needed. Switching back to Coach is always a single tap, no picker.
+  const [showOrgPicker, setShowOrgPicker] = useState(false);
+  const myOrgs = data.myOrgs || [];
+  const switchToOrgMode = () => {
+    if (myOrgs.length === 0) return;
+    if (myOrgs.length === 1) { setMode({ type: "org", orgId: myOrgs[0].id }); return; }
+    setShowOrgPicker(true);
+  };
+  const pickOrg = orgId => { setMode({ type: "org", orgId }); setShowOrgPicker(false); };
+
+  // Org mode extras: absorbed from the standalone Org Home page (folded
+  // into Home directly per direct feedback -- weekly rollup + adding a
+  // member are things a director checks/does often enough to want on the
+  // landing screen, not a click further away).
+  const [sentInvites, setSentInvites] = useState([]);
+  const [rollup, setRollup] = useState([]);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [addMemberEmail, setAddMemberEmail] = useState("");
+  const [addingMember, setAddingMember] = useState(false);
+  const refreshSentInvites = () => { if (isOrgMode) fetchOrgSentInvites(mode.orgId).then(setSentInvites); };
+  useEffect(() => { refreshSentInvites(); }, [isOrgMode, mode && mode.orgId]);
+  useEffect(() => { if (isOrgMode) fetchOrgWeeklyPracticeRollup(mode.orgId, 8).then(setRollup); }, [isOrgMode, mode && mode.orgId]);
+  const submitAddMember = async () => {
+    if (!addMemberEmail.trim() || !isOrgMode) return;
+    setAddingMember(true);
+    await orgInviteCoach(mode.orgId, addMemberEmail.trim());
+    setAddMemberEmail("");
+    setAddingMember(false);
+    setShowAddMember(false);
+    refreshSentInvites();
+  };
+  const maxRun = Math.max(1, ...rollup.map(w => w.live_practices || 0));
+
   if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} update={update} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} coachId={coachId} refreshPlanning={refreshPlanning} /></div>);
   if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} onBack={() => setViewPractice(null)} /></div>);
 
@@ -223,7 +260,7 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
     <div style={{ padding: "20px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
       <div>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{greeting},</div>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, color: "var(--green)", lineHeight: 1 }}>{coachName}</div>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, color: "var(--green)", lineHeight: 1 }}>{isOrgMode ? (activeOrg ? activeOrg.name : "Organization") : coachName}</div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ position: "relative" }}>
@@ -241,6 +278,15 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
         </button>
       </div>
     </div>
+    {myOrgs.length > 0 && <div style={{ padding: "0 16px 12px" }}>
+      <div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3 }}>
+        <button onClick={() => setMode({ type: "coach" })} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: !isOrgMode ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: !isOrgMode ? "var(--black)" : "var(--td)" }}>Coach</button>
+        <button onClick={switchToOrgMode} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: isOrgMode ? "var(--green)" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: isOrgMode ? "#fff" : "var(--td)" }}>Organization</button>
+      </div>
+      {showOrgPicker && <div className="card" style={{ marginTop: 6, padding: 8 }}>
+        {myOrgs.map(org => (<button key={org.id} className="mm-item" style={{ width: "100%", textAlign: "left" }} onClick={() => pickOrg(org.id)}>{org.name}</button>))}
+      </div>}
+    </div>}
     {showChecklist && <ChecklistModal data={data} hasCompleted={hasCompleted} onClose={() => setShowChecklist(false)} />}
     {showFeedback && <FeedbackModal coachId={coachId} coachEmail={coachEmail} onClose={() => setShowFeedback(false)} />}
     {pendingWelcome && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
@@ -248,12 +294,42 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
       <button style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 12, color: "var(--td)", textDecoration: "underline" }} disabled={leavingTeamId === pendingWelcome.team.id} onClick={() => handleLeave(pendingWelcome.team.id)}>Not your team? Leave</button>
     </div></div>}
     {pendingOrgInvite && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
-      <div style={{ fontSize: 14, marginBottom: 8 }}>You've been invited to join <strong>{pendingOrgInvite.organizationName}</strong>{pendingOrgInvite.teamRole ? " as " + pendingOrgInvite.teamRole.replace("_", " ") : ""}.</div>
+      <div style={{ fontSize: 14, marginBottom: 8 }}>You've been invited to help lead <strong>{pendingOrgInvite.organizationName}</strong> as a director{pendingOrgInvite.teamRole ? ", with a team role waiting for you once you accept" : ""}.</div>
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn primary bxs" disabled={respondingInviteId === pendingOrgInvite.id} onClick={() => respondToInvite(true)}>Accept</button>
         <button className="btn ghost bxs" disabled={respondingInviteId === pendingOrgInvite.id} onClick={() => respondToInvite(false)}>Decline</button>
       </div>
     </div></div>}
+
+    {isOrgMode && <div style={{ padding: "0 16px 16px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <div className="clbl">Org Members</div>
+        <button className="btn ghost bxs" onClick={() => setShowAddMember(s => !s)}>{showAddMember ? "Cancel" : "+ Add Org Member"}</button>
+      </div>
+      {showAddMember && <div className="card" style={{ padding: 12, marginBottom: 8, display: "flex", gap: 6 }}>
+        <input className="inp" style={{ flex: 1 }} placeholder="coach@email.com" value={addMemberEmail} onChange={e => setAddMemberEmail(e.target.value)} />
+        <button className="btn primary bxs" disabled={addingMember} onClick={submitAddMember}>{addingMember ? "Adding..." : "Add"}</button>
+      </div>}
+      {/* v1 has one org role (director) -- accepting makes them a co-director
+          of the whole org, same standing as the person adding them, not a
+          scoped "coach" role. That's worth being upfront about here rather
+          than implying something narrower. */}
+      {showAddMember && <div style={{ fontSize: 11, color: "var(--td)", marginTop: -4, marginBottom: 8 }}>They'll become a director of {activeOrg ? activeOrg.name : "this org"} once accepted -- able to create teams and add other members, same as you.</div>}
+      {sentInvites.length > 0 && sentInvites.map(inv => (<div key={inv.id} className="li" style={{ marginBottom: 6 }}>
+        <div className="lim"><div className="lin">{inv.email}</div><div className="limt">Invited, awaiting response</div></div>
+      </div>))}
+
+      <div className="clbl mb8" style={{ marginTop: 16 }}>Weekly Live Practices</div>
+      <div className="card" style={{ padding: 12 }}>
+        {rollup.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>No live practices run yet.</div>}
+        {rollup.length > 0 && <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 60 }}>
+          {rollup.map(w => (<div key={w.wk} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
+            <div style={{ width: "100%", background: "var(--green)", borderRadius: 3, height: Math.max(2, (w.live_practices / maxRun) * 52) }} />
+            <div style={{ fontSize: 9, color: "var(--td)", marginTop: 2 }}>{w.live_practices}</div>
+          </div>))}
+        </div>}
+      </div>
+    </div>}
 
     <div style={{ padding: "0 16px" }}>
       {/* Your Teams quick-jump (2026-07-2x): a per-team row lived here once
@@ -263,7 +339,7 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
           outgoing Last Practice cards' own look, which never had that
           confusion) so it reads as navigation, not filtering. */}
       {data.teams.length > 0 && <div style={{ marginBottom: 16 }}>
-        <div className="clbl mb8">Your Teams</div>
+        <div className="clbl mb8">{isOrgMode ? "Org Teams" : "Your Teams"}</div>
         <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
           {data.teams.map(team => (<div key={team.id} className="card" style={{ flexShrink: 0, minWidth: 140, cursor: "pointer", borderLeft: "4px solid " + (team.colorPrimary || "transparent"), padding: "10px 12px" }} onClick={() => goToTeam(team.id)}>
             <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700, whiteSpace: "nowrap" }}>{team.name}</div>
@@ -284,7 +360,7 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
       {nextPractice && (() => {
         const team = teamById(nextPractice.teamId), loc = locById(nextPractice.locationId);
         const planned = isPlanned(nextPractice), soon = isSoonOrLive(nextPractice);
-        const canManage = isHeadCoach(team, coachId);
+        const canManage = canManageTeamInMode(team, coachId, mode);
         const count = absenceCounts[nextPractice.id] || 0;
         const headcount = team ? Math.max(0, team.players.length - count) : null;
         return (<div className="card" style={{ marginBottom: 16, borderColor: soon ? "var(--green)" : "var(--b)", borderWidth: soon ? 2 : 1.5 }}>

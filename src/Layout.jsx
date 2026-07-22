@@ -33,12 +33,13 @@ const teamWorkspaceTabs = teamId => [
   { id: "build", label: "Build", path: `/team/${teamId}/build` },
 ];
 
-export default function Layout({ data, liveId, goToRun }) {
+export default function Layout({ data, liveId, goToRun, mode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { teamId } = useParams();
   const inTeam = !!teamId;
   const hideTabBar = location.pathname.startsWith("/run/");
+  const isOrgMode = mode && mode.type === "org";
 
   const team = inTeam ? (data.teams || []).find(t => t.id === teamId) : null;
   const workspaceTabs = inTeam ? teamWorkspaceTabs(teamId) : [];
@@ -68,7 +69,7 @@ export default function Layout({ data, liveId, goToRun }) {
       <div className="screen">
         <Outlet/>
       </div>
-      {!hideTabBar && <nav className="tabbar">
+      {!hideTabBar && <nav className={"tabbar" + (isOrgMode ? " org" : "")}>
         {GLOBAL_TABS.map(({ id, label, path, I }) => {
           const active = path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
           return (<button key={id} className={"ti " + (active ? "on" : "")} onClick={() => navigate(path)}>
