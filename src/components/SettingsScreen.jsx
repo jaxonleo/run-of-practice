@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { checkIsAdmin, listAdmins, grantAdmin, revokeAdmin, createOrganization } from "../supabase.js";
+import { checkIsAdmin, listAdmins, grantAdmin, revokeAdmin, createOrganization, leaveTeam, setTeamStaffShowOnHome } from "../supabase.js";
+import { myTeamRole } from "../constants.js";
 
 // Settings hub (nav restructure, 2026-07-15; narrowed again in the Library
 // 5-tab redesign): originally held Account, Locations, Equipment & Gear, and
@@ -11,6 +12,69 @@ import { checkIsAdmin, listAdmins, grantAdmin, revokeAdmin, createOrganization }
 // coach-or-org ownership pattern in the schema). What's left here is
 // genuinely per-device account config, plus founder-admin and org-creation
 // entry points that don't belong anywhere else.
+
+// ── TeamAssignmentsSection ───────────────────────────────────────────────────
+// Real gap found live: a coach added to a team they don't personally plan
+// for (an org's team they're not responsible for, or another coach's
+// personal team they help on) had no single place to see everything
+// they're on, leave one, or hide it from their own Home agenda without
+// leaving it. Built from data.teams directly -- every team RLS lets this
+// user see already IS every team they're actually on in some capacity, no
+// new fetch needed. Team-workspace pages (clicking a team from Teams) are
+// completely unaffected by this -- show_on_home only gates Home's own
+// agenda scoping (homeTeamsForMode in constants.js).
+function TeamAssignmentsSection({data,coachId,refreshTeams}){
+  const [busyId,setBusyId]=useState(null);
+  const [confirmLeaveId,setConfirmLeaveId]=useState(null);
+  const mine=(data.teams||[]).map(t=>{
+    const staff=(t.coaches||[]).find(c=>c.userId===coachId);
+    const role=myTeamRole(t,coachId);
+    return role?{team:t,staff,role}:null;
+  }).filter(Boolean);
+  const toggleShowOnHome=async(staffId,show)=>{
+    if(!staffId)return;
+    setBusyId(staffId);
+    await setTeamStaffShowOnHome(staffId,show);
+    await refreshTeams();
+    setBusyId(null);
+  };
+  const doLeave=async teamId=>{
+    setBusyId(teamId);
+    await leaveTeam(teamId);
+    await refreshTeams();
+    setBusyId(null);
+    setConfirmLeaveId(null);
+  };
+  if(mine.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>You're not on any teams yet.</div>;
+  return(<div>
+    <div style={{fontSize:13,color:"var(--td)",marginBottom:14,lineHeight:1.4}}>Every team you're on, across every organization. "Show on Home" controls whether its practices show up in your own Home agenda -- turning it off doesn't remove you from the team, and you'll still see everything if you open the team directly.</div>
+    {mine.map(({team,staff,role})=>{
+      const isOwner=team.ownerUserId===coachId;
+      return(<div key={team.id} className="card" style={{marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+          <div>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{team.name}</div>
+            <div style={{fontSize:12,color:"var(--td)"}}>{role}{team.organizationId?" · org team":""}</div>
+          </div>
+          {!isOwner&&(confirmLeaveId===team.id?(
+            <div className="row" style={{gap:6}}>
+              <button className="btn ghost bxs" onClick={()=>setConfirmLeaveId(null)}>Cancel</button>
+              <button className="btn danger bxs" disabled={busyId===team.id} onClick={()=>doLeave(team.id)}>{busyId===team.id?"Leaving...":"Confirm Leave"}</button>
+            </div>
+          ):(
+            <button className="btn ghost bxs" style={{color:"var(--red)"}} onClick={()=>setConfirmLeaveId(team.id)}>Leave</button>
+          ))}
+        </div>
+        {staff&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <span style={{fontSize:13}}>Show on Home</span>
+          <button type="button" onClick={()=>toggleShowOnHome(staff.id,!staff.showOnHome)} disabled={busyId===staff.id} style={{width:44,height:26,borderRadius:13,border:"none",cursor:"pointer",background:staff.showOnHome?"var(--green)":"var(--s2)",position:"relative",flexShrink:0}}>
+            <span style={{position:"absolute",top:2,left:staff.showOnHome?20:2,width:22,height:22,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
+          </button>
+        </div>}
+      </div>);
+    })}
+  </div>);
+}
 
 // ── AccountSection ────────────────────────────────────────────────────────────
 function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate}){
@@ -100,7 +164,7 @@ function AdminsSection({}){
   </div>);
 }
 
-export default function SettingsScreen({data,coachId,refreshLibrary,profile,coachEmail,saveName,onSignOut,onDeactivate,setMode}){
+export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams,profile,coachEmail,saveName,onSignOut,onDeactivate,setMode}){
   const navigate=useNavigate();
   // null = the top-level list; otherwise which section is drilled into.
   const [section,setSection]=useState(null);
@@ -129,15 +193,17 @@ export default function SettingsScreen({data,coachId,refreshLibrary,profile,coac
   // genuinely per-device configuration, not coaching content.
   const NAV_ITEMS=[
     {id:"account",label:"Account",sub:coachEmail||undefined},
+    {id:"assignments",label:"My Team Assignments",sub:"Leave a team or hide it from your Home agenda"},
   ];
   const BackRow=()=>(<div style={{padding:"12px 14px 0"}}><button className="btn ghost bxs" onClick={()=>setSection(null)}>&#8249; Settings</button></div>);
-  const titles={account:"Account",admins:"Admins"};
+  const titles={account:"Account",assignments:"My Team Assignments",admins:"Admins"};
 
   if(section)return(<div style={{paddingBottom:80}}>
     <BackRow/>
     <div style={{padding:"12px 16px 0"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,marginBottom:14}}>{titles[section]}</div>
       {section==="account"&&<AccountSection profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate}/>}
+      {section==="assignments"&&<TeamAssignmentsSection data={data} coachId={coachId} refreshTeams={refreshTeams}/>}
       {section==="admins"&&<AdminsSection/>}
     </div>
   </div>);

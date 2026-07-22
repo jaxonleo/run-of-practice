@@ -87,7 +87,7 @@ function mapPlayerRow(p) {
   return { id: p.id, firstName: p.first_name, lastName: p.last_name, jersey: p.jersey_number || '', positions: p.positions || [], bats: p.bats || '', throws: p.throws || '', notes: p.notes || '' }
 }
 function mapStaffRow(s) {
-  return { id: s.id, name: (s.first_name + ' ' + s.last_name).trim(), role: ROLE_LABELS[s.role] || s.role, inviteEmail: s.invite_email, userId: s.user_id, addedBy: s.added_by, welcomedAt: s.welcomed_at }
+  return { id: s.id, name: (s.first_name + ' ' + s.last_name).trim(), role: ROLE_LABELS[s.role] || s.role, inviteEmail: s.invite_email, userId: s.user_id, addedBy: s.added_by, welcomedAt: s.welcomed_at, showOnHome: s.show_on_home !== false }
 }
 function splitName(name) {
   const parts = (name || '').trim().split(/\s+/)
@@ -222,6 +222,13 @@ export async function leaveTeam(teamId) {
   if (error) console.error('leaveTeam:', error)
   return { error }
 }
+// Personal Home-agenda visibility only -- narrow, self-row-only RPC (see
+// migration comment), not an access-control change.
+export async function setTeamStaffShowOnHome(teamStaffId, show) {
+  const { error } = await supabase.rpc('set_team_staff_show_on_home', { p_team_staff_id: teamStaffId, p_show: show })
+  if (error) console.error('setTeamStaffShowOnHome:', error)
+  return { error }
+}
 // §5: staff the current user has already added on their OTHER teams, so
 // they can tap-to-fill instead of re-typing. Deduped by email; excludes
 // the team currently being added to.
@@ -298,7 +305,7 @@ export async function fetchLibraryData() {
     supabase.from('activity_library').select('*').is('archived_at', null).order('position'),
     supabase.from('activity_library_equipment').select('*'),
     supabase.from('drill_tags').select('*'),
-    supabase.from('org_staff').select('organization_id, role, organizations(id, name)').is('archived_at', null),
+    supabase.from('org_staff').select('organization_id, role, organizations(id, name, sport, created_at)').is('archived_at', null),
     supabase.from('profiles').select('id, email, first_name, last_name'), // own row + org co-members, per RLS
     supabase.from('content_catalogs').select('*').is('archived_at', null),
     supabase.from('activity_library_org_shares').select('activity_library_id, organization_id'),
@@ -324,7 +331,7 @@ export async function fetchLibraryData() {
     skillCategories: categoriesRes.data || [],
     skillTags: (tagsRes.data || []).map(mapSkillTagRow),
     activityLibrary: (drillsRes.data || []).map(a => mapDrillRow(a, equipmentByDrill, tagsByDrill, sharesByDrill)),
-    myOrgs: (orgsRes.data || []).map(m => ({ id: m.organization_id, name: m.organizations ? m.organizations.name : '', role: m.role })),
+    myOrgs: (orgsRes.data || []).map(m => ({ id: m.organization_id, name: m.organizations ? m.organizations.name : '', role: m.role, sport: m.organizations ? m.organizations.sport : null, createdAt: m.organizations ? m.organizations.created_at : null })),
     pendingOrgInvites,
     profilesById,
     catalogs: (catalogsRes.data || []).map(mapCatalogRow),
@@ -1465,8 +1472,19 @@ export async function logGoalViewed(teamId) {
 // rest: pending invites, org-scoped team/staff/player writes, and the
 // invite lifecycle. All authorization happens server-side in the RPCs;
 // nothing here re-derives a permission check client-side.
+// Real bug found live: this had no filter beyond status='pending', so a
+// director querying it saw every pending invite for orgs they administer
+// (org_invites_select's RLS deliberately allows that, for the *sent*-invites
+// list) instead of only invites actually addressed to them -- Jax saw a
+// stranger's pending invite on his own Home and its Accept/Decline both
+// silently failed, correctly, since the email didn't match his. Narrowed to
+// the caller's own verified email, same server-side-truth principle as
+// accept/decline_org_invite's own auth.jwt() check.
 export async function fetchPendingOrgInvites() {
-  const { data, error } = await supabase.from('org_invites').select('id, organization_id, team_id, team_role, invited_by, created_at, organizations(id, name)').eq('status', 'pending')
+  const { data: userData } = await supabase.auth.getUser()
+  const myEmail = userData && userData.user ? userData.user.email : null
+  if (!myEmail) return []
+  const { data, error } = await supabase.from('org_invites').select('id, organization_id, team_id, team_role, invited_by, created_at, organizations(id, name)').eq('status', 'pending').ilike('email', myEmail)
   if (error) { console.error('fetchPendingOrgInvites:', error); return [] }
   return (data || []).map(i => ({ id: i.id, organizationId: i.organization_id, organizationName: i.organizations ? i.organizations.name : '', teamId: i.team_id, teamRole: i.team_role, invitedBy: i.invited_by, createdAt: i.created_at }))
 }
@@ -1479,6 +1497,20 @@ export async function createOrganization(coachId, name) {
   const { data, error } = await supabase.from('organizations').insert({ name, created_by: coachId }).select().single()
   if (error) console.error('createOrganization:', error)
   return { data, error }
+}
+// organizations_update_admin's RLS already permits a director to update
+// directly (is_org_admin(id)) -- no RPC needed, same as createOrganization.
+export async function updateOrganization(organizationId, { name, sport }) {
+  const { error } = await supabase.from('organizations').update({ name, sport: sport || null }).eq('id', organizationId)
+  if (error) console.error('updateOrganization:', error)
+  return { error }
+}
+// Current org_staff membership list (director view) -- profiles_select_org_co_member's
+// RLS already lets a fellow org member read these profile rows.
+export async function fetchOrgMembers(organizationId) {
+  const { data, error } = await supabase.from('org_staff').select('id, user_id, role, created_at, profiles(first_name, last_name, email)').eq('organization_id', organizationId).is('archived_at', null).order('created_at')
+  if (error) { console.error('fetchOrgMembers:', error); return [] }
+  return (data || []).map(m => ({ id: m.id, userId: m.user_id, role: m.role, createdAt: m.created_at, name: m.profiles ? ((m.profiles.first_name && m.profiles.last_name) ? (m.profiles.first_name + ' ' + m.profiles.last_name) : (m.profiles.email || 'A director')) : 'A director' }))
 }
 // Director's view: every pending invite this org has sent (org_invites_select
 // RLS shows these to any is_org_admin of the org, separate from the
@@ -1501,6 +1533,14 @@ export async function acceptOrgInvite(inviteId) {
 export async function declineOrgInvite(inviteId) {
   const { error } = await supabase.rpc('decline_org_invite', { p_invite_id: inviteId })
   if (error) console.error('declineOrgInvite:', error)
+  return { error }
+}
+// Director-side retraction of an invite that's stuck pending (e.g. the
+// notification email never arrived) -- gated on is_org_admin, not the
+// invitee's own email, since it's the sender who needs to clear it.
+export async function cancelOrgInvite(inviteId) {
+  const { error } = await supabase.rpc('cancel_org_invite', { p_invite_id: inviteId })
+  if (error) console.error('cancelOrgInvite:', error)
   return { error }
 }
 export async function orgCreateTeam(organizationId, { name, sport, seasonLabel, startDate, endDate, timezone, colorPrimary, colorSecondary }) {

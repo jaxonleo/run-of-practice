@@ -58,10 +58,17 @@ export default function Layout({ data, liveId, goToRun, mode }) {
         <button className="btn ghost bxs" onClick={() => navigate("/teams")}>&#8249; Teams</button>
         <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700 }}>{team.name}</span>
       </div>}
-      {inTeam && team && <div style={{ display: "flex", gap: 18, overflowX: "auto", padding: "10px 14px 0", flexShrink: 0 }}>
+      {inTeam && team && <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "6px 10px 0", flexShrink: 0 }}>
         {workspaceTabs.map(({ id, label, path }) => {
           const active = location.pathname.startsWith(path);
-          return (<button key={id} onClick={() => navigate(path)} style={{ flexShrink: 0, whiteSpace: "nowrap", padding: "0 0 8px", border: "none", background: "none", cursor: "pointer", fontFamily: "Barlow Condensed,sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: ".02em", color: active ? "var(--green)" : "var(--td)", borderBottom: "2px solid " + (active ? "var(--green)" : "transparent") }}>
+          // Real gap found live: this button's tap target was exactly
+          // text-sized (padding "0 0 8px" -- no top/side padding at all), so
+          // the green underline under an active tab read as clickable but
+          // the actual hit box around it was as skinny as the label itself.
+          // Padding widened on all sides; the row's gap shrank to
+          // compensate so five tabs still fit without more horizontal
+          // scrolling than before.
+          return (<button key={id} onClick={() => navigate(path)} style={{ flexShrink: 0, whiteSpace: "nowrap", padding: "8px 6px", border: "none", background: "none", cursor: "pointer", fontFamily: "Barlow Condensed,sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: ".02em", color: active ? "var(--green)" : "var(--td)", borderBottom: "2px solid " + (active ? "var(--green)" : "transparent") }}>
             {label}
           </button>);
         })}

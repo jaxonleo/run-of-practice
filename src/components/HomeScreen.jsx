@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { sumMins, isHeadCoach, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, orgInviteCoach, fetchOrgSentInvites, fetchOrgWeeklyPracticeRollup } from "../supabase.js";
+import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, fetchOrgWeeklyPracticeRollup } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
@@ -21,11 +21,20 @@ function PlanPill({ practice }) {
 // client state (no stored progress flags to drift) except the "run a
 // practice" step, which needs one lightweight query since nothing else on
 // Home already tracks completed-session history.
-function ChecklistModal({ data, hasCompleted, onClose }) {
+function ChecklistModal({ data, hasCompleted, onClose, coachId, mode }) {
+  // data.activityLibrary is never mode-scoped upstream (HomeRoute only
+  // scopes teams/practices) -- it's always this coach's full personal drill
+  // list, so in Org mode this step needs its own org-scoped count instead of
+  // reusing that unfiltered one, or it reads "done" off personal drills that
+  // have nothing to do with the org being viewed.
+  const isOrgMode = mode && mode.type === "org";
+  const libraryDone = isOrgMode
+    ? (data.activityLibrary || []).some(a => a.organizationId === mode.orgId)
+    : (data.activityLibrary || []).some(a => a.ownerUserId === coachId);
   const steps = [
     { label: "Create a team", done: data.teams.length > 0 },
     { label: "Add players", done: data.teams.some(t => t.players.length > 0) },
-    { label: "Build out your library", done: (data.activityLibrary || []).length > 0 },
+    { label: isOrgMode ? "Build out the club's library" : "Build out your library", done: libraryDone },
     { label: "Set your practice schedule", done: data.practices.length > 0 },
     { label: "Plan your first practice", done: data.practices.some(p => (p.activities || []).length > 0) },
     { label: "Run it live", done: hasCompleted },
@@ -116,7 +125,11 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
   const [hasCompleted, setHasCompleted] = useState(false);
   const practiceIdsKey = JSON.stringify(data.practices.map(p => p.id));
   useEffect(() => { hasCompletedSession(data.practices.map(p => p.id)).then(setHasCompleted); }, [practiceIdsKey]);
-  const checklistDone = data.teams.length > 0 && data.teams.some(t => t.players.length > 0) && (data.activityLibrary || []).length > 0 && data.practices.length > 0 && data.practices.some(p => (p.activities || []).length > 0) && hasCompleted;
+  // Mirrors ChecklistModal's own mode-aware library check (data.activityLibrary
+  // is never mode-scoped upstream) -- otherwise the "?" dot and the modal's
+  // own step could disagree with each other.
+  const libraryBuiltOut = (data.activityLibrary || []).some(a => (mode && mode.type === "org") ? a.organizationId === mode.orgId : a.ownerUserId === coachId);
+  const checklistDone = data.teams.length > 0 && data.teams.some(t => t.players.length > 0) && libraryBuiltOut && data.practices.length > 0 && data.practices.some(p => (p.activities || []).length > 0) && hasCompleted;
 
   const teamById = id => data.teams.find(t => t.id === id);
   const locById = id => data.locations.find(l => l.id === id);
@@ -230,27 +243,13 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
   };
   const pickOrg = orgId => { setMode({ type: "org", orgId }); setShowOrgPicker(false); };
 
-  // Org mode extras: absorbed from the standalone Org Home page (folded
-  // into Home directly per direct feedback -- weekly rollup + adding a
-  // member are things a director checks/does often enough to want on the
-  // landing screen, not a click further away).
-  const [sentInvites, setSentInvites] = useState([]);
+  // Org mode extra: weekly rollup, absorbed from the standalone Org Home
+  // page (folded into Home directly per direct feedback). Org Member
+  // management (add/cancel invite) lives on the Teams tab's Organization
+  // section instead -- Home isn't the right long-term place for it as
+  // membership grows.
   const [rollup, setRollup] = useState([]);
-  const [showAddMember, setShowAddMember] = useState(false);
-  const [addMemberEmail, setAddMemberEmail] = useState("");
-  const [addingMember, setAddingMember] = useState(false);
-  const refreshSentInvites = () => { if (isOrgMode) fetchOrgSentInvites(mode.orgId).then(setSentInvites); };
-  useEffect(() => { refreshSentInvites(); }, [isOrgMode, mode && mode.orgId]);
   useEffect(() => { if (isOrgMode) fetchOrgWeeklyPracticeRollup(mode.orgId, 8).then(setRollup); }, [isOrgMode, mode && mode.orgId]);
-  const submitAddMember = async () => {
-    if (!addMemberEmail.trim() || !isOrgMode) return;
-    setAddingMember(true);
-    await orgInviteCoach(mode.orgId, addMemberEmail.trim());
-    setAddMemberEmail("");
-    setAddingMember(false);
-    setShowAddMember(false);
-    refreshSentInvites();
-  };
   const maxRun = Math.max(1, ...rollup.map(w => w.live_practices || 0));
 
   if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} update={update} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} coachId={coachId} refreshPlanning={refreshPlanning} /></div>);
@@ -287,7 +286,7 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
         {myOrgs.map(org => (<button key={org.id} className="mm-item" style={{ width: "100%", textAlign: "left" }} onClick={() => pickOrg(org.id)}>{org.name}</button>))}
       </div>}
     </div>}
-    {showChecklist && <ChecklistModal data={data} hasCompleted={hasCompleted} onClose={() => setShowChecklist(false)} />}
+    {showChecklist && <ChecklistModal data={data} hasCompleted={hasCompleted} onClose={() => setShowChecklist(false)} coachId={coachId} mode={mode} />}
     {showFeedback && <FeedbackModal coachId={coachId} coachEmail={coachEmail} onClose={() => setShowFeedback(false)} />}
     {pendingWelcome && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 14, marginBottom: 6 }}>You've been added to <strong>{pendingWelcome.team.name}</strong> by {adderName}.</div>
@@ -301,25 +300,12 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
       </div>
     </div></div>}
 
+    {/* Org Members management (add a member, cancel a pending invite) moved
+        to the Teams tab's Organization section -- per direct feedback, Home
+        isn't the right long-term place for this as membership grows. Home
+        keeps just the at-a-glance rollup. */}
     {isOrgMode && <div style={{ padding: "0 16px 16px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <div className="clbl">Org Members</div>
-        <button className="btn ghost bxs" onClick={() => setShowAddMember(s => !s)}>{showAddMember ? "Cancel" : "+ Add Org Member"}</button>
-      </div>
-      {showAddMember && <div className="card" style={{ padding: 12, marginBottom: 8, display: "flex", gap: 6 }}>
-        <input className="inp" style={{ flex: 1 }} placeholder="coach@email.com" value={addMemberEmail} onChange={e => setAddMemberEmail(e.target.value)} />
-        <button className="btn primary bxs" disabled={addingMember} onClick={submitAddMember}>{addingMember ? "Adding..." : "Add"}</button>
-      </div>}
-      {/* v1 has one org role (director) -- accepting makes them a co-director
-          of the whole org, same standing as the person adding them, not a
-          scoped "coach" role. That's worth being upfront about here rather
-          than implying something narrower. */}
-      {showAddMember && <div style={{ fontSize: 11, color: "var(--td)", marginTop: -4, marginBottom: 8 }}>They'll become a director of {activeOrg ? activeOrg.name : "this org"} once accepted -- able to create teams and add other members, same as you.</div>}
-      {sentInvites.length > 0 && sentInvites.map(inv => (<div key={inv.id} className="li" style={{ marginBottom: 6 }}>
-        <div className="lim"><div className="lin">{inv.email}</div><div className="limt">Invited, awaiting response</div></div>
-      </div>))}
-
-      <div className="clbl mb8" style={{ marginTop: 16 }}>Weekly Live Practices</div>
+      <div className="clbl mb8">Weekly Live Practices</div>
       <div className="card" style={{ padding: 12 }}>
         {rollup.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>No live practices run yet.</div>}
         {rollup.length > 0 && <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 60 }}>
@@ -386,7 +372,7 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
         <span style={{ color: "var(--green)", fontSize: 18 }}>&#8250;</span>
       </div>}
 
-      <div className="sechdr" style={{ marginBottom: 8 }}><span className="sectitle">This Week</span></div>
+      <div className="sechdr" style={{ marginBottom: 8 }}><span className="sectitle">Upcoming Practices</span></div>
       {agendaWindow.length === 0 && <div style={{ padding: "16px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>Nothing scheduled.</div>}
       {agendaWindow.map(p => {
         // agendaWindow already excludes completed practices, so no "· Completed"

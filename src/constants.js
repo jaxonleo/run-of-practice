@@ -59,6 +59,21 @@ export function teamsForMode(teams,mode,coachId){
   if(mode&&mode.type==="org")return all.filter(t=>t.organizationId===mode.orgId);
   return all.filter(t=>myTeamRole(t,coachId)!==null);
 }
+// Home's agenda specifically (not the Teams tab, which should still list
+// every team teamsForMode returns regardless of this preference) -- a coach
+// can opt a team out of their own Home snapshot/agenda without leaving it,
+// via team_staff.show_on_home (see My Team Assignments in Settings). Org
+// mode is deliberately exempt: the whole point of Org mode is oversight of
+// every team in the org, so a personal per-coach preference shouldn't hide
+// one from the director viewing it there.
+export function homeTeamsForMode(teams,mode,coachId){
+  const scoped=teamsForMode(teams,mode,coachId);
+  if(mode&&mode.type==="org")return scoped;
+  return scoped.filter(t=>{
+    const mine=(t.coaches||[]).find(c=>c.userId===coachId);
+    return !mine||mine.showOnHome!==false;
+  });
+}
 // "Can manage" for UI-gating purposes (show +Add Coach/Player, Plan
 // Practice, etc.), mode-aware: in Org mode a director can manage every team
 // in that org regardless of personal team_staff role, matching what RLS

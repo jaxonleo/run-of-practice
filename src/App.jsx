@@ -8,7 +8,7 @@ import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode } from "./constants.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode } from "./constants.js";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab } from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig } from "./components/ActivityConfigs.jsx";
@@ -535,7 +535,7 @@ function HomeRoute(){
   // the whole point of the two modes. Scoped once here so HomeScreen's own
   // internals (already all keyed off data.teams/data.practices) need no
   // changes at all.
-  const scopedTeams=teamsForMode(data.teams,mode,coachId);
+  const scopedTeams=homeTeamsForMode(data.teams,mode,coachId);
   const scopedTeamIds=new Set(scopedTeams.map(t=>t.id));
   const scopedData=useMemo(()=>Object.assign({},data,{
     teams:scopedTeams,
@@ -550,15 +550,15 @@ function LibraryRoute(){
 }
 
 function TeamsRoute(){
-  const {data,goToTeam,openModal,coachId,mode}=useAppCtx();
+  const {data,goToTeam,openModal,coachId,mode,refreshLibrary}=useAppCtx();
   const scopedTeams=teamsForMode(data.teams,mode,coachId);
   const scopedData=useMemo(()=>Object.assign({},data,{teams:scopedTeams}),[data,mode,coachId]);
-  return <TeamsListScreen data={scopedData} goToTeam={goToTeam} openModal={openModal} mode={mode}/>;
+  return <TeamsListScreen data={scopedData} goToTeam={goToTeam} openModal={openModal} mode={mode} refreshLibrary={refreshLibrary}/>;
 }
 
 function SettingsRoute(){
-  const {data,coachId,refreshLibrary,profile,coachEmail,saveName,onSignOut,onDeactivate,setMode}=useAppCtx();
-  return <SettingsScreen data={data} coachId={coachId} refreshLibrary={refreshLibrary} profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate} setMode={setMode}/>;
+  const {data,coachId,refreshLibrary,refreshTeams,profile,coachEmail,saveName,onSignOut,onDeactivate,setMode}=useAppCtx();
+  return <SettingsScreen data={data} coachId={coachId} refreshLibrary={refreshLibrary} refreshTeams={refreshTeams} profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate} setMode={setMode}/>;
 }
 
 // step-3 bridge -- see the router config comment above.

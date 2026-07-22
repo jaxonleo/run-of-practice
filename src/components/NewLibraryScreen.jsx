@@ -598,8 +598,12 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
           which already share the identical coach-or-org ownership pattern
           in the schema. Explore only applies to drills (cross-coach/org
           browsing), so this row is My/Org Library only, same as before. */}
-      {section==="mine"&&<div style={{display:"flex",gap:16,padding:"10px 2px 0",overflowX:"auto"}}>
-        {[{k:"drills",label:"Drills"},{k:"templates",label:"Templates"},{k:"locations",label:"Locations"},{k:"equipment",label:"Equipment"},{k:"skills",label:"Skill Tags"}].map(t=>(<button key={t.k} onClick={()=>setMineTab(t.k)} style={{flexShrink:0,background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap",color:mineTab===t.k?"var(--green)":"var(--td)",borderBottom:"2px solid "+(mineTab===t.k?"var(--green)":"transparent")}}>{t.label}</button>))}
+      {/* Tap-target fix (same class of bug as Layout.jsx's team-workspace
+          tabs): padding was "2px 0" -- no side padding at all -- so the hit
+          box was exactly text-sized. Padding widened, row gap shrank to
+          compensate so all 5 tabs still fit without extra scrolling. */}
+      {section==="mine"&&<div style={{display:"flex",gap:8,padding:"6px 2px 0",overflowX:"auto"}}>
+        {[{k:"drills",label:"Drills"},{k:"templates",label:"Templates"},{k:"locations",label:"Locations"},{k:"equipment",label:"Equipment"},{k:"skills",label:"Skill Tags"}].map(t=>(<button key={t.k} onClick={()=>setMineTab(t.k)} style={{flexShrink:0,background:"none",border:"none",cursor:"pointer",padding:"8px 6px",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap",color:mineTab===t.k?"var(--green)":"var(--td)",borderBottom:"2px solid "+(mineTab===t.k?"var(--green)":"transparent")}}>{t.label}</button>))}
       </div>}
     </div>
     {section==="mine"&&mineTab==="locations"&&<div style={{padding:"0 16px"}}><LocationsSection data={data} openModal={openModal} refreshPlanning={refreshPlanning} coachId={coachId} mode={mode}/></div>}
