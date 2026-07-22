@@ -28,7 +28,7 @@ export function renderEmailHtml({ headline, bodyHtml, ctaLabel, signInEmail }: {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #dde5e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
         <tr><td style="background:#111714;padding:18px 28px;">
           <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-            <td style="padding-right:10px;"><img src="https://www.runofpractice.com/icon-512.png" width="28" height="28" alt="" style="display:block;border-radius:7px;"></td>
+            <td style="padding-right:10px;"><img src="https://www.runofpractice.com/icon-512.png" width="34" height="34" alt="" style="display:block;border-radius:8px;"></td>
             <td style="font-size:19px;font-weight:800;color:#ffffff;letter-spacing:.01em;vertical-align:middle;">Run of Practice</td>
           </tr></table>
         </td></tr>
@@ -41,7 +41,7 @@ export function renderEmailHtml({ headline, bodyHtml, ctaLabel, signInEmail }: {
           <p style="margin:18px 0 0;font-size:13px;color:#6b7a72;line-height:1.5;">Sign in with <strong>${signInEmail}</strong> — we'll send a one-time code, no password needed.</p>
         </td></tr>
         <tr><td style="padding:16px 28px;background:#f7f9f8;border-top:1px solid #eef2f0;">
-          <p style="margin:0;font-size:12px;color:#8a9a91;">Practice planning and live execution — <a href="https://www.runofpractice.com" style="color:#8a9a91;">runofpractice.com</a></p>
+          <p style="margin:0;font-size:12px;color:#8a9a91;">Practice planning and live execution · <a href="https://www.runofpractice.com" style="color:#8a9a91;">runofpractice.com</a></p>
         </td></tr>
       </table>
     </td></tr>
