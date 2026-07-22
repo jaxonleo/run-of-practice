@@ -64,6 +64,12 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:none;border-radius:var(--rs);cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;transition:opacity .12s;}
 .btn:active{opacity:.7;}
 .bxs{padding:4px 10px;font-size:11px;min-height:28px;}.bsm{padding:7px 14px;font-size:13px;min-height:34px;}.bmd{padding:10px 18px;font-size:15px;min-height:40px;}.blg{padding:14px 20px;font-size:17px;min-height:50px;}
+/* Real gap found live: referenced by Home's hero CTAs (Plan/Review/Start
+   Practice) and a few other primary actions, but never actually defined --
+   .btn's base rules have no padding at all, so every "bxl" button silently
+   fell back to exactly text-sized with zero padding. One size up from
+   .blg, matching the same padding/font-size/min-height progression. */
+.bxl{padding:16px 22px;font-size:18px;min-height:54px;}
 .primary{background:var(--green);color:#fff;}.primary:active{background:var(--green2);}
 .ghost{background:var(--s2);color:var(--black2);border:1px solid var(--b);}.ghost:active{background:var(--s3);}
 .danger{background:var(--rbg);color:var(--red);border:1px solid var(--rb);}
