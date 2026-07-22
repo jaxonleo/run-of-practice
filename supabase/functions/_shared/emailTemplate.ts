@@ -9,6 +9,10 @@
 // template-builder product involved. Header icon is the real PWA icon
 // (public/icon-512.png), already public via the Vercel deploy at
 // runofpractice.com -- a plain <img src> pointed at it costs nothing.
+// CTA button links to /?signin=1, not just "/" -- App.jsx's AuthedShell
+// reads that query param and jumps straight to AuthScreen, skipping the
+// marketing landing page a signed-out recipient would otherwise have to
+// click through first.
 
 export function articleFor(word: string): string {
   return /^[aeiou]/i.test(word) ? 'an' : 'a'
@@ -37,7 +41,7 @@ export function renderEmailHtml({ headline, bodyHtml, ctaLabel, signInEmail }: {
           <div style="font-size:15px;line-height:1.65;color:#2c3830;">${bodyHtml}</div>
         </td></tr>
         <tr><td style="padding:12px 28px 32px;">
-          <a href="https://www.runofpractice.com" style="display:inline-block;background:#2d6a4f;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:.02em;padding:13px 26px;border-radius:9px;">${ctaLabel}</a>
+          <a href="https://www.runofpractice.com/?signin=1" style="display:inline-block;background:#2d6a4f;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:.02em;padding:13px 26px;border-radius:9px;">${ctaLabel}</a>
           <p style="margin:18px 0 0;font-size:13px;color:#6b7a72;line-height:1.5;">Sign in with <strong>${signInEmail}</strong> — we'll send a one-time code, no password needed.</p>
         </td></tr>
         <tr><td style="padding:16px 28px;background:#f7f9f8;border-top:1px solid #eef2f0;">

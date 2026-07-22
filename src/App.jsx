@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } from "react";
-import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider, Navigate, Outlet, useNavigate, useParams, useBlocker } from "react-router-dom";
+import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider, Navigate, Outlet, useNavigate, useParams, useBlocker, useSearchParams } from "react-router-dom";
 import { Analytics } from '@vercel/analytics/react';
 import Layout from "./Layout.jsx";
 import { BuildTab } from "./components/BuildTab.jsx";
@@ -470,6 +470,11 @@ function AuthedShell(){
   const [startTemplateId,setStartTemplateId]=useState(null);
   const [presetTeamId,setPresetTeamId]=useState(null);
   const navigate=useNavigate();
+  const [searchParams]=useSearchParams();
+  // Email CTAs (org invite, staff-added) link to "/?signin=1" so a signed-out
+  // recipient lands straight on the sign-in form instead of the marketing
+  // landing page they'd otherwise have to click through first.
+  useEffect(()=>{if(searchParams.get("signin"))setWantsAuth(true);},[searchParams,setWantsAuth]);
   // presetTeamId (nav restructure round 2): Plan's Build tab already knows
   // which team it's for -- without this, a new practice defaults to
   // data.teams[0], which is wrong the moment a coach has more than one team
