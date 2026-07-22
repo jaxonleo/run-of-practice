@@ -1509,7 +1509,13 @@ export const ORG_ROLE_LABELS = { director: 'Director', admin: 'Admin' }
 // Current org_staff membership list (director view) -- profiles_select_org_co_member's
 // RLS already lets a fellow org member read these profile rows.
 export async function fetchOrgMembers(organizationId) {
-  const { data, error } = await supabase.from('org_staff').select('id, user_id, role, created_at, profiles(first_name, last_name, email)').eq('organization_id', organizationId).is('archived_at', null).order('created_at')
+  // Real bug found live: org_staff has two FKs to profiles (user_id AND
+  // invited_by), so the bare "profiles(...)" embed shorthand was ambiguous
+  // -- PostgREST can't tell which relationship to follow, errors, and this
+  // silently returned [] every time (explaining why nobody showed up, not
+  // just the reporting coach specifically). Disambiguated with the
+  // constraint-name hint.
+  const { data, error } = await supabase.from('org_staff').select('id, user_id, role, created_at, profiles!org_staff_user_id_fkey(first_name, last_name, email)').eq('organization_id', organizationId).is('archived_at', null).order('created_at')
   if (error) { console.error('fetchOrgMembers:', error); return [] }
   return (data || []).map(m => ({ id: m.id, userId: m.user_id, role: m.role, createdAt: m.created_at, name: m.profiles ? ((m.profiles.first_name && m.profiles.last_name) ? (m.profiles.first_name + ' ' + m.profiles.last_name) : (m.profiles.email || 'A director')) : 'A director' }))
 }
