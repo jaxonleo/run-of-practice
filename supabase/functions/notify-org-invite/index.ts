@@ -18,7 +18,7 @@
 // x-webhook-secret header is the only thing gating this endpoint.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { renderEmailHtml } from '../_shared/emailTemplate.ts'
+import { renderEmailHtml, articleFor } from '../_shared/emailTemplate.ts'
 
 const ROLE_LABELS: Record<string, string> = { director: 'Director', admin: 'Admin' }
 
@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
 
   const html = renderEmailHtml({
     headline: `You're invited to help lead ${orgName}`,
-    bodyHtml: `<p style="margin:0 0 12px;">${inviterName} invited you to join <strong>${orgName}</strong> on Run of Practice as a <strong>${roleLabel}</strong>.</p>
+    bodyHtml: `<p style="margin:0 0 12px;">${inviterName} invited you to join <strong>${orgName}</strong> on Run of Practice as ${articleFor(roleLabel)} <strong>${roleLabel}</strong>.</p>
 <p style="margin:0;">Once you sign in, you'll see the invite waiting on your Home screen with the option to accept or decline.</p>`,
     ctaLabel: 'Sign In to Respond',
     signInEmail: invite.email,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { sumMins, isHeadCoach, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, fetchOrgWeeklyPracticeRollup } from "../supabase.js";
+import { sumMins, isHeadCoach, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor } from "../constants.js";
+import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, fetchOrgWeeklyPracticeRollup, ORG_ROLE_LABELS } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
@@ -296,7 +296,7 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
       <button style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 12, color: "var(--td)", textDecoration: "underline" }} disabled={leavingTeamId === pendingWelcome.team.id} onClick={() => handleLeave(pendingWelcome.team.id)}>Not your team? Leave</button>
     </div></div>}
     {pendingOrgInvite && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
-      <div style={{ fontSize: 14, marginBottom: 8 }}>You've been invited to help lead <strong>{pendingOrgInvite.organizationName}</strong> as a director{pendingOrgInvite.teamRole ? ", with a team role waiting for you once you accept" : ""}.</div>
+      <div style={{ fontSize: 14, marginBottom: 8 }}>You've been invited to help lead <strong>{pendingOrgInvite.organizationName}</strong> as {articleFor(ORG_ROLE_LABELS[pendingOrgInvite.role] || "Director")} {ORG_ROLE_LABELS[pendingOrgInvite.role] || "Director"}{pendingOrgInvite.teamRole ? ", with a team role waiting for you once you accept" : ""}.</div>
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn primary bxs" disabled={respondingInviteId === pendingOrgInvite.id} onClick={() => respondToInvite(true)}>Accept</button>
         <button className="btn ghost bxs" disabled={respondingInviteId === pendingOrgInvite.id} onClick={() => respondToInvite(false)}>Decline</button>

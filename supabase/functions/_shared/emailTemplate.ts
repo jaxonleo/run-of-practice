@@ -10,6 +10,10 @@
 // (public/icon-512.png), already public via the Vercel deploy at
 // runofpractice.com -- a plain <img src> pointed at it costs nothing.
 
+export function articleFor(word: string): string {
+  return /^[aeiou]/i.test(word) ? 'an' : 'a'
+}
+
 export function renderEmailHtml({ headline, bodyHtml, ctaLabel, signInEmail }: {
   headline: string
   bodyHtml: string

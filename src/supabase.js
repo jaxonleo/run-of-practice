@@ -1484,9 +1484,9 @@ export async function fetchPendingOrgInvites() {
   const { data: userData } = await supabase.auth.getUser()
   const myEmail = userData && userData.user ? userData.user.email : null
   if (!myEmail) return []
-  const { data, error } = await supabase.from('org_invites').select('id, organization_id, team_id, team_role, invited_by, created_at, organizations(id, name)').eq('status', 'pending').ilike('email', myEmail)
+  const { data, error } = await supabase.from('org_invites').select('id, organization_id, team_id, team_role, role, invited_by, created_at, organizations(id, name)').eq('status', 'pending').ilike('email', myEmail)
   if (error) { console.error('fetchPendingOrgInvites:', error); return [] }
-  return (data || []).map(i => ({ id: i.id, organizationId: i.organization_id, organizationName: i.organizations ? i.organizations.name : '', teamId: i.team_id, teamRole: i.team_role, invitedBy: i.invited_by, createdAt: i.created_at }))
+  return (data || []).map(i => ({ id: i.id, organizationId: i.organization_id, organizationName: i.organizations ? i.organizations.name : '', teamId: i.team_id, teamRole: i.team_role, role: i.role, invitedBy: i.invited_by, createdAt: i.created_at }))
 }
 // Org creation itself was never covered by the handoff's RPC list (it's
 // entirely upstream of everything org-scoped) -- organizations_insert_self
