@@ -8,7 +8,7 @@ import { SPORTS, TEAM_COLORS } from "../constants.js";
 // with a real role selector and removal, add-member (with role), and
 // cancel-invite. Team management (head/assistant/helper/players) stays
 // exactly where it already was -- inside each team's own Roster tab.
-function OrgDetailsView({ org, refreshLibrary, onBack }) {
+function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(org.name);
   const [sport, setSport] = useState(org.sport || "");
@@ -23,11 +23,16 @@ function OrgDetailsView({ org, refreshLibrary, onBack }) {
   const [addMemberRole, setAddMemberRole] = useState("director");
   const [addingMember, setAddingMember] = useState(false);
   const [busyMemberId, setBusyMemberId] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [editingMemberId, setEditingMemberId] = useState(null);
+  const [draftRole, setDraftRole] = useState(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState(null);
   const refresh = () => {
     fetchOrgMembers(org.id).then(setMembers);
     fetchOrgSentInvites(org.id).then(setSentInvites);
   };
   useEffect(refresh, [org.id]);
+  const fmtDate = iso => iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
 
   const saveOrgDetails = async () => {
     if (!name.trim()) return;
@@ -48,17 +53,20 @@ function OrgDetailsView({ org, refreshLibrary, onBack }) {
     refresh();
   };
   const doCancelInvite = async id => { await cancelOrgInvite(id); refresh(); };
-  const changeMemberRole = async (memberId, role) => {
+  const startEditRole = m => { setOpenMenuId(null); setEditingMemberId(m.id); setDraftRole(m.role); };
+  const saveRole = async memberId => {
     setBusyMemberId(memberId);
-    await setOrgMemberRole(memberId, role);
+    await setOrgMemberRole(memberId, draftRole);
     await refresh();
     setBusyMemberId(null);
+    setEditingMemberId(null);
   };
   const doRemoveMember = async memberId => {
     setBusyMemberId(memberId);
     await removeOrgMember(memberId);
     await refresh();
     setBusyMemberId(null);
+    setConfirmRemoveId(null);
   };
   const memberSince = org.createdAt ? new Date(org.createdAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : null;
 
@@ -109,15 +117,40 @@ function OrgDetailsView({ org, refreshLibrary, onBack }) {
         </div>
         <button className="btn primary bxs" disabled={addingMember || !addMemberEmail.trim()} onClick={submitAddMember}>{addingMember ? "Adding..." : "Add"}</button>
       </div>}
-      {members.map(m => (<div key={m.id} className="card" style={{ marginBottom: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: members.length > 1 ? 8 : 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>{m.name}</div>
-          {members.length > 1 && <button className="btn ghost bxs" style={{ color: "var(--red)" }} disabled={busyMemberId === m.id} onClick={() => doRemoveMember(m.id)}>Remove</button>}
-        </div>
-        <div className="brow">
-          {Object.entries(ORG_ROLE_LABELS).map(([val, label]) => (<button key={val} type="button" className={"btn bxs " + (m.role === val ? "primary" : "ghost")} disabled={busyMemberId === m.id} onClick={() => changeMemberRole(m.id, val)}>{label}</button>))}
-        </div>
-      </div>))}
+      {members.map(m => {
+        const isSelf = m.userId === coachId;
+        const isEditing = editingMemberId === m.id;
+        const isConfirmingRemove = confirmRemoveId === m.id;
+        return (<div key={m.id} className="li" style={{ position: "relative", marginBottom: 8, display: "block" }} onClick={() => setOpenMenuId(null)}>
+          {!isEditing && <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div className="lim">
+              <div className="lin">{m.name}{isSelf ? " (You)" : ""}{m.email ? " · " + m.email : ""}</div>
+              <div className="limt">{ORG_ROLE_LABELS[m.role] || m.role} · Added {fmtDate(m.createdAt)}</div>
+            </div>
+            <button className="ell-btn" onClick={e => { e.stopPropagation(); setOpenMenuId(openMenuId === m.id ? null : m.id); }}><span/><span/><span/></button>
+            {openMenuId === m.id && <div className="mini-menu" style={{ right: 0, top: "100%" }} onClick={e => e.stopPropagation()}>
+              <button className="mm-item" onClick={() => startEditRole(m)}>Edit Role</button>
+              {members.length > 1 && <button className="mm-item mm-danger" onClick={() => { setOpenMenuId(null); setConfirmRemoveId(m.id); }}>Remove</button>}
+            </div>}
+          </div>}
+          {isEditing && <div onClick={e => e.stopPropagation()}>
+            <div className="lin" style={{ marginBottom: 8 }}>{m.name}{isSelf ? " (You)" : ""}</div>
+            <div className="brow" style={{ marginBottom: 8 }}>
+              {Object.entries(ORG_ROLE_LABELS).map(([val, label]) => (<button key={val} type="button" className={"btn bsm " + (draftRole === val ? "primary" : "ghost")} onClick={() => setDraftRole(val)}>{label}</button>))}
+            </div>
+            {isSelf && draftRole !== m.role && <div style={{ fontSize: 12, color: "var(--red)", marginBottom: 8 }}>This changes your own role.</div>}
+            <div className="brow">
+              <button className="btn ghost bsm" onClick={() => setEditingMemberId(null)}>Cancel</button>
+              <button className="btn primary bsm" style={{ flex: 1 }} disabled={busyMemberId === m.id} onClick={() => saveRole(m.id)}>{busyMemberId === m.id ? "Saving..." : "Save"}</button>
+            </div>
+          </div>}
+          {isConfirmingRemove && <div className="confirm-box" onClick={e => e.stopPropagation()}>
+            <div className="confirm-title">Remove {isSelf ? "yourself" : m.name}?</div>
+            <div className="confirm-body">{isSelf ? "You'll lose director/admin access to this organization immediately -- someone else will need to add you back." : m.name + " will lose director/admin access to this organization."}</div>
+            <div className="brow"><button className="btn ghost bsm" onClick={() => setConfirmRemoveId(null)}>Cancel</button><button className="btn danger bsm" disabled={busyMemberId === m.id} onClick={() => doRemoveMember(m.id)}>{busyMemberId === m.id ? "Removing..." : "Remove"}</button></div>
+          </div>}
+        </div>);
+      })}
       {sentInvites.map(inv => (<div key={inv.id} className="li tap" style={{ marginBottom: 6 }} onClick={() => doCancelInvite(inv.id)}>
         <div className="lim"><div className="lin">{inv.email}</div><div className="limt">Invited as {ORG_ROLE_LABELS[inv.role] || inv.role}, awaiting response · tap to cancel</div></div>
       </div>))}
@@ -133,7 +166,7 @@ function OrgDetailsView({ org, refreshLibrary, onBack }) {
 // openModal("addTeam") lives here now -- the old Manage screen's "My Teams"
 // list carried the only + Team button, and that list is gone (2026-07-15
 // settings restructure), so this became team creation's one entry point.
-export default function TeamsListScreen({ data, goToTeam, openModal, mode, refreshLibrary }) {
+export default function TeamsListScreen({ data, goToTeam, openModal, mode, refreshLibrary, coachId }) {
   const teams = data.teams || [];
   const isOrgMode = mode && mode.type === "org";
   const activeOrg = isOrgMode ? (data.myOrgs || []).find(o => o.id === mode.orgId) : null;
@@ -145,7 +178,7 @@ export default function TeamsListScreen({ data, goToTeam, openModal, mode, refre
   const addTeamPayload = isOrgMode ? { organizationId: mode.orgId, orgSport: activeOrg && activeOrg.sport } : undefined;
 
   if (isOrgMode && activeOrg && showOrgDetails) {
-    return <OrgDetailsView org={activeOrg} refreshLibrary={refreshLibrary} onBack={() => setShowOrgDetails(false)} />;
+    return <OrgDetailsView org={activeOrg} refreshLibrary={refreshLibrary} onBack={() => setShowOrgDetails(false)} coachId={coachId} />;
   }
 
   return (<div style={{ paddingBottom: 80 }}>

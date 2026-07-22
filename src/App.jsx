@@ -559,7 +559,7 @@ function TeamsRoute(){
   const {data,goToTeam,openModal,coachId,mode,refreshLibrary}=useAppCtx();
   const scopedTeams=teamsForMode(data.teams,mode,coachId);
   const scopedData=useMemo(()=>Object.assign({},data,{teams:scopedTeams}),[data,mode,coachId]);
-  return <TeamsListScreen data={scopedData} goToTeam={goToTeam} openModal={openModal} mode={mode} refreshLibrary={refreshLibrary}/>;
+  return <TeamsListScreen data={scopedData} goToTeam={goToTeam} openModal={openModal} mode={mode} refreshLibrary={refreshLibrary} coachId={coachId}/>;
 }
 
 function SettingsRoute(){

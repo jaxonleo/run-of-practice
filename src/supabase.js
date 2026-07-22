@@ -1517,7 +1517,7 @@ export async function fetchOrgMembers(organizationId) {
   // constraint-name hint.
   const { data, error } = await supabase.from('org_staff').select('id, user_id, role, created_at, profiles!org_staff_user_id_fkey(first_name, last_name, email)').eq('organization_id', organizationId).is('archived_at', null).order('created_at')
   if (error) { console.error('fetchOrgMembers:', error); return [] }
-  return (data || []).map(m => ({ id: m.id, userId: m.user_id, role: m.role, createdAt: m.created_at, name: m.profiles ? ((m.profiles.first_name && m.profiles.last_name) ? (m.profiles.first_name + ' ' + m.profiles.last_name) : (m.profiles.email || 'A director')) : 'A director' }))
+  return (data || []).map(m => ({ id: m.id, userId: m.user_id, role: m.role, createdAt: m.created_at, email: m.profiles ? m.profiles.email : '', name: m.profiles ? ((m.profiles.first_name && m.profiles.last_name) ? (m.profiles.first_name + ' ' + m.profiles.last_name) : (m.profiles.email || 'A director')) : 'A director' }))
 }
 export async function setOrgMemberRole(orgStaffId, role) {
   const { error } = await supabase.rpc('set_org_member_role', { p_org_staff_id: orgStaffId, p_role: role })
