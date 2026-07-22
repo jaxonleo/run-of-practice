@@ -43,6 +43,13 @@ export default function Layout({ data, liveId, goToRun, mode }) {
 
   const team = inTeam ? (data.teams || []).find(t => t.id === teamId) : null;
   const workspaceTabs = inTeam ? teamWorkspaceTabs(teamId) : [];
+  // Org color (Jax's ask: "so when they're logged in to their org it looks
+  // like their org") -- falls back to the plain .tabbar.org green when the
+  // org hasn't picked one. Inline style wins over the CSS class's
+  // background for this one property; the class still supplies the
+  // active/inactive tab-icon and text-color rules.
+  const activeOrg = isOrgMode ? (data.myOrgs || []).find(o => o.id === mode.orgId) : null;
+  const orgBarStyle = activeOrg && activeOrg.color ? { background: activeOrg.color, borderTopColor: activeOrg.color } : undefined;
 
   const livePractice = liveId ? (data.practices || []).find(p => p.id === liveId) : null;
   const liveTeam = livePractice ? (data.teams || []).find(t => t.id === livePractice.teamId) : null;
@@ -76,7 +83,7 @@ export default function Layout({ data, liveId, goToRun, mode }) {
       <div className="screen">
         <Outlet/>
       </div>
-      {!hideTabBar && <nav className={"tabbar" + (isOrgMode ? " org" : "")}>
+      {!hideTabBar && <nav className={"tabbar" + (isOrgMode ? " org" : "")} style={orgBarStyle}>
         {GLOBAL_TABS.map(({ id, label, path, I }) => {
           const active = path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
           return (<button key={id} className={"ti " + (active ? "on" : "")} onClick={() => navigate(path)}>

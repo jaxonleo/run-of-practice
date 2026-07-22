@@ -1,27 +1,28 @@
 import React, { useState, useEffect } from "react";
-import { fetchOrgMembers, fetchOrgSentInvites, orgInviteCoach, cancelOrgInvite, updateOrganization } from "../supabase.js";
+import { fetchOrgMembers, fetchOrgSentInvites, orgInviteCoach, cancelOrgInvite, updateOrganization, setOrgMemberRole, removeOrgMember, ORG_ROLE_LABELS } from "../supabase.js";
+import { SPORTS, TEAM_COLORS } from "../constants.js";
 
-// Organization management (Teams tab, Org mode only) -- per direct feedback,
-// Home isn't the right long-term place for org-member management as
-// membership grows. Lives here instead: edit the org itself (name/sport),
-// see when it joined ROP, see current directors, add a new one, and cancel
-// a pending invite that's stuck (e.g. the notification email never
-// arrived -- there's no org-invite email yet, a known separate gap).
-// Team management (the classic head/assistant/helper/player roster) stays
-// exactly where it already was -- inside each team's own Roster tab, one
-// tap below this list.
-function OrganizationSection({ org, refreshLibrary }) {
+// Org details (Jax's ask): the Teams list itself just shows a tappable
+// org card now, no inline Edit/Add-Member buttons -- everything lives one
+// tap in, here. Name/sport/color editing, member-since, the member list
+// with a real role selector and removal, add-member (with role), and
+// cancel-invite. Team management (head/assistant/helper/players) stays
+// exactly where it already was -- inside each team's own Roster tab.
+function OrgDetailsView({ org, refreshLibrary, onBack }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(org.name);
   const [sport, setSport] = useState(org.sport || "");
+  const [color, setColor] = useState(org.color || "");
   const [saving, setSaving] = useState(false);
-  useEffect(() => { setName(org.name); setSport(org.sport || ""); }, [org.id, org.name, org.sport]);
+  useEffect(() => { setName(org.name); setSport(org.sport || ""); setColor(org.color || ""); }, [org.id, org.name, org.sport, org.color]);
 
   const [members, setMembers] = useState([]);
   const [sentInvites, setSentInvites] = useState([]);
   const [showAddMember, setShowAddMember] = useState(false);
   const [addMemberEmail, setAddMemberEmail] = useState("");
+  const [addMemberRole, setAddMemberRole] = useState("director");
   const [addingMember, setAddingMember] = useState(false);
+  const [busyMemberId, setBusyMemberId] = useState(null);
   const refresh = () => {
     fetchOrgMembers(org.id).then(setMembers);
     fetchOrgSentInvites(org.id).then(setSentInvites);
@@ -31,7 +32,7 @@ function OrganizationSection({ org, refreshLibrary }) {
   const saveOrgDetails = async () => {
     if (!name.trim()) return;
     setSaving(true);
-    await updateOrganization(org.id, { name: name.trim(), sport: sport.trim() });
+    await updateOrganization(org.id, { name: name.trim(), sport: sport || null, color: color || null });
     setSaving(false);
     setEditing(false);
     if (refreshLibrary) await refreshLibrary();
@@ -39,52 +40,88 @@ function OrganizationSection({ org, refreshLibrary }) {
   const submitAddMember = async () => {
     if (!addMemberEmail.trim()) return;
     setAddingMember(true);
-    await orgInviteCoach(org.id, addMemberEmail.trim());
+    await orgInviteCoach(org.id, addMemberEmail.trim(), null, null, addMemberRole);
     setAddMemberEmail("");
+    setAddMemberRole("director");
     setAddingMember(false);
     setShowAddMember(false);
     refresh();
   };
   const doCancelInvite = async id => { await cancelOrgInvite(id); refresh(); };
+  const changeMemberRole = async (memberId, role) => {
+    setBusyMemberId(memberId);
+    await setOrgMemberRole(memberId, role);
+    await refresh();
+    setBusyMemberId(null);
+  };
+  const doRemoveMember = async memberId => {
+    setBusyMemberId(memberId);
+    await removeOrgMember(memberId);
+    await refresh();
+    setBusyMemberId(null);
+  };
   const memberSince = org.createdAt ? new Date(org.createdAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : null;
 
-  return (<div style={{ padding: "0 16px 20px" }}>
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-      <div className="clbl">Organization</div>
+  return (<div style={{ paddingBottom: 80 }}>
+    <div style={{ padding: "12px 14px 0" }}><button className="btn ghost bxs" onClick={onBack}>&#8249; Teams</button></div>
+    <div style={{ padding: "12px 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 28, fontWeight: 900 }}>Organization</div>
       <button className="btn ghost bxs" onClick={() => setEditing(e => !e)}>{editing ? "Cancel" : "Edit"}</button>
     </div>
-    <div className="card" style={{ marginBottom: 12 }}>
-      {editing ? (<div>
-        <div className="fld" style={{ marginBottom: 8 }}><label className="lbl">Organization Name</label><input className="inp" value={name} onChange={e => setName(e.target.value)} /></div>
-        <div className="fld" style={{ marginBottom: 8 }}><label className="lbl">Sport</label><input className="inp" placeholder="e.g. Baseball" value={sport} onChange={e => setSport(e.target.value)} /></div>
-        <button className="btn primary bxs" disabled={saving || !name.trim()} onClick={saveOrgDetails}>{saving ? "Saving..." : "Save"}</button>
-      </div>) : (<div>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900 }}>{org.name}</div>
-        {org.sport && <div style={{ fontSize: 13, color: "var(--td)", marginTop: 2 }}>{org.sport}</div>}
-        {memberSince && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 4 }}>Member since {memberSince}</div>}
-      </div>)}
-    </div>
-
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-      <div className="clbl">Org Members</div>
-      <button className="btn ghost bxs" onClick={() => setShowAddMember(s => !s)}>{showAddMember ? "Cancel" : "+ Add Org Member"}</button>
-    </div>
-    {showAddMember && <div className="card" style={{ padding: 12, marginBottom: 8 }}>
-      <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-        <input className="inp" style={{ flex: 1 }} placeholder="coach@email.com" value={addMemberEmail} onChange={e => setAddMemberEmail(e.target.value)} />
-        <button className="btn primary bxs" disabled={addingMember} onClick={submitAddMember}>{addingMember ? "Adding..." : "Add"}</button>
+    <div style={{ padding: "0 16px" }}>
+      <div className="card" style={{ marginBottom: 16 }}>
+        {editing ? (<div>
+          <div className="fld" style={{ marginBottom: 8 }}><label className="lbl">Organization Name</label><input className="inp" value={name} onChange={e => setName(e.target.value)} /></div>
+          <div className="fld" style={{ marginBottom: 8 }}><label className="lbl">Sport</label>
+            <select className="sel" value={sport} onChange={e => setSport(e.target.value)}>
+              <option value="">-- Select a sport --</option>
+              {SPORTS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="fld" style={{ marginBottom: 8 }}>
+            <label className="lbl">Color</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {TEAM_COLORS.map(c => (<button key={c} type="button" onClick={() => setColor(c)} style={{ width: 32, height: 32, borderRadius: "50%", background: c, border: color === c ? "3px solid var(--black)" : "3px solid transparent", cursor: "pointer", padding: 0 }} />))}
+            </div>
+          </div>
+          <button className="btn primary bxs" disabled={saving || !name.trim()} onClick={saveOrgDetails}>{saving ? "Saving..." : "Save"}</button>
+        </div>) : (<div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {org.color && <span style={{ width: 14, height: 14, borderRadius: "50%", background: org.color, flexShrink: 0 }} />}
+            <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900 }}>{org.name}</div>
+          </div>
+          {org.sport && <div style={{ fontSize: 13, color: "var(--td)", marginTop: 4 }}>{org.sport}</div>}
+          {memberSince && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 4 }}>Member since {memberSince}</div>}
+        </div>)}
       </div>
-      {/* v1 has one org role (director) -- accepting makes them a co-director
-          of the whole org, same standing as whoever added them, not a
-          scoped "coach" role. Worth being upfront about here. */}
-      <div style={{ fontSize: 11, color: "var(--td)" }}>They'll become a director of {org.name} once accepted -- able to create teams and add other members, same as you.</div>
-    </div>}
-    {members.map(m => (<div key={m.id} className="li" style={{ marginBottom: 6 }}>
-      <div className="lim"><div className="lin">{m.name}</div><div className="limt">Director</div></div>
-    </div>))}
-    {sentInvites.map(inv => (<div key={inv.id} className="li tap" style={{ marginBottom: 6 }} onClick={() => doCancelInvite(inv.id)}>
-      <div className="lim"><div className="lin">{inv.email}</div><div className="limt">Invited, awaiting response · tap to cancel</div></div>
-    </div>))}
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <div className="clbl">Org Members</div>
+        <button className="btn ghost bxs" onClick={() => setShowAddMember(s => !s)}>{showAddMember ? "Cancel" : "+ Add Org Member"}</button>
+      </div>
+      {showAddMember && <div className="card" style={{ padding: 12, marginBottom: 8 }}>
+        <div className="fld" style={{ marginBottom: 8 }}><label className="lbl">Email</label><input className="inp" placeholder="coach@email.com" value={addMemberEmail} onChange={e => setAddMemberEmail(e.target.value)} /></div>
+        <div className="fld" style={{ marginBottom: 8 }}>
+          <label className="lbl">Role</label>
+          <div className="brow">
+            {Object.entries(ORG_ROLE_LABELS).map(([val, label]) => (<button key={val} type="button" className={"btn bsm " + (addMemberRole === val ? "primary" : "ghost")} onClick={() => setAddMemberRole(val)}>{label}</button>))}
+          </div>
+        </div>
+        <button className="btn primary bxs" disabled={addingMember || !addMemberEmail.trim()} onClick={submitAddMember}>{addingMember ? "Adding..." : "Add"}</button>
+      </div>}
+      {members.map(m => (<div key={m.id} className="card" style={{ marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: members.length > 1 ? 8 : 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{m.name}</div>
+          {members.length > 1 && <button className="btn ghost bxs" style={{ color: "var(--red)" }} disabled={busyMemberId === m.id} onClick={() => doRemoveMember(m.id)}>Remove</button>}
+        </div>
+        <div className="brow">
+          {Object.entries(ORG_ROLE_LABELS).map(([val, label]) => (<button key={val} type="button" className={"btn bxs " + (m.role === val ? "primary" : "ghost")} disabled={busyMemberId === m.id} onClick={() => changeMemberRole(m.id, val)}>{label}</button>))}
+        </div>
+      </div>))}
+      {sentInvites.map(inv => (<div key={inv.id} className="li tap" style={{ marginBottom: 6 }} onClick={() => doCancelInvite(inv.id)}>
+        <div className="lim"><div className="lin">{inv.email}</div><div className="limt">Invited as {ORG_ROLE_LABELS[inv.role] || inv.role}, awaiting response · tap to cancel</div></div>
+      </div>))}
+    </div>
   </div>);
 }
 
@@ -100,16 +137,32 @@ export default function TeamsListScreen({ data, goToTeam, openModal, mode, refre
   const teams = data.teams || [];
   const isOrgMode = mode && mode.type === "org";
   const activeOrg = isOrgMode ? (data.myOrgs || []).find(o => o.id === mode.orgId) : null;
+  const [showOrgDetails, setShowOrgDetails] = useState(false);
   // Org mode's +Team opens the same addTeam modal, just with organizationId
   // in the payload -- that's what tells ModalLayer.save() to call
-  // orgCreateTeam instead of createTeam (see ModalLayer.jsx).
-  const addTeamPayload = isOrgMode ? { organizationId: mode.orgId } : undefined;
+  // orgCreateTeam instead of createTeam (see ModalLayer.jsx), and lets it
+  // default the sport to the org's own sport.
+  const addTeamPayload = isOrgMode ? { organizationId: mode.orgId, orgSport: activeOrg && activeOrg.sport } : undefined;
+
+  if (isOrgMode && activeOrg && showOrgDetails) {
+    return <OrgDetailsView org={activeOrg} refreshLibrary={refreshLibrary} onBack={() => setShowOrgDetails(false)} />;
+  }
+
   return (<div style={{ paddingBottom: 80 }}>
     <div style={{ padding: "20px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 28, fontWeight: 900 }}>{isOrgMode ? "Org Teams" : "Teams"}</div>
       <button className="btn primary bsm" onClick={() => openModal("addTeam", addTeamPayload)}>+ Team</button>
     </div>
-    {isOrgMode && activeOrg && <OrganizationSection org={activeOrg} refreshLibrary={refreshLibrary} />}
+    {isOrgMode && activeOrg && <div style={{ padding: "0 16px 16px" }}>
+      <div className="card tap" style={{ display: "flex", alignItems: "center", gap: 10 }} onClick={() => setShowOrgDetails(true)}>
+        {activeOrg.color && <span style={{ width: 14, height: 14, borderRadius: "50%", background: activeOrg.color, flexShrink: 0 }} />}
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900 }}>{activeOrg.name}</div>
+          {activeOrg.sport && <div style={{ fontSize: 12, color: "var(--td)" }}>{activeOrg.sport}</div>}
+        </div>
+        <span style={{ color: "var(--green)", fontSize: 22 }}>&#8250;</span>
+      </div>
+    </div>}
     <div style={{ padding: "0 16px" }}>
       {teams.length === 0 && <div className="empty"><div className="emtx">{isOrgMode ? "No teams in this org yet. Tap + Team to get started." : "No teams yet. Tap + Team to get started."}</div></div>}
       {teams.map(t => (<div key={t.id} className="li tap" style={{ marginBottom: 8, borderLeft: "4px solid " + (t.colorPrimary || "transparent") }} onClick={() => goToTeam(t.id)}>

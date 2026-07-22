@@ -259,7 +259,10 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
     <div style={{ padding: "20px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
       <div>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{greeting},</div>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, color: "var(--green)", lineHeight: 1 }}>{isOrgMode ? (activeOrg ? activeOrg.name : "Organization") : coachName}</div>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, color: (isOrgMode && activeOrg && activeOrg.color) || "var(--green)", lineHeight: 1, display: "flex", alignItems: "center", gap: 8 }}>
+          {isOrgMode && activeOrg && activeOrg.color && <span style={{ width: 14, height: 14, borderRadius: "50%", background: activeOrg.color, flexShrink: 0 }} />}
+          {isOrgMode ? (activeOrg ? activeOrg.name : "Organization") : coachName}
+        </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ position: "relative" }}>

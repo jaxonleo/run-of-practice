@@ -305,7 +305,7 @@ export async function fetchLibraryData() {
     supabase.from('activity_library').select('*').is('archived_at', null).order('position'),
     supabase.from('activity_library_equipment').select('*'),
     supabase.from('drill_tags').select('*'),
-    supabase.from('org_staff').select('organization_id, role, organizations(id, name, sport, created_at)').is('archived_at', null),
+    supabase.from('org_staff').select('organization_id, role, organizations(id, name, sport, created_at, color)').is('archived_at', null),
     supabase.from('profiles').select('id, email, first_name, last_name'), // own row + org co-members, per RLS
     supabase.from('content_catalogs').select('*').is('archived_at', null),
     supabase.from('activity_library_org_shares').select('activity_library_id, organization_id'),
@@ -331,7 +331,7 @@ export async function fetchLibraryData() {
     skillCategories: categoriesRes.data || [],
     skillTags: (tagsRes.data || []).map(mapSkillTagRow),
     activityLibrary: (drillsRes.data || []).map(a => mapDrillRow(a, equipmentByDrill, tagsByDrill, sharesByDrill)),
-    myOrgs: (orgsRes.data || []).map(m => ({ id: m.organization_id, name: m.organizations ? m.organizations.name : '', role: m.role, sport: m.organizations ? m.organizations.sport : null, createdAt: m.organizations ? m.organizations.created_at : null })),
+    myOrgs: (orgsRes.data || []).map(m => ({ id: m.organization_id, name: m.organizations ? m.organizations.name : '', role: m.role, sport: m.organizations ? m.organizations.sport : null, createdAt: m.organizations ? m.organizations.created_at : null, color: m.organizations ? m.organizations.color : null })),
     pendingOrgInvites,
     profilesById,
     catalogs: (catalogsRes.data || []).map(mapCatalogRow),
@@ -1500,11 +1500,12 @@ export async function createOrganization(coachId, name) {
 }
 // organizations_update_admin's RLS already permits a director to update
 // directly (is_org_admin(id)) -- no RPC needed, same as createOrganization.
-export async function updateOrganization(organizationId, { name, sport }) {
-  const { error } = await supabase.from('organizations').update({ name, sport: sport || null }).eq('id', organizationId)
+export async function updateOrganization(organizationId, { name, sport, color }) {
+  const { error } = await supabase.from('organizations').update({ name, sport: sport || null, color: color || null }).eq('id', organizationId)
   if (error) console.error('updateOrganization:', error)
   return { error }
 }
+export const ORG_ROLE_LABELS = { director: 'Director', admin: 'Admin' }
 // Current org_staff membership list (director view) -- profiles_select_org_co_member's
 // RLS already lets a fellow org member read these profile rows.
 export async function fetchOrgMembers(organizationId) {
@@ -1512,16 +1513,26 @@ export async function fetchOrgMembers(organizationId) {
   if (error) { console.error('fetchOrgMembers:', error); return [] }
   return (data || []).map(m => ({ id: m.id, userId: m.user_id, role: m.role, createdAt: m.created_at, name: m.profiles ? ((m.profiles.first_name && m.profiles.last_name) ? (m.profiles.first_name + ' ' + m.profiles.last_name) : (m.profiles.email || 'A director')) : 'A director' }))
 }
+export async function setOrgMemberRole(orgStaffId, role) {
+  const { error } = await supabase.rpc('set_org_member_role', { p_org_staff_id: orgStaffId, p_role: role })
+  if (error) console.error('setOrgMemberRole:', error)
+  return { error }
+}
+export async function removeOrgMember(orgStaffId) {
+  const { error } = await supabase.rpc('remove_org_member', { p_org_staff_id: orgStaffId })
+  if (error) console.error('removeOrgMember:', error)
+  return { error }
+}
 // Director's view: every pending invite this org has sent (org_invites_select
 // RLS shows these to any is_org_admin of the org, separate from the
 // invitee-facing fetchPendingOrgInvites above).
 export async function fetchOrgSentInvites(organizationId) {
-  const { data, error } = await supabase.from('org_invites').select('id, email, team_id, team_role, created_at').eq('organization_id', organizationId).eq('status', 'pending').order('created_at', { ascending: false })
+  const { data, error } = await supabase.from('org_invites').select('id, email, team_id, team_role, role, created_at').eq('organization_id', organizationId).eq('status', 'pending').order('created_at', { ascending: false })
   if (error) { console.error('fetchOrgSentInvites:', error); return [] }
-  return (data || []).map(i => ({ id: i.id, email: i.email, teamId: i.team_id, teamRole: i.team_role, createdAt: i.created_at }))
+  return (data || []).map(i => ({ id: i.id, email: i.email, teamId: i.team_id, teamRole: i.team_role, role: i.role, createdAt: i.created_at }))
 }
-export async function orgInviteCoach(organizationId, email, teamId, teamRole) {
-  const { data, error } = await supabase.rpc('org_invite_coach', { p_organization_id: organizationId, p_email: email, p_team_id: teamId || null, p_team_role: teamRole || null })
+export async function orgInviteCoach(organizationId, email, teamId, teamRole, orgRole) {
+  const { data, error } = await supabase.rpc('org_invite_coach', { p_organization_id: organizationId, p_email: email, p_team_id: teamId || null, p_team_role: teamRole || null, p_org_role: orgRole || 'director' })
   if (error) console.error('orgInviteCoach:', error)
   return { data, error }
 }

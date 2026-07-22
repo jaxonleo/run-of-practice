@@ -164,7 +164,11 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     if(coach)return{name:coach.name,role:coach.role||"Assistant Coach",inviteEmail:coach.inviteEmail||""};
     if(template)return{name:template.name,sport:template.sport||"General"};
     if(editTeamData)return{name:editTeamData.name,sport:editTeamData.sport||"Basketball",colorPrimary:editTeamData.colorPrimary||""};
-    return{sport:lastSportRef.current||"Basketball",colorPrimary:nextTeamColor(data.teams)};
+    // New org team defaults to the org's own sport (payload.orgSport, set
+    // by TeamsListScreen from the org's own record) rather than whatever
+    // sport this coach last touched personally -- Jax's ask.
+    const orgSport=modal.type==="addTeam"&&modal.payload&&modal.payload.orgSport;
+    return{sport:orgSport||lastSportRef.current||"Basketball",colorPrimary:nextTeamColor(data.teams)};
   });
   const set=(k,v)=>setF(p=>Object.assign({},p,{[k]:v}));
   const catalogId=activity?activity.sourceCatalogId:(
