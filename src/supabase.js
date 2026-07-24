@@ -95,15 +95,18 @@ function splitName(name) {
 }
 
 export async function fetchMyTeams() {
-  const [teamsRes, playersRes, staffRes] = await Promise.all([
+  const [teamsRes, playersRes, staffRes, teamLocationsRes] = await Promise.all([
     supabase.from('teams').select('*').is('archived_at', null),
     supabase.from('players').select('*').is('archived_at', null),
     supabase.from('team_staff').select('*').is('archived_at', null),
+    supabase.from('team_locations').select('*'),
   ])
   if (teamsRes.error) { console.error('fetchMyTeams:', teamsRes.error); return [] }
   const players = playersRes.data || []
   const staff = staffRes.data || []
   const teamIds = (teamsRes.data || []).map(t => t.id)
+  const locationsByTeam = {}
+  for (const tl of teamLocationsRes.data || []) (locationsByTeam[tl.team_id] ||= []).push(tl.location_id)
 
   const [focusRes, deactivatedRes] = await Promise.all([
     players.length ? supabase.from('player_focus_areas').select('id, player_id, category_id, note').in('player_id', players.map(p => p.id)) : Promise.resolve({ data: [] }),
@@ -129,6 +132,7 @@ export async function fetchMyTeams() {
     colorSecondary: t.color_secondary,
     goalsWindowWeeks: t.goals_window_weeks || 4,
     goalsSavedAt: t.goals_saved_at,
+    locationIds: locationsByTeam[t.id] || [],
     players: players.filter(p => p.team_id === t.id).map(p => Object.assign(mapPlayerRow(p), { focusAreas: focusByPlayer[p.id] || [] })),
     coaches: staff.filter(s => s.team_id === t.id && !(s.user_id && deactivatedUserIds.has(s.user_id))).map(mapStaffRow),
   }))
@@ -147,6 +151,17 @@ export async function updateTeam(id, { name, sport, colorPrimary, colorSecondary
   const { error } = await supabase.from('teams').update(row).eq('id', id)
   if (error) console.error('updateTeam:', error)
   return { error }
+}
+// Full replace, same convention as setAssetLocations -- empty locationIds
+// means no restriction has been set up (every location shows), matched by
+// simply having no rows.
+export async function setTeamLocations(teamId, locationIds) {
+  await supabase.from('team_locations').delete().eq('team_id', teamId)
+  const ids = (locationIds || []).filter(Boolean)
+  if (ids.length) {
+    const { error } = await supabase.from('team_locations').insert(ids.map(location_id => ({ team_id: teamId, location_id })))
+    if (error) console.error('setTeamLocations:', error)
+  }
 }
 export async function archiveTeam(id) {
   const { error } = await supabase.from('teams').update({ archived_at: new Date().toISOString() }).eq('id', id)

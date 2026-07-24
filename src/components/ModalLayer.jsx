@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { uid, TEAM_COLORS, nextTeamColor, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "../constants.js";
-import { createTeam, orgCreateTeam, updateTeam, createPlayer, createStaff, updateStaff, createAsset, updateAsset, setAssetLocations, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, createSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
+import { createTeam, orgCreateTeam, updateTeam, setTeamLocations, createPlayer, createStaff, updateStaff, createAsset, updateAsset, setAssetLocations, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, createSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
 import { AutoTextarea } from "./ActivityConfigs.jsx";
 import { LocationChips } from "./NewLibraryScreen.jsx";
 
@@ -164,7 +164,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     if(asset)return{name:asset.name,sport:asset.sport||"General",locationIds:asset.locationIds||[]};
     if(coach)return{name:coach.name,role:coach.role||"Assistant Coach",inviteEmail:coach.inviteEmail||""};
     if(template)return{name:template.name,sport:template.sport||"General"};
-    if(editTeamData)return{name:editTeamData.name,sport:editTeamData.sport||"Basketball",colorPrimary:editTeamData.colorPrimary||""};
+    if(editTeamData)return{name:editTeamData.name,sport:editTeamData.sport||"Basketball",colorPrimary:editTeamData.colorPrimary||"",locationIds:editTeamData.locationIds||[]};
     // New org team defaults to the org's own sport (payload.orgSport, set
     // by TeamsListScreen from the org's own record) rather than whatever
     // sport this coach last touched personally -- Jax's ask.
@@ -202,7 +202,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
       else await createTeam(coachId,teamFields);
       await refreshTeams();
     }
-    if(t==="editTeam"){if(!f.name)return;await updateTeam(p.team.id,{name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||p.team.colorPrimary});await refreshTeams();}
+    if(t==="editTeam"){if(!f.name)return;await updateTeam(p.team.id,{name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||p.team.colorPrimary});await setTeamLocations(p.team.id,f.locationIds||[]);await refreshTeams();}
     if(t==="addPlayer"){if(!f.firstName)return;await createPlayer(p.teamId,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:f.positions||[],bats:f.bats||"",throws:f.throws||"",notes:f.notes||""});await refreshTeams();}
     if(t==="addCoach"){if(!f.name||!f.inviteEmail)return;await createStaff(p.teamId,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail});await refreshTeams();}
     if(t==="editCoach"){if(!f.name)return;if(!coach.userId&&!f.inviteEmail)return;await updateStaff(p.coach.id,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail||""});await refreshTeams();}
@@ -312,6 +312,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
                 {TEAM_COLORS.map(c=>(<button key={c} type="button" onClick={()=>set("colorPrimary",c)} style={{width:32,height:32,borderRadius:"50%",background:c,border:(f.colorPrimary||editTeamData.colorPrimary)===c?"3px solid var(--black)":"3px solid transparent",cursor:"pointer",padding:0}}/>))}
               </div>
             </div>
+            <LocationChips locations={(data.locations||[]).filter(l=>editTeamData.organizationId?l.organizationId===editTeamData.organizationId:l.ownerUserId===coachId)} selectedIds={f.locationIds||[]} onToggle={id=>set("locationIds",(f.locationIds||[]).includes(id)?(f.locationIds||[]).filter(x=>x!==id):[...(f.locationIds||[]),id])} label="Locations This Team Uses" emptyHint="No restriction set -- every location shows when building a practice for this team." selectedHint="Only the selected location(s) show when building a practice for this team."/>
           </div>
         )}
         {(modal.type==="editTemplate")&&(<div>

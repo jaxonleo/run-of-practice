@@ -754,6 +754,15 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const team=data.teams.find(t=>t.id===teamId)||null;
   const loc=data.locations.find(l=>l.id===locId)||null;
   const teamSport=(team&&team.sport)||"General";
+  // No locationIds set for the team = no restriction configured yet, shows
+  // every location (today's behavior, unchanged). The currently selected
+  // location is always kept in the option list even if it falls outside the
+  // team's set -- e.g. an already-scheduled practice booked before the
+  // team's locations were narrowed -- so the picker never silently hides
+  // the value it's currently showing.
+  const teamLocations=(!team||!team.locationIds||!team.locationIds.length)
+    ?data.locations
+    :data.locations.filter(l=>team.locationIds.includes(l.id)||l.id===locId);
   const filteredLib=data.activityLibrary.filter(a=>(a.sport||"General")===teamSport||(a.sport||"General")==="General");
   const teamTemplates=(data.templates||[]).filter(t=>(t.sport||"General")===teamSport||(t.sport||"General")==="General");
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
@@ -929,7 +938,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
         <div className={editP?"g2":undefined}>
           <div className="fld"><label className="lbl">Location</label>
             <select className="sel" value={locId} onChange={e=>setLocId(e.target.value)}>
-              {data.locations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
+              {teamLocations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </div>
           {editP&&<div className="fld"><label className="lbl">Start Time</label>

@@ -45,13 +45,13 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
 // ── LocationChips — multi-select for which locations a piece of equipment
 // is available at. No selection = travels with the coach (available
 // everywhere), same convention the schema uses (no asset_locations rows).
-export function LocationChips({locations,selectedIds,onToggle}){
+export function LocationChips({locations,selectedIds,onToggle,label,emptyHint,selectedHint}){
   if(!locations||locations.length===0)return null;
-  return(<div className="fld"><label className="lbl">Available At</label>
+  return(<div className="fld"><label className="lbl">{label||"Available At"}</label>
     <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:4}}>
       {locations.map(l=>(<button key={l.id} type="button" onClick={()=>onToggle(l.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:selectedIds.includes(l.id)?"var(--green)":"var(--s1)",color:selectedIds.includes(l.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{l.name}</button>))}
     </div>
-    <div style={{fontSize:11,color:"var(--td)"}}>{selectedIds.length===0?"Travels with you -- available at every location.":"Only available at the selected location(s)."}</div>
+    <div style={{fontSize:11,color:"var(--td)"}}>{selectedIds.length===0?(emptyHint||"Travels with you -- available at every location."):(selectedHint||"Only available at the selected location(s).")}</div>
   </div>);
 }
 
@@ -387,6 +387,13 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
   // moment a brand-new template's first save returns a real row.
   const isSaved=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(existingId||"");
   const loc=data.locations.find(l=>l.id===locId)||null;
+  // Same team-scoped Location filtering as Builder -- no default team, or a
+  // team with no locations assigned yet, shows every location; the current
+  // value always stays in the list even if it falls outside the team's set.
+  const defaultTeam=data.teams.find(t=>t.id===teamId)||null;
+  const teamLocations=(!defaultTeam||!defaultTeam.locationIds||!defaultTeam.locationIds.length)
+    ?data.locations
+    :data.locations.filter(l=>defaultTeam.locationIds.includes(l.id)||l.id===locId);
   const updAct=(id,ch)=>setActs(p=>p.map(a=>a.id===id?Object.assign({},a,ch):a));
   const updSt=(aid,sid,ch)=>setActs(p=>p.map(a=>a.id===aid?Object.assign({},a,{stations:a.stations.map(s=>s.id===sid?Object.assign({},s,ch):s)}):a));
   const remAct=id=>{setActs(p=>p.filter(a=>a.id!==id));if(lastAddedId===id)setLastAddedId(null);};
@@ -531,7 +538,7 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
       <div className="fld"><label className="lbl">Default Location</label>
         <select className="sel" value={locId} onChange={e=>setLocId(e.target.value)}>
           <option value="">None</option>
-          {data.locations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
+          {teamLocations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
       </div>
     </div>
