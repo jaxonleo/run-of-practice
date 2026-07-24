@@ -5,19 +5,26 @@ import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSe
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-// ── Drag-to-reorder for the practice/template activity list ──────────────────
-// Shared by BuilderScreen (App.jsx) and TemplateWorkspace (NewLibraryScreen.jsx)
-// so both builders get the same touch/mouse press-and-hold-then-slide
-// behavior instead of duplicating dnd-kit setup in each. TouchSensor's delay
-// is what makes this reliable on a touchscreen -- without it, a plain drag
-// listener would swallow the page's own vertical scroll the instant a finger
-// lands on a row; requiring a brief hold before a drag "arms" leaves a quick
-// finger-down-then-scroll gesture alone.
-export function useActivityDnd(setActs) {
-  const sensors = useSensors(
+// ── Drag-to-reorder ────────────────────────────────────────────────────────
+// Shared sensor config for every reorderable list in the app (practice/
+// template activities, drill library) so they all get the same touch/mouse
+// press-and-hold-then-slide behavior instead of duplicating dnd-kit setup
+// per screen. TouchSensor's delay is what makes this reliable on a
+// touchscreen -- without it, a plain drag listener would swallow the page's
+// own vertical scroll the instant a finger lands on a row; requiring a
+// brief hold before a drag "arms" leaves a quick finger-down-then-scroll
+// gesture alone.
+export function useDndSensors() {
+  return useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
   );
+}
+// For lists that are plain local React state (acts arrays in the practice/
+// template builders) -- reordering is just an in-memory arrayMove, nothing
+// to persist until the screen's own Save button is used.
+export function useActivityDnd(setActs) {
+  const sensors = useDndSensors();
   const onDragEnd = (event) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -30,6 +37,7 @@ export function useActivityDnd(setActs) {
   };
   return { sensors, onDragEnd };
 }
+export { arrayMove };
 export function ActivityDndContext({sensors,onDragEnd,items,children}){
   return (<DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
     <SortableContext items={items} strategy={verticalListSortingStrategy}>{children}</SortableContext>

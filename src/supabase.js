@@ -488,17 +488,12 @@ export async function createDrill(ownerUserId, { name, sport, duration, descript
   if (skillTagIds && skillTagIds.length) { const r = await syncDrillTags(data.id, skillTagIds); if (r.error) return { data, error: r.error } }
   return { data }
 }
-// Swaps two drills' position values -- used for the My Library up/down
-// reorder buttons (adjacent-swap, matching the pattern already used for
-// activities within a practice/template).
-export async function swapDrillPositions(idA, idB) {
-  const { data } = await supabase.from('activity_library').select('id, position').in('id', [idA, idB])
-  if (!data || data.length !== 2) return
-  const [a, b] = data
-  await Promise.all([
-    supabase.from('activity_library').update({ position: b.position }).eq('id', a.id),
-    supabase.from('activity_library').update({ position: a.position }).eq('id', b.id),
-  ])
+// Drag-to-reorder needs an arbitrary move (index 0 to index 5), not just an
+// adjacent swap -- orderedIds is the full new order for whatever subset was
+// reordered (e.g. one sport's drills within My Library), positions rewritten
+// to match that order's indices.
+export async function reorderDrills(orderedIds) {
+  await Promise.all(orderedIds.map((id, i) => supabase.from('activity_library').update({ position: i }).eq('id', id)))
 }
 export async function updateDrill(id, { name, sport, duration, description, coachingPoints, grouping, numGroups, equipment, skillTagIds }) {
   const { error } = await supabase.from('activity_library').update({

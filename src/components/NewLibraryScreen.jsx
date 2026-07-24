@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid, sumMins, localDateStr } from "../constants.js";
-import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
+import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
-import { archiveDrill, setDrillOrgShares, copyDrillToMyLibrary, saveTemplateTree, savePracticeTree, archiveTemplate, swapDrillPositions, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation } from "../supabase.js";
+import { archiveDrill, setDrillOrgShares, copyDrillToMyLibrary, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation } from "../supabase.js";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -660,6 +660,26 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const [isAdmin,setIsAdmin]=useState(false);
   useEffect(()=>{checkIsAdmin().then(setIsAdmin);},[]);
   const toggle=sport=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}));
+  // Drill-library drag-to-reorder is persisted server-side per drag (unlike
+  // the practice/template builders, where reordering is local state until an
+  // explicit Save) -- an optimistic per-sport override keeps the drop feeling
+  // instant instead of the row flying to its new spot and then snapping back
+  // until reorderDrills+refreshLibrary's round trip resolves. Cleared once
+  // that round trip lands, since data.activityLibrary should match by then.
+  const drillDndSensors=useDndSensors();
+  const [drillOrderOverride,setDrillOrderOverride]=useState({});
+  const onDrillDragEnd=sport=>async(event)=>{
+    const {active,over}=event;
+    if(!over||active.id===over.id)return;
+    const base=(drillOrderOverride[sport]||shelfDrills.filter(a=>(a.sport||"General")===sport).slice().sort((a,b)=>a.position-b.position).map(a=>a.id));
+    const oldIndex=base.indexOf(active.id),newIndex=base.indexOf(over.id);
+    if(oldIndex===-1||newIndex===-1)return;
+    const next=arrayMove(base,oldIndex,newIndex);
+    setDrillOrderOverride(p=>Object.assign({},p,{[sport]:next}));
+    await reorderDrills(next);
+    await refreshLibrary();
+    setDrillOrderOverride(p=>{const n=Object.assign({},p);delete n[sport];return n;});
+  };
   const myOrgs=data.myOrgs||[];
   // Public Library shown regardless of org membership (spec §3 -- public is
   // public), always first so it's the default Explore landing shelf.
@@ -795,12 +815,12 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           <span style={{fontSize:12,color:"var(--td)"}}>{shelfDrills.filter(a=>(a.sport||"General")===sport).length} drills {collapsed[sport]?"":"v"}</span>
         </button>
         {!collapsed[sport]&&(()=>{
-          const sportDrills=shelfDrills.filter(a=>(a.sport||"General")===sport).slice().sort((a,b)=>isMine?a.position-b.position:a.name.localeCompare(b.name));
-          return sportDrills.map((act,idx)=>(<div key={act.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderBottom:"1px solid var(--b)",background:"#fff"}}>
-            {isMine&&<div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
-              <button onClick={async()=>{if(idx>0){await swapDrillPositions(act.id,sportDrills[idx-1].id);await refreshLibrary();}}} disabled={idx===0} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:idx===0?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8593;</button>
-              <button onClick={async()=>{if(idx<sportDrills.length-1){await swapDrillPositions(act.id,sportDrills[idx+1].id);await refreshLibrary();}}} disabled={idx===sportDrills.length-1} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:idx===sportDrills.length-1?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8595;</button>
-            </div>}
+          const naturalOrder=shelfDrills.filter(a=>(a.sport||"General")===sport).slice().sort((a,b)=>isMine?a.position-b.position:a.name.localeCompare(b.name));
+          const sportDrills=(isMine&&drillOrderOverride[sport])
+            ?drillOrderOverride[sport].map(id=>naturalOrder.find(a=>a.id===id)).filter(Boolean)
+            :naturalOrder;
+          const Row=({act,dragHandle})=>(<div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderBottom:"1px solid var(--b)",background:"#fff"}}>
+            {dragHandle}
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
                 <span style={{fontWeight:700,fontSize:14}}>{act.name}</span>
@@ -828,7 +848,11 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
                 {myOrgs.map(org=>(<button key={org.id} className="mm-item" onClick={()=>toggleShare(act.id,org.id)}>{(act.sharedWithOrganizationIds||[]).includes(org.id)?"✓ ":""}{org.name}</button>))}
               </div>}
             </div>}
-          </div>));
+          </div>);
+          if(!isMine)return sportDrills.map(act=>(<Row key={act.id} act={act} dragHandle={null}/>));
+          return (<ActivityDndContext sensors={drillDndSensors} onDragEnd={onDrillDragEnd(sport)} items={sportDrills.map(a=>a.id)}>
+            {sportDrills.map(act=>(<SortableActivityRow key={act.id} id={act.id}>{dragHandle=><Row act={act} dragHandle={dragHandle}/>}</SortableActivityRow>))}
+          </ActivityDndContext>);
         })()}
       </div>))}
       </>)}
