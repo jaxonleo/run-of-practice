@@ -399,6 +399,29 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
 
+  // A template activity is a snapshot of the drill at add-time (by design --
+  // see the handoff note above on TemplateWorkspace not doing live drill
+  // references), so it silently drifts from the library drill's current
+  // fields whenever that drill gets edited afterward. Rather than either
+  // auto-syncing (would clobber an intentionally-customized field) or
+  // staying silent (a coach has no way to notice), flag the drift and let
+  // the coach decide per activity.
+  const drillById=Object.fromEntries((data.activityLibrary||[]).map(d=>[d.id,d]));
+  const idsEqual=(a,b)=>{const sa=[...(a||[])].sort(),sb=[...(b||[])].sort();return sa.length===sb.length&&sa.every((v,i)=>v===sb[i]);};
+  const isStale=act=>{
+    if(act.type!=="activity"||!act.libraryId)return false;
+    const d=drillById[act.libraryId];
+    if(!d)return false;
+    return act.name!==d.name||(act.duration||0)!==(d.duration||0)||(act.description||"")!==(d.description||"")||(act.coachingPoints||"")!==(d.coachingPoints||"")||(act.grouping||"whole")!==(d.grouping||"whole")||(act.numGroups||2)!==(d.numGroups||2)||(act.playerGear||"")!==(d.playerGear||"")||!idsEqual(act.equipment,d.equipment);
+  };
+  const refreshFromLibrary=act=>{
+    const d=drillById[act.libraryId];
+    if(!d)return;
+    updAct(act.id,{name:d.name,duration:d.duration,description:d.description||"",coachingPoints:d.coachingPoints||"",grouping:d.grouping||"whole",numGroups:d.numGroups||2,playerGear:d.playerGear||"",equipment:Array.isArray(d.equipment)?d.equipment:[]});
+    setStaleMenuId(null);
+  };
+  const [staleMenuId,setStaleMenuId]=useState(null);
+
   // Dirty-tracking mirrors BuilderScreen's savedSnapshotRef pattern -- lets
   // Save Template gray out when there's nothing to save, and lets Back/
   // Build Practice from Template warn before silently discarding edits
@@ -529,6 +552,16 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
             </div>}
           </div>
           <div className="row">
+            {act.type==="activity"&&isStale(act)&&<div style={{position:"relative"}}>
+              <button type="button" onClick={e=>{e.stopPropagation();setStaleMenuId(staleMenuId===act.id?null:act.id);}} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 2px",display:"flex",alignItems:"center"}} aria-label="Drill updated since added" title="This drill has changed in your library since it was added here">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 2L18.5 17H1.5L10 2Z" fill="#f59e0b" stroke="#b45309" strokeWidth="1" strokeLinejoin="round"/><rect x="9.1" y="7.5" width="1.8" height="5" rx="0.9" fill="#fff"/><rect x="9.1" y="13.3" width="1.8" height="1.8" rx="0.9" fill="#fff"/></svg>
+              </button>
+              {staleMenuId===act.id&&<div className="mini-menu" style={{right:0,minWidth:220,padding:10}} onClick={e=>e.stopPropagation()}>
+                <div style={{fontSize:12,color:"var(--td)",marginBottom:8,lineHeight:1.4}}>This drill has changed in your library since it was added here.</div>
+                <button type="button" className="btn primary bxs bfull" style={{marginBottom:6}} onClick={()=>refreshFromLibrary(act)}>Refresh to Latest</button>
+                <button type="button" className="btn ghost bxs bfull" onClick={()=>setStaleMenuId(null)}>Keep This Version</button>
+              </div>}
+            </div>}
             {act.type!=="station_block"&&<span className="bdg bp">{act.duration}m</span>}
             {act.type==="station_block"&&<span className="bdg bp">{act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*(act.transitionDuration||0):0)}m</span>}
             <button className="btn danger bxs" onClick={e=>{e.stopPropagation();remAct(act.id);}}>×</button>
