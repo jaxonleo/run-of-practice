@@ -546,9 +546,12 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
     <div className="sechdr mb8"><span className="sectitle">{acts.length} Activities</span><span className="pill">{sumMins(acts)}m</span></div>
 
     <ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
-    {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId}>{dragHandle=>(<div>
+    {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId&&expandedId!==act.id}>{dragHandle=>(<div>
       <div className="ablk">
-        <div className="abhdr" onClick={()=>setExpandedId(expandedId===act.id?null:act.id)}>
+        {/* See BuilderScreen's identical comment -- expanding a just-added
+            station block (very tall once open) used to stay pinned via the
+            sticky feedback, making scrolling past it feel broken. */}
+        <div className="abhdr" onClick={()=>{const willExpand=expandedId!==act.id;setExpandedId(willExpand?act.id:null);if(willExpand&&act.id===lastAddedId)setLastAddedId(null);}}>
           {dragHandle}
           <div style={{flex:1,minWidth:0}}>
             <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>

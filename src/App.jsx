@@ -957,9 +957,16 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
         </div>
       )}
       <ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
-      {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId} stickyTop={stickyHeaderH}>{dragHandle=>(<div>
+      {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId&&expandedId!==act.id} stickyTop={stickyHeaderH}>{dragHandle=>(<div>
           <div className="ablk">
-            <div className="abhdr" onClick={()=>setExpandedId(expandedId===act.id?null:act.id)}>
+            {/* Expanding a just-added row (especially a station block, which
+                can be very tall once open) used to stay pinned via the
+                sticky feedback above -- taller than the viewport, so
+                scrolling past it felt broken. Expanding it means the coach
+                has already seen the "it was added" confirmation, so drop
+                the sticky treatment for good rather than just suppressing
+                it while open. */}
+            <div className="abhdr" onClick={()=>{const willExpand=expandedId!==act.id;setExpandedId(willExpand?act.id:null);if(willExpand&&act.id===lastAddedId)setLastAddedId(null);}}>
               {dragHandle}
               <div style={{flex:1,minWidth:0}}>
                 <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
