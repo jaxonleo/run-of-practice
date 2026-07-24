@@ -646,7 +646,7 @@ export default function LandingPage({ onGetStarted }) {
       </div>
       <div style={{ fontSize: 12, color: "var(--td)", marginTop: 12 }}>Free during early access.</div>
       <div style={{ marginTop: 34, display: "flex", justifyContent: "center" }}>
-        <img src="/icon.svg" alt="Run of Practice" width="220" height="220" style={{ width: 220, height: 220, maxWidth: "55%", borderRadius: 44, boxShadow: "0 24px 50px rgba(0,0,0,.35)" }} />
+        <img src="/icon-512.png" alt="Run of Practice" width="220" height="220" style={{ width: 220, height: 220, maxWidth: "55%", borderRadius: 44, boxShadow: "0 24px 50px rgba(0,0,0,.35)" }} />
       </div>
     </div>
 
