@@ -11,7 +11,7 @@ import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOt
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode } from "./constants.js";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab } from "./components/NewLibraryScreen.jsx";
-import { ActConfig, ChecklistConfig, StationConfig } from "./components/ActivityConfigs.jsx";
+import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView } from "./components/CommandScreen.jsx";
 import HomeScreen from "./components/HomeScreen.jsx";
 import ScheduleScreen from "./components/ScheduleScreen.jsx";
@@ -556,8 +556,8 @@ function HomeRoute(){
 }
 
 function LibraryRoute(){
-  const {data,update,openModal,goToBuilder,refreshLibrary,coachId,refreshPlanning,mode}=useAppCtx();
-  return <NewLibraryScreen data={data} update={update} openModal={openModal} goToBuilder={goToBuilder} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} coachId={coachId} mode={mode}/>;
+  const {data,update,openModal,goToBuilder,goToRun,refreshLibrary,coachId,refreshPlanning,mode}=useAppCtx();
+  return <NewLibraryScreen data={data} update={update} openModal={openModal} goToBuilder={goToBuilder} goToRun={goToRun} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} coachId={coachId} mode={mode}/>;
 }
 
 function TeamsRoute(){
@@ -644,11 +644,11 @@ function TeamGoalsRoute(){
 function TeamBuildRoute(){
   const {teamId}=useParams();
   const navigate=useNavigate();
-  const {data,coachId,goToBuilder,openModal,refreshLibrary,refreshPlanning}=useAppCtx();
+  const {data,coachId,goToBuilder,goToRun,openModal,refreshLibrary,refreshPlanning}=useAppCtx();
   const team=data.teams.find(t=>t.id===teamId);
   useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
   if(!team)return null;
-  return <BuildTab data={data} team={team} coachId={coachId} goToBuilder={goToBuilder} openModal={openModal} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning}/>;
+  return <BuildTab data={data} team={team} coachId={coachId} goToBuilder={goToBuilder} goToRun={goToRun} openModal={openModal} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning}/>;
 }
 
 function BuilderRoute(){
@@ -709,7 +709,6 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const [showScheduleModal,setShowScheduleModal]=useState(false);
   const [schedSuccess,setSchedSuccess]=useState(false);
   const [showTplPicker,setShowTplPicker]=useState(false);
-  const dragIdx=useRef(null);
   // Snapshot of what's actually persisted, so the router blocker (and the
   // beforeunload guard below) can warn before discarding edits that only
   // exist in this component's state. Replaces the old App-level
@@ -759,12 +758,20 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   // out in advance -- the coach can still tap them back in per-activity.
   const defaultAssignIds=allPlayerIds.filter(id=>!absentPlayerIds.has(id));
   const totalMins=sumMins(acts);
+  // Tracks the single most-recently-added row so it can be pinned to the
+  // top of the screen (SortableActivityRow's `sticky` prop) as tap
+  // feedback -- a coach deep in the library list below otherwise adds a
+  // drill with no visual confirmation it landed, since the activities list
+  // it was appended to has long since scrolled out of view above.
+  const [lastAddedId,setLastAddedId]=useState(null);
   const addAct=lib=>{
-    setActs(p=>[...p,{id:uid(),type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:defaultAssignIds,coachId:headCoachId,sublocationId:"",notes:"",description:lib.description||"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);
+    const id=uid();
+    setActs(p=>[...p,{id,type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:defaultAssignIds,coachId:headCoachId,sublocationId:"",notes:"",description:lib.description||"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);
+    setLastAddedId(id);
   };
   const addChecklist=isClose=>{
     const a={id:uid(),type:"checklist",name:isClose?"Closer":"Intro",duration:5,assignments:defaultAssignIds,coachId:headCoachId,items:[],notes:""};
-    setActs(p=>[...p,a]);setExpandedId(a.id);
+    setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
   };
   const addBlock=()=>{
     const n=2;const groups=mkGroups(defaultAssignIds,n);
@@ -772,15 +779,12 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
       {id:uid(),name:"Station 1",activityName:"",coachId:headCoachId,sublocationId:"",assignments:groups[0]||[],coachingPoints:"",equipment:[],playerGear:""},
       {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:groups[1]||[],coachingPoints:"",equipment:[],playerGear:""},
     ]};
-    setActs(p=>[...p,b]);setExpandedId(b.id);
+    setActs(p=>[...p,b]);setExpandedId(b.id);setLastAddedId(b.id);
   };
-  const remAct=id=>setActs(p=>p.filter(a=>a.id!==id));
+  const remAct=id=>{setActs(p=>p.filter(a=>a.id!==id));if(lastAddedId===id)setLastAddedId(null);};
   const updAct=(id,ch)=>setActs(p=>p.map(a=>a.id===id?Object.assign({},a,ch):a));
   const updSt=(aid,sid,ch)=>setActs(p=>p.map(a=>a.id===aid?Object.assign({},a,{stations:a.stations.map(s=>s.id===sid?Object.assign({},s,ch):s)}):a));
-  const onDS=(e,i)=>{dragIdx.current=i;e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",String(i));};
-  const onDO=e=>{e.preventDefault();e.dataTransfer.dropEffect="move";};
-  const onDrop=(e,i)=>{e.preventDefault();if(dragIdx.current===null||dragIdx.current===i){dragIdx.current=null;return;}setActs(p=>{const arr=[...p],[mv]=arr.splice(dragIdx.current,1);arr.splice(i,0,mv);return arr;});dragIdx.current=null;};
-  const onDE=()=>{dragIdx.current=null;};
+  const {sensors:dndSensors,onDragEnd:onActDragEnd}=useActivityDnd(setActs);
   const doSchedule=async(dateVal,timeVal)=>{
     if(!dateVal)return;
     const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:dateVal,startTime:timeVal||"",timezone:team&&team.timezone,activities:acts});
@@ -903,13 +907,11 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
           <span className="pill">{totalMins}m</span>
         </div>
       )}
-      {acts.map((act,i)=>(<div key={act.id}>
+      <ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
+      {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId}>{dragHandle=>(<div>
           <div className="ablk">
             <div className="abhdr" onClick={()=>setExpandedId(expandedId===act.id?null:act.id)}>
-              <div style={{display:"flex",flexDirection:"column",gap:2,marginRight:6,flexShrink:0}}>
-                <button onClick={e=>{e.stopPropagation();if(i>0)setActs(p=>{const a=[...p];[a[i-1],a[i]]=[a[i],a[i-1]];return a;});}} disabled={i===0} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===0?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8593;</button>
-                <button onClick={e=>{e.stopPropagation();if(i<acts.length-1)setActs(p=>{const a=[...p];[a[i],a[i+1]]=[a[i+1],a[i]];return a;});}} disabled={i===acts.length-1} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===acts.length-1?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8595;</button>
-              </div>
+              {dragHandle}
               <div style={{flex:1,minWidth:0}}>
                 <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                   {act.type==="station_block"?"Station Block":act.name}
@@ -923,14 +925,15 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
               </div>
             </div>
             {expandedId===act.id&&(<div className="abbody">
-                {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
+                {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} sport={teamSport} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
                 {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
                 {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
               </div>
             )}
           </div>
-        </div>
+        </div>)}</SortableActivityRow>
       ))}
+      </ActivityDndContext>
       <div style={{borderTop:"1px solid var(--b)",paddingTop:14}}>
         <div className="sechdr mb8"><span className="sectitle">Add Drills</span><div className="row"><button className="btn ghost bxs" onClick={()=>openModal("addActivity")}>+ New Activity</button></div></div>
         <div className="g2" style={{marginBottom:6}}>

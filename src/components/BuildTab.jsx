@@ -22,7 +22,7 @@ import { TemplateWorkspace } from "./NewLibraryScreen.jsx";
 // interactions (edit, delete, skill tags, template editing) scoped to this
 // team's sport, so a coach never has to leave the team to manage what they
 // see here.
-export function BuildTab({data,team,coachId,goToBuilder,openModal,refreshLibrary,refreshPlanning}){
+export function BuildTab({data,team,coachId,goToBuilder,goToRun,openModal,refreshLibrary,refreshPlanning}){
   const teamSport=team.sport||"General";
   const templates=(data.templates||[]).filter(t=>(t.sport||"General")===teamSport);
   const defaultTpl=templates.find(t=>t.defaultTeamId===team.id);
@@ -37,7 +37,7 @@ export function BuildTab({data,team,coachId,goToBuilder,openModal,refreshLibrary
   const [newTplNameDraft,setNewTplNameDraft]=useState("");
   const [confirmDelTpl,setConfirmDelTpl]=useState(null);
 
-  if(editingTpl)return(<TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>goToBuilder(null,tplId,team.id)}/>);
+  if(editingTpl)return(<TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>goToBuilder(null,tplId,team.id)} onRunNow={goToRun}/>);
 
   const createNewTpl=()=>{
     if(!newTplNameDraft.trim())return;

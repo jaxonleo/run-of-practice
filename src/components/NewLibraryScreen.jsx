@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { uid, sumMins } from "../constants.js";
-import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
+import React, { useState, useEffect, useRef } from "react";
+import { uid, sumMins, localDateStr } from "../constants.js";
+import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
-import { archiveDrill, setDrillOrgShares, copyDrillToMyLibrary, saveTemplateTree, archiveTemplate, swapDrillPositions, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, archiveAsset, archiveLocation, createOrgLocation } from "../supabase.js";
+import { archiveDrill, setDrillOrgShares, copyDrillToMyLibrary, saveTemplateTree, savePracticeTree, archiveTemplate, swapDrillPositions, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation } from "../supabase.js";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -42,13 +42,29 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
   </div>);
 }
 
+// ── LocationChips — multi-select for which locations a piece of equipment
+// is available at. No selection = travels with the coach (available
+// everywhere), same convention the schema uses (no asset_locations rows).
+export function LocationChips({locations,selectedIds,onToggle}){
+  if(!locations||locations.length===0)return null;
+  return(<div className="fld"><label className="lbl">Available At</label>
+    <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:4}}>
+      {locations.map(l=>(<button key={l.id} type="button" onClick={()=>onToggle(l.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:selectedIds.includes(l.id)?"var(--green)":"var(--s1)",color:selectedIds.includes(l.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{l.name}</button>))}
+    </div>
+    <div style={{fontSize:11,color:"var(--td)"}}>{selectedIds.length===0?"Travels with you -- available at every location.":"Only available at the selected location(s)."}</div>
+  </div>);
+}
+
 // ── GearEditRow — inline edit for a player gear item ─────────────────────────
-function GearEditRow({asset,refreshLibrary,onDone}){
+function GearEditRow({asset,locations,refreshLibrary,onDone}){
   const [name,setName]=useState(asset.name);
   const [sport,setSport]=useState(asset.sport||"General");
+  const [locationIds,setLocationIds]=useState(asset.locationIds||[]);
+  const toggleLoc=id=>setLocationIds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
   const save=async()=>{
     if(!name.trim())return;
     await updateAsset(asset.id,{name:name.trim(),sport});
+    await setAssetLocations(asset.id,locationIds);
     await refreshLibrary();
     onDone();
   };
@@ -61,6 +77,7 @@ function GearEditRow({asset,refreshLibrary,onDone}){
         </select>
       </div>
     </div>
+    <LocationChips locations={locations} selectedIds={locationIds} onToggle={toggleLoc}/>
     <div className="brow"><button className="btn ghost bxs" onClick={onDone}>Cancel</button><button className="btn primary bxs" onClick={save} disabled={!name.trim()}>Save</button></div>
   </div>);
 }
@@ -96,23 +113,68 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
   const [openMenu,setOpenMenu]=useState(null);
   const [newName,setNewName]=useState("");
   const [newSport,setNewSport]=useState(sportFilter||"General");
+  const [newLocationIds,setNewLocationIds]=useState([]);
+  const toggleNewLoc=id=>setNewLocationIds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
   const [showAdd,setShowAdd]=useState(false);
   const [collapsed,setCollapsed]=useState({});
   const isOrgMode=mode&&mode.type==="org";
+  const myLocations=(data.locations||[]).filter(l=>isOrgMode?l.organizationId===mode.orgId:l.ownerUserId===coachId);
   const baseAssets=sportFilter
     ?(data.assets||[]).filter(a=>(a.sport||"General")===sportFilter||(a.sport||"General")==="General")
     :visibleEquipment(data,coachId,mode);
   const teamAssets=baseAssets.filter(a=>!a.type||a.type==="team");
   const playerAssets=baseAssets.filter(a=>a.type==="player");
+  const locNames=ids=>(ids||[]).map(id=>{const l=myLocations.find(l=>l.id===id);return l?l.name:null;}).filter(Boolean);
   const addNew=async()=>{
     if(!newName.trim())return;
-    const sport=equipTab==="player"?newSport:(sportFilter||"General");
-    if(isOrgMode&&!sportFilter)await createOrgAsset(mode.orgId,{name:newName.trim(),type:equipTab,sport});
-    else await createAsset(coachId,{name:newName.trim(),type:equipTab,sport});
+    const sport=(equipTab==="player"||!sportFilter)?newSport:sportFilter;
+    let created=null;
+    if(isOrgMode&&!sportFilter){const {data:d}=await createOrgAsset(mode.orgId,{name:newName.trim(),type:equipTab,sport});created=d;}
+    else{const {data:d}=await createAsset(coachId,{name:newName.trim(),type:equipTab,sport});created=d;}
+    if(created&&newLocationIds.length)await setAssetLocations(created.id,newLocationIds);
     await refreshLibrary();
-    setNewName("");setShowAdd(false);
+    setNewName("");setNewLocationIds([]);setShowAdd(false);
   };
   const del=async id=>{await archiveAsset(id);await refreshLibrary();};
+  const AssetRow=({a,borderBottom,onEdit})=>{
+    const locs=locNames(a.locationIds);
+    return(<div className="li" style={{position:"relative",marginBottom:borderBottom===undefined?6:0,borderBottom,borderRadius:borderBottom!==undefined?0:undefined}}>
+      <div className="lim">
+        <div className="lin">{a.name}</div>
+        {locs.length>0&&<div className="limt">📍 {locs.join(", ")}</div>}
+      </div>
+      <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
+      {openMenu===a.id&&<div className="mini-menu">
+        <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);(onEdit||(()=>openModal("editAsset",{asset:a})))();}}>Edit</button>
+        <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
+      </div>}
+    </div>);
+  };
+  // Grouped by sport whenever the sport isn't already fixed by context
+  // (sportFilter) -- keeps the unfiltered Library/Org equipment screen from
+  // dumping every sport's gear into one noisy flat list, same treatment
+  // Player Gear already had.
+  const BySportList=({items,prefix,renderRow})=>{
+    if(!sportFilter){
+      const bySport={};
+      items.forEach(a=>{const s=a.sport||"General";if(!bySport[s])bySport[s]=[];bySport[s].push(a);});
+      const sportKeys=Object.keys(bySport).sort();
+      return sportKeys.map(sport=>{
+        const isCollapsed=collapsed[prefix+sport];
+        const its=bySport[sport];
+        return(<div key={sport} style={{marginBottom:8}}>
+          <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[prefix+sport]:!c[prefix+sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:isCollapsed?"var(--r)":"var(--r) var(--r) 0 0",cursor:"pointer"}}>
+            <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--black)"}}>{sport}</span>
+            <span style={{fontSize:12,color:"var(--td)"}}>{its.length} item{its.length!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
+          </button>
+          {!isCollapsed&&<div style={{border:"1px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)"}}>
+            {its.map((a,i)=>renderRow(a,i<its.length-1?"1px solid var(--b)":"none"))}
+          </div>}
+        </div>);
+      });
+    }
+    return items.map(a=>renderRow(a));
+  };
   return(<div onClick={()=>setOpenMenu(null)}>
     {!forceType&&<div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:16}}>
       {["team","player"].map(t=>(<button key={t} onClick={()=>{setEquipTabState(t);setShowAdd(false);}} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:equipTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:equipTab===t?"var(--black)":"var(--td)"}}>{t==="team"?"Team Equipment":"Player Gear"}</button>))}
@@ -124,20 +186,19 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
         <button className="btn primary bsm" onClick={()=>setShowAdd(s=>!s)}>+ Add</button>
       </div>
       {showAdd&&<div className="card mb10">
-        <div className="fld"><label className="lbl">Equipment Name</label><input className="inp" autoFocus placeholder="e.g. Ball Rack" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNew()}/></div>
-        <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowAdd(false)}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
+        <div className={sportFilter?undefined:"g2"}>
+          <div className="fld"><label className="lbl">Equipment Name</label><input className="inp" autoFocus placeholder="e.g. Ball Rack" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNew()}/></div>
+          {!sportFilter&&<div className="fld"><label className="lbl">Sport</label>
+            <select className="sel" value={newSport} onChange={e=>setNewSport(e.target.value)}>
+              {["General","Baseball","Basketball","Football","Soccer","Softball","Lacrosse","Hockey","Volleyball","Tennis","Swimming","Other"].map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>}
+        </div>
+        <LocationChips locations={myLocations} selectedIds={newLocationIds} onToggle={toggleNewLoc}/>
+        <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowAdd(false);setNewLocationIds([]);}}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
       </div>}
       {teamAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No team equipment yet.</div>}
-      {teamAssets.map(a=>(<div key={a.id} className="li" style={{position:"relative",marginBottom:6}}>
-        <div className="lim">
-          <div className="lin">{a.name}</div>
-        </div>
-        <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
-        {openMenu===a.id&&<div className="mini-menu">
-          <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editAsset",{asset:a});}}>Edit</button>
-          <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
-        </div>}
-      </div>))}
+      <BySportList items={teamAssets} prefix="te_" renderRow={(a,borderBottom)=><AssetRow key={a.id} a={a} borderBottom={borderBottom}/>}/>
     </div>}
 
     {equipTab==="player"&&<div>
@@ -154,7 +215,8 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
             </select>
           </div>
         </div>
-        <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowAdd(false);setNewName("");}}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
+        <LocationChips locations={myLocations} selectedIds={newLocationIds} onToggle={toggleNewLoc}/>
+        <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowAdd(false);setNewName("");setNewLocationIds([]);}}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
       </div>}
       {playerAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>
         <div style={{marginBottom:8}}>No player gear yet.</div>
@@ -176,15 +238,8 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
               {items.map((a,i)=>{
                 const isEditing=openMenu==="edit_"+a.id;
                 return(<div key={a.id}>
-                  {!isEditing&&<div className="li" style={{position:"relative",borderBottom:i<items.length-1?"1px solid var(--b)":"none",borderRadius:0}}>
-                    <div className="lim"><div className="lin">{a.name}</div></div>
-                    <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
-                    {openMenu===a.id&&<div className="mini-menu">
-                      <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu("edit_"+a.id);}}>Edit</button>
-                      <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
-                    </div>}
-                  </div>}
-                  {isEditing&&<GearEditRow asset={a} refreshLibrary={refreshLibrary} onDone={()=>setOpenMenu(null)}/>}
+                  {!isEditing&&<AssetRow a={a} borderBottom={i<items.length-1?"1px solid var(--b)":"none"} onEdit={()=>setOpenMenu("edit_"+a.id)}/>}
+                  {isEditing&&<GearEditRow asset={a} locations={myLocations} refreshLibrary={refreshLibrary} onDone={()=>setOpenMenu(null)}/>}
                 </div>);
               })}
             </div>}
@@ -273,7 +328,7 @@ export function SkillsTab({data,coachId,refreshLibrary,isAdmin,mode}){
               </div>
               <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
                 {catTags.map(t=>(<span key={t.id} className="bdg bs" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 6px 4px 10px"}}>
-                  {t.name}{t.scope==="global"&&<span style={{opacity:.6,fontSize:10}}>(global)</span>}
+                  {t.name}
                   <button type="button" onClick={()=>del(t.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--td)",fontSize:14,lineHeight:1,padding:"0 2px"}}>×</button>
                 </span>))}
                 {catTags.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No tags yet</span>}
@@ -308,11 +363,12 @@ export function SkillsTab({data,coachId,refreshLibrary,isAdmin,mode}){
 // though it's optional -- defaults to "" (None), never auto-picked, so a
 // coach's explicit "None" choice sticks across reopens instead of reverting.
 // This screen is purely for building/editing the template itself -- no
-// Run Now/Schedule here. Turning a template into an actual practice is a
-// separate "Start from Template" action (once the template has been saved)
-// that hands off to Builder as a brand-new, non-editing practice seeded
-// with the template's activities.
-export function TemplateWorkspace({data,template,onBack,openModal,coachId,refreshLibrary,refreshPlanning,onStartFromTemplate}){
+// Schedule here. Turning a template into an actual practice happens two
+// ways: "Build Practice from Template" (once saved) hands off to Builder as
+// a brand-new, non-editing practice seeded with the template's activities;
+// "Run Now" skips Builder and launches a live session directly from
+// whatever's currently in the editor, saved or not.
+export function TemplateWorkspace({data,template,onBack,openModal,coachId,refreshLibrary,refreshPlanning,onStartFromTemplate,onRunNow}){
   const [name,setName]=useState(template.name);
   const [sport,setSport]=useState(template.sport||"General");
   const [teamId,setTeamId]=useState(template.defaultTeamId||"");
@@ -323,6 +379,8 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
   const [savedMsg,setSavedMsg]=useState(null);
   const [newTplName,setNewTplName]=useState("");
   const [showNewTpl,setShowNewTpl]=useState(false);
+  const [confirmLeave,setConfirmLeave]=useState(null); // null | "startFromTemplate"
+  const [runBusy,setRunBusy]=useState(false);
   // A freshly-created template placeholder (from "+ New Template") has a
   // locally-generated uid(), not a real UUID -- checked live off existingId
   // (not frozen at mount) so Save as New/Start from Template appear the
@@ -331,12 +389,37 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
   const loc=data.locations.find(l=>l.id===locId)||null;
   const updAct=(id,ch)=>setActs(p=>p.map(a=>a.id===id?Object.assign({},a,ch):a));
   const updSt=(aid,sid,ch)=>setActs(p=>p.map(a=>a.id===aid?Object.assign({},a,{stations:a.stations.map(s=>s.id===sid?Object.assign({},s,ch):s)}):a));
-  const remAct=id=>setActs(p=>p.filter(a=>a.id!==id));
+  const remAct=id=>{setActs(p=>p.filter(a=>a.id!==id));if(lastAddedId===id)setLastAddedId(null);};
+  const {sensors:dndSensors,onDragEnd:onActDragEnd}=useActivityDnd(setActs);
+  // See BuilderScreen's identical field for why this exists -- pins the
+  // just-tapped drill to the top of the screen as tap feedback while
+  // scrolled deep in the "Add to Template" picker below.
+  const [lastAddedId,setLastAddedId]=useState(null);
   const equipNames=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
+  const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
+  const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
+
+  // Dirty-tracking mirrors BuilderScreen's savedSnapshotRef pattern -- lets
+  // Save Template gray out when there's nothing to save, and lets Back/
+  // Build Practice from Template warn before silently discarding edits
+  // (previously this screen had no such guard at all).
+  const snapshot=()=>JSON.stringify({name,sport,teamId,locId,acts});
+  const savedSnapshotRef=useRef();
+  if(savedSnapshotRef.current===undefined)savedSnapshotRef.current=snapshot();
+  const [dirty,setDirty]=useState(false);
+  useEffect(()=>{setDirty(snapshot()!==savedSnapshotRef.current);},[name,sport,teamId,locId,acts]);
+  useEffect(()=>{
+    if(!dirty)return;
+    const onBeforeUnload=e=>{e.preventDefault();e.returnValue="";};
+    window.addEventListener("beforeunload",onBeforeUnload);
+    return()=>window.removeEventListener("beforeunload",onBeforeUnload);
+  },[dirty]);
 
   const handleSave=async()=>{
     const {data:saved}=await saveTemplateTree(coachId,existingId,{name,sport,locationId:locId,teamId,activities:acts});
     if(saved)setExistingId(saved.id);
+    savedSnapshotRef.current=snapshot();
+    setDirty(false);
     await refreshPlanning();
     setSavedMsg("Template saved!");
     setTimeout(()=>setSavedMsg(null),2000);
@@ -351,10 +434,47 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
     setTimeout(()=>setSavedMsg(null),2000);
   };
 
+  const handleBack=()=>{
+    if(dirty&&!window.confirm("You have unsaved changes to this template. Leave without saving?"))return;
+    onBack();
+  };
+
+  // "Build Practice from Template" hands off to Builder using whatever's
+  // currently persisted for this template (stripIdsForCopy happens on the
+  // Builder side) -- if there are in-editor edits that were never saved,
+  // Builder would silently start from the old, saved version, so this
+  // confirms first rather than losing them without warning.
+  const goBuildPractice=()=>{
+    if(dirty){setConfirmLeave("startFromTemplate");return;}
+    onStartFromTemplate&&onStartFromTemplate(existingId);
+  };
+  const confirmSaveAndContinue=async()=>{
+    await handleSave();
+    setConfirmLeave(null);
+    onStartFromTemplate&&onStartFromTemplate(existingId);
+  };
+  const confirmDiscardAndContinue=()=>{
+    setConfirmLeave(null);
+    onStartFromTemplate&&onStartFromTemplate(existingId);
+  };
+
+  // Run Now skips Builder entirely -- spins up a one-off practice straight
+  // from whatever's in the editor right now (saved or not) and jumps into
+  // a live session, same as Builder's own Run Now. Doesn't touch the
+  // template row, so there's no unsaved-changes risk to warn about here.
+  const handleRunNow=async()=>{
+    if(!teamId||runBusy)return;
+    setRunBusy(true);
+    const team=data.teams.find(t=>t.id===teamId);
+    const {data:saved}=await savePracticeTree(null,{teamId,locationId:locId,date:localDateStr(),startTime:new Date().toTimeString().slice(0,5),timezone:team&&team.timezone,activities:acts});
+    setRunBusy(false);
+    if(saved&&onRunNow)onRunNow(saved.id);
+  };
+
   return (<div style={{paddingBottom:100}}>
     {/* Header */}
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-      <button className="btn ghost bxs" onClick={onBack}>Back</button>
+      <button className="btn ghost bxs" onClick={handleBack}>Back</button>
       <div style={{flex:1,minWidth:0}}>
         <input className="inp" value={name} onChange={e=>setName(e.target.value)} style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,border:"none",background:"transparent",padding:0,width:"100%"}}/>
       </div>
@@ -370,7 +490,12 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
           </select>
         </div>
         <div className="fld"><label className="lbl">Default Team</label>
-          <select className="sel" value={teamId} onChange={e=>setTeamId(e.target.value)}>
+          <select className="sel" value={teamId} onChange={e=>{
+            const tid=e.target.value;
+            setTeamId(tid);
+            const t=data.teams.find(t=>t.id===tid);
+            if(t&&t.sport)setSport(t.sport);
+          }}>
             <option value="">None</option>
             {data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
@@ -386,13 +511,11 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
 
     <div className="sechdr mb8"><span className="sectitle">{acts.length} Activities</span><span className="pill">{sumMins(acts)}m</span></div>
 
-    {acts.map((act,i)=>(<div key={act.id}>
+    <ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
+    {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId}>{dragHandle=>(<div>
       <div className="ablk">
         <div className="abhdr" onClick={()=>setExpandedId(expandedId===act.id?null:act.id)}>
-          <div style={{display:"flex",flexDirection:"column",gap:2,marginRight:6,flexShrink:0}}>
-            <button onClick={e=>{e.stopPropagation();if(i>0)setActs(p=>{const a=[...p];[a[i-1],a[i]]=[a[i],a[i-1]];return a;});}} disabled={i===0} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===0?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8593;</button>
-            <button onClick={e=>{e.stopPropagation();if(i<acts.length-1)setActs(p=>{const a=[...p];[a[i],a[i+1]]=[a[i+1],a[i]];return a;});}} disabled={i===acts.length-1} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===acts.length-1?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8595;</button>
-          </div>
+          {dragHandle}
           <div style={{flex:1,minWidth:0}}>
             <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
               {act.type==="station_block"?"Station Block":act.name}
@@ -412,12 +535,14 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
           </div>
         </div>
         {expandedId===act.id&&(<div className="abbody">
-          {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
+          {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} sport={sport} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
           {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
           {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={sport} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
         </div>)}
       </div>
-    </div>))}
+    </div>)}</SortableActivityRow>
+    ))}
+    </ActivityDndContext>
 
     {/* Add drills panel — same as builder */}
     <div style={{borderTop:"1px solid var(--b)",paddingTop:14,marginTop:8}}>
@@ -426,11 +551,11 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
         <button className="btn ghost bxs" onClick={()=>openModal&&openModal("addActivity")}>+ New Drill</button>
       </div>
       <div className="g2" style={{marginBottom:6}}>
-        <div className="li tap" style={{marginBottom:0}} onClick={()=>{const id=uid();setActs(p=>[...p,{id,type:"checklist",name:"Intro",items:[],notes:"",duration:5}]);}}>
+        <div className="li tap" style={{marginBottom:0}} onClick={()=>{const id=uid();setActs(p=>[...p,{id,type:"checklist",name:"Intro",items:[],notes:"",duration:5}]);setLastAddedId(id);}}>
           <div className="lim"><div className="lin">Intro</div><div className="limt">Checklist</div></div>
           <span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span>
         </div>
-        <div className="li tap" style={{marginBottom:0}} onClick={()=>{const id=uid();setActs(p=>[...p,{id,type:"checklist",name:"Closer",items:[],notes:"",duration:5}]);}}>
+        <div className="li tap" style={{marginBottom:0}} onClick={()=>{const id=uid();setActs(p=>[...p,{id,type:"checklist",name:"Closer",items:[],notes:"",duration:5}]);setLastAddedId(id);}}>
           <div className="lim"><div className="lin">Closer</div><div className="limt">Checklist</div></div>
           <span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span>
         </div>
@@ -440,7 +565,7 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
           {id:uid(),name:"Station 1",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
           {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
         ]};
-        setActs(p=>[...p,b]);setExpandedId(b.id);
+        setActs(p=>[...p,b]);setExpandedId(b.id);setLastAddedId(b.id);
       }}>
         <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">2 stations, add or remove as needed</div></div>
         <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
@@ -454,11 +579,14 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
         if(filtered.length===0)return(<div style={{padding:"16px 0",textAlign:"center",color:"var(--td)",fontSize:13}}>No drills in library for {tplSport} yet.</div>);
         return(<div>
           <div className="clbl" style={{marginBottom:8}}>{tplSport} + General</div>
-          {filtered.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>{setActs(p=>[...p,{id:uid(),type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:[],coachId:"",sublocationId:"",notes:"",description:lib.description||"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);}}>
+          {filtered.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>{const id=uid();setActs(p=>[...p,{id,type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:[],coachId:"",sublocationId:"",notes:"",description:lib.description||"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);setLastAddedId(id);}}>
             <div className="lim">
               <div className="lin">{lib.name}</div>
               <div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div>
               {lib.coachingPoints&&<div style={{fontSize:11,color:"var(--green2)",marginTop:2}}>{lib.coachingPoints}</div>}
+              {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+              </div>}
             </div>
             <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
           </div>))}
@@ -476,12 +604,28 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
       <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowNewTpl(false);setNewTplName("");}}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsNew} disabled={!newTplName.trim()}>Save</button></div>
     </div>}
 
+    {/* Leave-without-saving confirm -- Build Practice from Template would
+        otherwise hand off to Builder using the last-saved version of this
+        template, silently dropping whatever's been edited since. */}
+    {confirmLeave==="startFromTemplate"&&<div className="movly" onClick={()=>setConfirmLeave(null)}><div className="modal" onClick={e=>e.stopPropagation()}>
+      <div className="mtitle">Unsaved changes</div>
+      <div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This template has changes that haven't been saved. Save before building a practice from it, or continue without saving and lose them?</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <button className="btn primary bmd bfull" onClick={confirmSaveAndContinue}>Save, then continue</button>
+        <button className="btn outline bmd bfull" onClick={confirmDiscardAndContinue}>Continue without saving</button>
+        <button className="btn ghost bmd bfull" onClick={()=>setConfirmLeave(null)}>Cancel</button>
+      </div>
+    </div></div>}
+
     {/* Bottom action bar */}
     {!showNewTpl&&<div style={{position:"fixed",bottom:"calc(var(--tab))",left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#fff",borderTop:"1px solid var(--b)",padding:"10px 14px",zIndex:50}}>
-      {isSaved&&<button className="btn primary bxl bfull" style={{marginBottom:8,height:52,fontSize:17}} onClick={()=>onStartFromTemplate&&onStartFromTemplate(existingId)}>Start from Template</button>}
+      <div className="brow" style={{marginBottom:8}}>
+        {isSaved&&<button className="btn primary bmd" style={{flex:2,height:48,fontSize:15}} onClick={goBuildPractice}>Build Practice from Template</button>}
+        <button className="btn primary bmd" style={{flex:1,height:48,fontSize:15,opacity:teamId?1:.5}} disabled={!teamId||runBusy} title={teamId?"":"Pick a Default Team to run now"} onClick={handleRunNow}>{runBusy?"Starting...":"Run Now"}</button>
+      </div>
       <div className="brow">
-        <button className="btn outline bmd" style={{flex:1}} onClick={handleSave}>Save Template</button>
-        {isSaved&&<button className="btn ghost bmd" style={{flex:1}} onClick={()=>setShowNewTpl(true)}>Save as New</button>}
+        <button className="btn outline bmd" style={{flex:1,opacity:(!dirty&&isSaved)?.5:1}} onClick={handleSave} disabled={!dirty&&isSaved}>Save Template</button>
+        <button className="btn ghost bmd" style={{flex:1}} onClick={()=>setShowNewTpl(true)}>Save as New</button>
       </div>
     </div>}
   </div>);
@@ -496,7 +640,7 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
 // forcing another restructure. The Skills tab moved to Settings (see
 // SkillsTab's comment above). The old window.__ropLibTab global was set
 // here but never read anywhere -- deleted, not migrated.
-export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibrary,coachId,refreshPlanning,mode}){
+export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,refreshLibrary,coachId,refreshPlanning,mode}){
   const isOrgMode = mode && mode.type === "org";
   const [section,setSection]=useState("mine"); // "mine" | "explore"
   const [mineTab,setMineTab]=useState("drills"); // sub-toggle within My Library
@@ -582,7 +726,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
     setEditingTpl({id:uid(),name:newTplNameDraft.trim(),activities:[],durMin:0});
     setNewTplPrompt(false);
   };
-  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>goToBuilder(null,tplId)}/></div>);
+  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>goToBuilder(null,tplId)} onRunNow={goToRun}/></div>);
   return (<div style={{paddingBottom:80}}>
     <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>{isOrgMode?"Club Library":"Library"}</div>
@@ -722,7 +866,8 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,refreshLibr
           </div>
         </div>
         <div className="brow">
-          <button className="btn primary bmd bfull" onClick={()=>setEditingTpl(tpl)}>View / Edit</button>
+          <button className="btn outline bmd" style={{flex:1}} onClick={()=>setEditingTpl(tpl)}>View / Edit</button>
+          <button className="btn primary bmd" style={{flex:1}} onClick={()=>goToBuilder(null,tpl.id)}>Run Now</button>
         </div>
       </div>);})}
       {confirmDel&&<div className="movly" onClick={()=>setConfirmDel(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="mtitle">Delete template?</div><div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This cannot be undone.</div><div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDel(null)}>Cancel</button><button className="btn primary bmd" onClick={async()=>{await archiveTemplate(confirmDel);await refreshPlanning();setConfirmDel(null);}}>Delete</button></div></div></div>}

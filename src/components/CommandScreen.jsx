@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, stripIdsForCopy } from "../constants.js";
+import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "../constants.js";
 import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote, updateStationLead } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 
@@ -42,14 +42,17 @@ function PlayerChipLive({pid,team,note,onMove,onProfile}){
   const pl=team&&team.players.find(p=>p.id===pid);
   if(!pl)return null;
   const lpt={current:null};
+  const handFields=HAND_FIELDS_BY_SPORT[team&&team.sport]||[];
+  const handText=handFields.map(hf=>pl[hf.key]?hf.label+" "+(HAND_LABELS[pl[hf.key]]||pl[hf.key]):null).filter(Boolean).join(" · ");
   return (<button
     onClick={()=>onMove()}
     onTouchStart={()=>{lpt.current=setTimeout(()=>onProfile(pl),500);}}
     onTouchEnd={()=>clearTimeout(lpt.current)}
     onMouseDown={()=>{lpt.current=setTimeout(()=>onProfile(pl),500);}}
     onMouseUp={()=>clearTimeout(lpt.current)}
-    style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--gb)",background:"var(--gbg)",fontSize:14,fontWeight:600,cursor:"pointer",color:"var(--black)",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2,maxWidth:note?200:undefined}}>
+    style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--gb)",background:"var(--gbg)",fontSize:14,fontWeight:600,cursor:"pointer",color:"var(--black)",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2,maxWidth:(note||handText)?200:undefined}}>
     <span style={{display:"flex",alignItems:"center",gap:5}}>{pl.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:12,color:"var(--green)"}}>#{pl.jersey}</span>}{pl.firstName}</span>
+    {handText&&<span style={{fontSize:11,color:"var(--td)",whiteSpace:"normal",textAlign:"left"}}>{handText}</span>}
     {note&&<span style={{fontSize:11,fontWeight:500,color:"var(--green2)",whiteSpace:"normal",textAlign:"left",lineHeight:1.3}}>{note}</span>}
   </button>);
 }
@@ -788,6 +791,14 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
   // attribute the label promised, so keeping a stale "Lefties" around would
   // be actively misleading rather than just missing.
   const [liveGroupLabels,setLiveGroupLabels]=useState(null);
+  // Per-station partners/groups split (independent of, and layered on top
+  // of, which players are AT each station) -- keyed by station id, each
+  // value an array of player-id arrays for that station's current round.
+  // Recomputed by the controller every time the rotation round changes
+  // (players at a station change every round, so a stale split would pair
+  // people who've since rotated away); everyone else just fetches whatever
+  // the controller wrote.
+  const [stationSubGroups,setStationSubGroups]=useState({});
   const [audioOn,setAudioOn]=useState(false);
   const [noteText,setNoteText]=useState("");
   const [noteError,setNoteError]=useState("");
@@ -799,6 +810,9 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
   const [helperDraft,setHelperDraft]=useState("");
   const [reassignBusy,setReassignBusy]=useState(false);
   const [showPlayerFocus,setShowPlayerFocus]=useState(false);
+  // Local-only peek at the upcoming rotation -- doesn't touch session state,
+  // so it's invisible to every other viewer on this live session.
+  const [previewTrans,setPreviewTrans]=useState(false);
   const [showEllipsis,setShowEllipsis]=useState(false);
   const [showEditBuilder,setShowEditBuilder]=useState(false);
   const [focusSt,setFocusSt]=useState(null);
@@ -1103,6 +1117,50 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
     })();
     return()=>{cancelled=true;};
   },[session?.id,cur?.id,presentIds]);
+
+  // ── Per-station sub-grouping: each station's own partners/groups split,
+  // independent of which players rotated into it. Scoped to stIdx (the
+  // round) because the occupants change every round -- same fetch-or-seed
+  // pattern as the block/whole-team effect above, just keyed one level
+  // deeper per station. Whichever viewer's client gets there first seeds it;
+  // everyone else (including a later remount of the same client) just reads
+  // what's already there for that round.
+  useEffect(()=>{
+    if(!session||!isBlock||!cur||!cur.stations||!liveGroups){setStationSubGroups({});return;}
+    let cancelled=false;
+    (async()=>{
+      const results={};
+      for(let i=0;i<cur.stations.length;i++){
+        const st=cur.stations[i];
+        const g=st.grouping||"whole";
+        if(g==="whole")continue;
+        const srcIdx=(i-stIdx%n+n)%n;
+        const occupantIds=liveGroups[srcIdx]||[];
+        if(occupantIds.length===0)continue;
+        const existing=await fetchLatestGroups(session.id,cur.id,st.id,stIdx);
+        if(cancelled)return;
+        if(existing&&existing.length){results[st.id]=existing;continue;}
+        const occupantPlayers=(team?team.players:[]).filter(p=>occupantIds.includes(p.id));
+        if(occupantPlayers.length===0)continue;
+        const groups=assignGroups(occupantPlayers,g,st.numGroups||2).map(g2=>g2.map(p=>p.id));
+        results[st.id]=groups;
+        await saveSessionGroups(session.id,cur.id,coachId,groups,st.id,stIdx);
+      }
+      if(!cancelled)setStationSubGroups(results);
+    })();
+    return()=>{cancelled=true;};
+  },[session?.id,cur?.id,stIdx,liveGroups]);
+
+  const reshuffleStationGroup=useCallback(async(station)=>{
+    if(!session||!cur||!station)return;
+    const g=station.grouping||"whole";
+    if(g==="whole")return;
+    const occupantIds=(station.assignments||[]);
+    const occupantPlayers=(team?team.players:[]).filter(p=>occupantIds.includes(p.id));
+    const groups=assignGroups(occupantPlayers,g,station.numGroups||2).map(g2=>g2.map(p=>p.id));
+    setStationSubGroups(p=>Object.assign({},p,{[station.id]:groups}));
+    await saveSessionGroups(session.id,cur.id,coachId,groups,station.id,stIdx);
+  },[session,cur,team,coachId,stIdx]);
 
   const handleAttConfirm=useCallback(async({presentIds:pIds,coachPresentIds:cIds,balanceMode})=>{
     setPresentIds(pIds);setCoachPresentIds(cIds);
@@ -1577,6 +1635,10 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
             {leadName(rotatedStations[focusSt])&&subName(rotatedStations[focusSt].sublocationId)&&<span> · </span>}
             {subName(rotatedStations[focusSt].sublocationId)&&<span>{subName(rotatedStations[focusSt].sublocationId)}</span>}
           </div>}
+          {rotatedStations[focusSt].description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
+            <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].description}</div>
+          </div>}
           {rotatedStations[focusSt].coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
             <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coachingPoints}</div>
@@ -1585,6 +1647,19 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
             {names.length>0&&<span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#854d0e",fontWeight:600}}>Equipment: {names.join(", ")}</span>}
             {rotatedStations[focusSt].playerGear&&<span style={{background:"#fff7ed",border:"1px solid #fdba74",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#9a3412",fontWeight:600}}>Player Gear: {rotatedStations[focusSt].playerGear}</span>}
           </div>):null;})()}
+          {rotatedStations[focusSt].grouping&&rotatedStations[focusSt].grouping!=="whole"&&<div style={{borderLeft:"3px solid #c4b5fd",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed"}}>👥 {rotatedStations[focusSt].grouping==="partners"?"Partners":"Groups"} at this station</div>
+              {isController&&<button className="btn ghost bxs" onClick={()=>reshuffleStationGroup(rotatedStations[focusSt])}>Reshuffle</button>}
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {(stationSubGroups[rotatedStations[focusSt].id]||[]).map((g,i)=>(<div key={i} style={{display:"inline-flex",alignItems:"center",gap:6,border:"1.5px solid #c4b5fd",borderRadius:20,padding:"5px 12px",background:"#fff"}}>
+                <span style={{fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,color:"#7c3aed",flexShrink:0}}>{rotatedStations[focusSt].grouping==="partners"?"P"+(i+1):"G"+(i+1)}</span>
+                <span style={{fontSize:13,fontWeight:600,color:"var(--black)"}}>{g.map(pid=>{const pl=team&&team.players.find(p=>p.id===pid);return pl?pl.firstName:null;}).filter(Boolean).join(" · ")}</span>
+              </div>))}
+              {!(stationSubGroups[rotatedStations[focusSt].id]||[]).length&&<span style={{fontSize:12,color:"var(--td)"}}>Assigning...</span>}
+            </div>
+          </div>}
           <div>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -1612,7 +1687,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
                 {st.playerGear&&<span style={{background:"#fff7ed",border:"1px solid #fdba74",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#9a3412",fontWeight:600}}>Player Gear: {st.playerGear}</span>}
               </div>}
               <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                {(st.assignments||[]).map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team} note={noteForPlayerAtDrill(pid,st.libraryId)}/>))}
+                {(st.assignments||[]).map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team}/>))}
               </div>
               <div style={{fontSize:10,color:"var(--td)",marginTop:6}}>Tap to focus</div>
             </div>);
@@ -1666,23 +1741,58 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"var(--red)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Rotate Now</div>
         {rotatedStations.map((st,i)=>{
           const nextSt=cur.stations[(i+1)%cur.stations.length];
-          const fromLabel="Station "+(i+1)+(st.activityName?": "+st.activityName:"")+(coachName(st.coachId)?" · "+coachName(st.coachId):"");
-          const toLabel="Station "+((i+1)%cur.stations.length+1)+(nextSt.activityName?": "+nextSt.activityName:"")+(coachName(nextSt.coachId)?" · "+coachName(nextSt.coachId):"");
+          const fromLoc=subName(st.sublocationId);
+          const toLoc=subName(nextSt.sublocationId);
+          const fromLabel="Station "+(i+1)+(st.activityName?": "+st.activityName:"")+(leadName(st)?" · "+leadName(st):"")+(fromLoc?" · "+fromLoc:"");
+          const toLabel="Station "+((i+1)%cur.stations.length+1)+(nextSt.activityName?": "+nextSt.activityName:"")+(leadName(nextSt)?" · "+leadName(nextSt):"")+(toLoc?" · "+toLoc:"");
           return (<div key={st.id} className="cc-trans-card">
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",lineHeight:1.2,marginBottom:6}}>{pnames(st.assignments)||"--"}</div>
             {st.groupLabel&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}
             <div style={{fontSize:12,color:"var(--td)",marginBottom:3}}>from {fromLabel}</div>
             <div style={{fontSize:13,fontWeight:700,color:"var(--black)"}}>→ {toLabel}</div>
-            {subName(nextSt.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginTop:2}}>{subName(nextSt.sublocationId)}</div>}
           </div>);
         })}
       </div>}
-      {liveActs.slice(idx+1,idx+4).length>0&&<div className="cc-queue">
+      {/* Mid-block and not on the last station yet: what's "next" for this
+          practice is really the next rotation, not whatever activity
+          follows the whole block -- showing that here would spoil it before
+          it's actually relevant. Offer a local peek at the next transition
+          instead of the real (session-wide) queue. */}
+      {isBlock&&blockRotate&&!inBlockIntro&&!inTrans&&stIdx<n-1?(
+        <div className="cc-queue">
+          <div style={{padding:"6px 12px",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>Up Next</div>
+          <button type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={()=>setPreviewTrans(true)}>
+            <span style={{fontSize:14,color:"var(--black2)"}}>Station rotation coming up</span>
+            <span className="bdg bs">See next transition</span>
+          </button>
+        </div>
+      ):(liveActs.slice(idx+1,idx+4).length>0&&<div className="cc-queue">
         <div style={{padding:"6px 12px",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>Up Next</div>
         {liveActs.slice(idx+1,idx+4).map(a=>(<div key={a.id} className="cc-queue-item">
           <span style={{fontSize:14,color:"var(--black2)"}}>{a.type==="station_block"?"Station Block":a.name}</span>
           <span className="bdg bs">{a.type==="station_block"?(a.stations.length*a.stationDuration+(a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
         </div>))}
+      </div>)}
+      {previewTrans&&rotatedStations&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setPreviewTrans(false);}}>
+        <div className="modal">
+          <div className="mhandle"/>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"var(--red)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Next Transition</div>
+          <div style={{fontSize:12,color:"var(--td)",marginBottom:12}}>A preview only -- visible just to you, doesn't advance the practice.</div>
+          {rotatedStations.map((st,i)=>{
+            const nextSt=cur.stations[(i+1)%cur.stations.length];
+            const fromLoc=subName(st.sublocationId);
+            const toLoc=subName(nextSt.sublocationId);
+            const fromLabel="Station "+(i+1)+(st.activityName?": "+st.activityName:"")+(leadName(st)?" · "+leadName(st):"")+(fromLoc?" · "+fromLoc:"");
+            const toLabel="Station "+((i+1)%cur.stations.length+1)+(nextSt.activityName?": "+nextSt.activityName:"")+(leadName(nextSt)?" · "+leadName(nextSt):"")+(toLoc?" · "+toLoc:"");
+            return (<div key={st.id} className="cc-trans-card">
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",lineHeight:1.2,marginBottom:6}}>{pnames(st.assignments)||"--"}</div>
+              {st.groupLabel&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}
+              <div style={{fontSize:12,color:"var(--td)",marginBottom:3}}>from {fromLabel}</div>
+              <div style={{fontSize:13,fontWeight:700,color:"var(--black)"}}>→ {toLabel}</div>
+            </div>);
+          })}
+          <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>setPreviewTrans(false)}>Close</button>
+        </div>
       </div>}
       {reassignStationId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setReassignStationId(null);setHelperDraft("");}}}>
         <div className="modal">

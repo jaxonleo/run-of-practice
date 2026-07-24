@@ -275,8 +275,10 @@ export async function fetchStaffSuggestions(coachId, excludeTeamId) {
 const EQUIP_TYPE_TO_OLD = { team_equipment: 'team', player_gear: 'player' }
 const OLD_TO_EQUIP_TYPE = { team: 'team_equipment', player: 'player_gear' }
 
-function mapAssetRow(a) {
-  return { id: a.id, name: a.name, type: EQUIP_TYPE_TO_OLD[a.type] || a.type, sport: a.sport, organizationId: a.organization_id, ownerUserId: a.owner_user_id, sourceCatalogId: a.source_catalog_id }
+// locationIds empty = travels everywhere (no location restriction); one or
+// more = only available at those locations.
+function mapAssetRow(a, locationsByAsset) {
+  return { id: a.id, name: a.name, type: EQUIP_TYPE_TO_OLD[a.type] || a.type, sport: a.sport, organizationId: a.organization_id, ownerUserId: a.owner_user_id, sourceCatalogId: a.source_catalog_id, locationIds: (locationsByAsset && locationsByAsset[a.id]) || [] }
 }
 function mapSkillTagRow(t) {
   return { id: t.id, categoryId: t.category_id, scope: t.scope, organizationId: t.organization_id, ownerUserId: t.owner_user_id, name: t.name }
@@ -298,7 +300,7 @@ function mapCatalogRow(c) {
 }
 
 export async function fetchLibraryData() {
-  const [assetsRes, categoriesRes, tagsRes, drillsRes, equipRes, drillTagsRes, orgsRes, profilesRes, catalogsRes, drillSharesRes] = await Promise.all([
+  const [assetsRes, categoriesRes, tagsRes, drillsRes, equipRes, drillTagsRes, orgsRes, profilesRes, catalogsRes, drillSharesRes, assetLocationsRes] = await Promise.all([
     supabase.from('assets').select('*').is('archived_at', null),
     supabase.from('skill_categories').select('*').is('archived_at', null),
     supabase.from('skill_tags').select('*').is('archived_at', null),
@@ -309,6 +311,7 @@ export async function fetchLibraryData() {
     supabase.from('profiles').select('id, email, first_name, last_name'), // own row + org co-members, per RLS
     supabase.from('content_catalogs').select('*').is('archived_at', null),
     supabase.from('activity_library_org_shares').select('activity_library_id, organization_id'),
+    supabase.from('asset_locations').select('*'),
   ])
   // Pending org invites (Org Experience handoff Sec 5) -- fetched here too so
   // the existing app-wide refreshLibrary() call is what surfaces "you've
@@ -325,9 +328,11 @@ export async function fetchLibraryData() {
   for (const s of drillSharesRes.data || []) (sharesByDrill[s.activity_library_id] ||= []).push(s.organization_id)
   const profilesById = {}
   for (const p of profilesRes.data || []) profilesById[p.id] = { name: (p.first_name && p.last_name) ? (p.first_name + ' ' + p.last_name) : (p.email || 'A coach') }
+  const locationsByAsset = {}
+  for (const al of assetLocationsRes.data || []) (locationsByAsset[al.asset_id] ||= []).push(al.location_id)
 
   return {
-    assets: (assetsRes.data || []).map(mapAssetRow),
+    assets: (assetsRes.data || []).map(a => mapAssetRow(a, locationsByAsset)),
     skillCategories: categoriesRes.data || [],
     skillTags: (tagsRes.data || []).map(mapSkillTagRow),
     activityLibrary: (drillsRes.data || []).map(a => mapDrillRow(a, equipmentByDrill, tagsByDrill, sharesByDrill)),
@@ -364,6 +369,16 @@ export async function updateAsset(id, { name, sport }) {
   const { error } = await supabase.from('assets').update({ name, sport }).eq('id', id)
   if (error) console.error('updateAsset:', error)
   return { error }
+}
+// Full replace, same as replaceEquipment -- empty locationIds means "travels
+// everywhere" (no restriction), matched by simply having no rows.
+export async function setAssetLocations(assetId, locationIds) {
+  await supabase.from('asset_locations').delete().eq('asset_id', assetId)
+  const ids = (locationIds || []).filter(Boolean)
+  if (ids.length) {
+    const { error } = await supabase.from('asset_locations').insert(ids.map(location_id => ({ asset_id: assetId, location_id })))
+    if (error) console.error('setAssetLocations:', error)
+  }
 }
 export async function archiveAsset(id) {
   const { error } = await supabase.from('assets').update({ archived_at: new Date().toISOString() }).eq('id', id)
@@ -696,9 +711,11 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
     base.stations = stations.map(st => ({
       id: st.id, name: st.name || '', activityName: st.name || '',
       coachId: st.team_staff_id || '', helperName: st.helper_name || '', sublocationId: st.sublocation_id || '',
+      description: st.description || '',
       coachingPoints: st.coaching_points || '', libraryId: st.library_activity_id || null,
       equipment: stationEquipByStation[st.id] || [], playerGear: '',
       assignments: st.assignments || [], groupLabel: st.group_label || '',
+      grouping: st.grouping || 'whole', numGroups: st.num_groups || 2,
     }))
   }
   return base
@@ -831,9 +848,11 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
         const stRow = {
           [blockTable === 'station_blocks' ? 'station_block_id' : 'template_station_block_id']: blockId,
           position: si, name: st.activityName || st.name || null,
+          description: st.description || null,
           coaching_points: st.coachingPoints || null,
           sublocation_id: st.sublocationId || null,
           library_activity_id: st.libraryId || null,
+          grouping: st.grouping || 'whole', num_groups: st.numGroups || null,
         }
         if (teamScoped) {
           stRow.team_staff_id = st.coachId || null
@@ -1221,8 +1240,15 @@ export async function fetchLatestAttendance(sessionId) {
 // groups: array of arrays of player ids, index = group_number - 1. Used both
 // for regular-activity sub-grouping and for station-block per-station
 // assignment (group_number i = whoever starts at station i).
-export async function saveSessionGroups(sessionId, practiceActivityId, createdBy, groups) {
-  const rows = groups.map((g, i) => ({ session_id: sessionId, practice_activity_id: practiceActivityId, group_number: i + 1, created_by: createdBy }))
+// stationId is optional -- block-level "who's at which station" groups pass
+// none (station_id stays null); a station's own internal partners/groups
+// split passes its station id, keeping the two kinds of grouping distinct
+// under the same (session, activity) key. roundNumber only matters (and
+// only gets stored) alongside a stationId -- a station's occupants change
+// every rotation round, so "the latest split for this station" has to be
+// scoped to a specific round or it'd resolve to a stale prior round's pairs.
+export async function saveSessionGroups(sessionId, practiceActivityId, createdBy, groups, stationId, roundNumber) {
+  const rows = groups.map((g, i) => ({ session_id: sessionId, practice_activity_id: practiceActivityId, station_id: stationId || null, round_number: stationId ? (roundNumber ?? 0) : null, group_number: i + 1, created_by: createdBy }))
   if (!rows.length) return
   const { data: groupRows, error } = await supabase.from('session_groups').insert(rows).select()
   if (error) { console.error('saveSessionGroups:', error); return }
@@ -1234,9 +1260,10 @@ export async function saveSessionGroups(sessionId, practiceActivityId, createdBy
   }
 }
 
-export async function fetchLatestGroups(sessionId, practiceActivityId) {
-  const { data: groups, error } = await supabase.from('session_groups').select('*')
-    .eq('session_id', sessionId).eq('practice_activity_id', practiceActivityId).order('created_at', { ascending: false })
+export async function fetchLatestGroups(sessionId, practiceActivityId, stationId, roundNumber) {
+  let q = supabase.from('session_groups').select('*').eq('session_id', sessionId).eq('practice_activity_id', practiceActivityId)
+  q = stationId ? q.eq('station_id', stationId).eq('round_number', roundNumber ?? 0) : q.is('station_id', null)
+  const { data: groups, error } = await q.order('created_at', { ascending: false })
   if (error) { console.error('fetchLatestGroups:', error); return null }
   if (!groups || !groups.length) return null
   const latestTime = groups[0].created_at

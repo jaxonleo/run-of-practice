@@ -1,6 +1,56 @@
 import React, { useState, useRef, useEffect } from "react";
 import { uid, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, groupByAttribute } from "../constants.js";
 import { createAsset } from "../supabase.js";
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+// ── Drag-to-reorder for the practice/template activity list ──────────────────
+// Shared by BuilderScreen (App.jsx) and TemplateWorkspace (NewLibraryScreen.jsx)
+// so both builders get the same touch/mouse press-and-hold-then-slide
+// behavior instead of duplicating dnd-kit setup in each. TouchSensor's delay
+// is what makes this reliable on a touchscreen -- without it, a plain drag
+// listener would swallow the page's own vertical scroll the instant a finger
+// lands on a row; requiring a brief hold before a drag "arms" leaves a quick
+// finger-down-then-scroll gesture alone.
+export function useActivityDnd(setActs) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
+  );
+  const onDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setActs(p => {
+      const oldIndex = p.findIndex(a => a.id === active.id);
+      const newIndex = p.findIndex(a => a.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return p;
+      return arrayMove(p, oldIndex, newIndex);
+    });
+  };
+  return { sensors, onDragEnd };
+}
+export function ActivityDndContext({sensors,onDragEnd,items,children}){
+  return (<DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+    <SortableContext items={items} strategy={verticalListSortingStrategy}>{children}</SortableContext>
+  </DndContext>);
+}
+const Ic_Grip=()=><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="5" cy="3" r="1.3"/><circle cx="11" cy="3" r="1.3"/><circle cx="5" cy="8" r="1.3"/><circle cx="11" cy="8" r="1.3"/><circle cx="5" cy="13" r="1.3"/><circle cx="11" cy="13" r="1.3"/></svg>;
+// children is a render-prop: (dragHandleEl) => JSX, so callers can place the
+// handle wherever it fits their row layout while the wrapper itself owns the
+// sortable positioning/transform.
+// `sticky` pins this one row to the top of the scroll container via native
+// CSS position:sticky -- no scroll-tracking JS needed. A sticky element only
+// stays pinned while its own normal-flow position is above the viewport, and
+// falls back into place the moment scrolling returns it to where it actually
+// sits in the list -- exactly "stays on top until you've scrolled up enough
+// for it to reach its real spot," for free from the browser.
+export function SortableActivityRow({id,children,sticky}){
+  const {attributes,listeners,setNodeRef,transform,transition,isDragging}=useSortable({id});
+  const style={transform:CSS.Transform.toString(transform),transition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?0:undefined,zIndex:isDragging?1:(sticky?5:undefined)};
+  const handle=(<button type="button" {...attributes} {...listeners} onClick={e=>e.stopPropagation()} style={{background:"none",border:"none",cursor:isDragging?"grabbing":"grab",padding:"6px 4px",marginRight:6,color:"var(--td)",touchAction:"none",flexShrink:0,display:"flex",alignItems:"center"}} aria-label="Drag to reorder"><Ic_Grip/></button>);
+  return <div ref={setNodeRef} style={style}>{children(handle)}</div>;
+}
 
 // Grows to fit its content instead of scrolling internally -- coaches were
 // hitting the fixed-height "ta" box on long descriptions/coaching points and
@@ -25,15 +75,23 @@ function DurStepper({value,min,onChange,step}){
   </div>);
 }
 
-export function ActConfig({act,team,loc,onChange,onDone,assets,coachId,refreshLibrary,libraryDrills,skillTags}){
+export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,coachId,refreshLibrary,libraryDrills,skillTags}){
   const [newGearOpen,setNewGearOpen]=useState(false);
+  // act itself never carries a sport (practice/template activities don't
+  // have their own sport column) -- sportProp is the team's sport (Builder)
+  // or the template's own Sport field (TemplateWorkspace), threaded down by
+  // the caller the same way StationConfig already gets teamSport.
+  const sport=sportProp||"General";
   // Builder assigns equipment a coach actually owns to a real practice --
   // catalog-owned equipment (public library) is excluded here the same way
   // it's excluded from a personal drill's picker in ModalLayer, never
   // surfaced until a coach explicitly copies a drill into their own library.
-  const teamEquip=(assets||[]).filter(a=>(!a.type||a.type==="team")&&!a.sourceCatalogId);
-  const sport=act.sport||"General";
-  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General")&&!a.sourceCatalogId);
+  // Also scoped to this sport and (if this activity has a location) to
+  // equipment available there -- no locationIds means it travels with the
+  // coach, so it's never excluded on location grounds.
+  const atLoc=a=>!loc||!Array.isArray(a.locationIds)||a.locationIds.length===0||a.locationIds.includes(loc.id);
+  const teamEquip=(assets||[]).filter(a=>(!a.type||a.type==="team")&&(a.sport===sport||a.sport==="General")&&!a.sourceCatalogId&&atLoc(a));
+  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General")&&!a.sourceCatalogId&&atLoc(a));
   const equip=Array.isArray(act.equipment)?act.equipment:[];
   const toggleEquip=id=>{const has=equip.includes(id);onChange({equipment:has?equip.filter(x=>x!==id):[...equip,id]});};
   // Practice/template activities are a snapshot copy of the drill at
@@ -49,7 +107,7 @@ export function ActConfig({act,team,loc,onChange,onDone,assets,coachId,refreshLi
     const el=document.getElementById(inputId);
     if(!el||!el.value.trim())return;
     const nm=el.value.trim();
-    const {data:newAsset}=await createAsset(coachId,{name:nm,type,sport:type==="player"?gearSport:"General"});
+    const {data:newAsset}=await createAsset(coachId,{name:nm,type,sport:type==="player"?gearSport:sport});
     if(newAsset)onChange({equipment:[...equip,newAsset.id]});
     el.value="";
     if(refreshLibrary)await refreshLibrary();
@@ -145,9 +203,11 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   const [helperIdx,setHelperIdx]=useState(null);
   const sport=teamSport||"General";
   const players=team?team.players:[];
-  // Same catalog-equipment exclusion as ActConfig -- see its comment.
-  const teamEquipAssets=(assets||[]).filter(a=>(!a.type||a.type==="team")&&!a.sourceCatalogId);
-  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General")&&!a.sourceCatalogId);
+  // Same catalog-equipment/sport/location scoping as ActConfig -- see its
+  // comment.
+  const atLoc=a=>!loc||!Array.isArray(a.locationIds)||a.locationIds.length===0||a.locationIds.includes(loc.id);
+  const teamEquipAssets=(assets||[]).filter(a=>(!a.type||a.type==="team")&&(a.sport===sport||a.sport==="General")&&!a.sourceCatalogId&&atLoc(a));
+  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General")&&!a.sourceCatalogId&&atLoc(a));
   // Public-catalog drills are excluded from this quick-pick list -- their
   // equipment is catalog-owned, which can't be linked to a real team's
   // practice (same "copy not reference" rule org-shared equipment already
@@ -160,9 +220,11 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
     const st=act.stations[si];
     onSt(st.id,{
       activityName:lib.name,name:lib.name,
+      description:lib.description||st.description||"",
       coachingPoints:lib.coachingPoints||st.coachingPoints||"",
       equipment:Array.isArray(lib.equipment)?lib.equipment:[],
       libraryId:lib.id,
+      grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,
     });
     setLibraryPickerIdx(null);
   };
@@ -254,6 +316,26 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
             </div>))}
           </div>}
         </div>
+        <div className="fld"><label className="lbl">Description</label><AutoTextarea minHeight={40} value={st.description||""} onChange={e=>onSt(st.id,{description:e.target.value})}/></div>
+        {/* This is the drill's own internal split (e.g. partners within this
+            station), independent of -- and on top of -- which players rotate
+            into this station via the Generate Random/Group By controls
+            above. Same UI as a standalone activity's Player Grouping. */}
+        <div className="fld"><label className="lbl">Player Grouping (within this station)</label>
+          <div style={{display:"flex",gap:6}}>
+            {[{v:"whole",l:"Whole Station"},{v:"partners",l:"Partners"},{v:"groups",l:"Groups"}].map(({v,l})=>(
+              <button key={v} type="button" onClick={()=>onSt(st.id,{grouping:v})} style={{flex:1,padding:"8px 4px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(st.grouping||"whole")===v?"var(--green)":"var(--s1)",color:(st.grouping||"whole")===v?"#fff":"var(--black)",fontSize:13,cursor:"pointer",fontWeight:700}}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {(st.grouping||"whole")==="groups"&&<div style={{marginTop:8}}>
+            <div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>How many groups?</div>
+            <div style={{display:"flex",gap:6}}>
+              {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>onSt(st.id,{numGroups:n})} style={{flex:1,padding:"8px 0",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(st.numGroups||2)===n?"var(--green)":"var(--s1)",color:(st.numGroups||2)===n?"#fff":"var(--black)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
+            </div>
+          </div>}
+        </div>
         {team&&<div className="fld"><label className="lbl">Coach</label>
           {!st.helperName&&<>
             {team.coaches.length>0&&<select className="sel" value={st.coachId||""} onChange={e=>onSt(st.id,{coachId:e.target.value,helperName:""})}>
@@ -279,7 +361,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
           </div>
           {newEquipIdx===si?<div style={{display:"flex",gap:6}}>
             <input className="inp" style={{flex:1}} placeholder="Equipment name..." id={"new-st-equip-"+si} autoFocus/>
-            <button type="button" className="btn ghost bxs" onClick={async()=>{const el=document.getElementById("new-st-equip-"+si);if(!el||!el.value.trim())return;const nm=el.value.trim();const {data:newAsset}=await createAsset(coachId,{name:nm,type:"team",sport:"General"});if(newAsset)onSt(st.id,{equipment:[...stEquip,newAsset.id]});el.value="";if(refreshLibrary)await refreshLibrary();setNewEquipIdx(null);}}>Add</button>
+            <button type="button" className="btn ghost bxs" onClick={async()=>{const el=document.getElementById("new-st-equip-"+si);if(!el||!el.value.trim())return;const nm=el.value.trim();const {data:newAsset}=await createAsset(coachId,{name:nm,type:"team",sport});if(newAsset)onSt(st.id,{equipment:[...stEquip,newAsset.id]});el.value="";if(refreshLibrary)await refreshLibrary();setNewEquipIdx(null);}}>Add</button>
             <button type="button" className="btn ghost bxs" onClick={()=>setNewEquipIdx(null)}>✕</button>
           </div>:<button type="button" className="btn ghost bxs" onClick={()=>setNewEquipIdx(si)}>+ New</button>}
         </div>

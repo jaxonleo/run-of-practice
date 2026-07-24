@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { uid, TEAM_COLORS, nextTeamColor, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "../constants.js";
-import { createTeam, orgCreateTeam, updateTeam, createPlayer, createStaff, updateStaff, createAsset, updateAsset, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, createSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
+import { createTeam, orgCreateTeam, updateTeam, createPlayer, createStaff, updateStaff, createAsset, updateAsset, setAssetLocations, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, createSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
 import { AutoTextarea } from "./ActivityConfigs.jsx";
+import { LocationChips } from "./NewLibraryScreen.jsx";
 
 const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
 const STAFF_ROLES=["Head Coach","Assistant Coach","Helper"];
@@ -160,7 +161,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
       };
     }
     if(location)return{name:location.name};
-    if(asset)return{name:asset.name};
+    if(asset)return{name:asset.name,sport:asset.sport||"General",locationIds:asset.locationIds||[]};
     if(coach)return{name:coach.name,role:coach.role||"Assistant Coach",inviteEmail:coach.inviteEmail||""};
     if(template)return{name:template.name,sport:template.sport||"General"};
     if(editTeamData)return{name:editTeamData.name,sport:editTeamData.sport||"Basketball",colorPrimary:editTeamData.colorPrimary||""};
@@ -214,7 +215,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     if(t==="editLocation"){if(!f.name)return;await updateLocation(p.location.id,f.name);await refreshPlanning();}
     if(t==="addSublocation"){if(!f.name)return;await createSublocation(p.locationId,f.name);await refreshPlanning();}
     if(t==="addAsset"){if(!f.name)return;await createAsset(coachId,{name:f.name,type:f.assetType||"team",sport:f.assetSport||"General"});await refreshLibrary();}
-    if(t==="editAsset"){if(!f.name)return;await updateAsset(p.asset.id,{name:f.name,sport:p.asset.sport||"General"});await refreshLibrary();}
+    if(t==="editAsset"){if(!f.name)return;await updateAsset(p.asset.id,{name:f.name,sport:f.sport||"General"});await setAssetLocations(p.asset.id,f.locationIds||[]);await refreshLibrary();}
     if(t==="addActivity"){
       if(!f.name)return;
       if(isPublicLibraryAdd&&!catalogId){setSaveError("No public catalog exists for "+(f.sport||"this sport")+" yet.");return;}
@@ -292,6 +293,14 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
         )}
         {(modal.type==="addAsset"||modal.type==="editAsset")&&(<div>
             <div className="fld"><label className="lbl">Equipment Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
+            {modal.type==="editAsset"&&<>
+              <div className="fld"><label className="lbl">Sport</label>
+                <select className="sel" value={f.sport||"General"} onChange={e=>set("sport",e.target.value)}>
+                  {["General","Baseball","Basketball","Football","Soccer","Softball","Lacrosse","Hockey","Volleyball","Tennis","Swimming","Other"].map(s=><option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <LocationChips locations={(data.locations||[]).filter(l=>asset.organizationId?l.organizationId===asset.organizationId:l.ownerUserId===coachId)} selectedIds={f.locationIds||[]} onToggle={id=>set("locationIds",(f.locationIds||[]).includes(id)?(f.locationIds||[]).filter(x=>x!==id):[...(f.locationIds||[]),id])}/>
+            </>}
           </div>
         )}
         {(modal.type==="editTeam")&&(<div>
@@ -343,7 +352,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
                 const nm=el.value.trim();
                 const {data:newAsset}=catalogId
                   ?await createCatalogAsset(catalogId,{name:nm,type,sport:drillSport})
-                  :await createAsset(coachId,{name:nm,type,sport:type==="player"?drillSport:"General"});
+                  :await createAsset(coachId,{name:nm,type,sport:drillSport});
                 if(newAsset)set("equipment",[...(f.equipment||[]),newAsset.id]);
                 el.value="";
                 await refreshLibrary();
@@ -357,7 +366,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
               // assets into data.assets, this just orders the picker per
               // handoff Sec 3.6.
               const ownFirst=(a,b)=>(a.ownerUserId===coachId?0:1)-(b.ownerUserId===coachId?0:1);
-              const teamAssets=(data.assets||[]).filter(a=>a.type==="team"&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId)).sort(ownFirst);
+              const teamAssets=(data.assets||[]).filter(a=>a.type==="team"&&(a.sport===drillSport||a.sport==="General")&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId)).sort(ownFirst);
               const playerAssets=(data.assets||[]).filter(a=>a.type==="player"&&(a.sport===drillSport||a.sport==="General")&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId)).sort(ownFirst);
               return(<div>
                 <div className="fld"><label className="lbl">Team Equipment</label>
