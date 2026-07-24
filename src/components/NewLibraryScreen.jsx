@@ -408,16 +408,20 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
   // the coach decide per activity.
   const drillById=Object.fromEntries((data.activityLibrary||[]).map(d=>[d.id,d]));
   const idsEqual=(a,b)=>{const sa=[...(a||[])].sort(),sb=[...(b||[])].sort();return sa.length===sb.length&&sa.every((v,i)=>v===sb[i]);};
+  // Duration is deliberately excluded -- coaches shorten/lengthen a drill
+  // per-instance often enough that comparing it against the library
+  // default would flag practically every activity, drowning out the
+  // signal for fields that actually mean the drill itself changed.
   const isStale=act=>{
     if(act.type!=="activity"||!act.libraryId)return false;
     const d=drillById[act.libraryId];
     if(!d)return false;
-    return act.name!==d.name||(act.duration||0)!==(d.duration||0)||(act.description||"")!==(d.description||"")||(act.coachingPoints||"")!==(d.coachingPoints||"")||(act.grouping||"whole")!==(d.grouping||"whole")||(act.numGroups||2)!==(d.numGroups||2)||(act.playerGear||"")!==(d.playerGear||"")||!idsEqual(act.equipment,d.equipment);
+    return act.name!==d.name||(act.description||"")!==(d.description||"")||(act.coachingPoints||"")!==(d.coachingPoints||"")||(act.grouping||"whole")!==(d.grouping||"whole")||(act.numGroups||2)!==(d.numGroups||2)||(act.playerGear||"")!==(d.playerGear||"")||!idsEqual(act.equipment,d.equipment);
   };
   const refreshFromLibrary=act=>{
     const d=drillById[act.libraryId];
     if(!d)return;
-    updAct(act.id,{name:d.name,duration:d.duration,description:d.description||"",coachingPoints:d.coachingPoints||"",grouping:d.grouping||"whole",numGroups:d.numGroups||2,playerGear:d.playerGear||"",equipment:Array.isArray(d.equipment)?d.equipment:[]});
+    updAct(act.id,{name:d.name,description:d.description||"",coachingPoints:d.coachingPoints||"",grouping:d.grouping||"whole",numGroups:d.numGroups||2,playerGear:d.playerGear||"",equipment:Array.isArray(d.equipment)?d.equipment:[]});
     setStaleMenuId(null);
   };
   const [staleMenuId,setStaleMenuId]=useState(null);
