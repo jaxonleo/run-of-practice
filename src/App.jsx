@@ -709,6 +709,22 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
   const [showScheduleModal,setShowScheduleModal]=useState(false);
   const [schedSuccess,setSchedSuccess]=useState(false);
   const [showTplPicker,setShowTplPicker]=useState(false);
+  // The sticky just-added-drill row also anchors to the top of the scroll
+  // container -- but Builder already has its own sticky Save/Run Now bar
+  // pinned at top:0 above it. Both stuck at the same top:0 meant the drill
+  // row was rendering directly underneath that bar (lower z-index), fully
+  // hidden. Measuring the bar's actual height (it varies with editP/
+  // startTpl/bottomMode) and offsetting the drill row by that amount keeps
+  // it visible just below the bar instead of behind it.
+  const stickyHeaderRef=useRef(null);
+  const [stickyHeaderH,setStickyHeaderH]=useState(0);
+  useEffect(()=>{
+    const el=stickyHeaderRef.current;
+    if(!el)return;
+    const ro=new ResizeObserver(()=>setStickyHeaderH(el.offsetHeight));
+    ro.observe(el);
+    return()=>ro.disconnect();
+  },[]);
   // Snapshot of what's actually persisted, so the router blocker (and the
   // beforeunload guard below) can warn before discarding edits that only
   // exist in this component's state. Replaces the old App-level
@@ -849,7 +865,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
           returns to wherever that was; the useBlocker guard above already
           intercepts this exact navigation when there are unsaved edits. */}
       <div style={{padding:"10px 14px 0"}}><button className="btn ghost bxs" onClick={()=>navigate(-1)}>Back</button></div>
-      <div style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
+      <div ref={stickyHeaderRef} style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
       {editP&&<div style={{padding:"8px 14px",background:"var(--gbg)",borderBottom:"1px solid var(--gb)",display:"flex",alignItems:"baseline",gap:8}}>
         <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",flexShrink:0}}>Editing</span>
         <span style={{fontSize:13,fontWeight:700,color:"var(--black)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{team?team.name:"Practice"} · {schedDate?new Date(schedDate+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"No date"}{schedTime?" · "+fmt12(schedTime):""}</span>
@@ -932,7 +948,7 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
         </div>
       )}
       <ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
-      {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId}>{dragHandle=>(<div>
+      {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId} stickyTop={stickyHeaderH}>{dragHandle=>(<div>
           <div className="ablk">
             <div className="abhdr" onClick={()=>setExpandedId(expandedId===act.id?null:act.id)}>
               {dragHandle}

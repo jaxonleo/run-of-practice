@@ -53,9 +53,13 @@ const Ic_Grip=()=><svg width="16" height="16" viewBox="0 0 16 16" fill="currentC
 // falls back into place the moment scrolling returns it to where it actually
 // sits in the list -- exactly "stays on top until you've scrolled up enough
 // for it to reach its real spot," for free from the browser.
-export function SortableActivityRow({id,children,sticky}){
+// `stickyTop` offsets that pin point -- needed when the screen already has
+// its own sticky header above this list (e.g. Builder's Save/Run Now bar),
+// since two siblings can't both actually occupy top:0 -- the later one just
+// renders hidden underneath the first.
+export function SortableActivityRow({id,children,sticky,stickyTop}){
   const {attributes,listeners,setNodeRef,transform,transition,isDragging}=useSortable({id});
-  const style={transform:CSS.Transform.toString(transform),transition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?0:undefined,zIndex:isDragging?1:(sticky?5:undefined)};
+  const style={transform:CSS.Transform.toString(transform),transition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?(stickyTop||0):undefined,zIndex:isDragging?1:(sticky?5:undefined)};
   // touchAction:"none" alone stops the page from scrolling under a drag,
   // but iOS Safari still fires its own long-press text-selection callout
   // (the magnifying-glass loupe) independently of that -- WebkitTouchCallout
