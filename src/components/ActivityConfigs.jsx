@@ -48,7 +48,12 @@ const Ic_Grip=()=><svg width="16" height="16" viewBox="0 0 16 16" fill="currentC
 export function SortableActivityRow({id,children,sticky}){
   const {attributes,listeners,setNodeRef,transform,transition,isDragging}=useSortable({id});
   const style={transform:CSS.Transform.toString(transform),transition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?0:undefined,zIndex:isDragging?1:(sticky?5:undefined)};
-  const handle=(<button type="button" {...attributes} {...listeners} onClick={e=>e.stopPropagation()} style={{background:"none",border:"none",cursor:isDragging?"grabbing":"grab",padding:"6px 4px",marginRight:6,color:"var(--td)",touchAction:"none",flexShrink:0,display:"flex",alignItems:"center"}} aria-label="Drag to reorder"><Ic_Grip/></button>);
+  // touchAction:"none" alone stops the page from scrolling under a drag,
+  // but iOS Safari still fires its own long-press text-selection callout
+  // (the magnifying-glass loupe) independently of that -- WebkitTouchCallout
+  // is the property that actually suppresses it; WebkitUserSelect covers
+  // the same long-press turning into a text-selection highlight instead.
+  const handle=(<button type="button" {...attributes} {...listeners} onClick={e=>e.stopPropagation()} style={{background:"none",border:"none",cursor:isDragging?"grabbing":"grab",padding:"6px 4px",marginRight:6,color:"var(--td)",touchAction:"none",WebkitTouchCallout:"none",WebkitUserSelect:"none",userSelect:"none",flexShrink:0,display:"flex",alignItems:"center"}} aria-label="Drag to reorder"><Ic_Grip/></button>);
   return <div ref={setNodeRef} style={style}>{children(handle)}</div>;
 }
 
