@@ -152,6 +152,10 @@ const LP_CSS = `
 .lp-hero-sub{font-size:16px;color:var(--td);line-height:1.6;max-width:520px;margin:0 auto 26px;}
 @media (min-width:640px){.lp-hero h1{font-size:46px;}}
 .lp-btnrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+.lp-hero-mark-wrap{position:relative;display:flex;justify-content:center;align-items:center;margin-top:38px;}
+.lp-hero-mark-glow{position:absolute;width:300px;height:300px;max-width:70vw;max-height:70vw;border-radius:50%;background:radial-gradient(circle,rgba(82,183,127,.32) 0%,rgba(82,183,127,0) 72%);filter:blur(6px);z-index:0;}
+.lp-hero-mark{position:relative;z-index:1;width:190px;height:auto;filter:drop-shadow(0 16px 28px rgba(0,0,0,.5));}
+@media (min-width:640px){.lp-hero-mark{width:220px;}}
 .lp-outcome{display:grid;grid-template-columns:1fr;gap:10px;}
 @media (min-width:640px){.lp-outcome{grid-template-columns:1fr 1fr;}}
 .lp-outcome-item{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid var(--b);border-radius:var(--r);padding:12px 14px;font-size:14px;color:var(--black2);}
@@ -645,8 +649,9 @@ export default function LandingPage({ onGetStarted }) {
         <a href="#how-it-works" className="btn ghost blg" style={{ textDecoration: "none" }}>See How It Works</a>
       </div>
       <div style={{ fontSize: 12, color: "var(--td)", marginTop: 12 }}>Free during early access.</div>
-      <div style={{ marginTop: 34, display: "flex", justifyContent: "center" }}>
-        <img src="/icon-512.png" alt="Run of Practice" width="220" height="220" style={{ width: 220, height: 220, maxWidth: "55%", borderRadius: 44, boxShadow: "0 24px 50px rgba(0,0,0,.35)" }} />
+      <div className="lp-hero-mark-wrap">
+        <div className="lp-hero-mark-glow" aria-hidden="true" />
+        <img className="lp-hero-mark" src="/hero-mark.png" alt="" />
       </div>
     </div>
 
