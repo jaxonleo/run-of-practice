@@ -131,8 +131,14 @@ export const HAND_LABELS={L:"Left",R:"Right",S:"Switch"};
 // getting scattered the way a plain round-robin shuffle would. Players
 // with no value for the attribute are spread round-robin across whatever's
 // left, last, so they don't all pile onto one group.
-export function groupByAttribute(players,n,getValue){
+// Also tracks which attribute value(s) landed in each group so the caller
+// can label it (e.g. "Lefties") -- a group only gets a label when every
+// player in it shares the exact same value; a group stitched together from
+// two half-empty buckets, or padded out with "none" players, doesn't get
+// one, since there's no single clean word for it.
+export function groupByAttribute(players,n,getValue,getLabel){
   const groups=Array.from({length:n},()=>[]);
+  const groupValues=Array.from({length:n},()=>new Set());
   const buckets={};
   const none=[];
   players.forEach(p=>{
@@ -140,18 +146,22 @@ export function groupByAttribute(players,n,getValue){
     if(!v){none.push(p);return;}
     (buckets[v]||(buckets[v]=[])).push(p);
   });
-  const ordered=Object.values(buckets).sort((a,b)=>b.length-a.length);
-  ordered.forEach(bucket=>{
+  const ordered=Object.entries(buckets).sort((a,b)=>b[1].length-a[1].length);
+  ordered.forEach(([value,bucket])=>{
     let idx=0;
     for(let i=1;i<n;i++)if(groups[i].length<groups[idx].length)idx=i;
     groups[idx].push(...bucket);
+    groupValues[idx].add(value);
   });
   none.forEach((p,i)=>{
     let idx=0;
     for(let j=1;j<n;j++)if(groups[j].length<groups[idx].length)idx=j;
     groups[idx].push(p);
   });
-  return groups.map(g=>g.map(p=>p.id));
+  return groups.map((g,i)=>({
+    ids:g.map(p=>p.id),
+    label:(groupValues[i].size===1&&getLabel)?getLabel([...groupValues[i]][0]):"",
+  }));
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────

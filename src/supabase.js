@@ -698,7 +698,7 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
       coachId: st.team_staff_id || '', helperName: st.helper_name || '', sublocationId: st.sublocation_id || '',
       coachingPoints: st.coaching_points || '', libraryId: st.library_activity_id || null,
       equipment: stationEquipByStation[st.id] || [], playerGear: '',
-      assignments: st.assignments || [],
+      assignments: st.assignments || [], groupLabel: st.group_label || '',
     }))
   }
   return base
@@ -839,6 +839,7 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
           stRow.team_staff_id = st.coachId || null
           stRow.helper_name = st.coachId ? null : (st.helperName || null)
           stRow.assignments = st.assignments || []
+          stRow.group_label = st.groupLabel || null
         }
         let stId = st.id
         if (isDbId(stId)) {

@@ -491,7 +491,7 @@ function HelperView({token}){
   const rotatedStations=isBlock&&stations.length?stations.map((st,i)=>{
     const srcIdx=(i-stIdx%n+n)%n;
     const g=groups.find(g=>g.group_number===srcIdx+1);
-    return Object.assign({},st,{players:g?g.players:[]});
+    return Object.assign({},st,{players:g?g.players:[],group_label:(stations[srcIdx]&&stations[srcIdx].group_label)||""});
   }):null;
   const phaseLabel=isBlock?(inBlockIntro?"INTRODUCING STATIONS":blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+n):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
   const roster=session.roster||[];
@@ -544,8 +544,8 @@ function HelperView({token}){
     <div className="cc-body">
       {isCl&&cur&&<div className="cc-focus"><div className="cc-focus-lbl">{cur.name}</div>{(cur.items||[]).map(it=>(<div key={it.id} className="cl-item"><div className="cl-check"/><div className="cl-text">{it.text}</div></div>))}</div>}
       {!isBlock&&!isCl&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {cur.description&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:4}}>Description</div>
+        {cur.description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
           <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{cur.description}</div>
         </div>}
         {cur.coaching_points&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
@@ -584,6 +584,7 @@ function HelperView({token}){
           return(<div key={st.id||i} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:4}}>Station {i+1}</div>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",marginBottom:6}}>{st.name||"Station "+(i+1)}</div>
+            {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
             {st.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:2}}>{st.sublocation_name}</div>}
             {st.coach_name&&<div style={{fontSize:11,color:"var(--td)",marginBottom:4}}>{st.coach_name}</div>}
             {st.coaching_points&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:4,lineHeight:1.4,borderLeft:"2px solid var(--green)",paddingLeft:8}}>{st.coaching_points}</div>}
@@ -603,6 +604,7 @@ function HelperView({token}){
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {focusSt+1}</div>
           {rotatedStations[focusSt].sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:3}}>{rotatedStations[focusSt].sublocation_name}</div>}
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:6}}>{rotatedStations[focusSt].name||"Station "+(focusSt+1)}</div>
+          {rotatedStations[focusSt].group_label&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {rotatedStations[focusSt].group_label}</span></div>}
           {rotatedStations[focusSt].coach_name&&<div style={{fontSize:13,color:"var(--td)",marginBottom:6}}>{rotatedStations[focusSt].coach_name}</div>}
           {rotatedStations[focusSt].coaching_points&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
@@ -619,6 +621,7 @@ function HelperView({token}){
           {rotatedStations.map((st,i)=>(<div key={st.id||i} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {i+1}</div>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.name||"Station "+(i+1)}</div>
+            {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
             {st.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{st.sublocation_name}</div>}
             {st.coaching_points&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:6,lineHeight:1.4,borderLeft:"2px solid var(--green)",paddingLeft:8}}>{st.coaching_points}</div>}
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{(st.players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p}/>))}</div>
@@ -634,6 +637,7 @@ function HelperView({token}){
           const toLabel="Station "+((i+1)%n+1)+(nextSt.name?": "+nextSt.name:"");
           return(<div key={st.id||i} className="cc-trans-card">
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",lineHeight:1.2,marginBottom:6}}>{(st.players||[]).map(p=>p.first_name).join(", ")||"--"}</div>
+            {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
             <div style={{fontSize:12,color:"var(--td)",marginBottom:3}}>from {fromLabel}</div>
             <div style={{fontSize:13,fontWeight:700,color:"var(--black)"}}>→ {toLabel}</div>
             {nextSt.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginTop:2}}>{nextSt.sublocation_name}</div>}
@@ -777,6 +781,13 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
   const [coachPresentIds,setCoachPresentIds]=useState(new Set());
   const [showAtt,setShowAtt]=useState(false);
   const [liveGroups,setLiveGroups]=useState(null);
+  // Parallel to liveGroups, index-for-index -- which "Group By..." label (if
+  // any) applies to that group. Seeded from the station's saved groupLabel
+  // whenever groups load from the plan, but wiped to blank the moment a
+  // reshuffle actually happens: a random reshuffle breaks the one clean
+  // attribute the label promised, so keeping a stale "Lefties" around would
+  // be actively misleading rather than just missing.
+  const [liveGroupLabels,setLiveGroupLabels]=useState(null);
   const [audioOn,setAudioOn]=useState(false);
   const [noteText,setNoteText]=useState("");
   const [noteError,setNoteError]=useState("");
@@ -885,7 +896,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
   const practiceStart=session?new Date(session.created_at).getTime():null;
   const schedDelta=(practiceStart&&practice&&practice.startTime&&practice.durMin)?(Math.floor((Date.now()-practiceStart)/60000)-completedMins-Math.floor(elapsed/60)):null;
   const n=isBlock&&cur.stations?cur.stations.length:1;
-  const rotatedStations=isBlock&&cur.stations&&liveGroups?cur.stations.map((st,i)=>{const srcIdx=(i-stIdx%n+n)%n;return Object.assign({},st,{assignments:liveGroups[srcIdx]||[]});}):null;
+  const rotatedStations=isBlock&&cur.stations&&liveGroups?cur.stations.map((st,i)=>{const srcIdx=(i-stIdx%n+n)%n;return Object.assign({},st,{assignments:liveGroups[srcIdx]||[],groupLabel:(liveGroupLabels&&liveGroupLabels[srcIdx])||""});}):null;
 
   // ── Timer: derived from timestamps, only ticks locally while running ───────
   useEffect(()=>{
@@ -1065,16 +1076,17 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
   // seedAllStationGroups -- this effect only fetches them, falling back to a
   // one-time bootstrap for a block added mid-session via LiveEditBuilder. ──
   useEffect(()=>{
-    if(!session||!cur){setLiveGroups(null);return;}
+    if(!session||!cur){setLiveGroups(null);setLiveGroupLabels(null);return;}
     let cancelled=false;
     (async()=>{
       if(isBlock){
         const existing=await fetchLatestGroups(session.id,cur.id);
         if(cancelled)return;
-        if(existing&&existing.length){setLiveGroups(existing);return;}
+        if(existing&&existing.length){setLiveGroups(existing);setLiveGroupLabels(cur.stations.map(st=>st.groupLabel||""));return;}
         const rebalanced=rebalanceKeep(cur.stations,presentIds);
         const seeded=rebalanced.map(st=>st.assignments||[]);
         setLiveGroups(seeded);
+        setLiveGroupLabels(cur.stations.map(st=>st.groupLabel||""));
         await saveSessionGroups(session.id,cur.id,coachId,seeded);
       }else{
         const g=cur.grouping||"whole";
@@ -1309,6 +1321,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
     const groups=Array.from({length:n2},()=>[]);
     shuffled.forEach((p,i2)=>groups[i2%n2].push(p.id));
     setLiveGroups(groups);
+    setLiveGroupLabels(Array.from({length:n2},()=>""));
     await saveSessionGroups(session.id,cur.id,coachId,groups);
   },[session,cur,presentIds,team,coachId]);
 
@@ -1480,8 +1493,8 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
         {cur.notes&&<div style={{fontSize:13,color:"var(--black2)",marginTop:8,fontStyle:"italic"}}>{cur.notes}</div>}
       </div>}
       {!isBlock&&!isCl&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {cur.description&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:4}}>Description</div>
+        {cur.description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
           <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{cur.description}</div>
         </div>}
         {cur.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
@@ -1528,6 +1541,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
         {cur.stations.map((st,i)=>{
           const stEquip=(Array.isArray(st.equipment)?st.equipment:[]).map(id=>{const a=(data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
           const assignments=liveGroups?(liveGroups[i]||[]):[];
+          const groupLabel=(liveGroupLabels&&liveGroupLabels[i])||st.groupLabel||"";
           return(<div key={st.id} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
               <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Station {i+1}</div>
@@ -1536,12 +1550,13 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
                 :leadName(st)&&<div style={{fontSize:11,color:"var(--td)"}}>{leadName(st)}</div>}
             </div>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",marginBottom:6}}>{st.activityName||st.name||"Station "+(i+1)}</div>
+            {groupLabel&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {groupLabel}</span></div>}
             {(stEquip.length>0||st.playerGear)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
               {stEquip.length>0&&<span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {stEquip.join(", ")}</span>}
               {st.playerGear&&<span style={{border:"1.5px solid #fdba74",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#fff"}}>Player Gear: {st.playerGear}</span>}
             </div>}
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {assignments.map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team} note={noteForPlayerAtDrill(pid,st.libraryId)}/>))}
+              {assignments.map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team}/>))}
             </div>
           </div>);
         })}
@@ -1555,6 +1570,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
           <button className="btn ghost bxs" style={{marginBottom:10}} onClick={()=>setFocusSt(null)}>&#8249; All Stations</button>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {focusSt+1}</div>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:6}}>{rotatedStations[focusSt].activityName||rotatedStations[focusSt].name||"Station "+(focusSt+1)}</div>
+          {rotatedStations[focusSt].groupLabel&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {rotatedStations[focusSt].groupLabel}</span></div>}
           {(leadName(rotatedStations[focusSt])||subName(rotatedStations[focusSt].sublocationId)||isController)&&<div style={{fontSize:14,fontWeight:600,color:"var(--green2)",marginBottom:10,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
             {isController?<button type="button" onClick={()=>setReassignStationId(rotatedStations[focusSt].id)} style={{background:"none",border:"none",padding:0,font:"inherit",color:"inherit",cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{leadName(rotatedStations[focusSt])||"Assign a coach"}</button>
               :leadName(rotatedStations[focusSt])&&<span>{leadName(rotatedStations[focusSt])}</span>}
@@ -1565,7 +1581,6 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
             <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coachingPoints}</div>
           </div>}
-          <div style={{marginBottom:10}}><SkillTagRow names={tagNamesForLibraryId(rotatedStations[focusSt].libraryId)}/></div>
           {(()=>{const stEquip=Array.isArray(rotatedStations[focusSt].equipment)?rotatedStations[focusSt].equipment:[];const names=stEquip.map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(names.length>0||rotatedStations[focusSt].playerGear)?(<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
             {names.length>0&&<span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#854d0e",fontWeight:600}}>Equipment: {names.join(", ")}</span>}
             {rotatedStations[focusSt].playerGear&&<span style={{background:"#fff7ed",border:"1px solid #fdba74",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#9a3412",fontWeight:600}}>Player Gear: {rotatedStations[focusSt].playerGear}</span>}
@@ -1589,6 +1604,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
                   :leadName(st)&&<div style={{fontSize:11,color:"var(--td)"}}>{leadName(st)}</div>}
               </div>
               <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.activityName||st.name||"Station "+(i+1)}</div>
+              {st.groupLabel&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}
               {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{subName(st.sublocationId)}</div>}
               {st.coachingPoints&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:6,lineHeight:1.4,borderLeft:"2px solid var(--green)",paddingLeft:8}}>{st.coachingPoints}</div>}
               {(equipNames.length>0||st.playerGear)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
@@ -1654,6 +1670,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
           const toLabel="Station "+((i+1)%cur.stations.length+1)+(nextSt.activityName?": "+nextSt.activityName:"")+(coachName(nextSt.coachId)?" · "+coachName(nextSt.coachId):"");
           return (<div key={st.id} className="cc-trans-card">
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",lineHeight:1.2,marginBottom:6}}>{pnames(st.assignments)||"--"}</div>
+            {st.groupLabel&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}
             <div style={{fontSize:12,color:"var(--td)",marginBottom:3}}>from {fromLabel}</div>
             <div style={{fontSize:13,fontWeight:700,color:"var(--black)"}}>→ {toLabel}</div>
             {subName(nextSt.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginTop:2}}>{subName(nextSt.sublocationId)}</div>}

@@ -60,36 +60,6 @@ function useCountdown(startSeconds) {
   return { display: formatClock(remaining), over, minutesBehind: over ? Math.ceil(Math.abs(remaining) / 60) : 0 };
 }
 
-// Interactive clock for the hero demo -- unlike useCountdown (pure wall-clock
-// math, read-only), this one re-anchors on every pause/resume/adjust/reset so
-// it stays Date.now()-accurate while still supporting user control.
-function useAdjustableClock(initialSeconds) {
-  const reducedMotion = usePrefersReducedMotion();
-  const [state, setState] = useState({ base: initialSeconds, at: Date.now(), paused: false });
-  const [, forceTick] = useState(0);
-
-  useEffect(() => {
-    if (reducedMotion || state.paused) return;
-    const id = setInterval(() => forceTick(t => t + 1), 1000);
-    return () => clearInterval(id);
-  }, [reducedMotion, state.paused]);
-
-  const computeRemaining = (s) => (s.paused || reducedMotion) ? s.base : loopedRemaining(s.base, Math.floor((Date.now() - s.at) / 1000));
-  const remaining = computeRemaining(state);
-  const over = remaining < 0;
-
-  return {
-    display: formatClock(remaining),
-    over,
-    minutesBehind: over ? Math.ceil(Math.abs(remaining) / 60) : 0,
-    paused: state.paused,
-    pause: () => setState(s => s.paused ? s : { base: computeRemaining(s), at: Date.now(), paused: true }),
-    resume: () => setState(s => s.paused ? { base: s.base, at: Date.now(), paused: false } : s),
-    adjust: (deltaSeconds) => setState(s => ({ base: computeRemaining(s) + deltaSeconds, at: Date.now(), paused: s.paused })),
-    resetTo: (seconds) => setState(s => ({ base: seconds, at: Date.now(), paused: s.paused })),
-  };
-}
-
 // Click-driven step timer for the Adjustments card -- no wall-clock ticking,
 // just an undo-able history of manual adjustments (this card demonstrates
 // the controls, not another running clock).
@@ -132,7 +102,7 @@ function useStepTimer(initialSeconds, initialAheadMinutes) {
 // layout (header, alternating rows, responsive breakpoint) under an
 // `.lp-` prefix so nothing here can collide with the app's own classes.
 const LP_CSS = `
-.lp{background:var(--bg);--mock-card-primary:480px;--mock-card-secondary:350px;}
+.lp{background:var(--bg);--mock-card-primary:480px;}
 .lp-header{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between;padding:10px 20px;}
 .lp-brand{display:flex;align-items:center;gap:10px;}
 .lp-brand img{width:32px;height:32px;border-radius:8px;flex-shrink:0;}
@@ -175,13 +145,6 @@ const LP_CSS = `
 .lp-phoneframe-island{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:90px;height:22px;background:#000;border-radius:14px;z-index:2;}
 .lp-phoneframe-screen{position:relative;background:#fff;border-radius:34px;overflow:hidden;padding-top:34px;}
 .lp-phoneframe .lp-phone{box-shadow:none;border:none;border-radius:0;max-width:none;margin:0;padding:16px 16px 24px;}
-.lp-hero-stage{position:relative;width:100%;max-width:var(--mock-card-primary);margin:0 auto;}
-.lp-hero-mini{position:absolute;right:-18px;bottom:-22px;width:60%;max-width:var(--mock-card-secondary);transform:scale(0.7) rotate(-2deg);transform-origin:bottom right;z-index:2;filter:drop-shadow(0 16px 26px rgba(0,0,0,.3));}
-.lp-hero-mini .lp-phone{max-width:none;}
-.lp-rotate-flash{position:absolute;top:14px;right:14px;background:var(--red);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:20px;z-index:5;animation:lp-rotate-flash-pop .3s ease;}
-@keyframes lp-rotate-flash-pop{from{opacity:0;transform:scale(.8);}to{opacity:1;transform:scale(1);}}
-.lp-chip-fade{animation:lp-chip-fade .3s ease;}
-@keyframes lp-chip-fade{from{opacity:0;transform:translateY(2px);}to{opacity:1;transform:translateY(0);}}
 .lp-flash-green{animation:lp-flash-green .6s ease;}
 @keyframes lp-flash-green{0%{border-color:var(--green);}100%{border-color:var(--b);}}
 .lp-hero{background:var(--black);padding:52px 20px 60px;text-align:center;}
@@ -244,7 +207,7 @@ const LP_CSS = `
 .lp-w-done-btn{margin-top:auto;background:rgba(255,255,255,.14);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13px;letter-spacing:.05em;text-align:center;border-radius:999px;padding:11px 0;}
 .lp-watch-caption{font-size:12.5px;line-height:1.5;color:var(--tm);text-align:center;max-width:210px;}
 .lp-watch-caption strong{color:var(--black);font-weight:600;}
-@media (prefers-reduced-motion:reduce){.lp-w-live .dot,.lp-w-haptic span,.lp-w-timer.over,.lp-rotate-flash,.lp-chip-fade,.lp-flash-green,.cc-timer.over{animation:none;}}
+@media (prefers-reduced-motion:reduce){.lp-w-live .dot,.lp-w-haptic span,.lp-w-timer.over,.lp-flash-green,.cc-timer.over{animation:none;}}
 @media (max-width:560px){.lp-watch-stage{gap:32px;}}
 `;
 
@@ -339,7 +302,7 @@ function LocationLine({ text, style }) {
 function StationsVisual() {
   const stations = [
     { label: "Station 1", area: "Infield", chips: [{ n: "Ryker", t: "here" }, { n: "Owen", t: "here" }, { n: "Mason", t: "here" }] },
-    { label: "Station 2", area: "Batting Cage 1", chips: [{ n: "Ava", t: "here" }, { n: "Jordan", t: "here" }] },
+    { label: "Station 2", area: "Batting Cage 1", groupLabel: "Lefties", chips: [{ n: "Ava", t: "here" }, { n: "Jordan", t: "here" }] },
     { label: "Station 3", area: "Outfield", chips: [{ n: "Max", t: "here" }, { n: "Riley", t: "here" }, { n: "Sam", t: "here" }] },
   ];
   return (<div className="lp-phone">
@@ -350,6 +313,7 @@ function StationsVisual() {
     <button className="btn outline bsm bfull mb8">Generate Random Groups</button>
     {stations.map((s) => (<div key={s.label} style={{ background: "var(--s1)", border: "1.5px solid var(--b)", borderRadius: "var(--r)", padding: "10px 10px 8px", marginBottom: 8 }}>
       <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 900, color: "var(--green)", letterSpacing: ".05em", marginBottom: 6 }}>{s.label.toUpperCase()} · {s.area.toUpperCase()}</div>
+      {s.groupLabel && <div style={{ marginBottom: 6 }}><span className="bdg bp">Group: {s.groupLabel}</span></div>}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {s.chips.map(c => <StationChip key={c.n} name={c.n} tone={c.t} />)}
       </div>
@@ -366,7 +330,7 @@ function StationsVisual() {
 const PRE_SETUP_STATIONS = [
   { name: "Ground Ball Fundamentals", area: "Infield", coach: "Coach Mike", equip: ["Bucket of Balls"] },
   { name: "Front Toss", area: "Batting Cage 1", coach: "Coach Jen", equip: ["L-Screen"] },
-  { name: "Fly Ball Reads", area: "Outfield", coach: "Ava's Dad (helper)", equip: [] },
+  { name: "Fly Ball Reads", area: "Outfield", coach: "Ava's Dad (helper)", equip: ["Cones"] },
 ];
 const CLOCK_PRESETUP_START = 28 * 60 + 41; // 28:41, Pre-Practice Setup only
 function PreSetupVisual() {
@@ -439,8 +403,8 @@ function LiveVisual({
     <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
       <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
     </div>
-    {description && <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 4 }}>Description</div>
+    {description && <div style={{ borderLeft: "3px solid var(--black)", paddingLeft: 10, marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--black)", marginBottom: 4 }}>Description</div>
       <div style={{ fontSize: 13, color: "var(--black)", lineHeight: 1.5 }}>{description}</div>
     </div>}
     <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, marginBottom: 10 }}>
@@ -466,120 +430,6 @@ function StationOverviewRow({ label, drill, area, coach, chips }) {
   </div>);
 }
 
-// ── Hero demo: one Station Block round, both cards on one shared,
-// pausable/adjustable clock. Stations (drill/coach/location) are fixed;
-// only the player groups rotate through them each round.
-const HERO_ROTATION = [
-  { infield: ["Ryker", "Owen", "Mason"], cage: ["Ava", "Jordan"] },
-  { infield: ["Ava", "Jordan"], cage: ["Max", "Riley", "Sam"] },
-  { infield: ["Max", "Riley", "Sam"], cage: ["Ryker", "Owen", "Mason"] },
-];
-function playerTone() { return "here"; }
-
-function HeroPrimaryCard({ round, clock, rotateFlash, players, onPauseToggle, onAdjust, onNext }) {
-  return (<div className="lp-phone" style={{ position: "relative" }}>
-    {rotateFlash && <div className="lp-rotate-flash">Rotate</div>}
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-      <div className="row"><span className="live" style={{ animationPlayState: clock.paused ? "paused" : "running" }} /><span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginLeft: 5 }}>Live</span></div>
-      {clock.paused
-        ? <span style={{ background: "var(--s2)", color: "var(--tm)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>Paused</span>
-        : clock.over
-          ? <span style={{ background: "var(--ambg)", color: "var(--amber)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{clock.minutesBehind}m behind</span>
-          : <span style={{ background: "var(--gbg)", color: "var(--green)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>On time</span>}
-    </div>
-    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 2 }}>Round {round} of 3</div>
-    <div className="cc-act-name">Ground Ball Fundamentals</div>
-    <LocationLine text="Infield · Eastside Park" style={{ marginTop: 2, marginBottom: 2 }} />
-    <div className="limt" style={{ marginBottom: 6 }}>Coach Mike</div>
-    <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
-      <div className={"cc-timer" + (clock.over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{clock.display}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
-    </div>
-    <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 4 }}>Description</div>
-      <div style={{ fontSize: 13, color: "var(--black)", lineHeight: 1.5 }}>Coach rolls firm grounders, alternating forehand and backhand. Field, footwork, throw to the bucket target.</div>
-    </div>
-    <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
-      <div style={{ fontSize: 14, color: "var(--black)", lineHeight: 1.5 }}>Fielding triangle: feet wide, glove out front. Right, left, throw.</div>
-    </div>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-      <span className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>Fielding</span><span className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>Footwork</span>
-    </div>
-    <div key={round} className="lp-chip-fade" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-      {players.map(p => <StationChip key={p} name={p} tone={playerTone(p)} />)}
-    </div>
-    <div className="cc-queue" style={{ marginBottom: 10 }}>
-      <div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)" }}>Up Next</div>
-      <div className="cc-queue-item">
-        {round < 3
-          ? <span style={{ fontSize: 13, color: "var(--black2)" }}>Round {round + 1}: players rotate</span>
-          : <><span style={{ fontSize: 13, color: "var(--black2)" }}>Situational Scrimmage</span><span className="bdg bs">20m</span></>}
-      </div>
-    </div>
-    <div className="brow" style={{ marginBottom: 8, gap: 8 }}>
-      <button className="btn ghost bsm" style={{ minWidth: 44, minHeight: 44 }} aria-label={clock.paused ? "Resume timer" : "Pause timer"} onClick={onPauseToggle}>{clock.paused ? "▶" : "❚❚"}</button>
-      <button className="btn ghost bsm" style={{ flex: 1, minHeight: 44 }} aria-label="Subtract one minute from round timer" onClick={() => onAdjust(-60)}>−1M</button>
-      <button className="btn ghost bsm" style={{ flex: 1, minHeight: 44 }} aria-label="Add one minute to round timer" onClick={() => onAdjust(60)}>+1M</button>
-    </div>
-    <button className="btn primary blg bfull" style={{ minHeight: 44 }} aria-label="Advance to next round" onClick={onNext}>Next &gt;</button>
-  </div>);
-}
-
-function HeroOverlayCard({ round, clock, players }) {
-  return (<div className="lp-phone">
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 2 }}>Station 2</div>
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 900, marginBottom: 2 }}>Front Toss</div>
-    <LocationLine text="Batting Cage 1 · Eastside Park" style={{ fontSize: 11, marginBottom: 2 }} />
-    <div className="limt" style={{ fontSize: 11, marginBottom: 6 }}>Coach Jen</div>
-    <div className={"cc-timer" + (clock.over ? " over" : "")} style={{ fontSize: 30, fontVariantNumeric: "tabular-nums", marginBottom: 8 }}>{clock.display}</div>
-    <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 8, marginBottom: 8 }}>
-      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)" }}>Description</div>
-      <div style={{ fontSize: 11.5, lineHeight: 1.4 }}>Firm underhand toss from behind the L-screen. 8 swings, rotate. Partner shags.</div>
-    </div>
-    <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 8, marginBottom: 8 }}>
-      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a" }}>💡 Coaching Focus</div>
-      <div style={{ fontSize: 12, lineHeight: 1.4 }}>Level swing, contact out front.</div>
-    </div>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-      <span className="bdg bs" style={{ fontSize: 9, whiteSpace: "nowrap" }}>Hitting</span><span className="bdg bs" style={{ fontSize: 9, whiteSpace: "nowrap" }}>Contact</span>
-    </div>
-    <div key={round} className="lp-chip-fade" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-      {players.map(p => <StationChip key={p} name={p} tone={playerTone(p)} />)}
-    </div>
-  </div>);
-}
-
-function HeroDemo() {
-  const clock = useAdjustableClock(CLOCK_STATION_BLOCK_START);
-  const [round, setRound] = useState(1);
-  const [rotateFlash, setRotateFlash] = useState(false);
-  const flashTimeoutRef = useRef(null);
-  useEffect(() => () => { if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current); }, []);
-
-  const handleNext = () => {
-    clock.resetTo(CLOCK_STATION_BLOCK_START);
-    setRound(r => (r % 3) + 1);
-    setRotateFlash(true);
-    if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
-    flashTimeoutRef.current = setTimeout(() => setRotateFlash(false), 1000);
-  };
-
-  const roundData = HERO_ROTATION[round - 1];
-
-  return (<div className="lp-hero-stage">
-    <HeroPrimaryCard
-      round={round}
-      clock={clock}
-      rotateFlash={rotateFlash}
-      players={roundData.infield}
-      onPauseToggle={clock.paused ? clock.resume : clock.pause}
-      onAdjust={clock.adjust}
-      onNext={handleNext}
-    />
-    <div className="lp-hero-mini"><HeroOverlayCard round={round} clock={clock} players={roundData.cage} /></div>
-  </div>);
-}
-
 function StationDetailVisual() {
   const { display, over } = useCountdown(CLOCK_STATION_BLOCK_START);
   return (<div className="lp-phone">
@@ -590,8 +440,8 @@ function StationDetailVisual() {
     <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
       <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
     </div>
-    <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 4 }}>Description</div>
+    <div style={{ borderLeft: "3px solid var(--black)", paddingLeft: 10, marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--black)", marginBottom: 4 }}>Description</div>
       <div style={{ fontSize: 13, color: "var(--black)", lineHeight: 1.5 }}>Toss from behind the L-screen, firm underhand to the front half of the plate. Each hitter takes 8 swings, then rotates. Partner shags into the bucket.</div>
     </div>
     <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, marginBottom: 10 }}>
@@ -628,15 +478,6 @@ function HelperVisual() {
       <StationOverviewRow label="Station 3" drill="Fly Ball Reads" area="Outfield" coach="Coach Dana" chips={<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="here" /><StationChip name="Sam" tone="here" /></>} />
     </div>
     <div className="lp-phoneframe-wrap"><PhoneFrame><StationDetailVisual /></PhoneFrame></div>
-  </div>);
-}
-
-function FocusVisual() {
-  return (<div className="lp-phone">
-    <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, paddingTop: 4, paddingBottom: 4 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
-      <div style={{ fontSize: 15, color: "var(--black)", lineHeight: 1.5 }}>Fielding triangle: feet wide, glove out front. Right, left, throw. Work through the ball, never around it.</div>
-    </div>
   </div>);
 }
 
@@ -774,6 +615,7 @@ const FAQS = [
   { q: "Can I copy an old practice?", a: "Yes. Previous practices can be copied, adjusted and run again. Coaches can also save reusable templates." },
   { q: "What happens if attendance changes?", a: "Player groupings can be updated based on the players who are actually present. Coaches can use random groupings or make manual changes." },
   { q: "Can I adjust the schedule while practice is happening?", a: "Yes. Coaches can add or reduce time, end an activity, skip an activity or move to the next part of the practice. Run of Practice shows how those changes affect the overall schedule." },
+  { q: "Will I hear the timer if my phone is in my pocket?", a: "Turn on audio and Run of Practice will call out the two-minute warning and the final buzzer, so you don't need to have the screen in front of you. If a drill runs long, the timer counts into negative time instead of stopping, so you can keep coaching and move on when you're ready." },
 ];
 
 function FAQ() {
@@ -796,7 +638,7 @@ export default function LandingPage({ onGetStarted }) {
 
     <div className="lp-hero">
       <div className="lp-eyebrow">Practice Planning and Live Execution</div>
-      <h1>Plan the practice. Run it live. Keep everyone aligned.</h1>
+      <h1>Plan the practice. Run it live. Keep everyone on the same page.</h1>
       <div className="lp-hero-sub">Schedule practices, build the plan, and run it live with your assistants and helpers. Less time explaining what happens next. More time coaching.</div>
       <div className="lp-btnrow">
         <button className="btn primary blg" onClick={onGetStarted}>Try It Free</button>
@@ -804,7 +646,7 @@ export default function LandingPage({ onGetStarted }) {
       </div>
       <div style={{ fontSize: 12, color: "var(--td)", marginTop: 12 }}>Free during early access.</div>
       <div style={{ marginTop: 34, display: "flex", justifyContent: "center" }}>
-        <HeroDemo />
+        <img src="/icon.svg" alt="Run of Practice" width="220" height="220" style={{ width: 220, height: 220, maxWidth: "55%", borderRadius: 44, boxShadow: "0 24px 50px rgba(0,0,0,.35)" }} />
       </div>
     </div>
 
@@ -812,12 +654,8 @@ export default function LandingPage({ onGetStarted }) {
       "What's happening now, time remaining, the coaching focus, which players, which coach, which field, and what's next. No clipboard, no stopwatch, no flipping between notes.",
     ]} />
 
-    <Section eyebrow="Assistant and Helper Views" title="Every helper relays exactly what the coach wrote." reverse wideVisual visual={<HelperVisual />} body={[
-      "Assistant coaches see their team's practices automatically. Parent helpers get a link, no account needed and nothing to download. Everyone sees the same timer, the same drill and the same coaching focus. Set a note for a player under a skill like Shooting or Hitting, and it follows them to whatever station they land at, so whoever is running that station already knows what the coach wants them to work on.",
-    ]} />
-
-    <Section eyebrow="Consistent Coaching" title="Every station teaches the same thing." visual={<FocusVisual />} body={[
-      "Write the focus points once. Every assistant and helper sees them while the drill is running, so players hear one message instead of four versions of it.",
+    <Section eyebrow="Assistant and Helper Views" title="The coaching message stays consistent, no matter who leads the drill." reverse wideVisual visual={<HelperVisual />} body={[
+      "Assistant coaches see their team's practices automatically. Parent helpers can join from a shared link, with no account or download required. Everyone sees the same drill, timer and coaching focus. You can add individual player focus points tied to a skill. When that skill is tagged in a drill, the focus point is visible to the coach leading that station, so the player receives consistent messaging.",
     ]} />
 
     <Section eyebrow="Transition Support" title="Rotate stations without stopping practice." reverse visual={<TransitionVisual />} body={[
@@ -831,7 +669,7 @@ export default function LandingPage({ onGetStarted }) {
     <div className="lp-section tight dark" style={{ textAlign: "center" }}>
       <div className="lp-wrap" style={{ maxWidth: 640 }}>
         <div className="lp-title">A smooth practice starts before you get to the field or the court.</div>
-        <div className="lp-body">Everything the live view shows (drills, groups, stations, equipment) comes from a plan you build in minutes, not the night before at the kitchen table.</div>
+        <div className="lp-body">Everything the live view shows (drills, groups, stations, equipment) comes from a plan you build in minutes.</div>
       </div>
     </div>
 
@@ -841,6 +679,7 @@ export default function LandingPage({ onGetStarted }) {
 
     <Section eyebrow="Stations and Groupings" title="Groups built from who actually showed up." visual={<StationsVisual />} body={[
       "Set station lengths, transition time and rotation order. Generate groups from the players at practice: random, balanced, manual or by position and handedness. When attendance changes, the groups update. You don't rebuild the practice because two players are out sick.",
+      "Group by position or handedness and that label travels with the group. If a coach is running a front toss station, they can see the next group rotating in is \"Lefties\" before it arrives, so they can set up the station accordingly.",
     ]} />
 
     <Section eyebrow="Pre-Practice Setup" title="Everyone knows what to bring and where to go before the first whistle." reverse visual={<PreSetupVisual />} body={[
@@ -899,8 +738,8 @@ export default function LandingPage({ onGetStarted }) {
     <div id="early-access" className="lp-section" style={{ background: "var(--gbg)", textAlign: "center" }}>
       <div className="lp-wrap" style={{ maxWidth: 640 }}>
         <div className="lp-eyebrow">Early Access</div>
-        <div className="lp-title">Use it in a real practice. Tell us where it falls short.</div>
-        <div className="lp-body">Run of Practice is in early access. We're looking for coaches who will run it during real practices and tell us what worked, what was confusing, and what their assistants needed. The goal: something coaches rely on before, during and after practice.</div>
+        <div className="lp-title">Put Run of Practice to work. Shape what comes next.</div>
+        <div className="lp-body">Run of Practice is in early access, and we're looking for coaches to use it in real practices and share what works, what's unclear and where the experience falls short. The goal is to build something coaches can rely on before, during and after every practice.</div>
         <button className="btn primary blg" onClick={onGetStarted} style={{ marginTop: 8 }}>Try Run of Practice</button>
         <div style={{ fontSize: 12, color: "var(--tm)", marginTop: 10 }}>Free during early access.</div>
       </div>
@@ -910,7 +749,7 @@ export default function LandingPage({ onGetStarted }) {
 
     <div className="lp-section dark" style={{ textAlign: "center" }}>
       <div className="lp-wrap" style={{ maxWidth: 560 }}>
-        <div className="lp-title">Build the plan once. Keep everyone following it.</div>
+        <div className="lp-title">Build the plan once. Keep everyone on track.</div>
         <div className="lp-body">Schedule the practice, organize the details and run it live from one place.</div>
         <button className="btn primary blg" onClick={onGetStarted} style={{ marginTop: 8 }}>Try It Free</button>
         <div style={{ marginTop: 12 }}><button className="lp-signin" style={{ color: "var(--td)" }} onClick={onGetStarted}>Already have an account? Sign in</button></div>

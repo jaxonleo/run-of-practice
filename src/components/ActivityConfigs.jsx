@@ -172,21 +172,25 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
     const shuffled=[...players].sort(()=>Math.random()-.5);
     const groups=Array.from({length:n},()=>[]);
     shuffled.forEach((p,i)=>groups[i%n].push(p.id));
-    onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:groups[i]||[]}))});
+    onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:groups[i]||[],groupLabel:""}))});
   };
-  const clearGroups=()=>onChange({stations:act.stations.map(st=>Object.assign({},st,{assignments:[]}))});
+  const clearGroups=()=>onChange({stations:act.stations.map(st=>Object.assign({},st,{assignments:[],groupLabel:""}))});
   // Buckets whole-station assignments by a shared attribute (first listed
   // position, or a handedness field) instead of shuffling -- e.g. every
   // catcher ends up at the same station rather than scattered one-per-group
-  // the way Generate Random would leave them.
+  // the way Generate Random would leave them. The attribute value that
+  // produced each group (e.g. "Lefties") rides along as groupLabel so
+  // whoever leads that station later knows who's coming without having to
+  // recheck the roster.
+  const HAND_GROUP_LABELS={L:"Lefties",R:"Righties",S:"Switch"};
   const groupByPosition=()=>{
-    const groups=groupByAttribute(players,act.stations.length,p=>(p.positions&&p.positions[0])||"");
-    onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:groups[i]||[]}))});
+    const groups=groupByAttribute(players,act.stations.length,p=>(p.positions&&p.positions[0])||"",v=>v);
+    onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:(groups[i]&&groups[i].ids)||[],groupLabel:(groups[i]&&groups[i].label)||""}))});
     setGroupByOpen(false);
   };
   const groupByHand=key=>{
-    const groups=groupByAttribute(players,act.stations.length,p=>p[key]||"");
-    onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:groups[i]||[]}))});
+    const groups=groupByAttribute(players,act.stations.length,p=>p[key]||"",v=>HAND_GROUP_LABELS[v]||v);
+    onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:(groups[i]&&groups[i].ids)||[],groupLabel:(groups[i]&&groups[i].label)||""}))});
     setGroupByOpen(false);
   };
   const handFields=HAND_FIELDS_BY_SPORT[sport]||[];
@@ -198,8 +202,8 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   const handleChip=(si,p)=>{
     const st=act.stations[si];
     const assigned=(st.assignments||[]).includes(p.id);
-    if(assigned){onSt(st.id,{assignments:(st.assignments||[]).filter(x=>x!==p.id)});}
-    else{const newSts=act.stations.map((s2,i2)=>{if(i2===si)return Object.assign({},s2,{assignments:[...(s2.assignments||[]),p.id]});return Object.assign({},s2,{assignments:(s2.assignments||[]).filter(x=>x!==p.id)});});onChange({stations:newSts});}
+    if(assigned){onSt(st.id,{assignments:(st.assignments||[]).filter(x=>x!==p.id),groupLabel:""});}
+    else{const newSts=act.stations.map((s2,i2)=>{if(i2===si)return Object.assign({},s2,{assignments:[...(s2.assignments||[]),p.id],groupLabel:""});const had=(s2.assignments||[]).includes(p.id);return Object.assign({},s2,{assignments:(s2.assignments||[]).filter(x=>x!==p.id),groupLabel:had?"":s2.groupLabel});});onChange({stations:newSts});}
   };
 
   return (<div>
@@ -295,6 +299,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
           <button type="button" className="btn ghost bxs" onClick={()=>setNewGearIdx(si)}>+ Add Gear</button>
         </div>}
         {players.length>0&&<div className="fld"><label className="lbl">Players</label>
+          {st.groupLabel&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
             {players.map(p=>{
               const here=(st.assignments||[]).includes(p.id);
