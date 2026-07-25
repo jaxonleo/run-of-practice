@@ -285,16 +285,49 @@ function LibraryVisual() {
   </div>);
 }
 
+// Matches the real Builder's activity rows (App.jsx: .ablk/.abhdr/.abbody)
+// exactly, including one row expanded into its real ActConfig fields
+// (ActivityConfigs.jsx) -- Duration uses the app's actual DurStepper
+// control (-/value/+), not a native range input; that stepper is the real
+// "set a variable like time" interaction this app has, so it's what's
+// shown expanded here rather than an invented slider.
 function BuilderVisual() {
-  const rows = [{ n: "Dynamic Warmup", d: "10m" }, { n: "Throwing Progression", d: "10m" }, { n: "Station Block", d: "45m" }, { n: "Situational Scrimmage", d: "20m" }];
+  const rows = [
+    { n: "Dynamic Warmup", d: "10" },
+    { n: "Throwing Progression", d: "10", expanded: true },
+    { n: "Station Block", d: "45" },
+    { n: "Situational Scrimmage", d: "20" },
+  ];
   return (<div className="lp-phone">
     <div className="sechdr mb8"><span className="sectitle">4 Activities</span><span className="pill">85m</span></div>
-    {rows.map((r, i) => (<div key={i} className="ablk" style={{ marginBottom: 6 }}>
+    {rows.map((r) => (<div key={r.n} className="ablk" style={{ marginBottom: 6 }}>
       <div className="abhdr" style={{ cursor: "default" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 2, marginRight: 6, flexShrink: 0, color: "var(--s3)", fontSize: 12, lineHeight: 1 }}><span>&#8593;</span><span>&#8595;</span></div>
-        <div style={{ flex: 1, font: "700 14px 'Barlow Condensed',sans-serif" }}>{r.n}</div>
-        <span className="bdg bp">{r.d}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ font: "700 14px 'Barlow Condensed',sans-serif" }}>{r.n}</div>
+          <div className="limt">{r.d}min</div>
+        </div>
+        <span className="bdg bp">{r.d}m</span>
+        <button className="btn danger bxs">x</button>
       </div>
+      {r.expanded && <div className="abbody">
+        <div className="fld"><label className="lbl">Name</label><input className="inp" value={r.n} readOnly /></div>
+        <div className="fld"><label className="lbl">Duration (min)</label>
+          <div style={{ display: "flex", alignItems: "center", border: "1.5px solid var(--b)", borderRadius: "var(--rs)", overflow: "hidden", background: "#fff", width: 120 }}>
+            <span style={{ width: 40, height: 40, background: "var(--s2)", color: "var(--black2)", fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>-</span>
+            <span style={{ flex: 1, textAlign: "center", fontFamily: "'DM Mono',monospace", fontSize: 15, fontWeight: 600, color: "var(--black)" }}>{r.d}m</span>
+            <span style={{ width: 40, height: 40, background: "var(--s2)", color: "var(--black2)", fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</span>
+          </div>
+        </div>
+        <div className="fld"><label className="lbl">Player Grouping</label>
+          <div style={{ display: "flex", gap: 6 }}>
+            <span style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: "var(--r)", border: "1.5px solid var(--b)", background: "var(--green)", color: "#fff", fontSize: 13, fontWeight: 700 }}>Whole Team</span>
+            <span style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: "var(--r)", border: "1.5px solid var(--b)", background: "var(--s1)", color: "var(--black)", fontSize: 13, fontWeight: 700 }}>Partners</span>
+            <span style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: "var(--r)", border: "1.5px solid var(--b)", background: "var(--s1)", color: "var(--black)", fontSize: 13, fontWeight: 700 }}>Groups</span>
+          </div>
+        </div>
+        <button className="btn ghost bsm bfull mt8">Done</button>
+      </div>}
     </div>))}
     <div className="brow mt8"><button className="btn outline bsm" style={{ flex: 1 }}>Save</button><button className="btn primary bsm" style={{ flex: 1 }}>Run Now</button></div>
   </div>);
@@ -343,7 +376,7 @@ function DurStepperMock({ label, value }) {
 
 function StationsVisual() {
   const stations = [
-    { label: "Station 1", area: "Infield", chips: [{ n: "Ryker", t: "here" }, { n: "Owen", t: "here" }, { n: "Mason", t: "other", note: "Out sick → moved to St 2" }] },
+    { label: "Station 1", area: "Infield", chips: [{ n: "Ryker", t: "here" }, { n: "Owen", t: "here" }, { n: "Mason", t: "here" }] },
     { label: "Station 2", area: "Batting Cage 1", groupLabel: "Lefties", chips: [{ n: "Ava", t: "here" }, { n: "Jordan", t: "here" }] },
   ];
   return (<div className="lp-phone">
