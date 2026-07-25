@@ -312,6 +312,17 @@ function StationChip({ name, tone, note }) {
   </span>);
 }
 
+// Matches the real PlayerChipLive (CommandScreen.jsx) -- the pill shown for
+// "Players at this station" once you've focused on one station specifically
+// (a different, lighter-green pill than the block-intro/overview chip
+// above, and the only place a per-player focus note actually appears).
+function PlayerPill({ name, note }) {
+  return (<span style={{ padding: "6px 12px", borderRadius: 20, border: "1.5px solid var(--gb)", background: "var(--gbg)", fontSize: 14, fontWeight: 600, color: "var(--black)", display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 2, maxWidth: note ? 200 : undefined }}>
+    <span>{name}</span>
+    {note && <span style={{ fontSize: 11, fontWeight: 500, color: "var(--green2)", lineHeight: 1.3, textAlign: "left" }}>{note}</span>}
+  </span>);
+}
+
 function LocationLine({ text, style }) {
   return <div style={{ fontSize: 12, color: "var(--td)", display: "flex", alignItems: "center", gap: 4, ...style }}><span aria-hidden="true">📍</span>{text}</div>;
 }
@@ -431,7 +442,7 @@ function LiveVisual({
   startSeconds = CLOCK_LIVE_DEFAULT_START,
   description = "Four defenders in a shell around the key, one ball reversed side to side. Close out low and hard on the catch, stay in a stance.",
   focus = "Sprint to close out, then chop your feet down. Contest without fouling.",
-  skills = ["Defense", "Footwork"],
+  coach = "Coach Mike",
   upNextName = "3-on-3 Scrimmage",
   upNextMins = "20m",
 }) {
@@ -457,22 +468,29 @@ function LiveVisual({
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
       <div style={{ fontSize: 14, color: "var(--black)", lineHeight: 1.5 }}>{focus}</div>
     </div>
-    {skills.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-      {skills.map(s => <span key={s} className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>{s}</span>)}
+    {coach && <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 3 }}>Coach</div>
+      <div style={{ fontSize: 14, color: "var(--black)" }}>{coach}</div>
     </div>}
     <div className="cc-queue"><div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)" }}>Up Next</div><div className="cc-queue-item"><span style={{ fontSize: 13, color: "var(--black2)" }}>{upNextName}</span><span className="bdg bs">{upNextMins}</span></div></div>
   </div>);
 }
 
-function StationOverviewRow({ label, drill, area, coach, chips }) {
-  return (<div style={{ background: "var(--s1)", border: "1px solid var(--b)", borderRadius: "var(--rs)", padding: "8px 10px", marginBottom: 6 }}>
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
-      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)" }}>{label}</span>
-      <span style={{ fontSize: 10, color: "var(--td)" }}>{coach}</span>
+// Matches the real "Get everyone to their station" block-intro screen
+// (CommandScreen.jsx) exactly: Station N / area / coach on one header row,
+// drill name, optional equipment pill, then plain player chips -- no focus
+// notes here. Notes only show up once you're focused on a single station
+// (StationDetailVisual below), not on this overview.
+function StationOverviewRow({ label, drill, area, coach, equipment, chips }) {
+  return (<div style={{ background: "var(--s1)", border: "1.5px solid var(--b)", borderRadius: "var(--r)", padding: "10px 12px", marginBottom: 8 }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)" }}>{label}</span>
+      <span style={{ fontSize: 11, color: "var(--green2)", fontWeight: 600 }}>{area}</span>
+      <span style={{ fontSize: 11, color: "var(--td)" }}>{coach}</span>
     </div>
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 900, color: "var(--black)", marginBottom: 2 }}>{drill}</div>
-    <LocationLine text={area} style={{ fontSize: 11, marginBottom: 4 }} />
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{chips}</div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 900, color: "var(--black)", marginBottom: 6 }}>{drill}</div>
+    {equipment && <div style={{ marginBottom: 6 }}><span style={{ border: "1.5px solid #fde047", borderRadius: 20, padding: "2px 8px", fontSize: 11, color: "#854d0e", fontWeight: 600, background: "#fff" }}>Equipment: {equipment}</span></div>}
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>{chips}</div>
   </div>);
 }
 
@@ -481,8 +499,7 @@ function StationDetailVisual() {
   return (<div className="lp-phone">
     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 2 }}>Station 2</div>
     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Front Toss</div>
-    <LocationLine text="Batting Cage 1 · Eastside Park" style={{ marginBottom: 3 }} />
-    <div className="limt" style={{ marginBottom: 6 }}>Coach Jen</div>
+    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--green2)", marginBottom: 8 }}>Coach Jen · Batting Cage 1</div>
     <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
       <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
     </div>
@@ -494,18 +511,14 @@ function StationDetailVisual() {
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
       <div style={{ fontSize: 14, color: "var(--black)", lineHeight: 1.5 }}>Level swing, contact out front. Let the outside pitch travel.</div>
     </div>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-      <span className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>Hitting</span><span className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>Contact</span>
-    </div>
     <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 4 }}>Equipment</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        <span style={{ border: "1.5px solid #fde047", borderRadius: 20, padding: "3px 10px", fontSize: 12, color: "#854d0e", fontWeight: 600, background: "#fff", whiteSpace: "nowrap" }}>L-Screen</span>
-        <span style={{ border: "1.5px solid #fde047", borderRadius: 20, padding: "3px 10px", fontSize: 12, color: "#854d0e", fontWeight: 600, background: "#fff", whiteSpace: "nowrap" }}>Bucket of Balls</span>
-      </div>
+      <span style={{ border: "1.5px solid #fde047", borderRadius: 20, padding: "3px 10px", fontSize: 12, color: "#854d0e", fontWeight: 600, background: "#fff" }}>Equipment: L-Screen, Bucket of Balls</span>
     </div>
     <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 8 }}>Players at this station</div>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}><StationChip name="Ava" tone="here" note="Keep the front foot closed, drive through the ball." /><StationChip name="Jordan" tone="here" /></div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      <PlayerPill name="Ava" note="Keep the front foot closed, drive through the ball." />
+      <PlayerPill name="Jordan" note="Two hands through contact, don't cast the barrel." />
+    </div>
   </div>);
 }
 
@@ -518,10 +531,10 @@ function StationDetailVisual() {
 function HelperVisual() {
   return (<div className="lp-duo-fixed">
     <div className="lp-phone lp-card-primary">
-      <div className="clbl">All Stations</div>
-      <StationOverviewRow label="Station 1" drill="Ground Ball Fundamentals" area="Infield" coach="Coach Mike" chips={<><StationChip name="Ryker" tone="here" /><StationChip name="Owen" tone="here" /><StationChip name="Mason" tone="here" /></>} />
-      <StationOverviewRow label="Station 2" drill="Front Toss" area="Batting Cage 1" coach="Coach Jen" chips={<><StationChip name="Ava" tone="here" note="Keep the front foot closed, drive through the ball." /><StationChip name="Jordan" tone="here" /></>} />
-      <StationOverviewRow label="Station 3" drill="Fly Ball Reads" area="Outfield" coach="Coach Dana" chips={<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="here" /><StationChip name="Sam" tone="here" /></>} />
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--td)", marginBottom: 12 }}>Get everyone to their station</div>
+      <StationOverviewRow label="Station 1" drill="Ground Ball Fundamentals" area="Infield" coach="Coach Mike" equipment="Bucket of Balls" chips={<><StationChip name="Ryker" tone="here" /><StationChip name="Owen" tone="here" /><StationChip name="Mason" tone="here" /></>} />
+      <StationOverviewRow label="Station 2" drill="Front Toss" area="Batting Cage 1" coach="Coach Jen" equipment="L-Screen, Bucket of Balls" chips={<><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></>} />
+      <StationOverviewRow label="Station 3" drill="Fly Ball Reads" area="Outfield" coach="Coach Dana" equipment="Cones" chips={<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="here" /><StationChip name="Sam" tone="here" /></>} />
     </div>
     <div className="lp-phoneframe-wrap"><PhoneFrame><StationDetailVisual /></PhoneFrame></div>
   </div>);
@@ -795,7 +808,7 @@ export default function LandingPage({ onGetStarted }) {
     <div id="early-access" className="lp-section" style={{ background: "var(--gbg)", textAlign: "center" }}>
       <div className="lp-wrap" style={{ maxWidth: 640 }}>
         <div className="lp-eyebrow">Early Access</div>
-        <div className="lp-title">Put Run of Practice to work. Shape what comes next.</div>
+        <div className="lp-title">Use Run of Practice and help shape what comes next.</div>
         <div className="lp-body">Run of Practice is in early access, and we're looking for coaches to use it in real practices and share what works, what's unclear and where the experience falls short. The goal is to build something coaches can rely on before, during and after every practice.</div>
         <button className="btn primary blg" onClick={onGetStarted} style={{ marginTop: 8 }}>Try Run of Practice</button>
         <div style={{ fontSize: 12, color: "var(--tm)", marginTop: 10 }}>Free during early access.</div>
