@@ -5,16 +5,15 @@ import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
 
-// §1: "35/60 min" pill -- half-filled/amber for partial, warning-tinted for
-// overplanned, filled+check when within tolerance. Returns null (renders
-// nothing) for unplanned practices or practices with no scheduled duration
-// -- the existing binary "Needs plan" language covers those cases already.
+// §1: "35/60 min" pill. Shows for any practice with a scheduled duration,
+// planned or not -- an unplanned practice reads "0/60 min" so the gap is
+// obvious. Red below 90% planned, green at or above it.
 function PlanPill({ practice }) {
   const st = planningState(practice);
   if (!st) return null;
   const total = sumMins(practice.activities || []);
-  const style = { partial: { color: "var(--amber)", icon: "◐" }, overplanned: { color: "var(--red)", icon: "⚠" }, complete: { color: "var(--green)", icon: "✓" } }[st];
-  return <span style={{ color: style.color, fontWeight: 600 }}>{style.icon} {total}/{practice.scheduledDurationMinutes} min</span>;
+  const onTrack = st === "onTrack";
+  return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{onTrack ? "✓" : "⚠"} {total}/{practice.scheduledDurationMinutes} min</span>;
 }
 
 // §6: getting-started checklist, completion fully derived from existing
@@ -361,7 +360,7 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
           <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>
             {loc ? loc.name : "Location TBD"}
             {headcount !== null && <span> · {headcount} of {team.players.length} expected</span>}
-            {planned && planningState(nextPractice) && <span> · <PlanPill practice={nextPractice} /></span>}
+            {planningState(nextPractice) && <span> · <PlanPill practice={nextPractice} /></span>}
           </div>
           {!planned && canManage && <button className="btn primary bxl bfull" onClick={() => goToBuilder(nextPractice.id)}>Plan Practice</button>}
           {!planned && !canManage && <div className="btn outline bxl bfull" style={{ textAlign: "center", cursor: "default" }}>Not planned yet</div>}
@@ -375,7 +374,7 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
         <span style={{ color: "var(--green)", fontSize: 18 }}>&#8250;</span>
       </div>}
 
-      <div className="sechdr" style={{ marginBottom: 8 }}><span className="sectitle">Upcoming Practices</span></div>
+      <div className="sechdr" style={{ marginBottom: 8 }}><span className="sectitle">Upcoming Practices</span><button className="btn ghost bxs" onClick={goToSchedule}>My Schedule</button></div>
       {agendaWindow.length === 0 && <div style={{ padding: "16px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>Nothing scheduled.</div>}
       {agendaWindow.map(p => {
         // agendaWindow already excludes completed practices, so no "· Completed"
@@ -386,7 +385,7 @@ export default function HomeScreen({ data, update, goToBuilder, goToRun, goToSch
             {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
             <div className="lim" style={{ minWidth: 0 }}>
               <div className="lin">{team ? team.name : "Practice"}</div>
-              <div className="limt">{dayLbl(p.date, todayStr, tomorrowStr)}{p.startTime ? " · " + timeLbl(p) : ""}{loc ? " · " + loc.name : ""}{!planned && " · Needs plan"}{planned && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{count > 0 && " · " + count + " out"}</div>
+              <div className="limt">{dayLbl(p.date, todayStr, tomorrowStr)}{p.startTime ? " · " + timeLbl(p) : ""}{loc ? " · " + loc.name : ""}{!planned && " · Needs plan"}{planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{count > 0 && " · " + count + " out"}</div>
             </div>
           </div>
           <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>

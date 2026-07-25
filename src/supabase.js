@@ -1426,7 +1426,12 @@ export async function updateGoalsWindowWeeks(teamId, weeks) {
 }
 export async function fetchTeamGoalReport(teamId) {
   const { data, error } = await supabase.rpc('get_team_goal_report', { p_team_id: teamId })
-  if (error) { console.error('fetchTeamGoalReport:', error); return null }
+  // Resolving to null on error was indistinguishable from the `useState(null)`
+  // GoalsScreen starts with, so an RPC failure left the screen stuck on its
+  // "Loading..." gate forever instead of rendering. {} matches how
+  // fetchTeamGoals/fetchTeamSessionHistory already degrade to an empty-but-
+  // truthy value on error.
+  if (error) { console.error('fetchTeamGoalReport:', error); return {} }
   return data
 }
 export async function fetchTeamSessionHistory(teamId) {

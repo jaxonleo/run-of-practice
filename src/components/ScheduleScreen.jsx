@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { fetchPlannedAbsences, fetchPracticeRunStatus, savePracticeTree } from "../supabase.js";
 import { isHeadCoach, sumMins, planningState, localDateStr, stripIdsForCopy } from "../constants.js";
 import PracticeDetail from "./PracticeDetail.jsx";
@@ -13,8 +14,8 @@ function PlanPill({ practice }) {
   const st = planningState(practice);
   if (!st) return null;
   const total = sumMins(practice.activities || []);
-  const style = { partial: { color: "var(--amber)", icon: "◐" }, overplanned: { color: "var(--red)", icon: "⚠" }, complete: { color: "var(--green)", icon: "✓" } }[st];
-  return <span style={{ color: style.color, fontWeight: 600 }}>{style.icon} {total}/{practice.scheduledDurationMinutes} min</span>;
+  const onTrack = st === "onTrack";
+  return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{onTrack ? "✓" : "⚠"} {total}/{practice.scheduledDurationMinutes} min</span>;
 }
 
 const timeLbl = p => { if (!p.startTime) return ""; const [h, m] = p.startTime.split(":").map(Number); return (h % 12 || 12) + ":" + (m < 10 ? "0" + m : m) + (h >= 12 ? " PM" : " AM"); };
@@ -43,7 +44,7 @@ function DaySheet({ date, practices, data, todayStr, runStatus, onPick, onClose 
               {!cancelled && completed && " · Completed"}
               {!cancelled && !completed && started && isPast && " · Started, not finished"}
               {!cancelled && !completed && !started && !planned && (isPast ? " · Missed" : " · Needs plan")}
-              {!cancelled && !completed && !started && planned && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}
+              {!cancelled && !completed && !started && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}
             </div></div>
           </div>
           <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>
@@ -59,6 +60,7 @@ function DaySheet({ date, practices, data, todayStr, runStatus, onPick, onClose 
 // (fetchPracticesFull(teamId)), so the team-filter chip row is redundant
 // (it would show exactly one, permanently-active chip) and is hidden.
 export default function ScheduleScreen({ data, update, goToBuilder, goToRun, coachId, refreshPlanning, fixedTeamId }) {
+  const navigate = useNavigate();
   const now = new Date();
   const todayStr = localDateStr(now);
   const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
@@ -151,6 +153,10 @@ export default function ScheduleScreen({ data, update, goToBuilder, goToRun, coa
   const toDateStr = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 
   return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}>
+    {/* Only the global /schedule route (no fixedTeamId) needs its own Back --
+        the team-scoped route lives under the team workspace tabs, which
+        already provide their own way out. */}
+    {!fixedTeamId && <div style={{ padding: "12px 16px 0" }}><button className="btn ghost bxs" onClick={() => navigate(-1)}>Back</button></div>}
     <div style={{ padding: "20px 16px 12px" }}>
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 28, fontWeight: 900, marginBottom: canScheduleAny ? 10 : 0 }}>Schedule</div>
       {canScheduleAny && <div style={{ display: "flex", gap: 8 }}>
@@ -180,7 +186,7 @@ export default function ScheduleScreen({ data, update, goToBuilder, goToRun, coa
               {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
               <div className="lim" style={{ minWidth: 0 }}>
                 <div className="lin" style={{ textDecoration: cancelled ? "line-through" : "none" }}>{team ? team.name : "Practice"}</div>
-                <div className="limt">{timeLbl(p)}{!planned && !cancelled && " · Needs plan"}{planned && !cancelled && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{cancelled && " · Cancelled"}{count > 0 && " · " + count + " out"}</div>
+                <div className="limt">{timeLbl(p)}{!planned && !cancelled && " · Needs plan"}{!cancelled && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{cancelled && " · Cancelled"}{count > 0 && " · " + count + " out"}</div>
               </div>
             </div>
             <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>

@@ -251,23 +251,34 @@ function ScheduleVisual() {
   </div>);
 }
 
+// Two drills shown in full for the expanded sport (count + both rows
+// visible, matching NewLibraryScreen.jsx's actual sport-group layout: a
+// rounded header connecting into a bordered block of divided rows), then a
+// second sport collapsed below it with a higher count -- exactly the state
+// described for this section, not a single generic drill.
 function LibraryVisual() {
+  const basketballDrills = [
+    { name: "Defensive Shell Drill", description: "Four defenders in a shell around the key, one ball reversed side to side.", equipment: "Cones", skills: ["Defense", "Footwork"] },
+    { name: "3-on-3 Scrimmage", description: "Half-court, make it take it. Emphasize early offense.", skills: ["Game Speed"] },
+  ];
   return (<div className="lp-phone">
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--s1)", borderRadius: "var(--r) var(--r) 0 0" }}>
-      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>Baseball</span>
-      <span style={{ fontSize: 12, color: "var(--td)" }}>14 drills ▾</span>
+      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>Basketball</span>
+      <span style={{ fontSize: 12, color: "var(--td)" }}>{basketballDrills.length} drills &#9662;</span>
     </div>
-    <div style={{ border: "1px solid var(--b)", borderTop: "none", padding: "10px 12px" }}>
-      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>Ground Ball Fundamentals</div>
-      <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 2, lineHeight: 1.4 }}>Fielding triangle, glove out front. Right, left, throw.</div>
-      <div style={{ fontSize: 11, color: "var(--td)", marginTop: 2 }}>Needs: Bucket of Balls</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
-        <span className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>Fielding</span><span className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>Footwork</span>
-      </div>
+    <div style={{ border: "1px solid var(--b)", borderTop: "none", borderRadius: "0 0 var(--r) var(--r)", overflow: "hidden" }}>
+      {basketballDrills.map((d, i) => (<div key={d.name} style={{ padding: "10px 12px", borderBottom: i < basketballDrills.length - 1 ? "1px solid var(--b)" : "none" }}>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{d.name}</div>
+        <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 2, lineHeight: 1.4 }}>{d.description}</div>
+        {d.equipment && <div style={{ fontSize: 11, color: "var(--td)", marginTop: 2 }}>Needs: {d.equipment}</div>}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+          {d.skills.map(s => <span key={s} className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>{s}</span>)}
+        </div>
+      </div>))}
     </div>
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--s1)", border: "1px solid var(--b)", borderRadius: "var(--r)", marginTop: 10 }}>
-      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>Basketball</span>
-      <span style={{ fontSize: 12, color: "var(--td)" }}>6 drills ▸</span>
+      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>Baseball</span>
+      <span style={{ fontSize: 12, color: "var(--td)" }}>14 drills &#9656;</span>
     </div>
   </div>);
 }
@@ -303,23 +314,43 @@ function LocationLine({ text, style }) {
   return <div style={{ fontSize: 12, color: "var(--td)", display: "flex", alignItems: "center", gap: 4, ...style }}><span aria-hidden="true">📍</span>{text}</div>;
 }
 
+// Mirrors ModalLayer.jsx's DurStepper look (-/value/+ in a bordered box) --
+// static here since this mockup demonstrates the control, not another
+// working stepper.
+function DurStepperMock({ label, value }) {
+  return (<div style={{ flex: 1 }}>
+    <div style={{ fontSize: 11, color: "var(--td)", marginBottom: 4 }}>{label}</div>
+    <div style={{ display: "flex", alignItems: "center", border: "1.5px solid var(--b)", borderRadius: "var(--rs)", overflow: "hidden", background: "#fff" }}>
+      <span style={{ width: 32, height: 32, background: "var(--s2)", color: "var(--black2)", fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>-</span>
+      <span style={{ flex: 1, textAlign: "center", fontFamily: "'DM Mono',monospace", fontSize: 13, fontWeight: 600, color: "var(--black)" }}>{value}</span>
+      <span style={{ width: 32, height: 32, background: "var(--s2)", color: "var(--black2)", fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</span>
+    </div>
+  </div>);
+}
+
 function StationsVisual() {
   const stations = [
-    { label: "Station 1", area: "Infield", chips: [{ n: "Ryker", t: "here" }, { n: "Owen", t: "here" }, { n: "Mason", t: "here" }] },
+    { label: "Station 1", area: "Infield", chips: [{ n: "Ryker", t: "here" }, { n: "Owen", t: "here" }, { n: "Mason", t: "other", note: "Out sick → moved to St 2" }] },
     { label: "Station 2", area: "Batting Cage 1", groupLabel: "Lefties", chips: [{ n: "Ava", t: "here" }, { n: "Jordan", t: "here" }] },
-    { label: "Station 3", area: "Outfield", chips: [{ n: "Max", t: "here" }, { n: "Riley", t: "here" }, { n: "Sam", t: "here" }] },
   ];
   return (<div className="lp-phone">
-    <div style={{ display: "flex", borderRadius: "var(--r)", overflow: "hidden", border: "1.5px solid var(--b)", marginBottom: 8 }}>
+    <div style={{ display: "flex", borderRadius: "var(--r)", overflow: "hidden", border: "1.5px solid var(--b)", marginBottom: 10 }}>
       <div style={{ flex: 1, padding: "6px 0", textAlign: "center", background: "var(--green)", color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, fontWeight: 700 }}>ROTATE</div>
       <div style={{ flex: 1, padding: "6px 0", textAlign: "center", background: "var(--s1)", color: "var(--black)", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, fontWeight: 700 }}>STATIC</div>
     </div>
-    <button className="btn outline bsm bfull mb8">Generate Random Groups</button>
+    <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+      <DurStepperMock label="Time at Station" value="10m" />
+      <DurStepperMock label="Transition" value="2m" />
+    </div>
+    <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+      <button className="btn outline bsm" style={{ flex: 1 }}>Generate Random</button>
+      <button className="btn ghost bsm" style={{ flex: 1 }}>Group By: Handedness &#9662;</button>
+    </div>
     {stations.map((s) => (<div key={s.label} style={{ background: "var(--s1)", border: "1.5px solid var(--b)", borderRadius: "var(--r)", padding: "10px 10px 8px", marginBottom: 8 }}>
       <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 900, color: "var(--green)", letterSpacing: ".05em", marginBottom: 6 }}>{s.label.toUpperCase()} · {s.area.toUpperCase()}</div>
       {s.groupLabel && <div style={{ marginBottom: 6 }}><span className="bdg bp">Group: {s.groupLabel}</span></div>}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {s.chips.map(c => <StationChip key={c.n} name={c.n} tone={c.t} />)}
+        {s.chips.map(c => <StationChip key={c.n} name={c.n} tone={c.t} note={c.note}/>)}
       </div>
     </div>))}
   </div>);
@@ -371,14 +402,23 @@ function PreSetupVisual() {
 
 function TemplatesVisual() {
   return (<div className="lp-phone">
-    <div className="card" style={{ marginBottom: 10 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 900, lineHeight: 1 }}>Standard Tuesday Practice</div>
-      <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2, marginBottom: 8 }}>4 activities · 90min</div>
-      <button className="btn primary bmd bfull">View / Edit</button>
+    <div className="card">
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 }}>
+        <div>
+          <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 900, lineHeight: 1 }}>Tuesday Practice Template</div>
+          <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>4 activities - 90min</div>
+          <div style={{ fontSize: 11, color: "var(--td)", marginTop: 2 }}>Created Jun 3</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+            <span className="bdg bs" style={{ fontSize: 10 }}>Fielding</span><span className="bdg bs" style={{ fontSize: 10 }}>Hitting</span><span className="bdg bs" style={{ fontSize: 10 }}>Footwork</span>
+          </div>
+        </div>
+        <span style={{ display: "flex", flexDirection: "column", gap: 3.5, padding: "6px 8px" }}><span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--td)" }}/><span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--td)" }}/><span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--td)" }}/></span>
+      </div>
+      <div className="brow">
+        <button className="btn outline bmd" style={{ flex: 1 }}>View / Edit</button>
+        <button className="btn primary bmd" style={{ flex: 1 }}>Run Now</button>
+      </div>
     </div>
-    <div className="clbl" style={{ marginBottom: 6 }}>Tuesday</div>
-    <div className="li" style={{ cursor: "default" }}><div className="lim"><div className="lin">12U Red Practice</div><div className="limt">Completed</div></div></div>
-    <button className="btn primary bsm bfull mt8">Run Again</button>
   </div>);
 }
 
@@ -507,30 +547,41 @@ function AdjustVisual() {
   </div>);
 }
 
+// Matches the real Rotate Now cards (CommandScreen.jsx) exactly: names,
+// an optional group-label pill, then "from"/"→" station lines. Equipment
+// isn't repeated here in the real screen -- that's shown earlier, on the
+// block-intro screen the group already passed through before this alert.
 const ROTATION_MOVES = [
-  { names: "Ryker, Owen, Mason", from: "Station 1: Infield · Coach Mike", to: "Station 2: Batting Cage 1 · Coach Jen", bring: "helmets, bats" },
-  { names: "Ava, Jordan", from: "Station 2: Batting Cage 1 · Coach Jen", to: "Station 3: Outfield · Coach Dana", bring: "gloves" },
-  { names: "Max, Riley, Sam", from: "Station 3: Outfield · Coach Dana", to: "Station 1: Infield · Coach Mike", bring: "gloves" },
+  { names: "Ryker, Owen, Mason", from: "Station 1: Ground Ball Fundamentals · Coach Mike · Infield", to: "Station 2: Front Toss · Coach Jen · Batting Cage 1" },
+  { names: "Ava, Jordan", groupLabel: "Lefties", from: "Station 2: Front Toss · Coach Jen · Batting Cage 1", to: "Station 3: Fly Ball Reads · Coach Dana · Outfield" },
+  { names: "Max, Riley, Sam", from: "Station 3: Fly Ball Reads · Coach Dana · Outfield", to: "Station 1: Ground Ball Fundamentals · Coach Mike · Infield" },
 ];
 
 function TransitionVisual() {
   return (<div className="lp-phone">
     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 900, color: "var(--red)", letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 10 }}>Rotate Now</div>
     {ROTATION_MOVES.map((r, i) => (<div key={r.names} className="cc-trans-card" style={{ marginBottom: i < ROTATION_MOVES.length - 1 ? 8 : 0 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 900, color: "var(--black)", lineHeight: 1.2, marginBottom: 4 }}>{r.names}</div>
-      <div style={{ fontSize: 11, color: "var(--td)", marginBottom: 2 }}>from {r.from}</div>
-      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--black)", marginBottom: 4 }}>&#8594; {r.to}</div>
-      <div style={{ fontSize: 11, color: "var(--td)" }}>Bring: {r.bring}</div>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 20, fontWeight: 900, color: "var(--black)", lineHeight: 1.2, marginBottom: 6 }}>{r.names}</div>
+      {r.groupLabel && <div style={{ marginBottom: 4 }}><span className="bdg bp">Group: {r.groupLabel}</span></div>}
+      <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 3 }}>from {r.from}</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--black)" }}>&#8594; {r.to}</div>
     </div>))}
   </div>);
 }
 
 function HistoryVisual() {
   return (<div className="lp-phone">
-    <div className="sechdr mb8"><span className="sectitle">4 Activities</span><span className="pill">88m</span></div>
+    <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>Sat, Jun 7 · 88min wall time · 11 attended</div>
+    <div className="card" style={{ marginBottom: 10 }}>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Skill Minutes</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        <span className="bdg bs" style={{ fontSize: 11 }}>Fielding 22m</span><span className="bdg bs" style={{ fontSize: 11 }}>Hitting 34m</span><span className="bdg bs" style={{ fontSize: 11 }}>Footwork 15m</span>
+      </div>
+    </div>
     <div className="ablk" style={{ marginBottom: 8 }}>
       <div className="abhdr" style={{ cursor: "default" }}>
         <div style={{ flex: 1, font: "700 14px 'Barlow Condensed',sans-serif" }}>Station Block</div>
+        <span className="bdg bp" style={{ marginRight: 6 }}>45m planned</span>
         <span className="bdg bs">49m</span>
       </div>
     </div>
@@ -660,15 +711,15 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Assistant and Helper Views" title="The coaching message stays consistent, no matter who leads the drill." reverse wideVisual visual={<HelperVisual />} body={[
-      "Assistant coaches see their team's practices automatically. Parent helpers can join from a shared link, with no account or download required. Everyone sees the same drill, timer and coaching focus. You can add individual player focus points tied to a skill. When that skill is tagged in a drill, the focus point is visible to the coach leading that station, so the player receives consistent messaging.",
+      "Assistant coaches are granted ongoing access to the team's practices through their own account. Parent helpers can join from a shared link, no account or download required. Everyone sees the same drill, timer and coaching focus. Head coaches can add individual player focus points tied to a skill. When that skill is tagged in a drill, their focus point is visible to the coach leading that station. The player receives consistent messaging, regardless of the messenger.",
     ]} />
 
-    <Section eyebrow="Transition Support" title="Rotate stations without stopping practice." reverse visual={<TransitionVisual />} body={[
-      "Before each rotation, every coach sees their drill, location, where to send players, and which players are coming. More clarity, less confusion.",
+    <Section eyebrow="Transition Support" title="Rotate stations like a well oiled machine." reverse visual={<TransitionVisual />} body={[
+      "During transition time, every coach sees where to send their players, who is coming next, and if the new group requires changes to the station's configuration. More clarity, less confusion.",
     ]} />
 
     <Section eyebrow="Live Adjustments & Timers" title="Practice never goes to plan. That's fine." visual={<AdjustVisual />} body={[
-      "Add a minute, cut a drill short, or skip ahead. The schedule recalculates as you go, so you always know if you're ahead or behind. Timers run into negative time: you see a drill went two minutes over instead of losing the thread. Drills that need cleanup can warn the group before time is up.",
+      "See at a glance whether the overall practice is ahead of or behind its allotted schedule. Each drill has its own timer that can run into negative time or have minutes added or removed on the fly. Separately, drills that need cleanup get a two-minute warning before time is up.",
     ]} />
 
     <div className="lp-section tight dark" style={{ textAlign: "center" }}>
@@ -679,16 +730,15 @@ export default function LandingPage({ onGetStarted }) {
     </div>
 
     <Section id="features" eyebrow="Practice Builder" title="Build the practice in the order it will happen." reverse visual={<BuilderVisual />} body={[
-      "Set your total time, then add warmups, drills, stations, breaks and scrimmage. Pull from your library or write something new. The running total tells you whether the plan fits the time you have.",
+      "Set your total time, then add warmups, drills, stations, breaks and a scrimmage. Pull from your library or write something new. The running total tells you whether the plan fits the time you have.",
     ]} />
 
     <Section eyebrow="Stations and Groupings" title="Groups built from who actually showed up." visual={<StationsVisual />} body={[
-      "Set station lengths, transition time and rotation order. Generate groups from the players at practice: random, balanced, manual or by position and handedness. When attendance changes, the groups update. You don't rebuild the practice because two players are out sick.",
-      "Group by position or handedness and that label travels with the group. If a coach is running a front toss station, they can see the next group rotating in is \"Lefties\" before it arrives, so they can set up the station accordingly.",
+      "Set station lengths, transition time and rotation order. Players can be grouped at random, by the coach, or by position and handedness. If a player is out sick, adjust the groupings on the fly.",
     ]} />
 
-    <Section eyebrow="Pre-Practice Setup" title="Everyone knows what to bring and where to go before the first whistle." reverse visual={<PreSetupVisual />} body={[
-      "Share one link with your assistants and helpers. It lays out the equipment needed at each station, who's coaching where, and a countdown to start, so stations are already set up by the time players show up.",
+    <Section eyebrow="Pre-Practice Setup" title="Coaches know where to go and what to bring before the first whistle." reverse visual={<PreSetupVisual />} body={[
+      "Assistants and helpers can see the equipment needed at each station, who's coaching where, and a countdown to start. Stations are already set up by the time players arrive.",
     ]} />
 
     <Section eyebrow="Drill Library" title="Save a drill once. Use it all season." visual={<LibraryVisual />} body={[
@@ -704,7 +754,7 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Practice History" title="Keep the plan and what actually happened together." reverse visual={<HistoryVisual />} body={[
-      "After practice, see attendance, actual drill times, what changed on the fly, and notes on what needs more work. That history feeds straight into next week's plan.",
+      "After practice, see attendance, actual drill times, what changed on the fly, and notes on what needs more work. Every session also rolls into Goals & Insights, so you can see whether practice time is actually landing on the skills you're targeting, week over week -- not just what you meant to cover.",
     ]} />
 
     <div className="lp-section tight">
@@ -726,7 +776,7 @@ export default function LandingPage({ onGetStarted }) {
           <span className="lp-pill-roadmap">Coming to iOS</span>
         </div>
         <div className="lp-title">Coach the drill, not the clock.</div>
-        <div className="lp-body">The next step: a native iOS app with Apple Watch support. Current drill, time remaining and coaching focus on your wrist, with a tap when it's time to rotate. Your phone stays in your pocket. Your eyes stay on your players.</div>
+        <div className="lp-body">The next step: a native iOS app with Apple Watch support. Current drill, time remaining and coaching focus on your wrist, taptic alerts when it's time to rotate. Your phone stays in your pocket. Your eyes stay on your players.</div>
         <div className="lp-watch-stage">
           <div className="lp-watch-col">
             <WatchFrame><WatchLiveScreen /></WatchFrame>
@@ -754,7 +804,7 @@ export default function LandingPage({ onGetStarted }) {
 
     <div className="lp-section dark" style={{ textAlign: "center" }}>
       <div className="lp-wrap" style={{ maxWidth: 560 }}>
-        <div className="lp-title">Build the plan once. Keep everyone on track.</div>
+        <div className="lp-title">Build the plan. Keep everyone on track.</div>
         <div className="lp-body">Schedule the practice, organize the details and run it live from one place.</div>
         <button className="btn primary blg" onClick={onGetStarted} style={{ marginTop: 8 }}>Try It Free</button>
         <div style={{ marginTop: 12 }}><button className="lp-signin" style={{ color: "var(--td)" }} onClick={onGetStarted}>Already have an account? Sign in</button></div>

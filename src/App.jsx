@@ -196,13 +196,6 @@ export const useAppCtx=()=>useContext(AppCtx);
 // Layout.jsx's own team-name header (above the new top tab row) is a
 // smaller, secondary label; this bigger one is the actual page identity for
 // these two routes, same as it always was under the old Team tab.
-function TeamWorkspaceHeader({team}){
-  return (<div style={{borderLeft:"4px solid "+(team.colorPrimary||"transparent"),paddingLeft:10,marginBottom:14}}>
-    <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2}}>{team.name}</div>
-    <div style={{fontSize:13,color:"var(--td)"}}>{team.sport} - {team.players.length} players</div>
-  </div>);
-}
-
 function AuthScreen({onBack}){
   const [email,setEmail]=useState("");
   const [code,setCode]=useState("");
@@ -519,8 +512,8 @@ function AuthedShell(){
 }
 
 function LayoutRoute(){
-  const {data,liveId,goToRun,mode}=useAppCtx();
-  return <Layout data={data} liveId={liveId} goToRun={goToRun} mode={mode}/>;
+  const {data,liveId,goToRun,mode,openModal}=useAppCtx();
+  return <Layout data={data} liveId={liveId} goToRun={goToRun} mode={mode} openModal={openModal}/>;
 }
 
 // Founder-only gate. Settings shows a "Founder Metrics" row only when
@@ -617,7 +610,6 @@ function TeamRosterRoute(){
   useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
   if(!team)return null;
   return (<div style={{padding:"8px 0 calc(var(--tab) + 20px)"}}>
-    <TeamWorkspaceHeader team={team}/>
     <RostersTab data={data} update={update} openModal={openModal} fixedTeamId={teamId} refreshTeams={refreshTeams} coachId={coachId} refreshLibrary={refreshLibrary}/>
   </div>);
 }
@@ -630,14 +622,17 @@ function TeamEquipmentRoute(){
   useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
   if(!team)return null;
   return (<div style={{padding:"8px 0 calc(var(--tab) + 20px)"}}>
-    <TeamWorkspaceHeader team={team}/>
     <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} sportFilter={team.sport}/>
   </div>);
 }
 
 function TeamGoalsRoute(){
   const {teamId}=useParams();
+  const navigate=useNavigate();
   const {data,coachId}=useAppCtx();
+  const team=data.teams.find(t=>t.id===teamId);
+  useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
+  if(!team)return null;
   return <GoalsScreen data={data} teamId={teamId} coachId={coachId}/>;
 }
 
@@ -951,9 +946,9 @@ function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPr
           {teamTemplates.length>0&&<button className="btn outline bsm" onClick={()=>setShowTplPicker(true)}>Start with a Template</button>}
         </div>
       )}
-      {acts.length>0&&(<div className="sechdr mb8">
+      {(acts.length>0||(editP&&editP.scheduledDurationMinutes))&&(<div className="sechdr mb8">
           <span className="sectitle">{acts.length} Activities</span>
-          <span className="pill">{totalMins}m</span>
+          <span className={"pill"+(editP&&editP.scheduledDurationMinutes&&totalMins<editP.scheduledDurationMinutes*0.9?" over":"")}>{editP&&editP.scheduledDurationMinutes?totalMins+"/"+editP.scheduledDurationMinutes+" min":totalMins+"m"}</span>
         </div>
       )}
       <ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
@@ -1091,6 +1086,7 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   const throwsLabel=((HAND_FIELDS_BY_SPORT[team.sport]||[]).find(hf=>hf.key==="throws")||{}).label||"Throws";
 
   return (<div style={{paddingBottom:80}}>
+    <div className="row mb10"><button className="btn ghost bxs" onClick={handleBack}>Back</button></div>
     <div className="row mb10" style={{justifyContent:"space-between",alignItems:"flex-start"}}>
       <div style={{flex:1,minWidth:0}}>
         {!canManage?(<>
@@ -1102,9 +1098,6 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
             <div className="fld"><label className="lbl">Last Name</label><input className="inp" value={f.lastName} onChange={e=>setFld("lastName",e.target.value)}/></div>
           </div>
         )}
-      </div>
-      <div className="row" style={{gap:6,flexShrink:0}}>
-        <button className="btn ghost bxs" onClick={handleBack}>Back</button>
       </div>
     </div>
     <button className="btn outline bsm bfull" style={{marginBottom:10}} onClick={()=>setMarkingOut(true)}>Mark Out For...</button>
@@ -1144,7 +1137,7 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
       <button className="btn primary bmd" style={{flex:1}} onClick={saveEdit} disabled={saving||!f.firstName.trim()}>{saving?"Saving...":"Save"}</button>
     </div>}
 
-    <div className="clbl mb8" style={{marginTop:16}}>Skill Notes</div>
+    <div className="clbl mb8" style={{marginTop:16}}>Player Focus</div>
     {!categories.length&&<div className="card mb10"><div style={{fontSize:13,color:"var(--td)"}}>No skill categories set up yet for {team.sport}.</div></div>}
     {categories.length>0&&<div className="card mb10">
       {categories.map(cat=>(<div key={cat.id} style={{marginBottom:12}}>
@@ -1162,7 +1155,6 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refr
     if(!data.teams.some(t=>t.id===teamId))setTeamId(data.teams[0]?data.teams[0].id:"");
   },[data.teams,fixedTeamId]);
   const [tab,setTab]=useState("players");
-  const [confirmDel,setConfirmDel]=useState(false);
   const [openMenu,setOpenMenu]=useState(null);
   const [sort,setSort]=useState({by:"firstName",dir:"asc"});
   const [viewPlayer,setViewPlayer]=useState(null);
@@ -1170,12 +1162,6 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refr
   const canManage=isHeadCoach(team,coachId);
   const delP=async id=>{await archivePlayer(id);await refreshTeams();};
   const delC=async id=>{await archiveStaff(id);await refreshTeams();};
-  const delTeam=async()=>{
-    const rem=data.teams.filter(t=>t.id!==teamId);
-    await archiveTeam(teamId);
-    await refreshTeams();
-    setConfirmDel(false);setTeamId(rem[0]?rem[0].id:"");
-  };
   const sorted=team?[...team.players].sort((a,b)=>{
     let av,bv;
     if(sort.by==="jersey"){av=parseInt(a.jersey)||0;bv=parseInt(b.jersey)||0;}
@@ -1184,27 +1170,13 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refr
     else{av=(a.firstName+" "+a.lastName).toLowerCase();bv=(b.firstName+" "+b.lastName).toLowerCase();}
     return sort.dir==="asc"?(av>bv?1:av<bv?-1:0):(av<bv?1:av>bv?-1:0);
   }):[];
-  if(viewPlayer)return(<div style={{paddingBottom:80}}>
-    <div className="row mb10"><button className="btn ghost bxs" onClick={()=>setViewPlayer(null)}>&#8249; Roster</button></div>
-    <PlayerProfile player={viewPlayer} team={team} data={data} refreshTeams={refreshTeams} coachId={coachId} canManage={canManage} onBack={()=>setViewPlayer(null)}/>
-  </div>);
+  if(viewPlayer)return(<PlayerProfile player={viewPlayer} team={team} data={data} refreshTeams={refreshTeams} coachId={coachId} canManage={canManage} onBack={()=>setViewPlayer(null)}/>);
   return (<div style={{paddingBottom:80}} onClick={()=>setOpenMenu(null)}>
     {!fixedTeamId&&(<div className="sechdr mb8">
-      <div>{data.teams.length>1&&<select className="sel" style={{maxWidth:200}} value={teamId} onChange={e=>{setTeamId(e.target.value);setConfirmDel(false);}}>{data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>}</div>
+      <div>{data.teams.length>1&&<select className="sel" style={{maxWidth:200}} value={teamId} onChange={e=>setTeamId(e.target.value)}>{data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>}</div>
       <button className="btn primary bsm" onClick={e=>{e.stopPropagation();openModal("addTeam");}}>+ Team</button>
     </div>)}
     {team&&(<div>
-      <div className="card mb8" style={{position:"relative"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900}}>{team.name}</div><div className="td" style={{fontSize:12}}>{team.sport}</div></div>
-          {canManage&&<button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="__team__"?null:"__team__");}}><span/><span/><span/></button>}
-        </div>
-        {canManage&&openMenu==="__team__"&&(<div className="mini-menu" style={{right:8,top:44}}>
-          <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editTeam",{team});}}>Edit Team</button>
-          <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);setConfirmDel(c=>!c);}}>Delete Team</button>
-        </div>)}
-        {confirmDel&&<div className="confirm-box"><div className="confirm-title">Delete team?</div><div className="confirm-body">Permanently removes this team. Cannot be undone.</div><div className="brow"><button className="btn ghost bsm" onClick={()=>setConfirmDel(false)}>Cancel</button><button className="btn danger bsm" onClick={delTeam}>Delete</button></div></div>}
-      </div>
       <div className="itabs">
         <button className={"itab "+(tab==="players"?"on":"")} onClick={()=>setTab("players")}>Players ({team.players.length})</button>
         <button className={"itab "+(tab==="coaches"?"on":"")} onClick={()=>setTab("coaches")}>Coaches ({team.coaches.length})</button>

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Outlet, useNavigate, useParams, useLocation } from "react-router-dom";
 import { Ic } from "./icons.jsx";
 
@@ -30,16 +30,16 @@ const teamWorkspaceTabs = teamId => [
   { id: "roster", label: "Roster", path: `/team/${teamId}/roster` },
   { id: "equipment", label: "Equipment", path: `/team/${teamId}/equipment` },
   { id: "goals", label: "Goals & Insights", path: `/team/${teamId}/goals` },
-  { id: "build", label: "Build", path: `/team/${teamId}/build` },
 ];
 
-export default function Layout({ data, liveId, goToRun, mode }) {
+export default function Layout({ data, liveId, goToRun, mode, openModal }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { teamId } = useParams();
   const inTeam = !!teamId;
   const hideTabBar = location.pathname.startsWith("/run/");
   const isOrgMode = mode && mode.type === "org";
+  const [teamMenuOpen, setTeamMenuOpen] = useState(false);
 
   const team = inTeam ? (data.teams || []).find(t => t.id === teamId) : null;
   const workspaceTabs = inTeam ? teamWorkspaceTabs(teamId) : [];
@@ -56,14 +56,22 @@ export default function Layout({ data, liveId, goToRun, mode }) {
 
   return (<div style={{ display: "contents" }}>
     <div className="app">
-      {inTeam && team && <div style={{ height: 4, background: team.colorPrimary || "var(--green)", flexShrink: 0 }} />}
-      {/* Back-button audit (2026-07-15): was "My Week" -> Home. Changed to
-          Teams since that's the canonical "leave a team" destination
-          elsewhere too (ManageScreen's own back control used to duplicate
-          this exact link -- removed there, this is now the only one). */}
-      {inTeam && team && <div style={{ padding: "10px 14px 0", display: "flex", alignItems: "center", gap: 8 }}>
-        <button className="btn ghost bxs" onClick={() => navigate("/teams")}>&#8249; Teams</button>
-        <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700 }}>{team.name}</span>
+      {/* Nav restructure round 2 (2026-07-2x): the old "‹ Teams" link back to
+          the team list, sitting above every team-scoped screen, duplicated
+          each screen's own Back button (PracticeDetail, PlayerProfile, ...)
+          -- two ways to leave a page that both went to nearly the same
+          place. Replaced with a colored identity strip (team name, no back
+          link of its own -- the bottom Teams tab already covers "leave the
+          team") that also centralizes Edit Team access via its ellipsis,
+          out of the per-tab menus that used to duplicate it. */}
+      {inTeam && team && <div style={{ position: "relative", background: team.colorPrimary || "var(--green)", padding: "14px 46px", textAlign: "center", flexShrink: 0 }} onClick={() => teamMenuOpen && setTeamMenuOpen(false)}>
+        <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, color: "#fff", letterSpacing: ".01em" }}>{team.name}</span>
+        <button className="ell-btn" aria-label="Team options" onClick={e => { e.stopPropagation(); setTeamMenuOpen(o => !o); }} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}>
+          <span style={{ background: "#fff" }}/><span style={{ background: "#fff" }}/><span style={{ background: "#fff" }}/>
+        </button>
+        {teamMenuOpen && <div className="mini-menu" onClick={e => e.stopPropagation()} style={{ right: 8, top: 44 }}>
+          <button className="mm-item" onClick={() => { setTeamMenuOpen(false); openModal("editTeam", { team }); }}>Edit Team</button>
+        </div>}
       </div>}
       {inTeam && team && <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "6px 10px 0", flexShrink: 0 }}>
         {workspaceTabs.map(({ id, label, path }) => {

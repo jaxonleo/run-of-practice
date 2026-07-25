@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { uid, TEAM_COLORS, nextTeamColor, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "../constants.js";
-import { createTeam, orgCreateTeam, updateTeam, setTeamLocations, createPlayer, createStaff, updateStaff, createAsset, updateAsset, setAssetLocations, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, createSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
+import { createTeam, orgCreateTeam, updateTeam, archiveTeam, setTeamLocations, createPlayer, createStaff, updateStaff, createAsset, updateAsset, setAssetLocations, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, createSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
 import { AutoTextarea } from "./ActivityConfigs.jsx";
 import { LocationChips } from "./NewLibraryScreen.jsx";
 
@@ -121,6 +122,9 @@ function DurStepper({value,min,onChange,step}){
 }
 
 export default function ModalLayer({modal,data,update,closeModal,refreshTeams,refreshLibrary,refreshPlanning,coachId}){
+  const navigate=useNavigate();
+  const [confirmDeleteTeam,setConfirmDeleteTeam]=useState(false);
+  const [deletingTeam,setDeletingTeam]=useState(false);
   const defaultSport=()=>{
     const lib=data.activityLibrary||[];
     if(lib.length>0)return lib[lib.length-1].sport||"Basketball";
@@ -183,6 +187,15 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
   useEffect(()=>{
     if(modal.type==="addCoach")fetchStaffSuggestions(coachId,modal.payload.teamId).then(setStaffSuggestions);
   },[modal.type]);
+  const deleteTeam=async()=>{
+    if(deletingTeam)return;
+    setDeletingTeam(true);
+    await archiveTeam(editTeamData.id);
+    await refreshTeams();
+    setDeletingTeam(false);
+    closeModal();
+    navigate("/teams");
+  };
   const save=async()=>{
     // useState alone isn't a safe reentrancy guard here: rapid synchronous
     // double-clicks/taps all fire before React re-renders with the updated
@@ -313,6 +326,12 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
               </div>
             </div>
             <LocationChips locations={(data.locations||[]).filter(l=>editTeamData.organizationId?l.organizationId===editTeamData.organizationId:l.ownerUserId===coachId)} selectedIds={f.locationIds||[]} onToggle={id=>set("locationIds",(f.locationIds||[]).includes(id)?(f.locationIds||[]).filter(x=>x!==id):[...(f.locationIds||[]),id])} label="Locations This Team Uses" emptyHint="No restriction set -- every location shows when building a practice for this team." selectedHint="Only the selected location(s) show when building a practice for this team."/>
+            {!confirmDeleteTeam&&<button type="button" className="btn ghost bsm bfull" style={{marginTop:14,color:"var(--red)"}} onClick={()=>setConfirmDeleteTeam(true)}>Delete Team</button>}
+            {confirmDeleteTeam&&<div className="confirm-box" style={{marginTop:14}}>
+              <div className="confirm-title">Delete team?</div>
+              <div className="confirm-body">Permanently removes {editTeamData.name}, its roster and its practices. Cannot be undone.</div>
+              <div className="brow"><button type="button" className="btn ghost bsm" onClick={()=>setConfirmDeleteTeam(false)} disabled={deletingTeam}>Cancel</button><button type="button" className="btn danger bsm" onClick={deleteTeam} disabled={deletingTeam}>{deletingTeam?"Deleting...":"Delete"}</button></div>
+            </div>}
           </div>
         )}
         {(modal.type==="editTemplate")&&(<div>

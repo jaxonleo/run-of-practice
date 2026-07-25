@@ -1722,7 +1722,7 @@ export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHo
             </div>
             <div>
               {(livePlayerProfile.focusAreas&&livePlayerProfile.focusAreas.length>0)&&<div>
-                <div className="clbl mb8">Skill Notes</div>
+                <div className="clbl mb8">Player Focus</div>
                 {livePlayerProfile.focusAreas.map(a=>{
                   const cat=(data.skillCategories||[]).find(c=>c.id===a.categoryId);
                   return(<div key={a.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
