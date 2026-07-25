@@ -462,6 +462,14 @@ function AuthedShell(){
   const [editPracticeId,setEditPracticeId]=useState(null);
   const [startTemplateId,setStartTemplateId]=useState(null);
   const [presetTeamId,setPresetTeamId]=useState(null);
+  // Nav restructure round 3: a sub-view drilled into from a team-workspace
+  // tab (Practice Detail, History, Session History, Player Profile) no
+  // longer renders its own Back button inline -- that put it below the
+  // team-name bar and workspace tabs, buried under chrome that doesn't
+  // change when you drill in. Whichever sub-view is currently showing
+  // registers {onBack} here; Layout.jsx renders it in the colored bar
+  // instead. null when nothing's registered (default rendering resumes).
+  const [subViewBack,setSubViewBack]=useState(null);
   const navigate=useNavigate();
   const [searchParams]=useSearchParams();
   // Email CTAs (org invite, staff-added) link to "/?signin=1" so a signed-out
@@ -505,15 +513,15 @@ function AuthedShell(){
   // Show data loading spinner after auth but before data loaded
   if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div></div>);
 
-  return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,setPresetTeamId,goToBuilder,goToRun,goHome,goToSchedule,goToTeam,goToSettings}}>
+  return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,setPresetTeamId,subViewBack,setSubViewBack,goToBuilder,goToRun,goHome,goToSchedule,goToTeam,goToSettings}}>
     <Outlet/>
     {ctx.modal&&<ModalLayer modal={ctx.modal} data={ctx.data} update={ctx.update} closeModal={ctx.closeModal} refreshTeams={ctx.refreshTeams} refreshLibrary={ctx.refreshLibrary} refreshPlanning={ctx.refreshPlanning} coachId={ctx.coachId}/>}
   </AppCtx.Provider>);
 }
 
 function LayoutRoute(){
-  const {data,liveId,goToRun,mode,openModal}=useAppCtx();
-  return <Layout data={data} liveId={liveId} goToRun={goToRun} mode={mode} openModal={openModal}/>;
+  const {data,liveId,goToRun,mode,openModal,subViewBack}=useAppCtx();
+  return <Layout data={data} liveId={liveId} goToRun={goToRun} mode={mode} openModal={openModal} subViewBack={subViewBack}/>;
 }
 
 // Founder-only gate. Settings shows a "Founder Metrics" row only when
@@ -580,7 +588,7 @@ function ScheduleLegacyRoute(){
 // mutation made from inside a team's Schedule tab).
 function TeamScheduleRoute(){
   const {teamId}=useParams();
-  const {data,update,goToBuilder,goToRun,coachId,refreshPlanning:refreshGlobalPlanning}=useAppCtx();
+  const {data,update,goToBuilder,goToRun,coachId,refreshPlanning:refreshGlobalPlanning,setSubViewBack}=useAppCtx();
   const [teamPractices,setTeamPractices]=useState(null);
   const refreshTeamPractices=useCallback(()=>{
     fetchPracticesFull(teamId).then(setTeamPractices);
@@ -591,7 +599,7 @@ function TeamScheduleRoute(){
   },[refreshTeamPractices,refreshGlobalPlanning]);
   if(teamPractices===null)return (<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Loading...</div>);
   const scopedData=Object.assign({},data,{practices:teamPractices});
-  return <ScheduleScreen data={scopedData} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshBoth} fixedTeamId={teamId}/>;
+  return <ScheduleScreen data={scopedData} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshBoth} fixedTeamId={teamId} setSubViewBack={setSubViewBack}/>;
 }
 
 function TeamIndexRedirect(){
@@ -629,11 +637,11 @@ function TeamEquipmentRoute(){
 function TeamGoalsRoute(){
   const {teamId}=useParams();
   const navigate=useNavigate();
-  const {data,coachId}=useAppCtx();
+  const {data,coachId,setSubViewBack}=useAppCtx();
   const team=data.teams.find(t=>t.id===teamId);
   useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
   if(!team)return null;
-  return <GoalsScreen data={data} teamId={teamId} coachId={coachId}/>;
+  return <GoalsScreen data={data} teamId={teamId} coachId={coachId} setSubViewBack={setSubViewBack}/>;
 }
 
 function TeamBuildRoute(){
@@ -1060,6 +1068,14 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
     if(isDirty&&!window.confirm("You have unsaved changes. Leave without saving?"))return;
     onBack();
   };
+  // Nav restructure round 3: registers with Layout's colored bar instead of
+  // rendering its own inline Back button -- re-registers every render so
+  // the isDirty check handleBack closes over never goes stale.
+  const {setSubViewBack}=useAppCtx();
+  useEffect(()=>{
+    setSubViewBack({onBack:handleBack});
+    return ()=>setSubViewBack(null);
+  });
 
   const areas=player.focusAreas||[];
   const areaFor=categoryId=>areas.find(a=>a.categoryId===categoryId);
@@ -1086,7 +1102,6 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   const throwsLabel=((HAND_FIELDS_BY_SPORT[team.sport]||[]).find(hf=>hf.key==="throws")||{}).label||"Throws";
 
   return (<div style={{paddingBottom:80}}>
-    <div className="row mb10"><button className="btn ghost bxs" onClick={handleBack}>Back</button></div>
     <div className="row mb10" style={{justifyContent:"space-between",alignItems:"flex-start"}}>
       <div style={{flex:1,minWidth:0}}>
         {!canManage?(<>
@@ -1158,9 +1173,14 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refr
   const [openMenu,setOpenMenu]=useState(null);
   const [sort,setSort]=useState({by:"firstName",dir:"asc"});
   const [viewPlayer,setViewPlayer]=useState(null);
+  const [confirmRemovePlayer,setConfirmRemovePlayer]=useState(null);
   const team=data.teams.find(t=>t.id===teamId)||null;
   const canManage=isHeadCoach(team,coachId);
   const delP=async id=>{await archivePlayer(id);await refreshTeams();};
+  const doRemovePlayer=async()=>{
+    await delP(confirmRemovePlayer.id);
+    setConfirmRemovePlayer(null);
+  };
   const delC=async id=>{await archiveStaff(id);await refreshTeams();};
   const sorted=team?[...team.players].sort((a,b)=>{
     let av,bv;
@@ -1209,7 +1229,7 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refr
             {(!p.focusAreas||!p.focusAreas.length)&&p.notes&&<div className="limt">{p.notes}</div>}
           </div>
           {canManage&&<button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===p.id?null:p.id);}}><span/><span/><span/></button>}
-          {canManage&&openMenu===p.id&&<div className="mini-menu"><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setViewPlayer(p);}}>Player Profile</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delP(p.id);}}>Remove</button></div>}
+          {canManage&&openMenu===p.id&&<div className="mini-menu"><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setViewPlayer(p);}}>Player Profile</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);setConfirmRemovePlayer(p);}}>Remove</button></div>}
         </div>))}
         {!team.players.length&&<div className="empty"><div className="emtx">No players yet{canManage?" -- tap + Add.":"."}</div></div>}
       </div>)}
@@ -1223,6 +1243,13 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refr
       </div>)}
     </div>)}
     {!team&&<div className="empty"><div className="emtx">Create a team to get started</div></div>}
+    {confirmRemovePlayer&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setConfirmRemovePlayer(null);}}>
+      <div className="modal">
+        <div className="mtitle">Remove {confirmRemovePlayer.firstName}?</div>
+        <div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This removes {confirmRemovePlayer.firstName} {confirmRemovePlayer.lastName} from the roster. Cannot be undone.</div>
+        <div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmRemovePlayer(null)}>Cancel</button><button className="btn danger bmd" onClick={doRemovePlayer}>Remove</button></div>
+      </div>
+    </div>}
   </div>);
 }
 

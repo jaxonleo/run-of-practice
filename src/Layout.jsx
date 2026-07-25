@@ -32,7 +32,7 @@ const teamWorkspaceTabs = teamId => [
   { id: "goals", label: "Goals & Insights", path: `/team/${teamId}/goals` },
 ];
 
-export default function Layout({ data, liveId, goToRun, mode, openModal }) {
+export default function Layout({ data, liveId, goToRun, mode, openModal, subViewBack }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { teamId } = useParams();
@@ -56,15 +56,23 @@ export default function Layout({ data, liveId, goToRun, mode, openModal }) {
 
   return (<div style={{ display: "contents" }}>
     <div className="app">
-      {/* Nav restructure round 2 (2026-07-2x): the old "‹ Teams" link back to
-          the team list, sitting above every team-scoped screen, duplicated
-          each screen's own Back button (PracticeDetail, PlayerProfile, ...)
-          -- two ways to leave a page that both went to nearly the same
-          place. Replaced with a colored identity strip (team name, no back
-          link of its own -- the bottom Teams tab already covers "leave the
-          team") that also centralizes Edit Team access via its ellipsis,
-          out of the per-tab menus that used to duplicate it. */}
+      {/* Nav restructure round 2: the old "‹ Teams" link back to the team
+          list, sitting above every team-scoped screen, duplicated each
+          screen's own Back button (PracticeDetail, PlayerProfile, ...) --
+          two ways to leave a page that both went to nearly the same place.
+          Replaced with a colored identity strip (team name, no back link of
+          its own -- the bottom Teams tab already covers "leave the team")
+          that also centralizes Edit Team access via its ellipsis, out of
+          the per-tab menus that used to duplicate it.
+          Round 3: a sub-view drilled into from one of the workspace tabs
+          (Practice Detail, History, Session History, Player Profile) used
+          to render its own Back button inline, below this bar and the
+          workspace tabs row -- easy to miss, and buried under chrome that
+          doesn't change when you drill in. Whichever sub-view is active
+          registers itself via subViewBack (AppCtx), and its Back button
+          renders here instead, on the opposite side from the ellipsis. */}
       {inTeam && team && <div style={{ position: "relative", background: team.colorPrimary || "var(--green)", padding: "14px 46px", textAlign: "center", flexShrink: 0 }} onClick={() => teamMenuOpen && setTeamMenuOpen(false)}>
+        {subViewBack && <button aria-label="Back" onClick={e => { e.stopPropagation(); subViewBack.onBack(); }} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,.18)", border: "none", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", fontSize: 20, lineHeight: 1 }}>&#8249;</button>}
         <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, color: "#fff", letterSpacing: ".01em" }}>{team.name}</span>
         <button className="ell-btn" aria-label="Team options" onClick={e => { e.stopPropagation(); setTeamMenuOpen(o => !o); }} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}>
           <span style={{ background: "#fff" }}/><span style={{ background: "#fff" }}/><span style={{ background: "#fff" }}/>

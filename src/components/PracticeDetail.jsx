@@ -13,7 +13,16 @@ function PlanPill({ practice, total }) {
   return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
 }
 
-export default function PracticeDetail({practice,data,update,goToBuilder,goToRun,onBack,coachId,refreshPlanning}){
+export default function PracticeDetail({practice,data,update,goToBuilder,goToRun,onBack,coachId,refreshPlanning,setSubViewBack}){
+  // Nav restructure round 3: reached from a team-scoped Schedule tab
+  // registers with Layout's colored bar instead of rendering its own
+  // inline Back button; reached from Home (no colored bar there) keeps
+  // the inline button, since setSubViewBack is only passed in the former case.
+  useEffect(()=>{
+    if(!setSubViewBack)return;
+    setSubViewBack({onBack});
+    return ()=>setSubViewBack(null);
+  },[setSubViewBack,onBack]);
   const team=data.teams.find(t=>t.id===practice.teamId);
   const canManage=isHeadCoach(team,coachId);
   const loc=data.locations.find(l=>l.id===practice.locationId);
@@ -64,7 +73,7 @@ export default function PracticeDetail({practice,data,update,goToBuilder,goToRun
     onBack();
   };
   return (<div style={{paddingBottom:80}}>
-    <div style={{padding:"12px 14px 0",display:"flex",alignItems:"center",gap:8}}><button className="btn ghost bxs" onClick={onBack}>Back</button></div>
+    {!setSubViewBack&&<div style={{padding:"12px 14px 0",display:"flex",alignItems:"center",gap:8}}><button className="btn ghost bxs" onClick={onBack}>Back</button></div>}
     <div style={{padding:"12px 16px 0"}}>
       {isCancelled&&<div className="card" style={{marginBottom:12,background:"var(--s2)",textAlign:"center"}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,color:"var(--td)",marginBottom:8}}>This practice was cancelled</div>

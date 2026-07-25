@@ -206,7 +206,16 @@ function TimeRangeForm({ start, end, setStart, setEnd, onSave, onCancel, busy, s
 // time" client-side guardrail (§5.4) -- the DB-side sane-bounds check
 // (adjust_session_activity's +/-1h/12h window, built in step 2) is the real
 // safety net; this is UI polish on top of it, not core correctness.
-function SessionHistoryDetail({ session, practice, canManage, onBack, onChanged }) {
+function SessionHistoryDetail({ session, practice, canManage, onBack, onChanged, setSubViewBack }) {
+  // Nav restructure round 3: GoalsScreen is always team-scoped, so this
+  // always registers with Layout's colored bar instead of its own inline
+  // Back button -- the !setSubViewBack fallback below is just defensive
+  // consistency with PracticeDetail/HistoryViewer, not expected to trigger.
+  useEffect(() => {
+    if (!setSubViewBack) return;
+    setSubViewBack({ onBack });
+    return () => setSubViewBack(null);
+  }, [setSubViewBack, onBack]);
   const [logs, setLogs] = useState(null);
   const [notes, setNotes] = useState([]);
   const [editingLogId, setEditingLogId] = useState(null);
@@ -221,7 +230,7 @@ function SessionHistoryDetail({ session, practice, canManage, onBack, onChanged 
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => { if (practice) fetchNotesForPractice(practice.id).then(setNotes); }, [practice && practice.id]);
 
-  if (!practice) return (<div style={{ paddingBottom: 80 }}><div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>&#8249; History</button></div><div className="empty"><div className="emtx">Practice not found.</div></div></div>);
+  if (!practice) return (<div style={{ paddingBottom: 80 }}>{!setSubViewBack && <div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>&#8249; History</button></div>}<div className="empty"><div className="emtx">Practice not found.</div></div></div>);
   if (logs === null) return (<div style={{ padding: "40px 0", textAlign: "center", color: "var(--td)" }}>Loading...</div>);
 
   const logsForActivity = actId => meaningfulLogs(logs.filter(l => l.practiceActivityId === actId));
@@ -251,7 +260,7 @@ function SessionHistoryDetail({ session, practice, canManage, onBack, onChanged 
   };
 
   return (<div style={{ paddingBottom: 80 }}>
-    <div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>&#8249; History</button></div>
+    {!setSubViewBack && <div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>&#8249; History</button></div>}
     <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>
       {session.ended_at ? new Date(session.ended_at).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }) : "In progress"}
     </div>
@@ -355,7 +364,7 @@ function HistoryList({ history, data, canManage, onOpen }) {
 
 // Goals + Insights tab (handoff §5). Ties together the editor, glance view,
 // and promoted History list/detail for one team.
-export default function GoalsScreen({ data, teamId, coachId }) {
+export default function GoalsScreen({ data, teamId, coachId, setSubViewBack }) {
   const team = data.teams.find(t => t.id === teamId);
   const canManage = team ? isHeadCoach(team, coachId) : false;
   const [goals, setGoals] = useState(null);
@@ -388,7 +397,8 @@ export default function GoalsScreen({ data, teamId, coachId }) {
     const practice = data.practices.find(p => p.id === openSession.practice_id);
     return <SessionHistoryDetail session={openSession} practice={practice} canManage={canManage}
       onBack={() => setOpenSessionId(null)}
-      onChanged={() => { refreshAll(); }} />;
+      onChanged={() => { refreshAll(); }}
+      setSubViewBack={setSubViewBack} />;
   }
 
   // No own page header/title here -- the active "Goals & Insights" top tab

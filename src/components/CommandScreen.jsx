@@ -118,7 +118,16 @@ function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPre
   </div>);
 }
 
-function HistoryViewer({data,update,practice,onRunAgain,onBack,coachId,refreshPlanning}){
+function HistoryViewer({data,update,practice,onRunAgain,onBack,coachId,refreshPlanning,setSubViewBack}){
+  // Nav restructure round 3: same pattern as PracticeDetail -- registers
+  // with Layout's colored bar when reached from a team-scoped Schedule tab
+  // (setSubViewBack passed in), otherwise keeps its own inline Back button
+  // (reached from Home, which has no colored bar).
+  useEffect(()=>{
+    if(!setSubViewBack)return;
+    setSubViewBack({onBack});
+    return ()=>setSubViewBack(null);
+  },[setSubViewBack,onBack]);
   const [tplSaved,setTplSaved]=useState(false);
   const [tplError,setTplError]=useState("");
   const [savingTpl,setSavingTpl]=useState(false);
@@ -174,7 +183,7 @@ function HistoryViewer({data,update,practice,onRunAgain,onBack,coachId,refreshPl
   };
   return (<div style={{paddingBottom:80}}>
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-      <button className="btn ghost bxs" onClick={onBack}>Back</button>
+      {!setSubViewBack&&<button className="btn ghost bxs" onClick={onBack}>Back</button>}
       <div>
         <div className="ptitle" style={{fontSize:20}}>{team?team.name:"Practice"}</div>
         <div className="limt">{fmtDate(practice.date)}{practice.startTime?" at "+practice.startTime:""}{loc?" · "+loc.name:""}</div>

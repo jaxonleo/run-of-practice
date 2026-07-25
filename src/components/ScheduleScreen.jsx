@@ -59,7 +59,7 @@ function DaySheet({ date, practices, data, todayStr, runStatus, onPick, onClose 
 // data.practices is already scoped to that one team by the caller
 // (fetchPracticesFull(teamId)), so the team-filter chip row is redundant
 // (it would show exactly one, permanently-active chip) and is hidden.
-export default function ScheduleScreen({ data, update, goToBuilder, goToRun, coachId, refreshPlanning, fixedTeamId }) {
+export default function ScheduleScreen({ data, update, goToBuilder, goToRun, coachId, refreshPlanning, fixedTeamId, setSubViewBack }) {
   const navigate = useNavigate();
   const now = new Date();
   const todayStr = localDateStr(now);
@@ -122,8 +122,13 @@ export default function ScheduleScreen({ data, update, goToBuilder, goToRun, coa
     if (saved) goToRun(saved.id);
   };
 
-  if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} update={update} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} coachId={coachId} refreshPlanning={refreshPlanning} /></div>);
-  if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning} onBack={() => setViewPractice(null)} /></div>);
+  // setSubViewBack only passed through when this screen is team-scoped
+  // (fixedTeamId set) -- the global /schedule route has no colored bar to
+  // register into, so PracticeDetail/HistoryViewer fall back to their own
+  // inline Back button there.
+  const subViewBackProp = fixedTeamId ? setSubViewBack : undefined;
+  if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} update={update} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} coachId={coachId} refreshPlanning={refreshPlanning} setSubViewBack={subViewBackProp} /></div>);
+  if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning} onBack={() => setViewPractice(null)} setSubViewBack={subViewBackProp} /></div>);
 
   const teamById = id => data.teams.find(t => t.id === id);
 
