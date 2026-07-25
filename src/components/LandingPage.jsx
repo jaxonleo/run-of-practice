@@ -181,7 +181,9 @@ const LP_CSS = `
 .lp-watch-screen{position:relative;background:#000;border-radius:40px;overflow:hidden;aspect-ratio:4/4.9;display:flex;flex-direction:column;padding:22px 17px 17px;}
 .lp-w-statusline{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
 .lp-w-live{display:flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.1em;color:#7fd6a4;}
+.lp-w-live.over{color:#ffb4a0;}
 .lp-w-live .dot{width:6px;height:6px;border-radius:50%;background:#43d97d;animation:pulse 1.5s infinite;}
+.lp-w-live.over .dot{background:#ff6a4d;}
 .lp-w-ontime{font-family:'DM Mono',monospace;font-size:9px;font-weight:700;color:#cfe8d8;background:rgba(127,214,164,.16);border-radius:999px;padding:3px 8px;}
 .lp-w-behind{font-family:'DM Mono',monospace;font-size:9px;font-weight:700;color:#f4d9a8;background:rgba(240,198,116,.18);border-radius:999px;padding:3px 8px;}
 .lp-w-drill{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:19px;color:#fff;line-height:1.1;margin-bottom:2px;}
@@ -618,7 +620,7 @@ function WatchLiveScreen() {
   const { display, over, minutesBehind } = useCountdown(CLOCK_STATION_BLOCK_START);
   return (<div className="lp-watch-screen">
     <div className="lp-w-statusline">
-      <span className="lp-w-live"><span className="dot"></span>LIVE</span>
+      <span className={"lp-w-live" + (over ? " over" : "")}><span className="dot"></span>LIVE</span>
       {over ? <span className="lp-w-behind">{minutesBehind}m behind</span> : <span className="lp-w-ontime">On time</span>}
     </div>
     <div className="lp-w-drill">Station Block</div>
