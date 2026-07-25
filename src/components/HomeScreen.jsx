@@ -13,7 +13,7 @@ function PlanPill({ practice }) {
   if (!st) return null;
   const total = sumMins(practice.activities || []);
   const onTrack = st === "onTrack";
-  return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{onTrack ? "✓" : "⚠"} {total}/{practice.scheduledDurationMinutes} min</span>;
+  return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
 }
 
 // §6: getting-started checklist, completion fully derived from existing

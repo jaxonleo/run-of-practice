@@ -609,7 +609,7 @@ function TeamRosterRoute(){
   // of rendering blank, same guard the old ManageScreen had.
   useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
   if(!team)return null;
-  return (<div style={{padding:"8px 0 calc(var(--tab) + 20px)"}}>
+  return (<div style={{padding:"16px 16px calc(var(--tab) + 20px)"}}>
     <RostersTab data={data} update={update} openModal={openModal} fixedTeamId={teamId} refreshTeams={refreshTeams} coachId={coachId} refreshLibrary={refreshLibrary}/>
   </div>);
 }
@@ -621,7 +621,7 @@ function TeamEquipmentRoute(){
   const team=data.teams.find(t=>t.id===teamId);
   useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
   if(!team)return null;
-  return (<div style={{padding:"8px 0 calc(var(--tab) + 20px)"}}>
+  return (<div style={{padding:"16px 16px calc(var(--tab) + 20px)"}}>
     <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} sportFilter={team.sport}/>
   </div>);
 }

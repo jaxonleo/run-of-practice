@@ -10,7 +10,7 @@ function PlanPill({ practice, total }) {
   const st = planningState(practice);
   if (!st) return null;
   const onTrack = st === "onTrack";
-  return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{onTrack ? "✓" : "⚠"} {total}/{practice.scheduledDurationMinutes} min</span>;
+  return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
 }
 
 export default function PracticeDetail({practice,data,update,goToBuilder,goToRun,onBack,coachId,refreshPlanning}){
