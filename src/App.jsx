@@ -447,6 +447,28 @@ export default function App(){
   </AppCtx.Provider>);
 }
 
+// Shared full-screen loading mark -- there are three separate "we don't
+// know yet" gates before the app can render anything (is there a session
+// at all? is this user an admin? has their team/library/planning data come
+// back?), and they used to look different from each other (a bare "Loading..."
+// vs. this ticking-mark one) purely because the graphic was added to only
+// one of them at first. Same mark, same message style, everywhere now.
+function LoadingScreen({message}){
+  return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",gap:18,alignItems:"center",justifyContent:"center",background:"var(--black)"}}>
+    <svg width="72" height="72" viewBox="0 0 100 100">
+      <rect x="42" y="0" width="16" height="10" rx="5" fill="#fff" opacity=".85"/>
+      <rect x="68" y="6" width="16" height="9" rx="4.5" fill="#fff" opacity=".85" transform="rotate(35 76 10)"/>
+      <circle cx="50" cy="50" r="40" fill="none" stroke="#fff" strokeOpacity=".18" strokeWidth="5"/>
+      <path d="M 78 76 A 40 40 0 0 0 90 50" fill="none" stroke="var(--green2)" strokeWidth="5" strokeLinecap="round"/>
+      <g className="loadmark-hand">
+        <line x1="50" y1="50" x2="50" y2="20" stroke="var(--green)" strokeWidth="6" strokeLinecap="round"/>
+      </g>
+      <circle cx="50" cy="50" r="5" fill="var(--green)"/>
+    </svg>
+    <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>{message}</div>
+  </div>);
+}
+
 // ── Route wrappers ───────────────────────────────────────────────────────────
 // Thin components so the router config above can stay a stable, one-time
 // tree while still reading live data via AppCtx. None of the screens they
@@ -499,7 +521,7 @@ function AuthedShell(){
   const goToSettings=useCallback(()=>navigate("/settings"),[navigate]);
 
   // Loading initial session
-  if(session===undefined)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
+  if(session===undefined)return <LoadingScreen message="Loading..."/>;
   // Landing-page addendum §1: "/" is adaptive on session state -- an
   // installed PWA icon's start_url stays "/" and keeps launching straight
   // into the app for a signed-in user, while a signed-out visitor sees the
@@ -511,19 +533,7 @@ function AuthedShell(){
   // accounts created before name collection existed.
   if(profile&&!profile.first_name)return (<NameScreen onSave={saveName}/>);
   // Show data loading spinner after auth but before data loaded
-  if(!loaded)return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",gap:18,alignItems:"center",justifyContent:"center",background:"var(--black)"}}>
-    <svg width="72" height="72" viewBox="0 0 100 100">
-      <rect x="42" y="0" width="16" height="10" rx="5" fill="#fff" opacity=".85"/>
-      <rect x="68" y="6" width="16" height="9" rx="4.5" fill="#fff" opacity=".85" transform="rotate(35 76 10)"/>
-      <circle cx="50" cy="50" r="40" fill="none" stroke="#fff" strokeOpacity=".18" strokeWidth="5"/>
-      <path d="M 78 76 A 40 40 0 0 0 90 50" fill="none" stroke="var(--green2)" strokeWidth="5" strokeLinecap="round"/>
-      <g className="loadmark-hand">
-        <line x1="50" y1="50" x2="50" y2="20" stroke="var(--green)" strokeWidth="6" strokeLinecap="round"/>
-      </g>
-      <circle cx="50" cy="50" r="5" fill="var(--green)"/>
-    </svg>
-    <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div>
-  </div>);
+  if(!loaded)return <LoadingScreen message="Loading your data..."/>;
 
   return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,setPresetTeamId,subViewBack,setSubViewBack,goToBuilder,goToRun,goHome,goToSchedule,goToTeam,goToSettings}}>
     <Outlet/>
@@ -544,7 +554,7 @@ function LayoutRoute(){
 function FounderAdminRoute(){
   const [isAdmin,setIsAdmin]=useState(null);
   useEffect(()=>{checkIsAdmin().then(setIsAdmin);},[]);
-  if(isAdmin===null)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading...</div></div>);
+  if(isAdmin===null)return <LoadingScreen message="Loading..."/>;
   if(!isAdmin)return <Navigate to="/" replace/>;
   return <FounderMetricsScreen/>;
 }
