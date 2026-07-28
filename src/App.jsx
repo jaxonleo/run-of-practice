@@ -138,6 +138,8 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .emtx{font-size:14px;line-height:1.5;}
 .live{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.loadmark-hand{transform-origin:50px 50px;animation:tick 1.2s linear infinite;}
+@keyframes tick{to{transform:rotate(360deg)}}
 .row{display:flex;align-items:center;gap:8px;}
 .mt6{margin-top:6px;}.mt8{margin-top:8px;}.mb8{margin-bottom:8px;}.mb10{margin-bottom:10px;}
 .td{color:var(--td);}.tm{color:var(--tm);}.tg{color:var(--green);}
@@ -509,7 +511,19 @@ function AuthedShell(){
   // accounts created before name collection existed.
   if(profile&&!profile.first_name)return (<NameScreen onSave={saveName}/>);
   // Show data loading spinner after auth but before data loaded
-  if(!loaded)return (<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--black)"}}><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div></div>);
+  if(!loaded)return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",gap:18,alignItems:"center",justifyContent:"center",background:"var(--black)"}}>
+    <svg width="72" height="72" viewBox="0 0 100 100">
+      <rect x="42" y="0" width="16" height="10" rx="5" fill="#fff" opacity=".85"/>
+      <rect x="68" y="6" width="16" height="9" rx="4.5" fill="#fff" opacity=".85" transform="rotate(35 76 10)"/>
+      <circle cx="50" cy="50" r="40" fill="none" stroke="#fff" strokeOpacity=".18" strokeWidth="5"/>
+      <path d="M 78 76 A 40 40 0 0 0 90 50" fill="none" stroke="var(--green2)" strokeWidth="5" strokeLinecap="round"/>
+      <g className="loadmark-hand">
+        <line x1="50" y1="50" x2="50" y2="20" stroke="var(--green)" strokeWidth="6" strokeLinecap="round"/>
+      </g>
+      <circle cx="50" cy="50" r="5" fill="var(--green)"/>
+    </svg>
+    <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>Loading your data...</div>
+  </div>);
 
   return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,setPresetTeamId,subViewBack,setSubViewBack,goToBuilder,goToRun,goHome,goToSchedule,goToTeam,goToSettings}}>
     <Outlet/>
