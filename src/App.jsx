@@ -355,11 +355,18 @@ export default function App(){
   },[coachId]);
   // Single combined load gate -- `loaded` used to flip once the (now-removed)
   // legacy app_data blob resolved; teams/library/planning are the real data
-  // sources, so it waits on all three instead.
+  // sources, so it waits on all three instead. allSettled, not all -- a
+  // rejection in any one of these must never hang the loading screen forever
+  // (the old app_data-based gate was fully decoupled from these fetches, so
+  // this failure mode didn't exist before; each fetch already handles its
+  // own query-level errors internally and returns a safe empty default).
   useEffect(()=>{
     if(!coachId){setLoaded(false);return;}
     setLoaded(false);
-    Promise.all([refreshTeams(),refreshLibrary(),refreshPlanning()]).then(()=>setLoaded(true));
+    Promise.allSettled([refreshTeams(),refreshLibrary(),refreshPlanning()]).then(results=>{
+      results.forEach((r,i)=>{if(r.status==="rejected")console.error(["refreshTeams","refreshLibrary","refreshPlanning"][i]+" failed:",r.reason);});
+      setLoaded(true);
+    });
   },[coachId,refreshTeams,refreshLibrary,refreshPlanning]);
   const data=useMemo(()=>Object.assign({teams},library,planning),[teams,library,planning]);
 
