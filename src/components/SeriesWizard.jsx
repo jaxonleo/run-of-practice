@@ -5,7 +5,7 @@ import { isHeadCoach } from "../constants.js";
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const toStr = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 
-export default function SeriesWizard({ data, coachId, onClose, onDone }) {
+export default function SeriesWizard({ data, coachId, presetTeamId, onClose, onDone }) {
   const today = new Date();
   // §3: only teams this user manages -- an assistant should never be able
   // to schedule for a team they don't head-coach, even via this wizard's
@@ -13,7 +13,10 @@ export default function SeriesWizard({ data, coachId, onClose, onDone }) {
   // when NO team is manageable; a mixed-role user still needs this filter).
   const myTeams = useMemo(() => data.teams.filter(t => isHeadCoach(t, coachId)), [data.teams, coachId]);
   const [step, setStep] = useState("team");
-  const [teamId, setTeamId] = useState(myTeams[0] ? myTeams[0].id : "");
+  // Opened from inside a specific team's Schedule tab defaults to that team
+  // (only if the coach actually head-coaches it -- myTeams already enforces
+  // that) rather than whichever head-coached team sorts first.
+  const [teamId, setTeamId] = useState(() => (presetTeamId && myTeams.some(t => t.id === presetTeamId)) ? presetTeamId : (myTeams[0] ? myTeams[0].id : ""));
   const team = myTeams.find(t => t.id === teamId) || null;
   const [days, setDays] = useState(new Set());
   const [startTime, setStartTime] = useState("18:00");

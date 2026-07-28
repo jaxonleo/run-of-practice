@@ -7,9 +7,13 @@ import { isHeadCoach, localDateStr } from "../constants.js";
 // stays the path for recurring schedules). Same field set as the wizard's
 // team/pattern/location steps, just collapsed since there's no range to
 // preview.
-export default function SchedulePracticeModal({ data, coachId, onClose, onDone }) {
+export default function SchedulePracticeModal({ data, coachId, presetTeamId, onClose, onDone }) {
   const myTeams = useMemo(() => data.teams.filter(t => isHeadCoach(t, coachId)), [data.teams, coachId]);
-  const [teamId, setTeamId] = useState(myTeams[0] ? myTeams[0].id : "");
+  // Opened from inside a specific team's Schedule tab should default to
+  // that team, not whichever head-coached team happens to sort first --
+  // only honored if the coach actually head-coaches it (myTeams already
+  // enforces that), so a stray/invalid id can't slip through.
+  const [teamId, setTeamId] = useState(() => (presetTeamId && myTeams.some(t => t.id === presetTeamId)) ? presetTeamId : (myTeams[0] ? myTeams[0].id : ""));
   const [date, setDate] = useState(localDateStr());
   const [startTime, setStartTime] = useState("18:00");
   const [durationMinutes, setDurationMinutes] = useState(60);

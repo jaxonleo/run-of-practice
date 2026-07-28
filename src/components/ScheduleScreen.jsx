@@ -77,7 +77,14 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
   const [absenceCounts, setAbsenceCounts] = useState({});
   const [runStatus, setRunStatus] = useState({});
 
-  const canScheduleAny = data.teams.some(t => isHeadCoach(t, coachId));
+  // Scoped to the team actually being viewed when this is a team-workspace
+  // Schedule tab (fixedTeamId set) -- an assistant here must never see
+  // +Practice/+Series just because they head-coach some *other* team.
+  // The global cross-team Schedule tab (no fixedTeamId) keeps the original
+  // "head-coach anything at all" check, since it isn't scoped to one team.
+  const canScheduleAny = fixedTeamId
+    ? isHeadCoach(data.teams.find(t => t.id === fixedTeamId), coachId)
+    : data.teams.some(t => isHeadCoach(t, coachId));
   const toggleTeam = id => setTeamFilter(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const passesFilter = p => teamFilter.size === 0 || teamFilter.has(p.teamId);
   const filtered = data.practices.filter(passesFilter);
@@ -236,7 +243,7 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
       {daySheetDate && <DaySheet date={daySheetDate} practices={(practicesByDate[daySheetDate] || []).sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))} data={data} todayStr={todayStr} runStatus={runStatus} onPick={p => { setDaySheetDate(null); openPractice(p); }} onClose={() => setDaySheetDate(null)} />}
     </div>}
 
-    {showWizard && <SeriesWizard data={data} coachId={coachId} onClose={() => setShowWizard(false)} onDone={async () => { setShowWizard(false); await refreshPlanning(); }} />}
-    {showSingle && <SchedulePracticeModal data={data} coachId={coachId} onClose={() => setShowSingle(false)} onDone={async (result, planNow) => { setShowSingle(false); await refreshPlanning(); if (planNow && result) goToBuilder(result.id); }} />}
+    {showWizard && <SeriesWizard data={data} coachId={coachId} presetTeamId={fixedTeamId} onClose={() => setShowWizard(false)} onDone={async () => { setShowWizard(false); await refreshPlanning(); }} />}
+    {showSingle && <SchedulePracticeModal data={data} coachId={coachId} presetTeamId={fixedTeamId} onClose={() => setShowSingle(false)} onDone={async (result, planNow) => { setShowSingle(false); await refreshPlanning(); if (planNow && result) goToBuilder(result.id); }} />}
   </div>);
 }
