@@ -1512,6 +1512,26 @@ export async function removeOrgMember(orgStaffId) {
   if (error) console.error('removeOrgMember:', error)
   return { error }
 }
+// Invitee's view: pending org invites addressed to this coach's own verified
+// email. Called from fetchLibraryData (its only call site -- easy to miss
+// with a same-file grep, which is exactly how this got wrongly deleted as
+// "dead code" once already; see BUILD-STATUS.md Decision History) so every
+// refreshLibrary() pulls this in alongside the rest of library data, same
+// as the pending-invite card on Home.
+//
+// (org_invites_select's RLS deliberately allows a director to see every
+// pending invite for orgs they administer, needed for the *sent*-invites
+// list below -- narrowed here to the caller's own verified email so a
+// stranger's pending invite for the same org never gets surfaced as if it
+// were addressed to the viewer.)
+export async function fetchPendingOrgInvites() {
+  const { data: userData } = await supabase.auth.getUser()
+  const myEmail = userData && userData.user ? userData.user.email : null
+  if (!myEmail) return []
+  const { data, error } = await supabase.from('org_invites').select('id, organization_id, team_id, team_role, role, invited_by, created_at, organizations(id, name)').eq('status', 'pending').ilike('email', myEmail)
+  if (error) { console.error('fetchPendingOrgInvites:', error); return [] }
+  return (data || []).map(i => ({ id: i.id, organizationId: i.organization_id, organizationName: i.organizations ? i.organizations.name : '', teamId: i.team_id, teamRole: i.team_role, role: i.role, invitedBy: i.invited_by, createdAt: i.created_at }))
+}
 // Director's view: every pending invite this org has sent (org_invites_select
 // RLS shows these to any is_org_admin of the org, separate from the
 // invitee-facing fetchPendingOrgInvites above).
