@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { sumMins, isHeadCoach, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, fetchOrgWeeklyPracticeRollup, ORG_ROLE_LABELS } from "../supabase.js";
+import { useNavigate } from "react-router-dom";
+import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor } from "../constants.js";
+import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, fetchOrgWeeklyPracticeRollup, findOrCreatePreviewToken, ORG_ROLE_LABELS } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
@@ -97,6 +98,22 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
 };
 
 export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, goToTeam, goToSettings, coachId, coachName, coachEmail, refreshPlanning, refreshTeams, refreshLibrary, mode, setMode }) {
+  const navigate = useNavigate();
+  const [openingPreview, setOpeningPreview] = useState(false);
+  // Assistant-coach handoff §1.2: same equipment-by-location view as the
+  // anonymous /preview/:token helper flow, reused as-is rather than building
+  // a second component/query -- a signed-in coach just gets their own token
+  // via the existing findOrCreatePreviewToken (already used by PracticeDetail's
+  // share flow) and lands on the identical page. Always visible once a plan
+  // exists, deliberately not time-gated the way the anonymous link is --
+  // that gating exists only because that link has no auth, which doesn't
+  // apply to a signed-in staff member looking at their own team's practice.
+  const openPracticeSetup = async (practiceId) => {
+    setOpeningPreview(true);
+    const token = await findOrCreatePreviewToken(practiceId, coachId);
+    setOpeningPreview(false);
+    if (token) navigate("/preview/" + token);
+  };
   const isOrgMode = mode && mode.type === "org";
   const activeOrg = isOrgMode ? (data.myOrgs || []).find(o => o.id === mode.orgId) : null;
   const now = new Date();
@@ -332,6 +349,7 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
           {data.teams.map(team => (<div key={team.id} className="card" style={{ flexShrink: 0, minWidth: 140, cursor: "pointer", borderLeft: "4px solid " + (team.colorPrimary || "transparent"), padding: "10px 12px" }} onClick={() => goToTeam(team.id)}>
             <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700, whiteSpace: "nowrap" }}>{team.name}</div>
             <div style={{ fontSize: 11, color: "var(--td)" }}>{team.sport}</div>
+            {!isOrgMode && <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--td)", marginTop: 2 }}>{myTeamRole(team, coachId)}</div>}
           </div>))}
         </div>
       </div>}
@@ -366,6 +384,7 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
           {!planned && !canManage && <div className="btn outline bxl bfull" style={{ textAlign: "center", cursor: "default" }}>Not planned yet</div>}
           {planned && !soon && <button className="btn primary bxl bfull" onClick={() => setViewPractice(nextPractice)}>Review Plan</button>}
           {planned && soon && <button className="btn primary bxl bfull" onClick={() => goToRun(nextPractice.id)}>Start Practice &#8594;</button>}
+          {planned && <button className="btn outline bmd bfull" style={{ marginTop: 8 }} disabled={openingPreview} onClick={() => openPracticeSetup(nextPractice.id)}>{openingPreview ? "Opening..." : "Practice Setup View"}</button>}
         </div>);
       })()}
 

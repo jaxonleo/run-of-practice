@@ -992,11 +992,15 @@ export async function setPlannedAbsences(playerId, notedBy, selectedPracticeIds,
 // counts) rather than bulk-loaded, unlike the old always-in-memory blob.
 export async function fetchNotesForPractice(practiceId) {
   if (!practiceId) return []
-  const { data, error } = await supabase.from('notes').select('*').eq('practice_id', practiceId).is('archived_at', null).order('created_at', { ascending: true })
+  const { data, error } = await supabase.from('notes').select('*, note_player_tags(player_id)').eq('practice_id', practiceId).is('archived_at', null).order('created_at', { ascending: true })
   if (error) { console.error('fetchNotesForPractice:', error); return [] }
-  return data.map(n => ({ id: n.id, practiceId: n.practice_id, practiceActivityId: n.practice_activity_id, stationId: n.station_id, text: n.text, createdAt: n.created_at, createdBy: n.created_by }))
+  return data.map(n => ({ id: n.id, practiceId: n.practice_id, practiceActivityId: n.practice_activity_id, stationId: n.station_id, text: n.text, createdAt: n.created_at, createdBy: n.created_by, authorKind: n.author_kind, authorLabel: n.author_label, playerIds: (n.note_player_tags || []).map(t => t.player_id) }))
 }
-export async function createNote({ practiceId, practiceActivityId, stationId, text, createdBy }) {
+// Assistant-coach handoff §2.4: playerIds is optional, tagged onto the note
+// as a follow-up insert (not an RPC -- staff notes are a plain RLS-gated
+// insert like everywhere else in this file; a stray/failed tag insert
+// shouldn't roll back a note that otherwise saved fine).
+export async function createNote({ practiceId, practiceActivityId, stationId, text, createdBy, playerIds }) {
   const { data, error } = await supabase.from('notes').insert({
     practice_id: practiceId,
     practice_activity_id: practiceActivityId || null,
@@ -1005,7 +1009,27 @@ export async function createNote({ practiceId, practiceActivityId, stationId, te
     created_by: createdBy,
   }).select().single()
   if (error) { console.error('createNote:', error); return { error } }
+  if (playerIds && playerIds.length) {
+    const { error: tagErr } = await supabase.from('note_player_tags').insert(playerIds.map(playerId => ({ note_id: data.id, player_id: playerId })))
+    if (tagErr) console.error('createNote (player tags):', tagErr)
+  }
   return { data }
+}
+export async function archiveNote(id) {
+  const { error } = await supabase.from('notes').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  if (error) console.error('archiveNote:', error)
+  return { error }
+}
+// Reverse-chron via note_player_tags -> notes (PlayerProfile, §2.4) -- a
+// to-one embed off the join table, not a second query per note.
+export async function fetchNotesForPlayer(playerId) {
+  const { data, error } = await supabase.from('note_player_tags')
+    .select('notes(id, practice_id, practice_activity_id, station_id, text, author_kind, author_label, created_by, created_at, archived_at)')
+    .eq('player_id', playerId)
+  if (error) { console.error('fetchNotesForPlayer:', error); return [] }
+  return data.map(r => r.notes).filter(n => n && !n.archived_at)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map(n => ({ id: n.id, practiceId: n.practice_id, practiceActivityId: n.practice_activity_id, stationId: n.station_id, text: n.text, authorKind: n.author_kind, authorLabel: n.author_label, createdBy: n.created_by, createdAt: n.created_at }))
 }
 
 export async function fetchTemplatesFull() {
@@ -1305,6 +1329,16 @@ export async function getLiveSessionByToken(token) {
 export async function submitHelperAttendanceByToken(token, playerId, status) {
   const { data, error } = await supabase.rpc('submit_helper_attendance', { p_token: token, p_player_id: playerId, p_status: status })
   if (error) { console.error('submitHelperAttendanceByToken:', error); return { error: 'request_failed' } }
+  return data
+}
+
+// Anonymous helper note submission (Assistant Coach handoff §0.2/§2) -- a
+// first for this app, so it's the one write RPC among the notes functions
+// above (which are all plain RLS-gated inserts for signed-in staff);
+// everything else here reuses the same `notes`/`note_player_tags` tables.
+export async function submitPracticeNoteByToken(token, body, practiceActivityId, stationId, authorLabel, playerIds) {
+  const { data, error } = await supabase.rpc('submit_practice_note_by_token', { p_token: token, p_body: body, p_practice_activity_id: practiceActivityId || null, p_station_id: stationId || null, p_author_label: authorLabel || null, p_player_ids: playerIds || [] })
+  if (error) { console.error('submitPracticeNoteByToken:', error); return { error: 'request_failed' } }
   return data
 }
 

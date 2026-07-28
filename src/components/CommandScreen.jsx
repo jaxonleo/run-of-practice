@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "../constants.js";
-import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote, updateStationLead } from "../supabase.js";
+import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach } from "../constants.js";
+import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote, updateStationLead, submitPracticeNoteByToken, archiveNote } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
@@ -433,6 +433,81 @@ function HelperPlayerChip({p}){
   </span>);
 }
 
+// ── Notes system (Assistant Coach handoff §2) ────────────────────────────────
+// Only HelperView uses this composer -- the staff live view already had a
+// real note-capture UI (createNote/notes table, below in the main
+// CommandScreen component) before this handoff; that one got @mention
+// support added directly rather than being replaced with a second
+// composer. HelperView had no note UI at all, so this is genuinely new
+// there, submitting via the token-validated submitPracticeNoteByToken
+// RPC instead of a direct authenticated insert. "roster" is always
+// [{id, displayName}] regardless of which caller supplies it.
+function NoteComposer({roster,currentActivityLabel,onSubmit,showAuthorLabel}){
+  const [body,setBody]=useState("");
+  const [authorLabel,setAuthorLabel]=useState("");
+  const [taggedIds,setTaggedIds]=useState([]);
+  const [endOfPractice,setEndOfPractice]=useState(!currentActivityLabel);
+  const [mentionQuery,setMentionQuery]=useState(null);
+  const [submitting,setSubmitting]=useState(false);
+  const [error,setError]=useState(null);
+  const [justSaved,setJustSaved]=useState(false);
+  const taRef=useRef(null);
+  useEffect(()=>{if(!justSaved)return;const t=setTimeout(()=>setJustSaved(false),2500);return()=>clearTimeout(t);},[justSaved]);
+
+  const handleChange=e=>{
+    const val=e.target.value;
+    setBody(val);
+    const caret=e.target.selectionStart;
+    const m=val.slice(0,caret).match(/@([a-zA-Z]*)$/);
+    setMentionQuery(m?m[1]:null);
+  };
+  const filtered=mentionQuery===null?[]:roster.filter(p=>p.displayName.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0,8);
+  const pickPlayer=p=>{
+    const caret=taRef.current?taRef.current.selectionStart:body.length;
+    const before=body.slice(0,caret).replace(/@([a-zA-Z]*)$/,"@"+p.displayName+" ");
+    setBody(before+body.slice(caret));
+    setTaggedIds(ids=>ids.includes(p.id)?ids:[...ids,p.id]);
+    setMentionQuery(null);
+    setTimeout(()=>{if(taRef.current)taRef.current.focus();},0);
+  };
+  const errorText=e=>e==="body_too_long"?"Note is too long (500 char max).":e==="rate_limited"?"Too many notes submitted from this link.":e==="empty_body"?"Note can't be empty.":"Something went wrong. Try again.";
+  const submit=async()=>{
+    if(!body.trim()||submitting)return;
+    setSubmitting(true);setError(null);
+    const res=await onSubmit(body.trim(),taggedIds,endOfPractice,authorLabel.trim());
+    setSubmitting(false);
+    if(res&&res.error){setError(errorText(res.error));return;}
+    setBody("");setTaggedIds([]);setAuthorLabel("");setEndOfPractice(!currentActivityLabel);setJustSaved(true);
+  };
+  return (<div className="card mb10">
+    {showAuthorLabel&&<input className="inp mb8" placeholder="Your name (optional)" value={authorLabel} onChange={e=>setAuthorLabel(e.target.value)} maxLength={100}/>}
+    {currentActivityLabel&&<label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--td)",marginBottom:6,cursor:"pointer"}}>
+      <input type="checkbox" checked={endOfPractice} onChange={e=>setEndOfPractice(e.target.checked)}/>
+      End-of-practice note{!endOfPractice?" (otherwise tagged to \""+currentActivityLabel+"\")":""}
+    </label>}
+    <div style={{position:"relative"}}>
+      <textarea ref={taRef} className="ta" placeholder="Add a note... type @ to tag a player" value={body} onChange={handleChange} maxLength={500}/>
+      {mentionQuery!==null&&filtered.length>0&&<div className="mini-menu" style={{position:"absolute",top:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}}>
+        {filtered.map(p=>(<button key={p.id} type="button" className="mm-item" onClick={()=>pickPlayer(p)}>{p.displayName}</button>))}
+      </div>}
+    </div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
+      <span style={{fontSize:11,color:"var(--td)"}}>{body.length}/500</span>
+      <button className="btn primary bsm" disabled={submitting||!body.trim()} onClick={submit}>{submitting?"Saving...":"Add Note"}</button>
+    </div>
+    {error&&<div style={{fontSize:12,color:"var(--red)",marginTop:4}}>{error}</div>}
+    {justSaved&&<div style={{fontSize:12,color:"var(--green)",marginTop:4}}>Note added.</div>}
+  </div>);
+}
+// Author-role labeling (handoff §2.3): resolve a staff note's real name +
+// role from the already-loaded team roster (same source myTeamRole/
+// isHeadCoach already read elsewhere), never a raw stored name; anonymous
+// notes show their freeform author_label as "Helper" instead.
+function noteAuthorDisplay(note,team){
+  if(note.authorKind==="anonymous")return (note.authorLabel||"A helper")+" (Helper)";
+  const c=team&&(team.coaches||[]).find(c=>c.userId===note.authorId);
+  return (c?c.name:"A coach")+(c?" ("+c.role+")":"");
+}
 function HelperView({token}){
   const [session,setSession]=useState(null);
   const [loading,setLoading]=useState(true);
@@ -441,6 +516,7 @@ function HelperView({token}){
   const [now,setNow]=useState(Date.now());
   const [showAtt,setShowAtt]=useState(false);
   const [showROS,setShowROS]=useState(false);
+  const [showNotes,setShowNotes]=useState(false);
   const [markingId,setMarkingId]=useState(null);
   const spokenRef=useRef({});
   const buzzedRef=useRef(false);
@@ -507,6 +583,10 @@ function HelperView({token}){
   }):null;
   const phaseLabel=isBlock?(inBlockIntro?"INTRODUCING STATIONS":blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+n):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
   const roster=session.roster||[];
+  const mentionRoster=roster.map(p=>({id:p.id,displayName:(p.jersey_number?"#"+p.jersey_number+" ":"")+p.first_name+" "+p.last_initial+"."}));
+  const submitHelperNote=async(body,taggedIds,endOfPractice,authorLabel)=>{
+    return submitPracticeNoteByToken(token,body,endOfPractice?null:session.current_practice_activity_id,null,authorLabel,taggedIds);
+  };
   const upcoming=session.upcoming_activities||[];
   const pCount=roster.filter(p=>p.status==="present").length;
   const pTotal=roster.length;
@@ -524,10 +604,16 @@ function HelperView({token}){
         {pTotal>0&&<button onClick={()=>setShowAtt(s=>!s)} style={{background:pCount<pTotal?"var(--ambg)":"var(--gbg)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--ambb)":"var(--gb)",borderRadius:20,padding:"4px 10px",cursor:"pointer"}}>
           <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
         </button>}
+        <button className="btn ghost bxs" onClick={()=>setShowNotes(s=>!s)}>{showNotes?"Close":"Notes"}</button>
         <button className="btn ghost bxs" onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}</button>
         <button onClick={()=>{if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}spokenRef.current={};buzzedRef.current=false;setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊":"🔇"}</button>
       </div>
     </div>
+    {showNotes&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",padding:"12px 14px",flexShrink:0}}>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Add a Note</div>
+      <NoteComposer roster={mentionRoster} currentActivityLabel={cur?cur.name:null} onSubmit={submitHelperNote} showAuthorLabel/>
+      <button className="btn ghost bxs" onClick={()=>setShowNotes(false)}>Close</button>
+    </div>}
     {showAtt&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",padding:"12px 14px",maxHeight:280,overflowY:"auto",flexShrink:0}}>
       <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Attendance ({pCount}/{pTotal}){canMark?"":" — view only"}</div>
       {!canMark&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
@@ -812,6 +898,29 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const [noteText,setNoteText]=useState("");
   const [noteError,setNoteError]=useState("");
   const [savingNote,setSavingNote]=useState(false);
+  // Assistant-coach handoff §2.4: @mention tagging added onto the existing
+  // quick-note/end-of-practice inputs (shared state -- only one of the two
+  // is ever visible at a time) rather than a new composer.
+  const [noteTaggedIds,setNoteTaggedIds]=useState([]);
+  const [noteMentionQuery,setNoteMentionQuery]=useState(null);
+  const noteTaRef=useRef(null);
+  const onNoteTextChange=e=>{
+    const val=e.target.value;
+    setNoteText(val);
+    if(noteError)setNoteError("");
+    const m=val.slice(0,e.target.selectionStart).match(/@([a-zA-Z]*)$/);
+    setNoteMentionQuery(m?m[1]:null);
+  };
+  const noteMentionMatches=noteMentionQuery===null?[]:(team&&team.players||[]).filter(p=>(p.firstName+" "+(p.lastName||"")).toLowerCase().includes(noteMentionQuery.toLowerCase())).slice(0,8);
+  const pickNoteMention=p=>{
+    const name=p.firstName+(p.lastName?" "+p.lastName:"");
+    const caret=noteTaRef.current?noteTaRef.current.selectionStart:noteText.length;
+    const before=noteText.slice(0,caret).replace(/@([a-zA-Z]*)$/,"@"+name+" ");
+    setNoteText(before+noteText.slice(caret));
+    setNoteTaggedIds(ids=>ids.includes(p.id)?ids:[...ids,p.id]);
+    setNoteMentionQuery(null);
+    setTimeout(()=>{if(noteTaRef.current)noteTaRef.current.focus();},0);
+  };
   const [showROS,setShowROS]=useState(false);
   const [clState,setClState]=useState({});
   const [movePlayer,setMovePlayer]=useState(null);
@@ -908,6 +1017,10 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const elapsed=computeElapsed(session,now);
   const isController=!!(session&&session.controller_user_id===coachId);
   const controllerName=(()=>{if(!session||!team||isController)return null;const c=team.coaches.find(c=>c.userId===session.controller_user_id);return c?c.name:"another coach";})();
+  // Assistant-coach handoff §1.3, confirmed decision: mid-run plan editing
+  // stays gated on role, not on control -- an assistant who takes control
+  // still can't open LiveEditBuilder, unlike every other controller action.
+  const amHeadCoach=isHeadCoach(team,coachId);
   const phaseSecs=isBlock?(inBlockIntro?(cur.transitionDuration||2)*60:blockRotate&&inTrans?cur.transitionDuration*60:cur.stationDuration*60):(cur?actSecs(cur):0);
   const isOver=elapsed>phaseSecs;
   const rem=phaseSecs-elapsed;
@@ -1003,6 +1116,26 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     });
     return()=>{sub.unsubscribe();};
   },[session?.id]);
+
+  // Assistant-coach handoff §1.3: a non-blocking toast for whoever just lost
+  // control, so a habitual tap on Next/+-1m a beat after someone else took
+  // over is explained rather than silently doing nothing.
+  const [controlToast,setControlToast]=useState(null);
+  const prevControllerRef=useRef(null);
+  useEffect(()=>{
+    if(!session){prevControllerRef.current=null;return;}
+    const prev=prevControllerRef.current;
+    if(prev&&prev===coachId&&session.controller_user_id&&session.controller_user_id!==coachId){
+      const newCoach=team&&team.coaches.find(c=>c.userId===session.controller_user_id);
+      setControlToast((newCoach?newCoach.name:"Another coach")+" took control");
+    }
+    prevControllerRef.current=session.controller_user_id;
+  },[session?.controller_user_id]);
+  useEffect(()=>{
+    if(!controlToast)return;
+    const t=setTimeout(()=>setControlToast(null),4000);
+    return()=>clearTimeout(t);
+  },[controlToast]);
 
   // A network hiccup mid-practice must never blank the coach's screen --
   // only a genuine version conflict (someone else moved the session
@@ -1310,6 +1443,12 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(fresh)setSession(fresh);
   },[session,coachId,practice]);
 
+  // Assistant-coach handoff §2.4: @mention roster for the existing
+  // quick-note/end-of-practice inputs below -- the notes themselves already
+  // had a real capture UI before this handoff (createNote/notes table),
+  // this just adds player tagging to it rather than building a second one.
+  const mentionRoster=(team&&team.players||[]).map(p=>({id:p.id,displayName:p.firstName+(p.lastName?" "+p.lastName:"")}));
+
   const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
   const subName=id=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:null;};
   const pnames=ids=>(ids||[]).map(id=>{const p=team&&team.players.find(p=>p.id===id);return p?p.firstName:null;}).filter(Boolean).join(", ");
@@ -1363,10 +1502,10 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(!noteText.trim()||savingNote)return;
     setSavingNote(true);setNoteError("");
     const focusedStation=isBlock&&cur.stations?cur.stations[stIdx]:null;
-    const {error}=await createNote({practiceId:liveId,practiceActivityId:cur?cur.id:null,stationId:focusedStation?focusedStation.id:null,text:noteText.trim(),createdBy:coachId});
+    const {error}=await createNote({practiceId:liveId,practiceActivityId:cur?cur.id:null,stationId:focusedStation?focusedStation.id:null,text:noteText.trim(),createdBy:coachId,playerIds:noteTaggedIds});
     setSavingNote(false);
     if(error){setNoteError("Couldn't save note. Try again.");return;}
-    setNoteText("");
+    setNoteText("");setNoteTaggedIds([]);
   };
   const toggleCl=(actId,itemId)=>{setClState(s=>{const cur2=s[actId]||{};return Object.assign({},s,{[actId]:Object.assign({},cur2,{[itemId]:!cur2[itemId]})});});};
 
@@ -1454,10 +1593,10 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const saveEndNote=async()=>{
     if(!noteText.trim()||savingNote)return;
     setSavingNote(true);setNoteError("");
-    const {error}=await createNote({practiceId:liveId,practiceActivityId:null,stationId:null,text:noteText.trim(),createdBy:coachId});
+    const {error}=await createNote({practiceId:liveId,practiceActivityId:null,stationId:null,text:noteText.trim(),createdBy:coachId,playerIds:noteTaggedIds});
     setSavingNote(false);
     if(error){setNoteError("Couldn't save note. Try again.");return;}
-    setNoteText("");
+    setNoteText("");setNoteTaggedIds([]);
   };
   // Save Note and Done used to sit right on top of each other (both
   // full-width primary buttons a few px apart), so a note typed then tapped
@@ -1468,7 +1607,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(noteText.trim()&&!window.confirm("You have an unsaved note. Leave without saving it?"))return;
     setLiveId(null);setStage("pick");goHome();
   };
-  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:endReason==="abandoned"?"var(--amber)":"var(--green)",marginBottom:4}}>{endReason==="abandoned"?"Practice Aborted":"Practice Complete"}</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{endReason==="abandoned"?(team&&team.name)+" practice aborted -- it won't count as completed. Start a fresh run any time.":(team&&team.name)+" practice complete."}</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><textarea className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time..." onChange={e=>{setNoteText(e.target.value);if(noteError)setNoteError("");}}/>{noteError&&<div style={{fontSize:12,color:"var(--red)",marginTop:4}}>{noteError}</div>}<button className="btn primary bsm bfull mt6" onClick={saveEndNote} disabled={savingNote}>{savingNote?"Saving...":"Save Note"}</button></div><button className="btn ghost bmd bfull" style={{marginTop:32}} onClick={finishPractice}>Done</button></div></div>);
+  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:endReason==="abandoned"?"var(--amber)":"var(--green)",marginBottom:4}}>{endReason==="abandoned"?"Practice Aborted":"Practice Complete"}</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{endReason==="abandoned"?(team&&team.name)+" practice aborted -- it won't count as completed. Start a fresh run any time.":(team&&team.name)+" practice complete."}</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><div style={{position:"relative"}}><textarea ref={noteTaRef} className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time... (type @ to tag a player)" onChange={onNoteTextChange}/>{noteMentionQuery!==null&&noteMentionMatches.length>0&&<div className="mini-menu" style={{position:"absolute",top:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}}>{noteMentionMatches.map(p=>(<button key={p.id} type="button" className="mm-item" onClick={()=>pickNoteMention(p)}>{p.firstName} {p.lastName}</button>))}</div>}</div>{noteError&&<div style={{fontSize:12,color:"var(--red)",marginTop:4}}>{noteError}</div>}<button className="btn primary bsm bfull mt6" onClick={saveEndNote} disabled={savingNote}>{savingNote?"Saving...":"Save Note"}</button></div><button className="btn ghost bmd bfull" style={{marginTop:32}} onClick={finishPractice}>Done</button></div></div>);
 
   if(!cur)return null;
 
@@ -1481,10 +1620,10 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       <span style={{width:8,height:8,borderRadius:"50%",background:"var(--red)",flexShrink:0}}/>
       <span style={{fontSize:12,color:"var(--red)",fontWeight:600}}>Offline — will sync automatically when reconnected</span>
     </div>}
-    {!isController&&<div style={{background:"var(--ambg)",borderBottom:"1px solid var(--ambb)",padding:"8px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+    {!isController&&<div style={{background:"var(--ambg)",borderBottom:"1px solid var(--ambb)",padding:"8px 14px"}}>
       <span style={{fontSize:12,color:"var(--amber)",fontWeight:600}}>Read-only — {controllerName} has control</span>
-      <button className="btn primary bxs" onClick={takeControlNow}>Take Control</button>
     </div>}
+    {controlToast&&<div style={{position:"fixed",top:12,left:"50%",transform:"translateX(-50%)",zIndex:50,background:"var(--black2)",color:"#fff",padding:"8px 16px",borderRadius:20,fontSize:13,fontWeight:600,boxShadow:"0 4px 12px rgba(0,0,0,.3)"}}>{controlToast}</div>}
     <div className="cc-header">
       <div>
         <div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span>{schedBadge}</div>
@@ -1516,7 +1655,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
           {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);goHome();}}>Leave (keeps running)</button>
-            {isController&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowEditBuilder(true);}}>Edit Practice</button>}
+            {isController&&amHeadCoach&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowEditBuilder(true);}}>Edit Practice</button>}
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);if(!audioOn){try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}startBgAudioSession();}else{stopBgAudioSession();}spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
             {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_read");}}>Share Live View</button>}
             {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_attendance");}}>Share for Attendance</button>}
@@ -1549,6 +1688,16 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     {isController&&<div className="cc-controls">
       <button className="btn ghost bmd" style={{minWidth:52}} onClick={goBack} disabled={idx===0&&stIdx===0&&!inTrans}>&lt;</button>
       <button className="btn primary blg" style={{flex:1}} onClick={advance}>{isBlock&&!blockRotate?"End Block":"Next >"}</button>
+    </div>}
+    {/* Assistant-coach handoff §1.3, confirmed decision: this exact spot --
+        where advance/+-1min normally sit -- is where a thumb lands out of
+        habit. Leaving it blank reads as broken/loading; a bare button here
+        risks an accidental tap seizing control mid-drill. Showing who's
+        driving plus a deliberately low-emphasis (outline, not primary)
+        take-control affordance solves both at once. */}
+    {!isController&&<div className="cc-controls" style={{flexDirection:"column",alignItems:"stretch",gap:6}}>
+      <div style={{textAlign:"center",fontSize:13,color:"var(--td)"}}>{controllerName?controllerName+" is running this":"Someone else is running this"}</div>
+      <button className="btn outline bmd" onClick={takeControlNow}>Take Control</button>
     </div>}
     <div className="cc-body">
       {isCl&&cur&&<div className="cc-focus">
@@ -1838,9 +1987,10 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         </div>
       </div>}
     </div>
-    <div className="cc-note-bar">
-      <input className="inp" placeholder="Quick note..." value={noteText} onChange={e=>{setNoteText(e.target.value);if(noteError)setNoteError("");}} onKeyDown={e=>e.key==="Enter"&&addNote()} style={{fontSize:14}}/>
+    <div className="cc-note-bar" style={{position:"relative"}}>
+      <input ref={noteTaRef} className="inp" placeholder="Quick note... (@ to tag a player)" value={noteText} onChange={onNoteTextChange} onKeyDown={e=>e.key==="Enter"&&noteMentionQuery===null&&addNote()} style={{fontSize:14}}/>
       <button className="btn primary bsm" onClick={addNote} disabled={savingNote}>{savingNote?"Saving...":"Save"}</button>
+      {noteMentionQuery!==null&&noteMentionMatches.length>0&&<div className="mini-menu" style={{position:"absolute",bottom:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}}>{noteMentionMatches.map(p=>(<button key={p.id} type="button" className="mm-item" onClick={()=>pickNoteMention(p)}>{p.firstName} {p.lastName}</button>))}</div>}
     </div>
     {noteError&&<div style={{padding:"0 14px 8px",fontSize:12,color:"var(--red)"}}>{noteError}</div>}
     {showShare&&shareToken&&<ShareSheet token={shareToken} scope={shareScope} onClose={()=>setShowShare(false)}/>}

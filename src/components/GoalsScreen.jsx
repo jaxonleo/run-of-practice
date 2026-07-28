@@ -2,9 +2,18 @@ import React, { useState, useEffect, useCallback } from "react";
 import { isHeadCoach } from "../constants.js";
 import {
   fetchTeamGoals, setTeamGoals, updateGoalsWindowWeeks,
-  fetchTeamGoalReport, fetchTeamSessionHistory, fetchSessionActivityLog, fetchNotesForPractice,
+  fetchTeamGoalReport, fetchTeamSessionHistory, fetchSessionActivityLog, fetchNotesForPractice, archiveNote,
   setSessionExclusion, adjustSessionActivity, addSessionActivityRow, logGoalViewed,
 } from "../supabase.js";
+
+// Author-role labeling (Assistant Coach handoff §2.3): resolve a staff
+// note's real name+role from the team roster already loaded here (never a
+// raw stored name); anonymous notes show their freeform label instead.
+function noteAuthorLabel(note, team) {
+  if (note.authorKind === "anonymous") return (note.authorLabel || "A helper") + " · Helper";
+  const c = team && (team.coaches || []).find(c => c.userId === note.createdBy);
+  return (c ? c.name : "A coach") + (c ? " · " + c.role : "");
+}
 
 const fmtMin = n => (Math.round((n || 0) * 10) / 10);
 const fmtSavedAt = iso => iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
@@ -206,7 +215,7 @@ function TimeRangeForm({ start, end, setStart, setEnd, onSave, onCancel, busy, s
 // time" client-side guardrail (§5.4) -- the DB-side sane-bounds check
 // (adjust_session_activity's +/-1h/12h window, built in step 2) is the real
 // safety net; this is UI polish on top of it, not core correctness.
-function SessionHistoryDetail({ session, practice, canManage, onBack, onChanged, setSubViewBack }) {
+function SessionHistoryDetail({ session, practice, team, canManage, onBack, onChanged, setSubViewBack }) {
   // Nav restructure round 3: GoalsScreen is always team-scoped, so this
   // always registers with Layout's colored bar instead of its own inline
   // Back button -- the !setSubViewBack fallback below is just defensive
@@ -228,7 +237,10 @@ function SessionHistoryDetail({ session, practice, canManage, onBack, onChanged,
 
   const refresh = useCallback(() => { fetchSessionActivityLog(session.session_id).then(setLogs); }, [session.session_id]);
   useEffect(() => { refresh(); }, [refresh]);
-  useEffect(() => { if (practice) fetchNotesForPractice(practice.id).then(setNotes); }, [practice && practice.id]);
+  const refreshNotes = useCallback(() => { if (practice) fetchNotesForPractice(practice.id).then(setNotes); }, [practice && practice.id]);
+  useEffect(() => { refreshNotes(); }, [refreshNotes]);
+  const doArchiveNote = async id => { await archiveNote(id); refreshNotes(); };
+  const taggedPlayerNames = ids => (ids || []).map(id => { const p = team && team.players.find(p => p.id === id); return p ? p.firstName + (p.lastName ? " " + p.lastName[0] + "." : "") : null; }).filter(Boolean);
 
   if (!practice) return (<div style={{ paddingBottom: 80 }}>{!setSubViewBack && <div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>&#8249; History</button></div>}<div className="empty"><div className="emtx">Practice not found.</div></div></div>);
   if (logs === null) return (<div style={{ padding: "40px 0", textAlign: "center", color: "var(--td)" }}>Loading...</div>);
@@ -326,7 +338,30 @@ function SessionHistoryDetail({ session, practice, canManage, onBack, onChanged,
 
     {notes.length > 0 && <div className="card mb10">
       <div className="clbl mb8">Notes</div>
-      {notes.map(n => (<div key={n.id} style={{ fontSize: 13, marginBottom: 6 }}>{n.text}</div>))}
+      {(() => {
+        const byActivity = {};
+        const general = [];
+        notes.forEach(n => { if (n.practiceActivityId) (byActivity[n.practiceActivityId] ||= []).push(n); else general.push(n); });
+        const activityLabel = id => { const a = practice.activities.find(a => a.id === id); return a ? (a.type === "station_block" ? "Station Block" : a.name) : "Drill"; };
+        const renderNote = n => (<div key={n.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, color: "var(--td)", marginBottom: 2 }}>{noteAuthorLabel(n, team)} · {new Date(n.createdAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</div>
+            <div style={{ fontSize: 13 }}>{n.text}</div>
+            {n.playerIds && n.playerIds.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>{taggedPlayerNames(n.playerIds).map(name => (<span key={name} className="bdg bs" style={{ fontSize: 10 }}>{name}</span>))}</div>}
+          </div>
+          {canManage && <button className="btn ghost bxs" onClick={() => doArchiveNote(n.id)} title="Hide this note">&times;</button>}
+        </div>);
+        return (<div>
+          {Object.keys(byActivity).map(actId => (<div key={actId} style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--green2)", marginBottom: 4 }}>{activityLabel(actId)}</div>
+            {byActivity[actId].map(renderNote)}
+          </div>))}
+          {general.length > 0 && <div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--green2)", marginBottom: 4 }}>End of Practice</div>
+            {general.map(renderNote)}
+          </div>}
+        </div>);
+      })()}
     </div>}
 
     {canManage && <button className={"btn bmd bfull " + (session.excluded ? "primary" : "outline")} onClick={toggleExclude} disabled={busy}>
@@ -395,7 +430,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack }) {
 
   if (openSession) {
     const practice = data.practices.find(p => p.id === openSession.practice_id);
-    return <SessionHistoryDetail session={openSession} practice={practice} canManage={canManage}
+    return <SessionHistoryDetail session={openSession} practice={practice} team={team} canManage={canManage}
       onBack={() => setOpenSessionId(null)}
       onChanged={() => { refreshAll(); }}
       setSubViewBack={setSubViewBack} />;

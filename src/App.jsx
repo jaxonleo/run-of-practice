@@ -6,7 +6,7 @@ import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
-import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin } from "./supabase.js";
+import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode } from "./constants.js";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab } from "./components/NewLibraryScreen.jsx";
@@ -1079,6 +1079,18 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
     return ()=>setSubViewBack(null);
   });
 
+  // Assistant-coach handoff §2.4: reverse-chron read of every session/
+  // practice note this player was @mentioned in, across any team practice
+  // -- a new read path (fetchNotesForPlayer), not a new write path; no RLS
+  // beyond "can the viewer already see this team's data," same as
+  // everything else on this screen.
+  const [playerNotes,setPlayerNotes]=useState([]);
+  useEffect(()=>{fetchNotesForPlayer(player.id).then(setPlayerNotes);},[player.id]);
+  const playerNoteAuthor=n=>{
+    if(n.authorKind==="anonymous")return (n.authorLabel||"A helper")+" · Helper";
+    const c=team.coaches.find(c=>c.userId===n.createdBy);
+    return (c?c.name:"A coach")+(c?" · "+c.role:"");
+  };
   const areas=player.focusAreas||[];
   const areaFor=categoryId=>areas.find(a=>a.categoryId===categoryId);
   const categories=(data.skillCategories||[]).filter(c=>c.sport===team.sport).sort((a,b)=>a.sort_order-b.sort_order);
@@ -1161,6 +1173,16 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
         <div style={{fontSize:13,fontWeight:700,color:"var(--black2)",marginBottom:3}}>{cat.name}</div>
         <input className="inp" placeholder="What's this player working on..." value={draftFor(cat.id)} onChange={e=>setDraft(cat.id,e.target.value)} onBlur={()=>commitNote(cat.id)} disabled={!canManage||savingCategoryId===cat.id}/>
       </div>))}
+    </div>}
+
+    {playerNotes.length>0&&<div>
+      <div className="clbl mb8">Practice Notes</div>
+      <div className="card mb10">
+        {playerNotes.map(n=>(<div key={n.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--b)"}}>
+          <div style={{fontSize:11,color:"var(--td)",marginBottom:2}}>{playerNoteAuthor(n)} · {new Date(n.createdAt).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</div>
+          <div style={{fontSize:14}}>{n.text}</div>
+        </div>))}
+      </div>
     </div>}
   </div>);
 }
