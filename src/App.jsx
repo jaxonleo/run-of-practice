@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, createContext
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider, Navigate, Outlet, useNavigate, useParams, useBlocker, useSearchParams } from "react-router-dom";
 import { Analytics } from '@vercel/analytics/react';
 import Layout from "./Layout.jsx";
-import { BuildTab } from "./components/BuildTab.jsx";
 import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
@@ -426,7 +425,6 @@ export default function App(){
           <Route path="team/:teamId/roster" element={<TeamRosterRoute/>}/>
           <Route path="team/:teamId/equipment" element={<TeamEquipmentRoute/>}/>
           <Route path="team/:teamId/goals" element={<TeamGoalsRoute/>}/>
-          <Route path="team/:teamId/build" element={<TeamBuildRoute/>}/>
         </Route>
       </Route>
     </>
@@ -642,16 +640,6 @@ function TeamGoalsRoute(){
   useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
   if(!team)return null;
   return <GoalsScreen data={data} teamId={teamId} coachId={coachId} setSubViewBack={setSubViewBack}/>;
-}
-
-function TeamBuildRoute(){
-  const {teamId}=useParams();
-  const navigate=useNavigate();
-  const {data,coachId,goToBuilder,goToRun,openModal,refreshLibrary,refreshPlanning}=useAppCtx();
-  const team=data.teams.find(t=>t.id===teamId);
-  useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
-  if(!team)return null;
-  return <BuildTab data={data} team={team} coachId={coachId} goToBuilder={goToBuilder} goToRun={goToRun} openModal={openModal} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning}/>;
 }
 
 function BuilderRoute(){
@@ -1251,48 +1239,4 @@ function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refr
       </div>
     </div>}
   </div>);
-}
-
-function NotesTab({data,update}){
-  const [txt,setTxt]=useState("");const [ctx,setCtx]=useState("");
-  const [search,setSearch]=useState("");const [filterCtx,setFilterCtx]=useState("");
-  const add=()=>{if(!txt.trim())return;update(d=>{d.notes.push({id:uid(),text:txt,context:ctx,date:new Date().toISOString()});return d;});setTxt("");setCtx("");};
-  const del=id=>update(d=>{d.notes=d.notes.filter(n=>n.id!==id);return d;});
-  const allCtx=[...new Set(data.notes.map(n=>n.context).filter(Boolean))].sort();
-  const filtered=data.notes.filter(n=>{const q=search.toLowerCase();return(!q||(n.text.toLowerCase().includes(q)||(n.context||"").toLowerCase().includes(q)))&&(!filterCtx||n.context===filterCtx);}).slice().reverse();
-  const grouped=filtered.reduce((acc,n)=>{const d=n.date.slice(0,10);if(!acc[d])acc[d]=[];acc[d].push(n);return acc;},{});
-  const groupDates=Object.keys(grouped).sort().reverse();
-  const fmtD=ds=>{const today=localDateStr();const yest=localDateStr(new Date(Date.now()-864e5));if(ds===today)return "Today";if(ds===yest)return "Yesterday";return new Date(ds+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});};
-  return (<div style={{paddingBottom:80}}>
-      <div className="card mb10">
-        <div className="fld"><label className="lbl">Context</label><input className="inp" placeholder="e.g. Weston, Shooting" value={ctx} onChange={e=>setCtx(e.target.value)}/></div>
-        <div className="fld"><label className="lbl">Note</label><textarea className="ta" placeholder="What did you observe?" value={txt} onChange={e=>setTxt(e.target.value)}/></div>
-        <button className="btn primary bsm bfull" onClick={add}>Save Note</button>
-      </div>
-      {data.notes.length>0&&(<div>
-          <div className="fld" style={{position:"relative"}}>
-            <svg style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",width:15,height:15,stroke:"var(--td)",fill:"none",strokeWidth:2}} viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input className="inp" style={{paddingLeft:32}} placeholder="Search notes..." value={search} onChange={e=>setSearch(e.target.value)}/>
-          </div>
-          {allCtx.length>0&&(<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
-              {allCtx.map(c=>(<button key={c} onClick={()=>setFilterCtx(filterCtx===c?"":c)} style={{padding:"4px 10px",borderRadius:20,border:"1px solid",fontSize:12,fontWeight:600,cursor:"pointer",background:filterCtx===c?"var(--green)":"#fff",color:filterCtx===c?"#fff":"var(--tm)",borderColor:filterCtx===c?"var(--green)":"var(--b)"}}>{c}</button>
-              ))}
-            </div>
-          )}
-          {filtered.length===0&&<div className="empty"><div className="emtx">No notes match</div></div>}
-          {groupDates.map(d=>(<div key={d}>
-              <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:6,marginTop:4}}>{fmtD(d)}</div>
-              {grouped[d].map(n=>(<div key={n.id} className="notec">
-                  <div className="notect">{n.context&&<button onClick={()=>setFilterCtx(filterCtx===n.context?"":n.context)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,color:"var(--green2)",marginRight:4,padding:0}}>{n.context} -</button>}{new Date(n.date).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"})}</div>
-                  <div className="notetx">{n.text}</div>
-                  <button className="btn danger bxs mt6" onClick={()=>del(n.id)}>Delete</button>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-      {!data.notes.length&&<div className="empty"><div className="emtx">No notes yet</div></div>}
-    </div>
-  );
 }

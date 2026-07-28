@@ -573,12 +573,6 @@ export async function setDrillOrgShares(drillId, organizationIds) {
   return { error }
 }
 
-export async function promoteDrillToOrgLibrary(drillId, organizationId) {
-  const { data, error } = await supabase.rpc('promote_drill_to_org_library', { p_drill_id: drillId, p_organization_id: organizationId })
-  if (error) console.error('promoteDrillToOrgLibrary:', error)
-  return { data, error }
-}
-
 // Copy semantics (addendum, "recurring bug" section): copying a shared drill
 // into your own library must NOT reference the sharer's asset rows. Resolve
 // by name+type into the recipient's own pool -- match an existing asset, or
@@ -943,17 +937,6 @@ export async function createPracticeSeries(teamId, { daysOfWeek, startTime, dura
   if (error) { console.error('createPracticeSeries:', error); return { error } }
   return { data: { seriesId: data.series_id, count: data.count } }
 }
-export async function fetchPracticeSeries(teamId) {
-  const { data, error } = await supabase.from('practice_series').select('*').eq('team_id', teamId).is('archived_at', null)
-  if (error) console.error('fetchPracticeSeries:', error)
-  return data || []
-}
-export async function archivePracticeSeries(id) {
-  const { error } = await supabase.from('practice_series').update({ archived_at: new Date().toISOString() }).eq('id', id)
-  if (error) console.error('archivePracticeSeries:', error)
-  return { error }
-}
-
 // "This only" vs "this and all future" (§6) -- future never touches
 // completed occurrences, matching standard calendar-app semantics.
 export async function cancelPractice(id, { scope } = {}) {
@@ -978,36 +961,6 @@ export async function restorePractice(id) {
   const { error } = await supabase.from('practices').update({ status: 'scheduled' }).eq('id', id)
   if (error) console.error('restorePractice:', error)
   return { error }
-}
-
-// scope:'future' shifts each future, not-yet-completed occurrence's
-// time-of-day/location to match, while preserving each occurrence's own
-// date -- i.e. "we moved start time to 6:30, starting now," not collapsing
-// every future date onto this one. Changing the days-of-week pattern
-// itself isn't supported here (that's a new series, per the wizard).
-export async function reschedulePractice(id, { date, startTime, timezone, locationId, sublocationId, scope } = {}) {
-  const row = { location_id: locationId || null, sublocation_id: sublocationId || null, scheduled_at: teamLocalToScheduledAt(date, startTime, timezone), status: 'scheduled' }
-  if (scope !== 'future') {
-    const { error } = await supabase.from('practices').update(row).eq('id', id)
-    if (error) console.error('reschedulePractice:', error)
-    return { error }
-  }
-  const { data: p, error: fetchErr } = await supabase.from('practices').select('series_id,scheduled_at').eq('id', id).single()
-  if (fetchErr) { console.error('reschedulePractice:', fetchErr); return { error: fetchErr } }
-  if (!p.series_id) {
-    const { error } = await supabase.from('practices').update(row).eq('id', id)
-    if (error) console.error('reschedulePractice:', error)
-    return { error }
-  }
-  const { data: future, error: futureErr } = await supabase.from('practices').select('id,scheduled_at')
-    .eq('series_id', p.series_id).gte('scheduled_at', p.scheduled_at).not('status', 'eq', 'completed')
-  if (futureErr) { console.error('reschedulePractice:', futureErr); return { error: futureErr } }
-  for (const occ of future || []) {
-    const { date: occDate } = scheduledAtToTeamLocal(occ.scheduled_at, timezone)
-    const { error } = await supabase.from('practices').update({ location_id: row.location_id, sublocation_id: row.sublocation_id, scheduled_at: teamLocalToScheduledAt(occDate, startTime, timezone), status: 'scheduled' }).eq('id', occ.id)
-    if (error) console.error('reschedulePractice:', error)
-  }
-  return { error: null }
 }
 
 // ── Planned absences (§7) -- the coach recording what they were told in
@@ -1061,16 +1014,6 @@ export async function fetchNotesForPractice(practiceId) {
   const { data, error } = await supabase.from('notes').select('*').eq('practice_id', practiceId).is('archived_at', null).order('created_at', { ascending: true })
   if (error) { console.error('fetchNotesForPractice:', error); return [] }
   return data.map(n => ({ id: n.id, practiceId: n.practice_id, practiceActivityId: n.practice_activity_id, stationId: n.station_id, text: n.text, createdAt: n.created_at, createdBy: n.created_by }))
-}
-// Practice-history list rows only need a count, not full note content --
-// one query for a whole team's past practices instead of N.
-export async function fetchNoteCountsForPractices(practiceIds) {
-  if (!practiceIds || !practiceIds.length) return {}
-  const { data, error } = await supabase.from('notes').select('practice_id').in('practice_id', practiceIds).is('archived_at', null)
-  if (error) { console.error('fetchNoteCountsForPractices:', error); return {} }
-  const counts = {}
-  for (const row of data || []) counts[row.practice_id] = (counts[row.practice_id] || 0) + 1
-  return counts
 }
 export async function createNote({ practiceId, practiceActivityId, stationId, text, createdBy }) {
   const { data, error } = await supabase.from('notes').insert({
@@ -1216,10 +1159,6 @@ export function subscribeToLiveSession(id, onUpdate) {
   return supabase.channel('live_session_' + id)
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'practice_live_sessions', filter: 'id=eq.' + id }, payload => onUpdate(payload.new))
     .subscribe()
-}
-
-export async function endLiveSession(id, version) {
-  return updateLiveSession(id, version, { status: 'completed', ended_at: new Date().toISOString(), paused_at: null })
 }
 
 // Best-effort audit log of control actions. Not yet wired to client-side
@@ -1517,20 +1456,6 @@ export async function logGoalViewed(teamId) {
 // nothing here re-derives a permission check client-side.
 // Real bug found live: this had no filter beyond status='pending', so a
 // director querying it saw every pending invite for orgs they administer
-// (org_invites_select's RLS deliberately allows that, for the *sent*-invites
-// list) instead of only invites actually addressed to them -- Jax saw a
-// stranger's pending invite on his own Home and its Accept/Decline both
-// silently failed, correctly, since the email didn't match his. Narrowed to
-// the caller's own verified email, same server-side-truth principle as
-// accept/decline_org_invite's own auth.jwt() check.
-export async function fetchPendingOrgInvites() {
-  const { data: userData } = await supabase.auth.getUser()
-  const myEmail = userData && userData.user ? userData.user.email : null
-  if (!myEmail) return []
-  const { data, error } = await supabase.from('org_invites').select('id, organization_id, team_id, team_role, role, invited_by, created_at, organizations(id, name)').eq('status', 'pending').ilike('email', myEmail)
-  if (error) { console.error('fetchPendingOrgInvites:', error); return [] }
-  return (data || []).map(i => ({ id: i.id, organizationId: i.organization_id, organizationName: i.organizations ? i.organizations.name : '', teamId: i.team_id, teamRole: i.team_role, role: i.role, invitedBy: i.invited_by, createdAt: i.created_at }))
-}
 // Org creation itself was never covered by the handoff's RPC list (it's
 // entirely upstream of everything org-scoped) -- organizations_insert_self
 // already permits a direct authenticated insert (created_by = auth.uid()),
@@ -1610,16 +1535,6 @@ export async function orgCreateTeam(organizationId, { name, sport, seasonLabel, 
     p_timezone: timezone || null, p_color_primary: colorPrimary || null, p_color_secondary: colorSecondary || null,
   })
   if (error) console.error('orgCreateTeam:', error)
-  return { data, error }
-}
-export async function orgAssignTeamStaff(teamId, userId, role) {
-  const { data, error } = await supabase.rpc('org_assign_team_staff', { p_team_id: teamId, p_user_id: userId, p_role: role })
-  if (error) console.error('orgAssignTeamStaff:', error)
-  return { data, error }
-}
-export async function orgAssignPlayer(teamId, { firstName, lastName, jerseyNumber, positions }) {
-  const { data, error } = await supabase.rpc('org_assign_player', { p_team_id: teamId, p_first_name: firstName, p_last_name: lastName, p_jersey_number: jerseyNumber || null, p_positions: positions || [] })
-  if (error) console.error('orgAssignPlayer:', error)
   return { data, error }
 }
 // Org-wide practices-run rollup for the Org Home page (handoff Sec 4.3) --
