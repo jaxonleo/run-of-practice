@@ -121,7 +121,7 @@ function DurStepper({value,min,onChange,step}){
   );
 }
 
-export default function ModalLayer({modal,data,update,closeModal,refreshTeams,refreshLibrary,refreshPlanning,coachId}){
+export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLibrary,refreshPlanning,coachId}){
   const navigate=useNavigate();
   const [confirmDeleteTeam,setConfirmDeleteTeam]=useState(false);
   const [deletingTeam,setDeletingTeam]=useState(false);
@@ -147,7 +147,6 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
   const editTeamData=modal.type==="editTeam"?modal.payload.team:null;
   const asset=modal.type==="editAsset"?modal.payload.asset:null;
   const coach=modal.type==="editCoach"?modal.payload.coach:null;
-  const template=modal.type==="editTemplate"?modal.payload.template:null;
   const [f,setF]=useState(()=>{
     if(modal.type==="addPlayer")return{firstName:"",lastName:"",jersey:"",notes:"",positions:[],bats:"",throws:""};
     if(activity){
@@ -167,7 +166,6 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     if(location)return{name:location.name};
     if(asset)return{name:asset.name,sport:asset.sport||"General",locationIds:asset.locationIds||[]};
     if(coach)return{name:coach.name,role:coach.role||"Assistant Coach",inviteEmail:coach.inviteEmail||""};
-    if(template)return{name:template.name,sport:template.sport||"General"};
     if(editTeamData)return{name:editTeamData.name,sport:editTeamData.sport||"Basketball",colorPrimary:editTeamData.colorPrimary||"",locationIds:editTeamData.locationIds||[]};
     // New org team defaults to the org's own sport (payload.orgSport, set
     // by TeamsListScreen from the org's own record) rather than whatever
@@ -252,7 +250,6 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
       res=activity.sourceCatalogId?await updateCatalogDrill(p.activity.id,payload):await updateDrill(p.activity.id,payload);
       await refreshLibrary();
     }
-    if(t==="editTemplate"){if(!f.name)return;update(d=>{const tpl=d.templates.find(t=>t.id===p.template.id);if(tpl){tpl.name=f.name;tpl.sport=f.sport||"General";}return d;});}
     // addActivity/editActivity are the only callers that populate `res` --
     // a failed drill/tag/equipment write (e.g. an RLS rejection) used to
     // close the modal silently, same as a successful save, so the user had
@@ -261,7 +258,7 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
     if(t==="addCoach"){setAddedCoachInfo({name:f.name,email:f.inviteEmail});}else{closeModal();}
     }finally{savingRef.current=false;setSaving(false);}
   };
-  const TITLES={addTemplate:"New Template",editTemplate:"Edit Template",addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",addCoach:"Add Coach",editCoach:"Edit Coach",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
+  const TITLES={addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",addCoach:"Add Coach",editCoach:"Edit Coach",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
   return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget)closeModal();}}>
       <div className="modal">
         <div className="mhandle"/>
@@ -332,11 +329,6 @@ export default function ModalLayer({modal,data,update,closeModal,refreshTeams,re
               <div className="confirm-body">Permanently removes {editTeamData.name}, its roster and its practices. Cannot be undone.</div>
               <div className="brow"><button type="button" className="btn ghost bsm" onClick={()=>setConfirmDeleteTeam(false)} disabled={deletingTeam}>Cancel</button><button type="button" className="btn danger bsm" onClick={deleteTeam} disabled={deletingTeam}>{deletingTeam?"Deleting...":"Delete"}</button></div>
             </div>}
-          </div>
-        )}
-        {(modal.type==="editTemplate")&&(<div>
-            <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
-            <div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||"General"} onChange={e=>set("sport",e.target.value)}>{["General","Baseball","Basketball","Football","Soccer","Softball","Volleyball","Other"].map(s=><option key={s} value={s}>{s}</option>)}</select></div>
           </div>
         )}
         {(modal.type==="addActivity"||modal.type==="editActivity")&&(<div>

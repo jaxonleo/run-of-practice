@@ -59,25 +59,6 @@ export async function reactivateIfNeeded(userId) {
   }
 }
 
-let _coachKey = null
-export function setCoachKey(id) { _coachKey = 'coach_' + id }
-let saveTimer = null
-export async function loadData() {
-  if (!_coachKey) return null
-  try { const { data, error } = await supabase.from('app_data').select('value').eq('key', _coachKey).maybeSingle(); if (error) return null; return data ? data.value : null } catch (e) { return null }
-}
-export function saveData(d) {
-  clearTimeout(saveTimer)
-  saveTimer = setTimeout(async () => {
-    if (!_coachKey) return
-    try { await supabase.from('app_data').upsert({ key: _coachKey, value: d }, { onConflict: 'key' }) } catch (e) { console.error(e) }
-  }, 1500)
-}
-export function flushSave(d) {
-  clearTimeout(saveTimer)
-  if (!_coachKey || !d) return
-  supabase.from('app_data').upsert({ key: _coachKey, value: d }, { onConflict: 'key' })
-}
 
 // ── Teams / roster ──────────────────────────────────────────────────────────────
 const ROLE_LABELS = { head_coach: 'Head Coach', assistant_coach: 'Assistant Coach', helper: 'Helper' }

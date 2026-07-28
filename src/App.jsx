@@ -6,8 +6,8 @@ import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
-import { loadData, saveData, flushSave, setCoachKey, sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, INIT, migrateData, isHeadCoach, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode } from "./constants.js";
+import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin } from "./supabase.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode } from "./constants.js";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab } from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
@@ -19,7 +19,6 @@ import LandingPage from "./components/LandingPage.jsx";
 import { TermsPage, PrivacyPage } from "./components/LegalPages.jsx";
 import FounderMetricsScreen from "./components/FounderMetricsScreen.jsx";
 
-// INIT, DEMO_INIT, migrateData, uid, fmt, sumMins, etc. imported from constants.js
 
 // "Run Again" copies a past practice's activities into a brand-new one --
 // every nested id (activity, station) must be regenerated as a fresh local
@@ -304,7 +303,6 @@ function NameScreen({onSave}){
   </div>);
 }
 export default function App(){
-  const [data,setData]=useState(INIT);
   useEffect(()=>{let el=document.getElementById('rop-css');if(!el){el=document.createElement('style');el.id='rop-css';document.head.appendChild(el);}el.textContent=CSS;},[]);
   const [loaded,setLoaded]=useState(false);
   const [modal,setModal]=useState(null);
@@ -313,7 +311,6 @@ export default function App(){
   const [startTemplateId,setStartTemplateId]=useState(null);
   const [session,setSession]=useState(undefined); // undefined=loading, null=signed out, object=signed in
   const [wantsAuth,setWantsAuth]=useState(false);
-  const update=useCallback(fn=>{setData(d=>{const nx=fn(JSON.parse(JSON.stringify(d)));saveData(nx);return nx;});},[]);
   useEffect(()=>{
     getCurrentSession().then(setSession);
     const sub=onAuthStateChange(s=>setSession(s));
@@ -340,35 +337,31 @@ export default function App(){
     await deactivateOwnAccount(coachId);
     await signOut();
   },[coachId]);
-  useEffect(()=>{
-    if(!coachId){setLoaded(false);return;}
-    setCoachKey(coachId);
-    loadData().then(raw=>{
-      if(raw===null){const seeded=migrateData(JSON.parse(JSON.stringify(INIT)));setData(seeded);flushSave(seeded);}
-      else{setData(migrateData(raw));}
-      setLoaded(true);
-    });
-  },[coachId]);
   const [teams,setTeams]=useState([]);
   const refreshTeams=useCallback(async()=>{
     if(!coachId)return;
     setTeams(await fetchMyTeams());
   },[coachId]);
-  useEffect(()=>{refreshTeams();},[refreshTeams]);
   const [library,setLibrary]=useState({assets:[],skillCategories:[],skillTags:[],activityLibrary:[],myOrgs:[],pendingOrgInvites:[],profilesById:{}});
   const refreshLibrary=useCallback(async()=>{
     if(!coachId)return;
     setLibrary(await fetchLibraryData());
   },[coachId]);
-  useEffect(()=>{refreshLibrary();},[refreshLibrary]);
   const [planning,setPlanning]=useState({locations:[],practices:[],templates:[]});
   const refreshPlanning=useCallback(async()=>{
     if(!coachId)return;
     const [locations,practices,templates]=await Promise.all([fetchLocations(),fetchPracticesFull(),fetchTemplatesFull()]);
     setPlanning({locations,practices,templates});
   },[coachId]);
-  useEffect(()=>{refreshPlanning();},[refreshPlanning]);
-  const fullData=useMemo(()=>Object.assign({},data,{teams},library,planning),[data,teams,library,planning]);
+  // Single combined load gate -- `loaded` used to flip once the (now-removed)
+  // legacy app_data blob resolved; teams/library/planning are the real data
+  // sources, so it waits on all three instead.
+  useEffect(()=>{
+    if(!coachId){setLoaded(false);return;}
+    setLoaded(false);
+    Promise.all([refreshTeams(),refreshLibrary(),refreshPlanning()]).then(()=>setLoaded(true));
+  },[coachId,refreshTeams,refreshLibrary,refreshPlanning]);
+  const data=useMemo(()=>Object.assign({teams},library,planning),[teams,library,planning]);
 
   // Coach vs Organization mode (persisted per device -- a director doing
   // org work daily shouldn't have to re-toggle every launch). {type:'coach'}
@@ -431,13 +424,13 @@ export default function App(){
   )),[]);
 
   const ctxValue=useMemo(()=>({
-    data:fullData,update,coachId,profile,coachName,coachEmail:coachEmailStr,
+    data,coachId,profile,coachName,coachEmail:coachEmailStr,
     session,wantsAuth,setWantsAuth,loaded,
     openModal,closeModal,modal,
     refreshTeams,refreshLibrary,refreshPlanning,
     saveName,onSignOut:signOut,onDeactivate:handleDeactivate,
     mode,setMode,
-  }),[fullData,update,coachId,profile,coachName,coachEmailStr,session,wantsAuth,loaded,modal,refreshTeams,refreshLibrary,refreshPlanning,saveName,handleDeactivate,mode]);
+  }),[data,coachId,profile,coachName,coachEmailStr,session,wantsAuth,loaded,modal,refreshTeams,refreshLibrary,refreshPlanning,saveName,handleDeactivate,mode]);
 
   return (<AppCtx.Provider value={ctxValue}>
     <RouterProvider router={router}/>
@@ -513,7 +506,7 @@ function AuthedShell(){
 
   return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,setPresetTeamId,subViewBack,setSubViewBack,goToBuilder,goToRun,goHome,goToSchedule,goToTeam,goToSettings}}>
     <Outlet/>
-    {ctx.modal&&<ModalLayer modal={ctx.modal} data={ctx.data} update={ctx.update} closeModal={ctx.closeModal} refreshTeams={ctx.refreshTeams} refreshLibrary={ctx.refreshLibrary} refreshPlanning={ctx.refreshPlanning} coachId={ctx.coachId}/>}
+    {ctx.modal&&<ModalLayer modal={ctx.modal} data={ctx.data} closeModal={ctx.closeModal} refreshTeams={ctx.refreshTeams} refreshLibrary={ctx.refreshLibrary} refreshPlanning={ctx.refreshPlanning} coachId={ctx.coachId}/>}
   </AppCtx.Provider>);
 }
 
@@ -539,7 +532,7 @@ function HelperViewRoute(){ const {token}=useParams(); return <HelperView token=
 function PreviewViewRoute(){ const {token}=useParams(); return <PreviewView token={token}/>; }
 
 function HomeRoute(){
-  const {data,update,goToBuilder,goToRun,goToSchedule,goToTeam,goToSettings,coachId,coachName,coachEmail,refreshPlanning,refreshTeams,refreshLibrary,mode,setMode}=useAppCtx();
+  const {data,goToBuilder,goToRun,goToSchedule,goToTeam,goToSettings,coachId,coachName,coachEmail,refreshPlanning,refreshTeams,refreshLibrary,mode,setMode}=useAppCtx();
   // Coach mode: teams I personally coach, across any org. Org mode: every
   // team in the org being viewed, regardless of my personal involvement --
   // the whole point of the two modes. Scoped once here so HomeScreen's own
@@ -551,12 +544,12 @@ function HomeRoute(){
     teams:scopedTeams,
     practices:(data.practices||[]).filter(p=>scopedTeamIds.has(p.teamId)),
   }),[data,mode,coachId]);
-  return <HomeScreen data={scopedData} update={update} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeam={goToTeam} goToSettings={goToSettings} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams} refreshLibrary={refreshLibrary} mode={mode} setMode={setMode}/>;
+  return <HomeScreen data={scopedData} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeam={goToTeam} goToSettings={goToSettings} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams} refreshLibrary={refreshLibrary} mode={mode} setMode={setMode}/>;
 }
 
 function LibraryRoute(){
-  const {data,update,openModal,goToBuilder,goToRun,refreshLibrary,coachId,refreshPlanning,mode}=useAppCtx();
-  return <NewLibraryScreen data={data} update={update} openModal={openModal} goToBuilder={goToBuilder} goToRun={goToRun} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} coachId={coachId} mode={mode}/>;
+  const {data,openModal,goToBuilder,goToRun,refreshLibrary,coachId,refreshPlanning,mode}=useAppCtx();
+  return <NewLibraryScreen data={data} openModal={openModal} goToBuilder={goToBuilder} goToRun={goToRun} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} coachId={coachId} mode={mode}/>;
 }
 
 function TeamsRoute(){
@@ -573,8 +566,8 @@ function SettingsRoute(){
 
 // step-3 bridge -- see the router config comment above.
 function ScheduleLegacyRoute(){
-  const {data,update,goToBuilder,goToRun,coachId,refreshPlanning}=useAppCtx();
-  return <ScheduleScreen data={data} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning}/>;
+  const {data,goToBuilder,goToRun,coachId,refreshPlanning}=useAppCtx();
+  return <ScheduleScreen data={data} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning}/>;
 }
 
 // Team-scoped Schedule (handoff §4.4). Fetches practices scoped to this one
@@ -586,7 +579,7 @@ function ScheduleLegacyRoute(){
 // mutation made from inside a team's Schedule tab).
 function TeamScheduleRoute(){
   const {teamId}=useParams();
-  const {data,update,goToBuilder,goToRun,coachId,refreshPlanning:refreshGlobalPlanning,setSubViewBack}=useAppCtx();
+  const {data,goToBuilder,goToRun,coachId,refreshPlanning:refreshGlobalPlanning,setSubViewBack}=useAppCtx();
   const [teamPractices,setTeamPractices]=useState(null);
   const refreshTeamPractices=useCallback(()=>{
     fetchPracticesFull(teamId).then(setTeamPractices);
@@ -597,7 +590,7 @@ function TeamScheduleRoute(){
   },[refreshTeamPractices,refreshGlobalPlanning]);
   if(teamPractices===null)return (<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Loading...</div>);
   const scopedData=Object.assign({},data,{practices:teamPractices});
-  return <ScheduleScreen data={scopedData} update={update} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshBoth} fixedTeamId={teamId} setSubViewBack={setSubViewBack}/>;
+  return <ScheduleScreen data={scopedData} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshBoth} fixedTeamId={teamId} setSubViewBack={setSubViewBack}/>;
 }
 
 function TeamIndexRedirect(){
@@ -608,7 +601,7 @@ function TeamIndexRedirect(){
 function TeamRosterRoute(){
   const {teamId}=useParams();
   const navigate=useNavigate();
-  const {data,update,coachId,openModal,refreshTeams,refreshLibrary}=useAppCtx();
+  const {data,coachId,openModal,refreshTeams,refreshLibrary}=useAppCtx();
   const team=data.teams.find(t=>t.id===teamId);
   // Team was just deleted (e.g. via this same tab's Delete Team) and this
   // route's teamId no longer resolves -- leave for the Teams list instead
@@ -616,7 +609,7 @@ function TeamRosterRoute(){
   useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
   if(!team)return null;
   return (<div style={{padding:"16px 16px calc(var(--tab) + 20px)"}}>
-    <RostersTab data={data} update={update} openModal={openModal} fixedTeamId={teamId} refreshTeams={refreshTeams} coachId={coachId} refreshLibrary={refreshLibrary}/>
+    <RostersTab data={data} openModal={openModal} fixedTeamId={teamId} refreshTeams={refreshTeams} coachId={coachId} refreshLibrary={refreshLibrary}/>
   </div>);
 }
 
@@ -644,7 +637,7 @@ function TeamGoalsRoute(){
 
 function BuilderRoute(){
   const {practiceId}=useParams();
-  const {data,update,openModal,goToRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,coachId,refreshPlanning,refreshLibrary}=useAppCtx();
+  const {data,openModal,goToRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,coachId,refreshPlanning,refreshLibrary}=useAppCtx();
   // Restores state from the URL on a fresh mount (direct link / refresh) --
   // navigation via goToBuilder() already set this state before navigating,
   // so this is a no-op in the normal in-app flow.
@@ -652,17 +645,17 @@ function BuilderRoute(){
     const wanted=practiceId&&practiceId!=="new"?practiceId:null;
     if(wanted!==editPracticeId)setEditPracticeId(wanted);
   },[practiceId]);
-  return <BuilderScreen data={data} update={update} openModal={openModal} launchRun={goToRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} startTemplateId={startTemplateId} setStartTemplateId={setStartTemplateId} presetTeamId={presetTeamId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>;
+  return <BuilderScreen data={data} openModal={openModal} launchRun={goToRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} startTemplateId={startTemplateId} setStartTemplateId={setStartTemplateId} presetTeamId={presetTeamId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>;
 }
 
 function RunRoute(){
   const {practiceId}=useParams();
-  const {data,update,liveId,setLiveId,coachId,goHome,refreshPlanning,refreshLibrary}=useAppCtx();
+  const {data,liveId,setLiveId,coachId,goHome,refreshPlanning,refreshLibrary}=useAppCtx();
   useEffect(()=>{
     const wanted=practiceId&&practiceId!=="new"?practiceId:null;
     if(wanted!==liveId)setLiveId(wanted);
   },[practiceId]);
-  return <CommandScreen data={data} update={update} liveId={liveId} setLiveId={setLiveId} coachId={coachId} goHome={goHome} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>;
+  return <CommandScreen data={data} liveId={liveId} setLiveId={setLiveId} coachId={coachId} goHome={goHome} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>;
 }
 
 function DurStepper({value,min,onChange,step}){
@@ -676,7 +669,7 @@ function DurStepper({value,min,onChange,step}){
   );
 }
 
-function BuilderScreen({data,update,openModal,launchRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,coachId,refreshPlanning,refreshLibrary}){
+function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,coachId,refreshPlanning,refreshLibrary}){
   const navigate=useNavigate();
   const editP=editPracticeId?data.practices.find(p=>p.id===editPracticeId):null;
   // "Start from Template" seeds a brand-new (not editP) practice from a
@@ -1151,7 +1144,7 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   </div>);
 }
 
-function RostersTab({data,update,openModal,fixedTeamId,refreshTeams,coachId,refreshLibrary}){
+function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibrary}){
   const [teamId,setTeamId]=useState(fixedTeamId||(data.teams[0]?data.teams[0].id:""));
   useEffect(()=>{
     if(fixedTeamId){if(teamId!==fixedTeamId)setTeamId(fixedTeamId);return;}

@@ -13,7 +13,7 @@ function PlanPill({ practice, total }) {
   return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
 }
 
-export default function PracticeDetail({practice,data,update,goToBuilder,goToRun,onBack,coachId,refreshPlanning,setSubViewBack}){
+export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack,coachId,refreshPlanning,setSubViewBack}){
   // Nav restructure round 3: reached from a team-scoped Schedule tab
   // registers with Layout's colored bar instead of rendering its own
   // inline Back button; reached from Home (no colored bar there) keeps

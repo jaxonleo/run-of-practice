@@ -118,7 +118,7 @@ function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPre
   </div>);
 }
 
-function HistoryViewer({data,update,practice,onRunAgain,onBack,coachId,refreshPlanning,setSubViewBack}){
+function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,setSubViewBack}){
   // Nav restructure round 3: same pattern as PracticeDetail -- registers
   // with Layout's colored bar when reached from a team-scoped Schedule tab
   // (setSubViewBack passed in), otherwise keeps its own inline Back button
@@ -771,7 +771,7 @@ function LiveEditBuilder({data,coachId,refreshLibrary,liveActs,team,loc,onSaveRe
   </div>);
 }
 
-export default function CommandScreen({data,update,liveId,setLiveId,coachId,goHome,refreshPlanning,refreshLibrary}){
+export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refreshPlanning,refreshLibrary}){
   const practice=liveId?data.practices.find(p=>p.id===liveId):null;
   const team=practice?data.teams.find(t=>t.id===practice.teamId):null;
   const loc=practice?data.locations.find(l=>l.id===practice.locationId):null;
