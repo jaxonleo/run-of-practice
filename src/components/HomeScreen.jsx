@@ -382,9 +382,19 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
           </div>
           {!planned && canManage && <button className="btn primary bxl bfull" onClick={() => goToBuilder(nextPractice.id)}>Plan Practice</button>}
           {!planned && !canManage && <div className="btn outline bxl bfull" style={{ textAlign: "center", cursor: "default" }}>Not planned yet</div>}
-          {planned && !soon && <button className="btn primary bxl bfull" onClick={() => setViewPractice(nextPractice)}>Review Plan</button>}
-          {planned && soon && <button className="btn primary bxl bfull" onClick={() => goToRun(nextPractice.id)}>Start Practice &#8594;</button>}
-          {planned && <button className="btn outline bmd bfull" style={{ marginTop: 8 }} disabled={openingPreview} onClick={() => openPracticeSetup(nextPractice.id)}>{openingPreview ? "Opening..." : "Practice Setup View"}</button>}
+          {/* Practice Setup used to sit below Start Practice as a small,
+              subordinate outline link -- easy to miss, and it made "jump
+              straight into the live timer" the only obvious path even for
+              a coach who just wants to get equipment/stations together
+              first. Made a co-equal side-by-side choice instead: same
+              width/height, Setup first (the "get things together" step)
+              since Start/Review is the one action a coach already knows
+              how to find. */}
+          {planned && <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn outline bxl" style={{ flex: 1 }} disabled={openingPreview} onClick={() => openPracticeSetup(nextPractice.id)}>{openingPreview ? "Opening..." : "Practice Setup"}</button>
+            {!soon && <button className="btn primary bxl" style={{ flex: 1 }} onClick={() => setViewPractice(nextPractice)}>Review Plan</button>}
+            {soon && <button className="btn primary bxl" style={{ flex: 1 }} onClick={() => goToRun(nextPractice.id)}>Start Practice &#8594;</button>}
+          </div>}
         </div>);
       })()}
 

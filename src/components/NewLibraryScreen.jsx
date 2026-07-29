@@ -701,6 +701,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const [copyingId,setCopyingId]=useState(null);
   const [tagFilter,setTagFilter]=useState([]);
   const [tagSearch,setTagSearch]=useState("");
+  const [publisherFilter,setPublisherFilter]=useState([]);
   const [showFilter,setShowFilter]=useState(false);
   const [newTplPrompt,setNewTplPrompt]=useState(false);
   const [newTplNameDraft,setNewTplNameDraft]=useState("");
@@ -734,7 +735,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const goSection=s=>{
     setSection(s);
     setShelf(s==="mine"?"mine":(exploreShelves[0]?exploreShelves[0].key:""));
-    setTagFilter([]);setTagSearch("");
+    setTagFilter([]);setTagSearch("");setPublisherFilter([]);
   };
   const showDrillList=(section==="mine"&&mineTab==="drills")||(section==="explore"&&exploreShelves.length>0);
   // shelf==="public" is handled entirely by PublicLibraryScreen (search-first
@@ -756,7 +757,29 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const tagSearchQ=tagSearch.trim().toLowerCase();
   const visibleTagChips=tagSearchQ?availableTags.filter(t=>t.name.toLowerCase().includes(tagSearchQ)):availableTags;
   const toggleTagFilter=id=>setTagFilter(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
-  const shelfDrills=tagFilter.length===0?shelfDrillsAll:shelfDrillsAll.filter(a=>(a.skillTagIds||[]).some(id=>tagFilter.includes(id)));
+  // "My Library" can contain drills you typed in yourself alongside ones
+  // copied in from an assistant's shared drill, an org library, or the
+  // public catalog -- copyDrillToMyLibrary snapshots that origin once, at
+  // copy time, into copied_from_owner_user_id/organization_id/catalog_id
+  // (2026-07-29), since a bare copy is otherwise indistinguishable from a
+  // self-authored row. Publisher filter only makes sense on the "mine"
+  // shelf -- every other shelf is already a single source by definition.
+  const catalogsById=Object.fromEntries((data.catalogs||[]).map(c=>[c.id,c]));
+  const publisherKeyOf=a=>a.copiedFromOwnerUserId?"coach:"+a.copiedFromOwnerUserId:a.copiedFromOrganizationId?"org:"+a.copiedFromOrganizationId:a.copiedFromCatalogId?"catalog:"+a.copiedFromCatalogId:"self";
+  const publisherLabelOf=key=>{
+    if(key==="self")return "My Own";
+    const [kind,id]=key.split(/:(.+)/);
+    if(kind==="coach")return (data.profilesById&&data.profilesById[id]&&data.profilesById[id].name)||"A coach";
+    if(kind==="org"){const org=myOrgs.find(o=>o.id===id);return org?org.name+" Library":"An org library";}
+    if(kind==="catalog"){const cat=catalogsById[id];return cat?cat.publisherName:"Public Library";}
+    return "Unknown";
+  };
+  const publisherCounts={};
+  shelfDrillsAll.forEach(a=>{const k=publisherKeyOf(a);publisherCounts[k]=(publisherCounts[k]||0)+1;});
+  const availablePublishers=Object.keys(publisherCounts).map(key=>({key,label:publisherLabelOf(key),count:publisherCounts[key]})).sort((a,b)=>a.key==="self"?-1:b.key==="self"?1:a.label.localeCompare(b.label));
+  const togglePublisherFilter=key=>setPublisherFilter(p=>p.includes(key)?p.filter(x=>x!==key):[...p,key]);
+  const shelfDrillsTagged=tagFilter.length===0?shelfDrillsAll:shelfDrillsAll.filter(a=>(a.skillTagIds||[]).some(id=>tagFilter.includes(id)));
+  const shelfDrills=publisherFilter.length===0?shelfDrillsTagged:shelfDrillsTagged.filter(a=>publisherFilter.includes(publisherKeyOf(a)));
   const sports=[...new Set(shelfDrills.map(a=>a.sport||"General").filter(Boolean))].sort();
   const assetsById=Object.fromEntries((data.assets||[]).map(a=>[a.id,a]));
   const equipNames=ids=>(ids||[]).map(id=>assetsById[id]?assetsById[id].name:null).filter(Boolean);
@@ -828,15 +851,19 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
         <div onClick={e=>e.stopPropagation()}><PublicLibraryScreen data={data} isAdmin={isAdmin} refreshLibrary={refreshLibrary} openModal={openModal} doCopy={doCopy} copyingId={copyingId}/></div>
       ):(<>
       <div style={{display:"flex",justifyContent:"flex-end",gap:6,marginBottom:12}}>
-        {availableTags.length>0&&<button className="btn ghost bsm" onClick={e=>{e.stopPropagation();setShowFilter(true);}}>Filter{tagFilter.length>0?" ("+tagFilter.length+")":""}</button>}
+        {(availableTags.length>0||(isMine&&availablePublishers.length>1))&&<button className="btn ghost bsm" onClick={e=>{e.stopPropagation();setShowFilter(true);}}>Filter{(tagFilter.length+publisherFilter.length)>0?" ("+(tagFilter.length+publisherFilter.length)+")":""}</button>}
         {isMine&&<button className="btn primary bsm" onClick={()=>openModal("addActivity")}>+ Add Drill</button>}
       </div>
-      {tagFilter.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center",marginBottom:12}} onClick={e=>e.stopPropagation()}>
+      {(tagFilter.length>0||publisherFilter.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center",marginBottom:12}} onClick={e=>e.stopPropagation()}>
         {tagFilter.map(id=>{const t=skillTagsById[id];if(!t)return null;return(<span key={id} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 4px 3px 10px",borderRadius:20,background:"var(--green)",color:"#fff",fontSize:12,fontWeight:600}}>
           {t.name}
           <button type="button" onClick={()=>toggleTagFilter(id)} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:14,lineHeight:1,padding:"2px 4px"}}>&times;</button>
         </span>);})}
-        <button type="button" onClick={()=>setTagFilter([])} style={{background:"none",border:"none",color:"var(--td)",fontSize:12,cursor:"pointer",textDecoration:"underline",padding:0}}>Clear all</button>
+        {publisherFilter.map(key=>(<span key={key} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 4px 3px 10px",borderRadius:20,background:"#7c3aed",color:"#fff",fontSize:12,fontWeight:600}}>
+          {publisherLabelOf(key)}
+          <button type="button" onClick={()=>togglePublisherFilter(key)} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:14,lineHeight:1,padding:"2px 4px"}}>&times;</button>
+        </span>))}
+        <button type="button" onClick={()=>{setTagFilter([]);setPublisherFilter([]);}} style={{background:"none",border:"none",color:"var(--td)",fontSize:12,cursor:"pointer",textDecoration:"underline",padding:0}}>Clear all</button>
       </div>}
       {showFilter&&<div className="movly" style={{zIndex:300}} onClick={e=>{if(e.target===e.currentTarget)setShowFilter(false);}}>
         <div className="modal">
@@ -844,18 +871,24 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900}}>Filter Drills</div>
             <button type="button" className="btn ghost bxs" onClick={()=>setShowFilter(false)}>Done</button>
           </div>
+          {isMine&&availablePublishers.length>1&&<>
+            <div className="clbl mb8">Publisher</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
+              {availablePublishers.map(p=>(<button key={p.key} type="button" onClick={()=>togglePublisherFilter(p.key)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:publisherFilter.includes(p.key)?"#7c3aed":"var(--s1)",color:publisherFilter.includes(p.key)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{p.label} <span style={{opacity:.7}}>{p.count}</span></button>))}
+            </div>
+          </>}
           <div className="clbl mb8">Skill Tags</div>
           {availableTags.length>8&&<input className="inp" placeholder="Search skill tags..." value={tagSearch} onChange={e=>setTagSearch(e.target.value)} style={{marginBottom:10}}/>}
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
             {visibleTagChips.map(t=>(<button key={t.id} type="button" onClick={()=>toggleTagFilter(t.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:tagFilter.includes(t.id)?"var(--green)":"var(--s1)",color:tagFilter.includes(t.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{t.name} <span style={{opacity:.7}}>{tagCounts[t.id]}</span></button>))}
             {visibleTagChips.length===0&&<span style={{fontSize:13,color:"var(--td)"}}>No skill tags match "{tagSearch}"</span>}
           </div>
-          {tagFilter.length>0&&<button type="button" className="btn ghost bxs" onClick={()=>setTagFilter([])}>Clear all filters</button>}
+          {(tagFilter.length>0||publisherFilter.length>0)&&<button type="button" className="btn ghost bxs" onClick={()=>{setTagFilter([]);setPublisherFilter([]);}}>Clear all filters</button>}
           <button type="button" className="btn primary bmd bfull" style={{marginTop:14}} onClick={()=>setShowFilter(false)}>Done</button>
         </div>
       </div>}
       {shelfDrillsAll.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>{isMine?"No drills yet. Tap + Add Drill.":shelf.startsWith("orgLib:")?"No drills shared to this org yet -- share one from My Library.":"No drills shared by other coaches yet."}</div>}
-      {shelfDrillsAll.length>0&&shelfDrills.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No drills match the selected skill tags.</div>}
+      {shelfDrillsAll.length>0&&shelfDrills.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No drills match the selected filters.</div>}
       {sports.map(sport=>(<div key={sport} style={{marginBottom:8}}>
         <button onClick={()=>toggle(sport)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
           <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700}}>{sport}</span>
@@ -873,6 +906,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
                 <span style={{fontWeight:700,fontSize:14}}>{act.name}</span>
                 {isMine&&(act.sharedWithOrganizationIds||[]).length>0&&<span className="bdg bp" style={{fontSize:10}}>Shared</span>}
               </div>
+              {isMine&&publisherKeyOf(act)!=="self"&&<div style={{fontSize:11,color:"#7c3aed",marginBottom:2}}>From {publisherLabelOf(publisherKeyOf(act))}</div>}
               {act.description&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2,lineHeight:1.4}}>{act.description}</div>}
               {act.coachingPoints&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.coachingPoints}</div>}
               {act.equipment&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>Needs: {equipNames(act.equipment).join(", ")}</div>}

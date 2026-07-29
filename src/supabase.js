@@ -286,6 +286,7 @@ function mapDrillRow(a, equipmentByDrill, tagsByDrill, sharesByDrill) {
     grouping: a.grouping || 'whole', numGroups: a.num_groups || 2,
     organizationId: a.organization_id, ownerUserId: a.owner_user_id, sharedWithOrganizationIds: (sharesByDrill && sharesByDrill[a.id]) || [],
     sourceCatalogId: a.source_catalog_id,
+    copiedFromOwnerUserId: a.copied_from_owner_user_id, copiedFromOrganizationId: a.copied_from_organization_id, copiedFromCatalogId: a.copied_from_catalog_id,
     updatedAt: a.updated_at, position: a.position || 0,
     equipment: equipmentByDrill[a.id] || [],
     skillTagIds: tagsByDrill[a.id] || [],
@@ -564,6 +565,9 @@ export async function copyDrillToMyLibrary(ownerUserId, sourceDrill, sourceAsset
     duration_minutes: sourceDrill.duration || null, description: sourceDrill.description || null,
     coaching_points: sourceDrill.coachingPoints || null, grouping: sourceDrill.grouping || 'whole',
     num_groups: sourceDrill.numGroups || null,
+    copied_from_owner_user_id: sourceDrill.ownerUserId || null,
+    copied_from_organization_id: sourceDrill.organizationId || null,
+    copied_from_catalog_id: sourceDrill.sourceCatalogId || null,
   }).select().single()
   if (error) { console.error('copyDrillToMyLibrary:', error); return { error } }
 

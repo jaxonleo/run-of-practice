@@ -280,8 +280,23 @@ export function PreviewView({token}){
   const [preview,setPreview]=useState(null);
   const [loading,setLoading]=useState(true);
   const [now,setNow]=useState(Date.now());
+  // Assign/share only ever renders for preview.can_manage===true, which the
+  // get_preview_view RPC computes server-side off auth.uid() (2026-07-29) --
+  // an anonymous parent hitting the exact same /preview/:token route never
+  // gets a team_staff list or these controls, no client-side auth check
+  // needed here.
+  const [reassignStationId,setReassignStationId]=useState(null);
+  const [helperDraft,setHelperDraft]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [copied,setCopied]=useState(false);
 
   useEffect(()=>{const iv=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(iv);},[]);
+
+  const refetch=useCallback(async()=>{
+    const data=await getPreviewByToken(token);
+    setPreview(data);setLoading(false);
+    if(data&&data.is_live&&data.live_token){window.location.href="/live/"+data.live_token;}
+  },[token]);
 
   useEffect(()=>{
     let cancelled=false;
@@ -295,6 +310,16 @@ export function PreviewView({token}){
     const iv=setInterval(poll,5000);
     return()=>{cancelled=true;clearInterval(iv);};
   },[token]);
+
+  const doSetLead=async(stationId,{coachId,helperName})=>{
+    setBusy(true);
+    await updateStationLead(stationId,{coachId,helperName});
+    await refetch();
+    setBusy(false);setReassignStationId(null);setHelperDraft("");
+  };
+  const shareUrl=window.location.origin+"/preview/"+token;
+  const copyShareUrl=()=>{try{navigator.clipboard.writeText(shareUrl).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});}catch(e){}};
+  const shareSetup=()=>{if(navigator.share)navigator.share({title:"Run of Practice - Practice Setup",url:shareUrl});else copyShareUrl();};
 
   if(loading)return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,background:"#0d1512"}}><div style={{color:"#52b788",fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,letterSpacing:".1em"}}>LOADING...</div></div>);
   if(!preview||preview.error)return(<div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#0d1512",padding:24}}><div style={{color:"#fff",fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,textAlign:"center"}}>Preview not found</div><div style={{color:"#555",fontSize:14,textAlign:"center"}}>This link may be invalid or expired.</div></div>);
@@ -338,6 +363,7 @@ export function PreviewView({token}){
       </div>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:4}}>{preview.team_name||"Practice"}</div>
       {preview.scheduled_at&&<div style={{fontSize:13,color:"#aaa"}}>{new Date(preview.scheduled_at).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})} at {new Date(preview.scheduled_at).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</div>}
+      {preview.can_manage&&<button className="btn outline bxs" style={{marginTop:12,background:"transparent",borderColor:"rgba(255,255,255,.25)",color:"#fff"}} onClick={shareSetup}>{copied?"Link Copied!":"Share Setup Link"}</button>}
     </div>
 
     <div style={{padding:"24px 20px",textAlign:"center",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
@@ -383,10 +409,11 @@ export function PreviewView({token}){
                 <div>
                   <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,color:"#52b788",letterSpacing:".05em",marginBottom:2}}>Station {si+1}</div>
                   <div style={{fontSize:15,fontWeight:700,color:"#fff"}}>{st.name||"Station "+(si+1)}</div>
-                  {(st.coach_name||st.sublocation_name)&&<div style={{fontSize:12,color:"#888",marginTop:2}}>
+                  {(st.coach_name||st.sublocation_name||preview.can_manage)&&<div style={{fontSize:12,color:"#888",marginTop:2}}>
                     {st.sublocation_name&&<span style={{color:"#52b788",fontWeight:600}}>{st.sublocation_name}</span>}
-                    {st.sublocation_name&&st.coach_name&&<span style={{color:"#444"}}> · </span>}
-                    {st.coach_name&&<span>{st.coach_name}</span>}
+                    {st.sublocation_name&&(st.coach_name||preview.can_manage)&&<span style={{color:"#444"}}> · </span>}
+                    {!preview.can_manage&&st.coach_name&&<span>{st.coach_name}</span>}
+                    {preview.can_manage&&<button type="button" onClick={()=>setReassignStationId(st.id)} style={{background:"none",border:"none",padding:0,font:"inherit",color:st.coach_name?"#fff":"#f59e0b",cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{st.coach_name||"No leader assigned -- tap to assign"}</button>}
                   </div>}
                 </div>
               </div>
@@ -417,6 +444,23 @@ export function PreviewView({token}){
         </div>);
       })}
     </div>
+    {reassignStationId&&<div className="movly" style={{zIndex:200}} onClick={e=>{if(e.target===e.currentTarget){setReassignStationId(null);setHelperDraft("");}}}>
+      <div className="modal" style={{background:"#151f1a",color:"#fff"}}>
+        <div className="mhandle"/>
+        <div className="mtitle" style={{color:"#fff"}}>Who's Leading This Station?</div>
+        <button className="btn ghost bmd bfull" style={{marginBottom:8}} disabled={busy} onClick={()=>doSetLead(reassignStationId,{coachId:"",helperName:""})}>Unassign</button>
+        {(preview.team_staff||[]).map(c=>(<button key={c.id} className="btn outline bmd bfull" style={{marginBottom:8}} disabled={busy} onClick={()=>doSetLead(reassignStationId,{coachId:c.id,helperName:""})}>{c.name}</button>))}
+        <div className="fld" style={{marginTop:4}}>
+          <label className="lbl" style={{color:"#aaa"}}>Or a helper not on the roster</label>
+          <div style={{display:"flex",gap:6}}>
+            <input className="inp" style={{flex:1}} placeholder="Helper's name" autoFocus value={helperDraft} onChange={e=>setHelperDraft(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&helperDraft.trim())doSetLead(reassignStationId,{coachId:"",helperName:helperDraft.trim()});}}/>
+            <button className="btn primary bxs" disabled={!helperDraft.trim()||busy} onClick={()=>doSetLead(reassignStationId,{coachId:"",helperName:helperDraft.trim()})}>Set</button>
+          </div>
+        </div>
+        <div style={{fontSize:12,color:"#888",marginTop:10,lineHeight:1.4}}>Once they're assigned, share this setup link with them from the button up top -- it'll take them straight into the live view once you start the practice.</div>
+        <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>{setReassignStationId(null);setHelperDraft("");}}>Cancel</button>
+      </div>
+    </div>}
   </div>);
 }
 
@@ -956,6 +1000,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const [shareToken,setShareToken]=useState(null);
   const [shareScope,setShareScope]=useState("helper_read");
   const [showShare,setShowShare]=useState(false);
+  const [showStationWarning,setShowStationWarning]=useState(false);
   const spoken=useRef({});
   const activityLogIdRef=useRef(null);
   // Rapidly tapping through the Overview jump list (browsing for the right
@@ -1043,6 +1088,21 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   // stays gated on role, not on control -- an assistant who takes control
   // still can't open LiveEditBuilder, unlike every other controller action.
   const amHeadCoach=isHeadCoach(team,coachId);
+  // Station-leader safety net (spec: "warn a coach if they have a station
+  // without an assigned coach" right after attendance). Computed off
+  // practice.activities, same source AttendanceScreen already reads for
+  // needsBalance -- a station counts as unassigned only when it has
+  // neither a rostered coach nor a freeform helper name (the same
+  // mutual-exclusion fields updateStationLead/the builder already use).
+  const unassignedStations=(practice?practice.activities:[]).filter(a=>a.type==="station_block").flatMap(a=>(a.stations||[]).filter(st=>!st.coachId&&!st.helperName));
+  const stationWarnSessionRef=useRef(null);
+  useEffect(()=>{
+    if(stage==="live"&&isController&&session&&stationWarnSessionRef.current!==session.id){
+      stationWarnSessionRef.current=session.id;
+      if(unassignedStations.length>0)setShowStationWarning(true);
+    }
+    // eslint-disable-next-line
+  },[stage,isController,session&&session.id,unassignedStations.length]);
   const phaseSecs=isBlock?(inBlockIntro?(cur.transitionDuration||2)*60:blockRotate&&inTrans?cur.transitionDuration*60:cur.stationDuration*60):(cur?actSecs(cur):0);
   const isOver=elapsed>phaseSecs;
   const rem=phaseSecs-elapsed;
@@ -1988,6 +2048,21 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             </div>
           </div>
           <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>{setReassignStationId(null);setHelperDraft("");}}>Cancel</button>
+        </div>
+      </div>}
+      {showStationWarning&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowStationWarning(false);}}>
+        <div className="modal">
+          <div className="mhandle"/>
+          <div className="mtitle">{unassignedStations.length===1?"A Station Has No Leader":unassignedStations.length+" Stations Have No Leader"}</div>
+          <div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>That's fine if players there are independent enough to work unsupervised -- otherwise assign a coach or helper now, and share the live link with them right away.</div>
+          {unassignedStations.map(st=>(<div key={st.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 12px",marginBottom:8}}>
+            <div style={{fontWeight:700,fontSize:14}}>{st.name||"Station"}</div>
+            <div className="row" style={{gap:6}}>
+              <button className="btn outline bxs" onClick={()=>{setShowStationWarning(false);setReassignStationId(st.id);}}>Assign</button>
+              <button className="btn ghost bxs" onClick={()=>shareLive("helper_read")}>Share Link</button>
+            </div>
+          </div>))}
+          <button className="btn primary bmd bfull" style={{marginTop:4}} onClick={()=>setShowStationWarning(false)}>Leave As-Is For Now</button>
         </div>
       </div>}
       {showPlayerFocus&&cur&&<div className="movly" onClick={()=>setShowPlayerFocus(false)}>
