@@ -427,10 +427,22 @@ function computeHelperElapsed(session,nowMs){
   return Math.max(0,Math.floor((effectiveNow-started)/1000)-(session.total_paused_seconds||0));
 }
 
-function HelperPlayerChip({p}){
-  return (<span style={{background:"var(--s2)",border:"1px solid var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>
-    {p.jersey_number&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--green)"}}>#{p.jersey_number}</span>}{p.first_name} {p.last_initial}.
+function HelperPlayerChip({p,focus}){
+  const [open,setOpen]=useState(false);
+  const hasFocus=!!focus;
+  return (<span style={{display:"inline-flex",flexDirection:"column",alignItems:"flex-start",gap:3}}>
+    <button type="button" onClick={()=>hasFocus&&setOpen(o=>!o)} style={{background:hasFocus?"var(--gbg)":"var(--s2)",border:"1px solid",borderColor:hasFocus?"var(--gb)":"var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,cursor:hasFocus?"pointer":"default",color:"var(--black)",font:"inherit"}}>
+      {p.jersey_number&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--green)"}}>#{p.jersey_number}</span>}{p.first_name} {p.last_initial}.{hasFocus&&<span style={{fontSize:9,color:"var(--green)"}}>{open?"▲":"● focus"}</span>}
+    </button>
+    {open&&hasFocus&&<div style={{fontSize:11,color:"var(--black2)",background:"var(--s1)",border:"1px solid var(--gb)",borderRadius:6,padding:"5px 8px",maxWidth:200,lineHeight:1.4}}>🎯 {focus}</div>}
   </span>);
+}
+
+function HelperSkillTags({names}){
+  if(!names||!names.length)return null;
+  return (<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
+    {names.map(n=>(<span key={n} className="bdg bs" style={{fontSize:10}}>{n}</span>))}
+  </div>);
 }
 
 // ── Notes system (Assistant Coach handoff §2) ────────────────────────────────
@@ -642,6 +654,7 @@ function HelperView({token}){
     <div className="cc-body">
       {isCl&&cur&&<div className="cc-focus"><div className="cc-focus-lbl">{cur.name}</div>{(cur.items||[]).map(it=>(<div key={it.id} className="cl-item"><div className="cl-check"/><div className="cl-text">{it.text}</div></div>))}</div>}
       {!isBlock&&!isCl&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <HelperSkillTags names={cur.skill_tags}/>
         {cur.description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
           <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{cur.description}</div>
@@ -666,7 +679,7 @@ function HelperView({token}){
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
             {groups.map((g,i)=>(<div key={i} style={{display:"inline-flex",alignItems:"center",gap:6,border:"1.5px solid #c4b5fd",borderRadius:20,padding:"5px 12px",background:"#fff"}}>
               <span style={{fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,color:"#7c3aed",flexShrink:0}}>G{g.group_number}</span>
-              <span style={{fontSize:13,fontWeight:600,color:"var(--black)"}}>{(g.players||[]).map(p=>(p.jersey_number?"#"+p.jersey_number+" ":"")+p.first_name+" "+p.last_initial+".").join(" · ")}</span>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{(g.players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p} focus={cur.player_focus&&cur.player_focus[p.id]}/>))}</div>
             </div>))}
           </div>
         </div>}
@@ -685,12 +698,13 @@ function HelperView({token}){
             {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
             {st.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:2}}>{st.sublocation_name}</div>}
             {st.coach_name&&<div style={{fontSize:11,color:"var(--td)",marginBottom:4}}>{st.coach_name}</div>}
+            <HelperSkillTags names={st.skill_tags}/>
             {st.coaching_points&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:4,lineHeight:1.4,borderLeft:"2px solid var(--green)",paddingLeft:8}}>{st.coaching_points}</div>}
             {(st.equipment&&st.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
               <span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {st.equipment.join(", ")}</span>
             </div>}
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {g&&(g.players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p}/>))}
+              {g&&(g.players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p} focus={st.player_focus&&st.player_focus[p.id]}/>))}
             </div>
           </div>);
         })}
@@ -704,6 +718,7 @@ function HelperView({token}){
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:6}}>{rotatedStations[focusSt].name||"Station "+(focusSt+1)}</div>
           {rotatedStations[focusSt].group_label&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {rotatedStations[focusSt].group_label}</span></div>}
           {rotatedStations[focusSt].coach_name&&<div style={{fontSize:13,color:"var(--td)",marginBottom:6}}>{rotatedStations[focusSt].coach_name}</div>}
+          <HelperSkillTags names={rotatedStations[focusSt].skill_tags}/>
           {rotatedStations[focusSt].coaching_points&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
             <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coaching_points}</div>
@@ -711,19 +726,22 @@ function HelperView({token}){
           {(rotatedStations[focusSt].equipment&&rotatedStations[focusSt].equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
             <span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#854d0e",fontWeight:600}}>Equipment: {rotatedStations[focusSt].equipment.join(", ")}</span>
           </div>}
-          <div><div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(rotatedStations[focusSt].players||[]).map(p=>(<span key={p.id} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--gb)",background:"var(--gbg)",fontSize:14,fontWeight:600,color:"var(--black)"}}>{p.jersey_number?"#"+p.jersey_number+" ":""}{p.first_name} {p.last_initial}.</span>))}</div></div>
+          <div><div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station — tap a name for their focus</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(rotatedStations[focusSt].players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p} focus={rotatedStations[focusSt].player_focus&&rotatedStations[focusSt].player_focus[p.id]}/>))}</div></div>
         </div>}
         {focusSt===null&&<div>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+n+" — Tap to focus":"All Stations — Tap to focus"}</div>
-          {rotatedStations.map((st,i)=>(<div key={st.id||i} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {i+1}</div>
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.name||"Station "+(i+1)}</div>
-            {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
-            {st.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{st.sublocation_name}</div>}
-            {st.coaching_points&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:6,lineHeight:1.4,borderLeft:"2px solid var(--green)",paddingLeft:8}}>{st.coaching_points}</div>}
-            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{(st.players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p}/>))}</div>
-            <div style={{fontSize:10,color:"var(--td)",marginTop:5}}>Tap to focus</div>
+          {rotatedStations.map((st,i)=>(<div key={st.id||i} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
+            <div onClick={()=>setFocusSt(i)} style={{cursor:"pointer"}}>
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {i+1}</div>
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.name||"Station "+(i+1)}</div>
+              {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
+              {st.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{st.sublocation_name}</div>}
+              {st.coaching_points&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:6,lineHeight:1.4,borderLeft:"2px solid var(--green)",paddingLeft:8}}>{st.coaching_points}</div>}
+            </div>
+            <HelperSkillTags names={st.skill_tags}/>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{(st.players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p} focus={st.player_focus&&st.player_focus[p.id]}/>))}</div>
+            <div onClick={()=>setFocusSt(i)} style={{fontSize:10,color:"var(--td)",marginTop:5,cursor:"pointer"}}>Tap station name to focus</div>
           </div>))}
         </div>}
       </div>}
@@ -960,17 +978,21 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   // in the coach's hand rather than being switched away from entirely.
   const bgAudioRef=useRef(null);
   const beepAudioRef=useRef(null);
-  const buzzerAudioRef=useRef(null);
+  const whistleAudioRef=useRef(null);
   const wakeLockRef=useRef(null);
   useEffect(()=>{
     beepAudioRef.current=new Audio('/audio/tennis-beep.wav');
-    buzzerAudioRef.current=new Audio('/audio/gym-buzzer.wav');
+    // Time's-up cue: was gym-buzzer.wav -- swapped for an actual referee
+    // whistle (synthesized, since no real sample existed in the repo) so
+    // it reads as audible/appropriate for a sports practice rather than a
+    // gym-class buzzer.
+    whistleAudioRef.current=new Audio('/audio/whistle.wav');
     const bg=new Audio('/audio/silence-loop.wav');
     bg.loop=true;bg.volume=0.02;
     bgAudioRef.current=bg;
     return()=>{
       try{bg.pause();}catch(e){}
-      bgAudioRef.current=null;beepAudioRef.current=null;buzzerAudioRef.current=null;
+      bgAudioRef.current=null;beepAudioRef.current=null;whistleAudioRef.current=null;
       if(wakeLockRef.current){try{wakeLockRef.current.release();}catch(e){}wakeLockRef.current=null;}
     };
   },[]);
@@ -1044,8 +1066,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const beep=useCallback(()=>{
     if(!audioOn)return;
     try{
-      if(buzzerAudioRef.current){buzzerAudioRef.current.currentTime=0;buzzerAudioRef.current.play().catch(()=>{});}
-    }catch(e){console.error('buzzer error:',e);}
+      if(whistleAudioRef.current){whistleAudioRef.current.currentTime=0;whistleAudioRef.current.play().catch(()=>{});}
+    }catch(e){console.error('whistle error:',e);}
   },[audioOn]);
   const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
   const playWarningTone=useCallback(()=>{
@@ -1901,8 +1923,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           const nextSt=cur.stations[(i+1)%cur.stations.length];
           const fromLoc=subName(st.sublocationId);
           const toLoc=subName(nextSt.sublocationId);
-          const fromLabel="Station "+(i+1)+(st.activityName?": "+st.activityName:"")+(leadName(st)?" · "+leadName(st):"")+(fromLoc?" · "+fromLoc:"");
-          const toLabel="Station "+((i+1)%cur.stations.length+1)+(nextSt.activityName?": "+nextSt.activityName:"")+(leadName(nextSt)?" · "+leadName(nextSt):"")+(toLoc?" · "+toLoc:"");
+          const fromLabel="Station "+(i+1)+(fromLoc?": "+fromLoc:"")+(leadName(st)?" · "+leadName(st):"")+(st.activityName?" · "+st.activityName:"");
+          const toLabel="Station "+((i+1)%cur.stations.length+1)+(toLoc?": "+toLoc:"")+(leadName(nextSt)?" · "+leadName(nextSt):"")+(nextSt.activityName?" · "+nextSt.activityName:"");
           return (<div key={st.id} className="cc-trans-card">
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",lineHeight:1.2,marginBottom:6}}>{pnames(st.assignments)||"--"}</div>
             {st.groupLabel&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}

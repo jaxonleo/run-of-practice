@@ -411,7 +411,7 @@ function StationsVisual() {
 const PRE_SETUP_STATIONS = [
   { name: "Ground Ball Fundamentals", area: "Infield", coach: "Coach Mike", equip: ["Bucket of Balls"] },
   { name: "Front Toss", area: "Batting Cage 1", coach: "Coach Jen", equip: ["L-Screen"] },
-  { name: "Fly Ball Reads", area: "Outfield", coach: "Ava's Dad (helper)", equip: ["Cones"] },
+  { name: "Fly Ball Reads", area: "Outfield", coach: "Coach Dana", equip: ["Cones"] },
 ];
 const CLOCK_PRESETUP_START = 28 * 60 + 41; // 28:41, Pre-Practice Setup only
 function PreSetupVisual() {
@@ -600,9 +600,9 @@ function AdjustVisual() {
 // isn't repeated here in the real screen -- that's shown earlier, on the
 // block-intro screen the group already passed through before this alert.
 const ROTATION_MOVES = [
-  { names: "Ryker, Owen, Mason", from: "Station 1: Ground Ball Fundamentals · Coach Mike · Infield", to: "Station 2: Front Toss · Coach Jen · Batting Cage 1" },
-  { names: "Ava, Jordan", groupLabel: "Lefties", from: "Station 2: Front Toss · Coach Jen · Batting Cage 1", to: "Station 3: Fly Ball Reads · Coach Dana · Outfield" },
-  { names: "Max, Riley, Sam", from: "Station 3: Fly Ball Reads · Coach Dana · Outfield", to: "Station 1: Ground Ball Fundamentals · Coach Mike · Infield" },
+  { names: "Ryker, Owen, Mason", from: "Station 1: Infield · Coach Mike · Ground Ball Fundamentals", to: "Station 2: Batting Cage 1 · Coach Jen · Front Toss" },
+  { names: "Ava, Jordan", groupLabel: "Lefties", from: "Station 2: Batting Cage 1 · Coach Jen · Front Toss", to: "Station 3: Outfield · Coach Dana · Fly Ball Reads" },
+  { names: "Max, Riley, Sam", from: "Station 3: Outfield · Coach Dana · Fly Ball Reads", to: "Station 1: Infield · Coach Mike · Ground Ball Fundamentals" },
 ];
 
 function TransitionVisual() {
@@ -718,7 +718,7 @@ const FAQS = [
   { q: "Can I copy an old practice?", a: "Yes. Previous practices can be copied, adjusted and run again. Coaches can also save reusable templates." },
   { q: "What happens if attendance changes?", a: "Player groupings can be updated based on the players who are actually present. Coaches can use random groupings or make manual changes." },
   { q: "Can I adjust the schedule while practice is happening?", a: "Yes. Coaches can add or reduce time, end an activity, skip an activity or move to the next part of the practice. Run of Practice shows how those changes affect the overall schedule." },
-  { q: "Will I hear the timer if my phone is in my pocket?", a: "Turn on audio and Run of Practice will call out the two-minute warning and the final buzzer, so you don't need to have the screen in front of you. If a drill runs long, the timer counts into negative time instead of stopping, so you can keep coaching and move on when you're ready." },
+  { q: "Will I hear the timer if my phone is in my pocket?", a: "Turn on audio and Run of Practice will call out the two-minute warning and blow a whistle when time's up, so you don't need to have the screen in front of you. If a drill runs long, the timer counts into negative time instead of stopping, so you can keep coaching and move on when you're ready." },
 ];
 
 function FAQ() {
@@ -741,7 +741,7 @@ export default function LandingPage({ onGetStarted }) {
 
     <div className="lp-hero">
       <div className="lp-eyebrow">Practice Planning and Live Execution</div>
-      <h1>Plan the practice. Run it live. Keep everyone on the same page.</h1>
+      <h1>Plan the practice. Run it live. Keep everyone aligned.</h1>
       <div className="lp-hero-sub">Schedule practices, build the plan, and run it live with your assistants and helpers. Less time explaining what happens next. More time coaching.</div>
       <div className="lp-btnrow">
         <button className="btn primary blg" onClick={onGetStarted}>Try It Free</button>
@@ -767,7 +767,7 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Live Adjustments & Timers" title="Practice never goes to plan. That's fine." visual={<AdjustVisual />} body={[
-      "See at a glance whether the overall practice is ahead of or behind its allotted schedule. Each drill has its own timer that can run into negative time or have minutes added or removed on the fly. Separately, drills that need cleanup get a two-minute warning before time is up.",
+      "See at a glance whether the practice as a whole is ahead of or behind its allotted schedule. Each drill announces when there are two minutes remaining, giving stations time to clean up or keep playing until the whistle.",
     ]} />
 
     <div className="lp-section tight dark" style={{ textAlign: "center" }}>
