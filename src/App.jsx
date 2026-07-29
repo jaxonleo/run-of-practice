@@ -180,6 +180,19 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .cl-check{width:26px;height:26px;border-radius:50%;border:2px solid var(--b);background:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
 .cl-check.done{background:var(--green);border-color:var(--green);}
 .cl-text{font-size:16px;line-height:1.5;flex:1;}.cl-text.done{text-decoration:line-through;color:var(--td);}
+/* Practice plan PDF export (PracticePlanPrint.jsx): print only that one
+   subtree, regardless of what else is mounted in the SPA at the time --
+   simplest robust way to get a clean, selectable-text "PDF" out of a
+   React app is the browser's own Print to PDF, not a client-side PDF
+   library. .no-print elements (the toolbar) never print even though
+   they're inside the print root. */
+@media print{
+  body *{visibility:hidden!important;}
+  #rop-print-root,#rop-print-root *{visibility:visible!important;}
+  #rop-print-root{position:absolute;top:0;left:0;width:100%;margin:0;padding:0;}
+  #rop-print-root .no-print{display:none!important;}
+  @page{margin:0.5in;}
+}
 `;
 
 // Shared app state (data, coachId, navigation helpers, etc.) for every route

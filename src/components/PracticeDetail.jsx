@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { findOrCreatePreviewToken, cancelPractice, restorePractice, fetchPlannedAbsences } from "../supabase.js";
 import { isHeadCoach, planningState, localDateStr } from "../constants.js";
 import AbsencePicker from "./AbsencePicker.jsx";
+import PracticePlanPrint from "./PracticePlanPrint.jsx";
 
 // §1: same "35/60 min" pill as HomeScreen/ScheduleScreen -- duplicated per
 // this codebase's existing convention rather than factored into a shared
@@ -36,6 +37,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
   const [previewUrl,setPreviewUrl]=useState(null);
   const [expandedId,setExpandedId]=useState(null);
   const [showAbsencePicker,setShowAbsencePicker]=useState(false);
+  const [showPrint,setShowPrint]=useState(false);
   const [confirmCancel,setConfirmCancel]=useState(false);
   const [absentPlayers,setAbsentPlayers]=useState([]);
   const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
@@ -94,6 +96,12 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
         <button className="btn outline bmd" style={{flex:1}} onClick={()=>setShowAbsencePicker(true)}>Who's Out?</button>
         {isPlanned&&canManage&&<button className="btn outline bmd" style={{flex:1}} onClick={()=>goToBuilder(practice.id)}>Edit</button>}
       </div>}
+      {/* Print/PDF export: a clean, standalone document a coach can follow
+          without the app (old-school coaches, or a remote player doing
+          this same practice with another coach) -- start/end clock times
+          alongside duration, since a printed sheet can't run a live timer
+          the way the app's own view can. */}
+      {!isCancelled&&isPlanned&&<button className="btn outline bmd bfull" style={{marginBottom:12}} onClick={()=>setShowPrint(true)}>Print / Export PDF</button>}
       {!isCancelled&&!confirmCancel&&canManage&&<button className="btn ghost bsm bfull" style={{marginBottom:12,color:"var(--red)"}} onClick={()=>setConfirmCancel(true)}>Cancel Practice</button>}
       {confirmCancel&&<div className="confirm-box" style={{marginBottom:12}}>
         <div className="confirm-title">Cancel this practice?</div>
@@ -177,5 +185,6 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
       })}
     </div>
     {showAbsencePicker&&<AbsencePicker data={data} coachId={coachId} mode="pickPlayersForPractice" practice={practice} team={team} onClose={()=>{setShowAbsencePicker(false);refreshAbsences();}}/>}
+    {showPrint&&<PracticePlanPrint practice={practice} team={team} loc={loc} data={data} onClose={()=>setShowPrint(false)}/>}
   </div>);
 }
