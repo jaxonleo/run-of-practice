@@ -1123,13 +1123,22 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     return()=>clearInterval(iv);
   },[running]);
 
+  const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
+  // Time's-up cue: one short whistle blast, then a spoken "Time" once the
+  // blast finishes (whistle.wav is now a single ~0.5s blast, was a
+  // double-blow before -- the spoken word now carries the job the second
+  // blast used to). onended (not a fixed setTimeout) so the two stay in
+  // sync with the file's actual length regardless of playback hiccups.
   const beep=useCallback(()=>{
     if(!audioOn)return;
     try{
-      if(whistleAudioRef.current){whistleAudioRef.current.currentTime=0;whistleAudioRef.current.play().catch(()=>{});}
+      if(whistleAudioRef.current){
+        whistleAudioRef.current.currentTime=0;
+        whistleAudioRef.current.onended=()=>speak("Time");
+        whistleAudioRef.current.play().catch(()=>{});
+      }
     }catch(e){console.error('whistle error:',e);}
-  },[audioOn]);
-  const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
+  },[audioOn,speak]);
   const playWarningTone=useCallback(()=>{
     if(!audioOn)return;
     try{if(beepAudioRef.current){beepAudioRef.current.currentTime=0;beepAudioRef.current.play().catch(()=>{});}}catch(e){console.error('beep tone error:',e);}
