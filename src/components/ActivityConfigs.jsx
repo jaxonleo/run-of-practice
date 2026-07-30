@@ -83,6 +83,23 @@ export function AutoTextarea({className,value,onChange,style,minHeight,...rest})
   return <textarea ref={ref} className={className||"ta"} value={value} onChange={onChange} style={Object.assign({resize:"none",overflow:"hidden",minHeight:minHeight||58},style)} {...rest}/>;
 }
 
+// Equipment picker scoping shared by ActConfig/StationConfig: a coach's own
+// equipment, plus -- if this team belongs to an org and the asset is tagged
+// to this activity's own location -- that org's shared equipment too. Lets a
+// coach use the club's gear without switching into Org mode, as long as
+// they're actually standing at a location the org stocks it at (an org
+// asset with no location tags at all is "untagged," not "everywhere," so it
+// doesn't merge in here the way a coach's own untagged equipment does).
+// Without this, every asset visible under RLS for *any* org the coach
+// belongs to showed up regardless of team/location -- the same class of
+// leak already fixed once this session in EquipmentTab's Team-tab view.
+function ownedOrOrgAtLoc(a,coachId,team,loc){
+  if(a.ownerUserId&&a.ownerUserId===coachId)return true;
+  const orgId=team&&team.organizationId;
+  if(orgId&&a.organizationId===orgId&&loc&&Array.isArray(a.locationIds)&&a.locationIds.includes(loc.id))return true;
+  return false;
+}
+
 function DurStepper({value,min,onChange,step}){
   const s=step||1;const mn=min||1;
   return (<div style={{display:"flex",alignItems:"center",gap:0,border:"1.5px solid var(--b)",borderRadius:"var(--rs)",overflow:"hidden",background:"#fff"}}>
@@ -107,8 +124,8 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
   // equipment available there -- no locationIds means it travels with the
   // coach, so it's never excluded on location grounds.
   const atLoc=a=>!loc||!Array.isArray(a.locationIds)||a.locationIds.length===0||a.locationIds.includes(loc.id);
-  const teamEquip=(assets||[]).filter(a=>(!a.type||a.type==="team")&&(a.sport===sport||a.sport==="General")&&!a.sourceCatalogId&&atLoc(a));
-  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General")&&!a.sourceCatalogId&&atLoc(a));
+  const teamEquip=(assets||[]).filter(a=>(!a.type||a.type==="team")&&(a.sport===sport||a.sport==="General")&&!a.sourceCatalogId&&atLoc(a)&&ownedOrOrgAtLoc(a,coachId,team,loc));
+  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General")&&!a.sourceCatalogId&&atLoc(a)&&ownedOrOrgAtLoc(a,coachId,team,loc));
   const equip=Array.isArray(act.equipment)?act.equipment:[];
   const toggleEquip=id=>{const has=equip.includes(id);onChange({equipment:has?equip.filter(x=>x!==id):[...equip,id]});};
   // Practice/template activities are a snapshot copy of the drill at
@@ -223,8 +240,8 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   // Same catalog-equipment/sport/location scoping as ActConfig -- see its
   // comment.
   const atLoc=a=>!loc||!Array.isArray(a.locationIds)||a.locationIds.length===0||a.locationIds.includes(loc.id);
-  const teamEquipAssets=(assets||[]).filter(a=>(!a.type||a.type==="team")&&(a.sport===sport||a.sport==="General")&&!a.sourceCatalogId&&atLoc(a));
-  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General")&&!a.sourceCatalogId&&atLoc(a));
+  const teamEquipAssets=(assets||[]).filter(a=>(!a.type||a.type==="team")&&(a.sport===sport||a.sport==="General")&&!a.sourceCatalogId&&atLoc(a)&&ownedOrOrgAtLoc(a,coachId,team,loc));
+  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General")&&!a.sourceCatalogId&&atLoc(a)&&ownedOrOrgAtLoc(a,coachId,team,loc));
   // Public-catalog drills are excluded from this quick-pick list -- their
   // equipment is catalog-owned, which can't be linked to a real team's
   // practice (same "copy not reference" rule org-shared equipment already
