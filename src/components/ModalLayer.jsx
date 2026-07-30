@@ -167,11 +167,14 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
     if(asset)return{name:asset.name,sport:asset.sport||"General",locationIds:asset.locationIds||[]};
     if(coach)return{name:coach.name,role:coach.role||"Assistant Coach",inviteEmail:coach.inviteEmail||""};
     if(editTeamData)return{name:editTeamData.name,sport:editTeamData.sport||"Basketball",colorPrimary:editTeamData.colorPrimary||"",locationIds:editTeamData.locationIds||[]};
-    // New org team defaults to the org's own sport (payload.orgSport, set
-    // by TeamsListScreen from the org's own record) rather than whatever
-    // sport this coach last touched personally -- Jax's ask.
-    const orgSport=modal.type==="addTeam"&&modal.payload&&modal.payload.orgSport;
-    return{sport:orgSport||lastSportRef.current||"Basketball",colorPrimary:nextTeamColor(data.teams)};
+    // New org team defaults to (and, in the Sport field below, is restricted
+    // to) one of the org's own sports (payload.orgSports, set by
+    // TeamsListScreen from the org's own record) rather than whatever sport
+    // this coach last touched personally -- Jax's ask. An org with no sports
+    // configured yet (empty array) falls back to the old unrestricted behavior.
+    const orgSports=modal.type==="addTeam"&&modal.payload&&modal.payload.orgSports;
+    const orgDefaultSport=orgSports&&orgSports.length?(orgSports.includes(lastSportRef.current)?lastSportRef.current:orgSports[0]):null;
+    return{sport:orgDefaultSport||lastSportRef.current||"Basketball",colorPrimary:nextTeamColor(data.teams)};
   });
   const set=(k,v)=>setF(p=>Object.assign({},p,{[k]:v}));
   const catalogId=activity?activity.sourceCatalogId:(
@@ -265,7 +268,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
         <div className="mtitle">{addedCoachInfo?"Added":(TITLES[modal.type]||"Add")}</div>
         {addedCoachInfo&&<div className="fld"><div style={{fontSize:14,lineHeight:1.5}}>{addedCoachInfo.name} will get an email at {addedCoachInfo.email}, and you can also just tell them: sign in at runofpractice.com with {addedCoachInfo.email}.</div></div>}
         {!addedCoachInfo&&modal.type==="addTeam"&&(<div><div className="fld"><label className="lbl">Team Name</label><input className="inp" autoFocus placeholder="e.g. Peoria Eagles 10U" onChange={e=>set("name",e.target.value)}/></div>
-          <div className="fld"><label className="lbl">Sport</label><select className="sel" onChange={e=>{set("sport",e.target.value);lastSportRef.current=e.target.value;}}>{SPORTS.map(s=><option key={s}>{s}</option>)}</select></div>
+          <div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||""} onChange={e=>{set("sport",e.target.value);lastSportRef.current=e.target.value;}}>{(modal.payload&&modal.payload.orgSports&&modal.payload.orgSports.length?modal.payload.orgSports:SPORTS).map(s=><option key={s}>{s}</option>)}</select></div>
           <div className="fld">
             <label className="lbl">Team Color</label>
             <div style={{display:"flex",flexWrap:"wrap",gap:8}}>

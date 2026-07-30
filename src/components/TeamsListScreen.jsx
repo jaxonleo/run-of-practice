@@ -11,10 +11,11 @@ import { SPORTS, TEAM_COLORS } from "../constants.js";
 function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(org.name);
-  const [sport, setSport] = useState(org.sport || "");
+  const [sports, setSports] = useState(org.sports || []);
   const [color, setColor] = useState(org.color || "");
   const [saving, setSaving] = useState(false);
-  useEffect(() => { setName(org.name); setSport(org.sport || ""); setColor(org.color || ""); }, [org.id, org.name, org.sport, org.color]);
+  useEffect(() => { setName(org.name); setSports(org.sports || []); setColor(org.color || ""); }, [org.id, org.name, org.sports, org.color]);
+  const toggleSport = s => setSports(cur => cur.includes(s) ? cur.filter(x => x !== s) : [...cur, s]);
 
   const [members, setMembers] = useState([]);
   const [sentInvites, setSentInvites] = useState([]);
@@ -37,7 +38,7 @@ function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
   const saveOrgDetails = async () => {
     if (!name.trim()) return;
     setSaving(true);
-    await updateOrganization(org.id, { name: name.trim(), sport: sport || null, color: color || null });
+    await updateOrganization(org.id, { name: name.trim(), sports, color: color || null });
     setSaving(false);
     setEditing(false);
     if (refreshLibrary) await refreshLibrary();
@@ -80,11 +81,10 @@ function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
       <div className="card" style={{ marginBottom: 16 }}>
         {editing ? (<div>
           <div className="fld" style={{ marginBottom: 8 }}><label className="lbl">Organization Name</label><input className="inp" value={name} onChange={e => setName(e.target.value)} /></div>
-          <div className="fld" style={{ marginBottom: 8 }}><label className="lbl">Sport</label>
-            <select className="sel" value={sport} onChange={e => setSport(e.target.value)}>
-              <option value="">-- Select a sport --</option>
-              {SPORTS.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+          <div className="fld" style={{ marginBottom: 8 }}><label className="lbl">Sports</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {SPORTS.map(s => (<button key={s} type="button" className={"btn bsm " + (sports.includes(s) ? "primary" : "outline")} onClick={() => toggleSport(s)}>{s}</button>))}
+            </div>
           </div>
           <div className="fld" style={{ marginBottom: 8 }}>
             <label className="lbl">Color</label>
@@ -98,7 +98,7 @@ function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
             {org.color && <span style={{ width: 14, height: 14, borderRadius: "50%", background: org.color, flexShrink: 0 }} />}
             <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900 }}>{org.name}</div>
           </div>
-          {org.sport && <div style={{ fontSize: 13, color: "var(--td)", marginTop: 4 }}>{org.sport}</div>}
+          {org.sports && org.sports.length > 0 && <div style={{ fontSize: 13, color: "var(--td)", marginTop: 4 }}>{org.sports.join(", ")}</div>}
           {memberSince && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 4 }}>Member since {memberSince}</div>}
         </div>)}
       </div>
@@ -174,8 +174,8 @@ export default function TeamsListScreen({ data, goToTeam, openModal, mode, refre
   // Org mode's +Team opens the same addTeam modal, just with organizationId
   // in the payload -- that's what tells ModalLayer.save() to call
   // orgCreateTeam instead of createTeam (see ModalLayer.jsx), and lets it
-  // default the sport to the org's own sport.
-  const addTeamPayload = isOrgMode ? { organizationId: mode.orgId, orgSport: activeOrg && activeOrg.sport } : undefined;
+  // restrict/default the new team's sport to one of the org's own sports.
+  const addTeamPayload = isOrgMode ? { organizationId: mode.orgId, orgSports: activeOrg && activeOrg.sports } : undefined;
 
   if (isOrgMode && activeOrg && showOrgDetails) {
     return <OrgDetailsView org={activeOrg} refreshLibrary={refreshLibrary} onBack={() => setShowOrgDetails(false)} coachId={coachId} />;
@@ -191,7 +191,7 @@ export default function TeamsListScreen({ data, goToTeam, openModal, mode, refre
         {activeOrg.color && <span style={{ width: 14, height: 14, borderRadius: "50%", background: activeOrg.color, flexShrink: 0 }} />}
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900 }}>{activeOrg.name}</div>
-          {activeOrg.sport && <div style={{ fontSize: 12, color: "var(--td)" }}>{activeOrg.sport}</div>}
+          {activeOrg.sports && activeOrg.sports.length > 0 && <div style={{ fontSize: 12, color: "var(--td)" }}>{activeOrg.sports.join(", ")}</div>}
         </div>
         <span style={{ color: "var(--green)", fontSize: 22 }}>&#8250;</span>
       </div>

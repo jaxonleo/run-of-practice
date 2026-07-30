@@ -316,7 +316,7 @@ export async function fetchLibraryData() {
     supabase.from('activity_library').select('*').is('archived_at', null).order('position'),
     supabase.from('activity_library_equipment').select('*'),
     supabase.from('drill_tags').select('*'),
-    supabase.from('org_staff').select('organization_id, role, organizations(id, name, sport, created_at, color)').is('archived_at', null),
+    supabase.from('org_staff').select('organization_id, role, organizations(id, name, sports, created_at, color)').is('archived_at', null),
     supabase.from('profiles').select('id, email, first_name, last_name'), // own row + org co-members, per RLS
     supabase.from('content_catalogs').select('*').is('archived_at', null),
     supabase.from('activity_library_org_shares').select('activity_library_id, organization_id'),
@@ -345,7 +345,7 @@ export async function fetchLibraryData() {
     skillCategories: categoriesRes.data || [],
     skillTags: (tagsRes.data || []).map(mapSkillTagRow),
     activityLibrary: (drillsRes.data || []).map(a => mapDrillRow(a, equipmentByDrill, tagsByDrill, sharesByDrill)),
-    myOrgs: (orgsRes.data || []).map(m => ({ id: m.organization_id, name: m.organizations ? m.organizations.name : '', role: m.role, sport: m.organizations ? m.organizations.sport : null, createdAt: m.organizations ? m.organizations.created_at : null, color: m.organizations ? m.organizations.color : null })),
+    myOrgs: (orgsRes.data || []).map(m => ({ id: m.organization_id, name: m.organizations ? m.organizations.name : '', role: m.role, sports: (m.organizations && m.organizations.sports) || [], createdAt: m.organizations ? m.organizations.created_at : null, color: m.organizations ? m.organizations.color : null })),
     pendingOrgInvites,
     profilesById,
     catalogs: (catalogsRes.data || []).map(mapCatalogRow),
@@ -1542,8 +1542,8 @@ export async function createOrganization(coachId, name) {
 }
 // organizations_update_admin's RLS already permits a director to update
 // directly (is_org_admin(id)) -- no RPC needed, same as createOrganization.
-export async function updateOrganization(organizationId, { name, sport, color }) {
-  const { error } = await supabase.from('organizations').update({ name, sport: sport || null, color: color || null }).eq('id', organizationId)
+export async function updateOrganization(organizationId, { name, sports, color }) {
+  const { error } = await supabase.from('organizations').update({ name, sports: sports || [], color: color || null }).eq('id', organizationId)
   if (error) console.error('updateOrganization:', error)
   return { error }
 }
