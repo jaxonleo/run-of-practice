@@ -442,10 +442,17 @@ export default function App(){
   useEffect(()=>{try{localStorage.setItem("rop_mode",JSON.stringify(mode));}catch(e){}},[mode]);
   // Guard against a persisted org the coach is no longer a director of
   // (left, or it was archived) -- falls back to Coach mode instead of
-  // showing a broken/empty org view.
+  // showing a broken/empty org view. Gated on `loaded`, not just the
+  // presence of `library.myOrgs` -- that array starts as `[]` (its useState
+  // default) well before the real fetch resolves, and `[]&&![].some(...)`
+  // is trivially true, so this used to fire on every fresh page load and
+  // wrongly reset a real, valid Org mode selection back to Coach mode
+  // before refreshLibrary() had a chance to populate the real list. Real
+  // bug, found live: reloading while in Org mode silently dropped back to
+  // Coach mode every time.
   useEffect(()=>{
-    if(mode.type==="org"&&library.myOrgs&&!library.myOrgs.some(o=>o.id===mode.orgId))setMode({type:"coach"});
-  },[library.myOrgs]);
+    if(loaded&&mode.type==="org"&&library.myOrgs&&!library.myOrgs.some(o=>o.id===mode.orgId))setMode({type:"coach"});
+  },[loaded,library.myOrgs]);
   const openModal=(t,p)=>setModal({type:t,payload:p||{}});
   const closeModal=()=>setModal(null);
   const coachName=profile&&profile.first_name?profile.first_name:(session?(session.user.email||"Coach"):"Coach");
