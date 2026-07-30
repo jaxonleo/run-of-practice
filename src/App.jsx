@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext, Suspense } from "react";
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider, Navigate, Outlet, useNavigate, useParams, useBlocker, useSearchParams } from "react-router-dom";
 import { Analytics } from '@vercel/analytics/react';
 import Layout from "./Layout.jsx";
@@ -17,7 +17,13 @@ import ScheduleScreen from "./components/ScheduleScreen.jsx";
 import AbsencePicker from "./components/AbsencePicker.jsx";
 import LandingPage from "./components/LandingPage.jsx";
 import { TermsPage, PrivacyPage, FAQPage } from "./components/LegalPages.jsx";
-import FounderMetricsScreen from "./components/FounderMetricsScreen.jsx";
+// Lazy: recharts + its d3-* subpackages are the single largest dependency
+// in this app (~9MB unminified) and this is the only screen that uses
+// them, gated to founder-admins only -- everyone else was downloading that
+// whole payload on first load for a screen they'd never reach. A dynamic
+// import means it's only fetched once FounderAdminRoute's own isAdmin
+// check has already confirmed this visitor can actually see it.
+const FounderMetricsScreen = React.lazy(() => import("./components/FounderMetricsScreen.jsx"));
 
 
 // "Run Again" copies a past practice's activities into a brand-new one --
@@ -626,7 +632,7 @@ function FounderAdminRoute(){
   useEffect(()=>{checkIsAdmin().then(setIsAdmin);},[]);
   if(isAdmin===null)return <LoadingScreen message="Loading..."/>;
   if(!isAdmin)return <Navigate to="/" replace/>;
-  return <FounderMetricsScreen/>;
+  return <Suspense fallback={<LoadingScreen message="Loading..."/>}><FounderMetricsScreen/></Suspense>;
 }
 
 function HelperViewRoute(){ const {token}=useParams(); return <HelperView token={token}/>; }
