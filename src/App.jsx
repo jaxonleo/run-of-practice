@@ -7,7 +7,7 @@ import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode } from "./constants.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode } from "./constants.js";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
@@ -675,7 +675,7 @@ function ScheduleLegacyRoute(){
     teams:scopedTeams,
     practices:(data.practices||[]).filter(p=>scopedTeamIds.has(p.teamId)),
   }),[data,mode,coachId]);
-  return <ScheduleScreen data={scopedData} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning} openModal={openModal}/>;
+  return <ScheduleScreen data={scopedData} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning} openModal={openModal} mode={mode}/>;
 }
 
 // Team-scoped Schedule (handoff §4.4). Fetches practices scoped to this one
@@ -687,7 +687,7 @@ function ScheduleLegacyRoute(){
 // mutation made from inside a team's Schedule tab).
 function TeamScheduleRoute(){
   const {teamId}=useParams();
-  const {data,goToBuilder,goToRun,coachId,refreshPlanning:refreshGlobalPlanning,setSubViewBack}=useAppCtx();
+  const {data,goToBuilder,goToRun,coachId,refreshPlanning:refreshGlobalPlanning,setSubViewBack,mode}=useAppCtx();
   const [teamPractices,setTeamPractices]=useState(null);
   const refreshTeamPractices=useCallback(()=>{
     fetchPracticesFull(teamId).then(setTeamPractices);
@@ -698,7 +698,7 @@ function TeamScheduleRoute(){
   },[refreshTeamPractices,refreshGlobalPlanning]);
   if(teamPractices===null)return (<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Loading...</div>);
   const scopedData=Object.assign({},data,{practices:teamPractices});
-  return <ScheduleScreen data={scopedData} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshBoth} fixedTeamId={teamId} setSubViewBack={setSubViewBack}/>;
+  return <ScheduleScreen data={scopedData} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshBoth} fixedTeamId={teamId} setSubViewBack={setSubViewBack} mode={mode}/>;
 }
 
 function TeamIndexRedirect(){
@@ -709,7 +709,7 @@ function TeamIndexRedirect(){
 function TeamRosterRoute(){
   const {teamId}=useParams();
   const navigate=useNavigate();
-  const {data,coachId,openModal,refreshTeams,refreshLibrary}=useAppCtx();
+  const {data,coachId,openModal,refreshTeams,refreshLibrary,mode}=useAppCtx();
   const team=data.teams.find(t=>t.id===teamId);
   // Team was just deleted (e.g. via this same tab's Delete Team) and this
   // route's teamId no longer resolves -- leave for the Teams list instead
@@ -717,7 +717,7 @@ function TeamRosterRoute(){
   useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
   if(!team)return null;
   return (<div style={{padding:"16px 16px calc(var(--tab) + 20px)"}}>
-    <RostersTab data={data} openModal={openModal} fixedTeamId={teamId} refreshTeams={refreshTeams} coachId={coachId} refreshLibrary={refreshLibrary}/>
+    <RostersTab data={data} openModal={openModal} fixedTeamId={teamId} refreshTeams={refreshTeams} coachId={coachId} refreshLibrary={refreshLibrary} mode={mode}/>
   </div>);
 }
 
@@ -736,11 +736,11 @@ function TeamEquipmentRoute(){
 function TeamGoalsRoute(){
   const {teamId}=useParams();
   const navigate=useNavigate();
-  const {data,coachId,setSubViewBack}=useAppCtx();
+  const {data,coachId,setSubViewBack,mode}=useAppCtx();
   const team=data.teams.find(t=>t.id===teamId);
   useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
   if(!team)return null;
-  return <GoalsScreen data={data} teamId={teamId} coachId={coachId} setSubViewBack={setSubViewBack}/>;
+  return <GoalsScreen data={data} teamId={teamId} coachId={coachId} setSubViewBack={setSubViewBack} mode={mode}/>;
 }
 
 function BuilderRoute(){
@@ -1295,7 +1295,7 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   </div>);
 }
 
-function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibrary}){
+function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibrary,mode}){
   const [teamId,setTeamId]=useState(fixedTeamId||(data.teams[0]?data.teams[0].id:""));
   useEffect(()=>{
     if(fixedTeamId){if(teamId!==fixedTeamId)setTeamId(fixedTeamId);return;}
@@ -1307,7 +1307,11 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
   const [viewPlayer,setViewPlayer]=useState(null);
   const [confirmRemovePlayer,setConfirmRemovePlayer]=useState(null);
   const team=data.teams.find(t=>t.id===teamId)||null;
-  const canManage=isHeadCoach(team,coachId);
+  // canManageTeamInMode, not bare isHeadCoach -- a director managing an org
+  // team should be able to add/edit players and staff without needing a
+  // personal team_staff row on that specific team (org_create_team no
+  // longer auto-creates one; see BUILD-STATUS).
+  const canManage=canManageTeamInMode(team,coachId,mode);
   const delP=async id=>{await archivePlayer(id);await refreshTeams();};
   const doRemovePlayer=async()=>{
     await delP(confirmRemovePlayer.id);

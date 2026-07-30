@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { savePracticeTree } from "../supabase.js";
-import { isHeadCoach, localDateStr } from "../constants.js";
+import { canManageTeamInMode, localDateStr } from "../constants.js";
 import { AddLocationDialog } from "./NewLibraryScreen.jsx";
 
 // Quick single-practice scheduler -- one screen, no day-of-week/date-range
@@ -8,11 +8,13 @@ import { AddLocationDialog } from "./NewLibraryScreen.jsx";
 // stays the path for recurring schedules). Same field set as the wizard's
 // team/pattern/location steps, just collapsed since there's no range to
 // preview.
-export default function SchedulePracticeModal({ data, coachId, presetTeamId, refreshPlanning, onClose, onDone }) {
-  const myTeams = useMemo(() => data.teams.filter(t => isHeadCoach(t, coachId)), [data.teams, coachId]);
+export default function SchedulePracticeModal({ data, coachId, mode, presetTeamId, refreshPlanning, onClose, onDone }) {
+  // canManageTeamInMode, not bare isHeadCoach -- a director overseeing an
+  // org team can schedule for it without a personal team_staff row there.
+  const myTeams = useMemo(() => data.teams.filter(t => canManageTeamInMode(t, coachId, mode)), [data.teams, coachId, mode]);
   // Opened from inside a specific team's Schedule tab should default to
-  // that team, not whichever head-coached team happens to sort first --
-  // only honored if the coach actually head-coaches it (myTeams already
+  // that team, not whichever manageable team happens to sort first --
+  // only honored if the coach can actually manage it (myTeams already
   // enforces that), so a stray/invalid id can't slip through.
   const [teamId, setTeamId] = useState(() => (presetTeamId && myTeams.some(t => t.id === presetTeamId)) ? presetTeamId : (myTeams[0] ? myTeams[0].id : ""));
   const [date, setDate] = useState(localDateStr());

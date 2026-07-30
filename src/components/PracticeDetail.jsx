@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { findOrCreatePreviewToken, cancelPractice, restorePractice, fetchPlannedAbsences } from "../supabase.js";
-import { isHeadCoach, planningState, localDateStr } from "../constants.js";
+import { canManageTeamInMode, planningState, localDateStr } from "../constants.js";
 import AbsencePicker from "./AbsencePicker.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
 
@@ -14,7 +14,7 @@ function PlanPill({ practice, total }) {
   return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
 }
 
-export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack,coachId,refreshPlanning,setSubViewBack}){
+export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack,coachId,refreshPlanning,setSubViewBack,mode}){
   // Nav restructure round 3: reached from a team-scoped Schedule tab
   // registers with Layout's colored bar instead of rendering its own
   // inline Back button; reached from Home (no colored bar there) keeps
@@ -25,7 +25,10 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
     return ()=>setSubViewBack(null);
   },[setSubViewBack,onBack]);
   const team=data.teams.find(t=>t.id===practice.teamId);
-  const canManage=isHeadCoach(team,coachId);
+  // canManageTeamInMode, not bare isHeadCoach -- a director overseeing an
+  // org team can edit/cancel/plan its practices without a personal
+  // team_staff row on that specific team.
+  const canManage=canManageTeamInMode(team,coachId,mode);
   const loc=data.locations.find(l=>l.id===practice.locationId);
   const now=new Date();
   const todayStr=localDateStr(now);

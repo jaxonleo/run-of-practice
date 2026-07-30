@@ -1,17 +1,19 @@
 import React, { useState, useMemo } from "react";
 import { createPracticeSeries } from "../supabase.js";
-import { isHeadCoach } from "../constants.js";
+import { canManageTeamInMode } from "../constants.js";
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const toStr = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 
-export default function SeriesWizard({ data, coachId, presetTeamId, onClose, onDone }) {
+export default function SeriesWizard({ data, coachId, mode, presetTeamId, onClose, onDone }) {
   const today = new Date();
   // §3: only teams this user manages -- an assistant should never be able
-  // to schedule for a team they don't head-coach, even via this wizard's
-  // own team picker (the ScheduleScreen entry point only hides the button
-  // when NO team is manageable; a mixed-role user still needs this filter).
-  const myTeams = useMemo(() => data.teams.filter(t => isHeadCoach(t, coachId)), [data.teams, coachId]);
+  // to schedule for a team they don't manage, even via this wizard's own
+  // team picker (the ScheduleScreen entry point only hides the button when
+  // NO team is manageable; a mixed-role user still needs this filter).
+  // canManageTeamInMode, not bare isHeadCoach -- a director overseeing an
+  // org team can schedule for it without a personal team_staff row there.
+  const myTeams = useMemo(() => data.teams.filter(t => canManageTeamInMode(t, coachId, mode)), [data.teams, coachId, mode]);
   // Consolidated from 5 sequential screens (team / pattern / range /
   // location / preview) down to 2 -- everything that's just picking fields
   // (team, days & time, date range, location) now lives on one "details"

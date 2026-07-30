@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useBlocker } from "react-router-dom";
-import { isHeadCoach } from "../constants.js";
+import { canManageTeamInMode } from "../constants.js";
 import {
   fetchTeamGoals, setTeamGoals, updateGoalsWindowWeeks,
   fetchTeamGoalReport, fetchTeamSessionHistory, fetchSessionActivityLog, fetchNotesForPractice, archiveNote,
@@ -454,9 +454,12 @@ function HistoryList({ history, data, canManage, onOpen }) {
 
 // Goals + Insights tab (handoff §5). Ties together the editor, glance view,
 // and promoted History list/detail for one team.
-export default function GoalsScreen({ data, teamId, coachId, setSubViewBack }) {
+export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mode }) {
   const team = data.teams.find(t => t.id === teamId);
-  const canManage = team ? isHeadCoach(team, coachId) : false;
+  // canManageTeamInMode, not bare isHeadCoach -- a director overseeing an
+  // org team should be able to set goals/exclude sessions/archive notes
+  // without needing a personal team_staff row on that specific team.
+  const canManage = team ? canManageTeamInMode(team, coachId, mode) : false;
   const [goals, setGoals] = useState(null);
   const [report, setReport] = useState(null);
   const [history, setHistory] = useState(null);

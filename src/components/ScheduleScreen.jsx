@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchPlannedAbsences, fetchPracticeRunStatus, savePracticeTree } from "../supabase.js";
-import { isHeadCoach, sumMins, planningState, localDateStr, stripIdsForCopy } from "../constants.js";
+import { canManageTeamInMode, sumMins, planningState, localDateStr, stripIdsForCopy } from "../constants.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import SeriesWizard from "./SeriesWizard.jsx";
 import SchedulePracticeModal from "./SchedulePracticeModal.jsx";
@@ -59,7 +59,10 @@ function DaySheet({ date, practices, data, todayStr, runStatus, onPick, onClose 
 // data.practices is already scoped to that one team by the caller
 // (fetchPracticesFull(teamId)), so the team-filter chip row is redundant
 // (it would show exactly one, permanently-active chip) and is hidden.
-export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, refreshPlanning, fixedTeamId, setSubViewBack, openModal }) {
+// Note: `appMode` (Coach/Org mode) is a distinct concept from this
+// component's own `mode` state below (agenda/month calendar view) -- kept
+// as two different names throughout this file to avoid the collision.
+export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, refreshPlanning, fixedTeamId, setSubViewBack, openModal, mode: appMode }) {
   const navigate = useNavigate();
   const now = new Date();
   const todayStr = localDateStr(now);
@@ -79,12 +82,15 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
 
   // Scoped to the team actually being viewed when this is a team-workspace
   // Schedule tab (fixedTeamId set) -- an assistant here must never see
-  // +Practice/+Series just because they head-coach some *other* team.
-  // The global cross-team Schedule tab (no fixedTeamId) keeps the original
-  // "head-coach anything at all" check, since it isn't scoped to one team.
+  // +Practice/+Series just because they head-coach some *other* team. The
+  // global cross-team Schedule tab (no fixedTeamId) keeps the original
+  // "can manage anything at all" check, since it isn't scoped to one team.
+  // canManageTeamInMode, not bare isHeadCoach, in both branches -- a
+  // director overseeing an org team can schedule for it without a personal
+  // team_staff row on that specific team.
   const canScheduleAny = fixedTeamId
-    ? isHeadCoach(data.teams.find(t => t.id === fixedTeamId), coachId)
-    : data.teams.some(t => isHeadCoach(t, coachId));
+    ? canManageTeamInMode(data.teams.find(t => t.id === fixedTeamId), coachId, appMode)
+    : data.teams.some(t => canManageTeamInMode(t, coachId, appMode));
   const toggleTeam = id => setTeamFilter(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const passesFilter = p => teamFilter.size === 0 || teamFilter.has(p.teamId);
   const filtered = data.practices.filter(passesFilter);
@@ -135,7 +141,7 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
   // inline Back button there.
   const subViewBackProp = fixedTeamId ? setSubViewBack : undefined;
   if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} coachId={coachId} refreshPlanning={refreshPlanning} setSubViewBack={subViewBackProp} /></div>);
-  if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning} onBack={() => setViewPractice(null)} setSubViewBack={subViewBackProp} /></div>);
+  if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning} onBack={() => setViewPractice(null)} setSubViewBack={subViewBackProp} mode={appMode} /></div>);
 
   const teamById = id => data.teams.find(t => t.id === id);
 
@@ -254,7 +260,7 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
       {daySheetDate && <DaySheet date={daySheetDate} practices={(practicesByDate[daySheetDate] || []).sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))} data={data} todayStr={todayStr} runStatus={runStatus} onPick={p => { setDaySheetDate(null); openPractice(p); }} onClose={() => setDaySheetDate(null)} />}
     </div>}
 
-    {showWizard && <SeriesWizard data={data} coachId={coachId} presetTeamId={fixedTeamId} onClose={() => setShowWizard(false)} onDone={async () => { setShowWizard(false); await refreshPlanning(); }} />}
-    {showSingle && <SchedulePracticeModal data={data} coachId={coachId} presetTeamId={fixedTeamId} refreshPlanning={refreshPlanning} onClose={() => setShowSingle(false)} onDone={async (result, planNow) => { setShowSingle(false); await refreshPlanning(); if (planNow && result) goToBuilder(result.id); }} />}
+    {showWizard && <SeriesWizard data={data} coachId={coachId} mode={appMode} presetTeamId={fixedTeamId} onClose={() => setShowWizard(false)} onDone={async () => { setShowWizard(false); await refreshPlanning(); }} />}
+    {showSingle && <SchedulePracticeModal data={data} coachId={coachId} mode={appMode} presetTeamId={fixedTeamId} refreshPlanning={refreshPlanning} onClose={() => setShowSingle(false)} onDone={async (result, planNow) => { setShowSingle(false); await refreshPlanning(); if (planNow && result) goToBuilder(result.id); }} />}
   </div>);
 }
