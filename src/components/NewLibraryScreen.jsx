@@ -836,6 +836,11 @@ function SchedulePracticePicker({data,onPick,onClose}){
 // here but never read anywhere -- deleted, not migrated.
 export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,refreshLibrary,coachId,refreshPlanning,mode}){
   const isOrgMode = mode && mode.type === "org";
+  // Same "so it looks like their org" treatment as the org-mode bottom tab
+  // bar (Layout.jsx) -- a colored accent bar under the title, using the
+  // org's own color, so Club Library reads as this specific club's space
+  // rather than a generic screen that happens to say "Club" on it.
+  const activeOrg = isOrgMode ? (data.myOrgs||[]).find(o=>o.id===mode.orgId) : null;
   const [section,setSection]=useState("mine"); // "mine" | "explore"
   const [mineTab,setMineTab]=useState("drills"); // sub-toggle within My Library
   const [openMenu,setOpenMenu]=useState(null);
@@ -878,21 +883,50 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
     setDrillOrderOverride(p=>{const n=Object.assign({},p);delete n[sport];return n;});
   };
   const myOrgs=data.myOrgs||[];
+  // Coach display names for shelf labels: profiles is locked down to
+  // "own row, or an org co-member's row via org_staff" (profiles_select_
+  // org_co_member) -- a coach who's just team_staff on one of the org's
+  // teams, not personally an org_staff director, won't resolve there even
+  // though they're perfectly able to share a drill into the org (see
+  // can_share_drill_to_org's team_staff branch). team_staff already stores
+  // first/last name directly for exactly this cross-user-display reason
+  // (its own table comment), so fall back to it before giving up.
+  const coachNameByUserId={};
+  (data.teams||[]).forEach(t=>(t.coaches||[]).forEach(c=>{if(c.userId&&!coachNameByUserId[c.userId])coachNameByUserId[c.userId]=c.name;}));
+  const coachDisplayName=userId=>(data.profilesById&&data.profilesById[userId]&&data.profilesById[userId].name)||coachNameByUserId[userId]||"A coach";
   // Public Library shown regardless of org membership (spec §3 -- public is
-  // public), always first so it's the default Explore landing shelf.
-  const exploreShelves=[{key:"public",label:"Public Library"},...myOrgs.flatMap(org=>[{key:"orgLib:"+org.id,label:org.name+" Library",org},{key:"shared:"+org.id,label:"From "+org.name,org}])];
+  // public), always first so it's the default Team Libraries landing shelf.
+  // Per-org shelves: the org's own curated library, then one shelf *per
+  // coach* who's shared at least one drill to that org -- replaces a single
+  // flat "From {org}" shelf that lumped every coach's shared drills
+  // together with no way to tell whose was whose. A director managing a
+  // multi-coach club wants to browse "what has Coach Jane shared" as its
+  // own destination, not dig through a merged list.
+  const exploreShelves=[{key:"public",label:"Public Library"},...myOrgs.flatMap(org=>{
+    const sharedByCoach={};
+    (data.activityLibrary||[]).forEach(a=>{
+      if(!a.ownerUserId||a.ownerUserId===coachId)return;
+      if(!(a.sharedWithOrganizationIds||[]).includes(org.id))return;
+      (sharedByCoach[a.ownerUserId]=sharedByCoach[a.ownerUserId]||[]).push(a);
+    });
+    const coachShelves=Object.keys(sharedByCoach)
+      .map(ownerId=>({ownerId,name:coachDisplayName(ownerId),count:sharedByCoach[ownerId].length}))
+      .sort((a,b)=>a.name.localeCompare(b.name))
+      .map(c=>({key:"sharedBy:"+org.id+":"+c.ownerId,label:c.name+" ("+c.count+")",org}));
+    return [{key:"orgLib:"+org.id,label:org.name+" Library",org},...coachShelves];
+  })];
   const goSection=s=>{
     setSection(s);
     setShelf(s==="mine"?"mine":(exploreShelves[0]?exploreShelves[0].key:""));
     setTagFilter([]);setTagSearch("");setPublisherFilter([]);
   };
-  const showDrillList=(section==="mine"&&mineTab==="drills")||(section==="explore"&&exploreShelves.length>0);
+  const showDrillList=mineTab==="drills"&&(section==="mine"||exploreShelves.length>0);
   // shelf==="public" is handled entirely by PublicLibraryScreen (search-first
   // browsing, 2026-07-19) -- not computed here at all.
   const shelfDrillsAll=(()=>{
     if(shelf==="mine")return (data.activityLibrary||[]).filter(a=>isOrgMode?a.organizationId===mode.orgId:a.ownerUserId===coachId);
     if(shelf.startsWith("orgLib:")){const orgId=shelf.slice(7);return (data.activityLibrary||[]).filter(a=>a.organizationId===orgId);}
-    if(shelf.startsWith("shared:")){const orgId=shelf.slice(7);return (data.activityLibrary||[]).filter(a=>(a.sharedWithOrganizationIds||[]).includes(orgId)&&a.ownerUserId!==coachId);}
+    if(shelf.startsWith("sharedBy:")){const [,orgId,ownerId]=shelf.split(":");return (data.activityLibrary||[]).filter(a=>a.ownerUserId===ownerId&&(a.sharedWithOrganizationIds||[]).includes(orgId));}
     return [];
   })();
   const isMine=shelf==="mine";
@@ -936,7 +970,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   // more than one org, so this is a multi-select toggle, not a single pick.
   const toggleShare=async(drillId,orgId)=>{const drill=(data.activityLibrary||[]).find(a=>a.id===drillId);const cur=(drill&&drill.sharedWithOrganizationIds)||[];const next=cur.includes(orgId)?cur.filter(id=>id!==orgId):[...cur,orgId];await setDrillOrgShares(drillId,next);await refreshLibrary();};
   const makePrivate=async(drillId)=>{setShareMenuId(null);await setDrillOrgShares(drillId,[]);await refreshLibrary();};
-  const doCopy=async(drill)=>{setCopyingId(drill.id);await copyDrillToMyLibrary(coachId,drill,assetsById,skillTagsById);await refreshLibrary();setCopyingId(null);};
+  const doCopy=async(drill)=>{setCopyingId(drill.id);await copyDrillToMyLibrary(coachId,drill,assetsById,skillTagsById,mode);await refreshLibrary();setCopyingId(null);};
   // Coach mode: templates I own. Org mode: the org's own templates. (Coach
   // mode's own-only filter is new here -- this list previously showed every
   // RLS-visible template unfiltered, which happened to work when org
@@ -968,36 +1002,45 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>goToBuilder(null,tplId)} onRunNow={goToRun}/></div>);
   return (<div style={{paddingBottom:80}}>
     <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>{isOrgMode?"Club Library":"Library"}</div>
+      <div>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>{isOrgMode?"Club Library":"Library"}</div>
+        {isOrgMode&&activeOrg&&activeOrg.color&&<div style={{width:48,height:4,borderRadius:2,background:activeOrg.color,marginTop:6}}/>}
+      </div>
       <button className="btn primary bsm" onClick={()=>setShowBuildChoice(true)}>+ Build Practice</button>
     </div>
     <div style={{padding:"0 16px 12px"}}>
-      <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:0}}>
-        {[{k:"mine",label:isOrgMode?"Org Library":"My Library"},{k:"explore",label:"Explore"}].map(t=>(<button key={t.k} onClick={()=>goSection(t.k)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:section===t.k?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:section===t.k?"var(--black)":"var(--td)"}}>{t.label}</button>))}
-      </div>
       {/* 5-tab content-type sub-nav (Drills default): Locations/Equipment/
           Skill Tags moved here from Settings -- a director managing an
           org's shared stuff wants one place for all five content types,
           which already share the identical coach-or-org ownership pattern
-          in the schema. Explore only applies to drills (cross-coach/org
-          browsing), so this row is My/Org Library only, same as before. */}
+          in the schema. Always visible now (used to be gated behind the
+          My/Explore pill, which meant switching to Explore hid Templates/
+          Locations/Equipment/Skill Tags entirely, even though Explore never
+          applied to any of them -- only Drills has cross-coach/org content
+          to browse, so that pill moved down into just the Drills tab below). */}
       {/* Tap-target fix (same class of bug as Layout.jsx's team-workspace
           tabs): padding was "2px 0" -- no side padding at all -- so the hit
           box was exactly text-sized. Padding widened, row gap shrank to
           compensate so all 5 tabs still fit without extra scrolling. */}
-      {section==="mine"&&<div style={{display:"flex",gap:8,padding:"6px 2px 0",overflowX:"auto"}}>
+      <div style={{display:"flex",gap:8,padding:"6px 2px 0",overflowX:"auto"}}>
         {[{k:"drills",label:"Drills"},{k:"templates",label:"Templates"},{k:"locations",label:"Locations"},{k:"equipment",label:"Equipment"},{k:"skills",label:"Skill Tags"}].map(t=>(<button key={t.k} onClick={()=>setMineTab(t.k)} style={{flexShrink:0,background:"none",border:"none",cursor:"pointer",padding:"8px 6px",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap",color:mineTab===t.k?"var(--green)":"var(--td)",borderBottom:"2px solid "+(mineTab===t.k?"var(--green)":"transparent")}}>{t.label}</button>))}
+      </div>
+      {/* My Drills / Team Libraries -- Drills-only, since Explore never
+          applied to Templates/Locations/Equipment/Skill Tags in the first
+          place (each of those is always just "mine," coach- or org-scoped). */}
+      {mineTab==="drills"&&<div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginTop:10}}>
+        {[{k:"mine",label:isOrgMode?"Org Drills":"My Drills"},{k:"explore",label:"Team Libraries"}].map(t=>(<button key={t.k} onClick={()=>goSection(t.k)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:section===t.k?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:section===t.k?"var(--black)":"var(--td)"}}>{t.label}</button>))}
       </div>}
     </div>
-    {section==="mine"&&mineTab==="locations"&&<div style={{padding:"0 16px"}}><LocationsSection data={data} openModal={openModal} refreshPlanning={refreshPlanning} coachId={coachId} mode={mode}/></div>}
-    {section==="mine"&&mineTab==="equipment"&&<div style={{padding:"0 16px"}}><EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode={mode}/></div>}
-    {section==="mine"&&mineTab==="skills"&&<div style={{padding:"0 16px"}}><SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} isAdmin={isAdmin} mode={mode}/></div>}
+    {mineTab==="locations"&&<div style={{padding:"0 16px"}}><LocationsSection data={data} openModal={openModal} refreshPlanning={refreshPlanning} coachId={coachId} mode={mode}/></div>}
+    {mineTab==="equipment"&&<div style={{padding:"0 16px"}}><EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode={mode}/></div>}
+    {mineTab==="skills"&&<div style={{padding:"0 16px"}}><SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} isAdmin={isAdmin} mode={mode}/></div>}
     {showDrillList&&<div style={{padding:"0 16px"}} onClick={()=>{setDrillMenu(null);setShareMenuId(null);}}>
       {section==="explore"&&exploreShelves.length>1&&<div style={{display:"flex",gap:6,overflowX:"auto",marginBottom:12,paddingBottom:2}}>
         {exploreShelves.map(s=>(<button key={s.key} onClick={()=>{setShelf(s.key);setTagFilter([]);setTagSearch("");}} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:shelf===s.key?"var(--green)":"var(--s1)",color:shelf===s.key?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{s.label}</button>))}
       </div>}
       {shelf==="public"?(
-        <div onClick={e=>e.stopPropagation()}><PublicLibraryScreen data={data} isAdmin={isAdmin} refreshLibrary={refreshLibrary} openModal={openModal} doCopy={doCopy} copyingId={copyingId}/></div>
+        <div onClick={e=>e.stopPropagation()}><PublicLibraryScreen data={data} isAdmin={isAdmin} refreshLibrary={refreshLibrary} openModal={openModal} doCopy={doCopy} copyingId={copyingId} mode={mode}/></div>
       ):(<>
       <div style={{display:"flex",justifyContent:"flex-end",gap:6,marginBottom:12}}>
         {(availableTags.length>0||(isMine&&availablePublishers.length>1))&&<button className="btn ghost bsm" onClick={e=>{e.stopPropagation();setShowFilter(true);}}>Filter{(tagFilter.length+publisherFilter.length)>0?" ("+(tagFilter.length+publisherFilter.length)+")":""}</button>}
@@ -1064,7 +1107,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
                 {tagNames(act.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
               </div>}
               {!isMine&&<div style={{fontSize:11,color:"var(--green2)",marginTop:4}}>Shared by {(data.profilesById&&data.profilesById[act.ownerUserId]&&data.profilesById[act.ownerUserId].name)||"a coach"}</div>}
-              {!isMine&&shelf.startsWith("shared:")&&<button className="btn outline bxs" style={{marginTop:6}} onClick={()=>doCopy(act)} disabled={copyingId===act.id}>{copyingId===act.id?"Copying...":"Copy to My Library"}</button>}
+              {!isMine&&shelf.startsWith("sharedBy:")&&<button className="btn outline bxs" style={{marginTop:6}} onClick={()=>doCopy(act)} disabled={copyingId===act.id}>{copyingId===act.id?"Copying...":isOrgMode?"Copy to Org Library":"Copy to My Library"}</button>}
             </div>
             {isMine&&<div style={{position:"relative",flexShrink:0}}>
               <button className="ell-btn" onClick={e=>{e.stopPropagation();setDrillMenu(drillMenu===act.id?null:act.id);setShareMenuId(null);}}><span/><span/><span/></button>
@@ -1087,7 +1130,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       </div>))}
       </>)}
     </div>}
-    {section==="mine"&&mineTab==="templates"&&<div style={{padding:"0 16px"}}>
+    {mineTab==="templates"&&<div style={{padding:"0 16px"}}>
       <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn primary bsm" onClick={()=>{setNewTplNameDraft("");setNewTplPrompt(true);}}>+ New Template</button></div>
       {newTplPrompt&&<div className="movly" onClick={()=>setNewTplPrompt(false)}><div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="mtitle">Name your template</div>

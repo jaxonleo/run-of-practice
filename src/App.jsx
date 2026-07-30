@@ -726,8 +726,13 @@ function TeamEquipmentRoute(){
   const navigate=useNavigate();
   const {data,coachId,openModal,refreshLibrary,mode}=useAppCtx();
   const team=data.teams.find(t=>t.id===teamId);
-  useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
-  if(!team)return null;
+  const isOrgMode=mode&&mode.type==="org";
+  // Per-team Equipment tab is Coach-mode only now -- Org mode manages
+  // equipment centrally from Club Library's own Equipment tab instead (see
+  // Layout.jsx's teamWorkspaceTabs). A direct link/back-nav into this route
+  // while in Org mode has nowhere useful to land, so bounce to Schedule.
+  useEffect(()=>{if(!team||isOrgMode)navigate(isOrgMode?`/team/${teamId}/schedule`:"/teams");},[team,isOrgMode,teamId,navigate]);
+  if(!team||isOrgMode)return null;
   return (<div style={{padding:"16px 16px calc(var(--tab) + 20px)"}}>
     <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} sportFilter={team.sport} mode={mode}/>
   </div>);

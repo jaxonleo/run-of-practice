@@ -22,7 +22,8 @@ function highlightMatch(text, query) {
 // dropped here -- a search/filter result set is sorted by relevance/name,
 // not hand-curated order; the founder-admin's add/edit/archive affordances
 // are preserved, just relocated into this flow.
-export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, doCopy, copyingId}) {
+export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, doCopy, copyingId, mode}) {
+  const isOrgMode = mode && mode.type === "org";
   const [selectedSport, setSelectedSport] = useState(null);
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState(null);
@@ -166,7 +167,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
           {d.skillTagIds && d.skillTagIds.length > 0 && <div style={{display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4}}>
             {tagNames(d.skillTagIds).map(name => (<span key={name} className="bdg bs" style={{fontSize: 10}}>{name}</span>))}
           </div>}
-          <button className="btn outline bxs" style={{marginTop: 8}} onClick={() => doCopy(d)} disabled={copyingId === d.id}>{copyingId === d.id ? "Copying..." : "Copy to My Library"}</button>
+          <button className="btn outline bxs" style={{marginTop: 8}} onClick={() => doCopy(d)} disabled={copyingId === d.id}>{copyingId === d.id ? "Copying..." : isOrgMode ? "Copy to Org Library" : "Copy to My Library"}</button>
         </div>}
       </div>);
     })}

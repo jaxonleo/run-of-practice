@@ -571,9 +571,18 @@ export async function setDrillOrgShares(drillId, organizationIds) {
 // into your own library must NOT reference the sharer's asset rows. Resolve
 // by name+type into the recipient's own pool -- match an existing asset, or
 // inline-create one, exactly like the "type a new one" picker behavior.
-export async function copyDrillToMyLibrary(ownerUserId, sourceDrill, sourceAssetsById, sourceSkillTagsById) {
+// Mode-aware (Phase 2): a director copying a drill while in Org mode lands
+// it in the org's library (organization_id set, owner_user_id null) and
+// resolves equipment against the org's own asset pool, not the director's
+// personal one -- matches every other "which pool does this write land in"
+// decision this session (Roster/Goals/Schedule via canManageTeamInMode,
+// equipment creation via createOrgAsset). Coach mode (or no mode passed,
+// for callers that predate this) keeps the original personal-library behavior.
+export async function copyDrillToMyLibrary(ownerUserId, sourceDrill, sourceAssetsById, sourceSkillTagsById, mode) {
+  const isOrgMode = mode && mode.type === 'org'
   const { data: created, error } = await supabase.from('activity_library').insert({
-    owner_user_id: ownerUserId, name: sourceDrill.name, sport: sourceDrill.sport,
+    owner_user_id: isOrgMode ? null : ownerUserId, organization_id: isOrgMode ? mode.orgId : null,
+    name: sourceDrill.name, sport: sourceDrill.sport,
     duration_minutes: sourceDrill.duration || null, description: sourceDrill.description || null,
     coaching_points: sourceDrill.coachingPoints || null, grouping: sourceDrill.grouping || 'whole',
     num_groups: sourceDrill.numGroups || null,
@@ -585,16 +594,21 @@ export async function copyDrillToMyLibrary(ownerUserId, sourceDrill, sourceAsset
 
   const equipmentIds = sourceDrill.equipment || []
   if (equipmentIds.length) {
-    const { data: myAssets } = await supabase.from('assets').select('*').eq('owner_user_id', ownerUserId).is('archived_at', null)
-    const mine = (myAssets || []).map(mapAssetRow)
+    const poolQuery = isOrgMode
+      ? supabase.from('assets').select('*').eq('organization_id', mode.orgId).is('archived_at', null)
+      : supabase.from('assets').select('*').eq('owner_user_id', ownerUserId).is('archived_at', null)
+    const { data: poolAssets } = await poolQuery
+    const pool = (poolAssets || []).map(mapAssetRow)
     const resolvedIds = []
     for (const assetId of equipmentIds) {
       const source = sourceAssetsById[assetId]
       if (!source) continue
-      const match = mine.find(a => a.name.toLowerCase() === source.name.toLowerCase() && a.type === source.type)
+      const match = pool.find(a => a.name.toLowerCase() === source.name.toLowerCase() && a.type === source.type)
       if (match) { resolvedIds.push(match.id); continue }
-      const { data: newAsset } = await createAsset(ownerUserId, { name: source.name, sport: source.sport, type: source.type })
-      if (newAsset) { resolvedIds.push(newAsset.id); mine.push(newAsset) }
+      const { data: newAsset } = isOrgMode
+        ? await createOrgAsset(mode.orgId, { name: source.name, sport: source.sport, type: source.type })
+        : await createAsset(ownerUserId, { name: source.name, sport: source.sport, type: source.type })
+      if (newAsset) { resolvedIds.push(newAsset.id); pool.push(newAsset) }
     }
     if (resolvedIds.length) await syncDrillEquipment(created.id, resolvedIds)
   }

@@ -25,10 +25,16 @@ const GLOBAL_TABS = [
 // side-scrolling top row, so nothing is two taps deep anymore. The bottom
 // bar itself no longer switches contents inside a team -- it's always
 // GLOBAL_TABS, addressing the "no common bottom menu" complaint directly.
-const teamWorkspaceTabs = teamId => [
+// Equipment is Coach-mode only (Phase 2 org rework): in Org mode a club's
+// equipment is managed centrally from Club Library's own Equipment tab, not
+// per-team -- a per-team tab here would just be a second, narrower place to
+// edit the same org-owned rows. Builder's picker already surfaces the right
+// equipment for a given team/location regardless of mode (see
+// ownedOrOrgAtLoc in ActivityConfigs.jsx), so nothing is lost by dropping it.
+const teamWorkspaceTabs = (teamId, isOrgMode) => [
   { id: "schedule", label: "Schedule", path: `/team/${teamId}/schedule` },
   { id: "roster", label: "Roster", path: `/team/${teamId}/roster` },
-  { id: "equipment", label: "Equipment", path: `/team/${teamId}/equipment` },
+  ...(isOrgMode ? [] : [{ id: "equipment", label: "Equipment", path: `/team/${teamId}/equipment` }]),
   { id: "goals", label: "Goals & Insights", path: `/team/${teamId}/goals` },
 ];
 
@@ -42,7 +48,7 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
   const [teamMenuOpen, setTeamMenuOpen] = useState(false);
 
   const team = inTeam ? (data.teams || []).find(t => t.id === teamId) : null;
-  const workspaceTabs = inTeam ? teamWorkspaceTabs(teamId) : [];
+  const workspaceTabs = inTeam ? teamWorkspaceTabs(teamId, isOrgMode) : [];
   // Org color (Jax's ask: "so when they're logged in to their org it looks
   // like their org") -- falls back to the plain .tabbar.org green when the
   // org hasn't picked one. Inline style wins over the CSS class's
