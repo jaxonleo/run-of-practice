@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { checkIsAdmin, listAdmins, grantAdmin, revokeAdmin, createOrganization, leaveTeam, setTeamStaffShowOnHome } from "../supabase.js";
-import { myTeamRole, AUDIO_CUES, getAudioCuePref, setAudioCuePref, getVoiceGenderPref, setVoiceGenderPref, pickPreferredVoice } from "../constants.js";
+import { myTeamRole, AUDIO_CUES, getAudioCuePref, setAudioCuePref, getVoiceURIPref, setVoiceURIPref, loadVoices } from "../constants.js";
 
 // Settings hub (nav restructure, 2026-07-15; narrowed again in the Library
 // 5-tab redesign): originally held Account, Locations, Equipment & Gear, and
@@ -123,15 +123,32 @@ function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate}){
 // Coach-selectable time's-up cue + announcer voice, requested after the
 // default whistle+"Time" combo didn't land for everyone. Stored in
 // localStorage (constants.js) rather than the database -- both are
-// inherently per-device: available speechSynthesis voices differ by
-// browser/OS, so a specific voice chosen on one device may not exist on
-// another, and re-resolving from a plain gender flag at speak-time on
-// whichever device is playing is simpler and more correct than trying to
-// sync an exact voice name across devices.
+// inherently per-device: available speechSynthesis voices differ entirely
+// by browser/OS, so a specific voice chosen on one device may not exist
+// on another, and re-resolving at speak-time on whichever device is
+// playing is simpler and more correct than trying to sync a voice across
+// devices.
+//
+// First version picked "Male"/"Female" via a name-based heuristic (the
+// Web Speech API has no real gender metadata) and used whichever voice
+// matched first -- on a real device that surfaced an old, dated-sounding
+// voice ahead of much better ones the heuristic didn't know about, since
+// there's no way to infer voice *quality* from a name. This lists every
+// voice actually installed on the device instead, so the coach can
+// preview and pick whichever one genuinely sounds best to them.
 function LivePracticeAudioSection(){
   const [cue,setCue]=useState(getAudioCuePref());
-  const [gender,setGender]=useState(getVoiceGenderPref());
+  const [voiceURI,setVoiceURI]=useState(getVoiceURIPref());
+  const [voices,setVoices]=useState([]);
+  const [loadingVoices,setLoadingVoices]=useState(true);
   const previewAudioRef=useRef(null);
+  useEffect(()=>{
+    loadVoices().then(list=>{
+      const en=list.filter(v=>/^en/i.test(v.lang));
+      setVoices(en.length?en:list);
+      setLoadingVoices(false);
+    });
+  },[]);
   const previewCue=id=>{
     try{
       if(previewAudioRef.current)previewAudioRef.current.pause();
@@ -143,27 +160,35 @@ function LivePracticeAudioSection(){
     }catch(e){}
   };
   const chooseCue=id=>{setCue(id);setAudioCuePref(id);previewCue(id);};
-  const previewVoice=g=>{
+  const previewVoice=uri=>{
     try{
       window.speechSynthesis.cancel();
       const u=new SpeechSynthesisUtterance("Two minutes remaining.");
       u.rate=0.9;
-      const v=pickPreferredVoice(g);
+      const v=voices.find(v=>v.voiceURI===uri);
       if(v)u.voice=v;
       window.speechSynthesis.speak(u);
     }catch(e){}
   };
-  const chooseGender=g=>{setGender(g);setVoiceGenderPref(g);previewVoice(g);};
+  const chooseVoice=uri=>{setVoiceURI(uri);setVoiceURIPref(uri);previewVoice(uri);};
+  const VoiceRow=({selected,label,sub,onClick})=>(
+    <button onClick={onClick} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 10px",border:"none",background:selected?"var(--gbg)":"transparent",borderRadius:8,cursor:"pointer",textAlign:"left",width:"100%"}}>
+      <span style={{fontSize:14,color:"var(--black)",fontWeight:selected?700:500}}>{label}{sub&&<span style={{color:"var(--td)",fontWeight:400,fontSize:11,marginLeft:6}}>{sub}</span>}</span>
+      {selected&&<span style={{color:"var(--green)",fontWeight:700}}>&#10003;</span>}
+    </button>
+  );
   return (<div>
     <div className="clbl mb8">Time's Up Sound</div>
     <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:24}}>
       {AUDIO_CUES.map(c=>(<button key={c.id} className={"btn bsm "+(cue===c.id?"primary":"outline")} onClick={()=>chooseCue(c.id)}>{c.label}</button>))}
     </div>
     <div className="clbl mb8">Announcer Voice</div>
-    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
-      {[["default","Device Default"],["male","Male"],["female","Female"]].map(([id,label])=>(<button key={id} className={"btn bsm "+(gender===id?"primary":"outline")} onClick={()=>chooseGender(id)}>{label}</button>))}
-    </div>
-    <div style={{fontSize:12,color:"var(--td)",lineHeight:1.5}}>Tap a sound or voice above to hear it before you pick. Voice options depend on your device and browser -- if Male or Female sounds the same as Device Default, your device doesn't have a distinct voice installed for that choice, and it'll just use the default one instead.</div>
+    {loadingVoices&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>Loading voices...</div>}
+    {!loadingVoices&&<div style={{display:"flex",flexDirection:"column",gap:2,marginBottom:10,maxHeight:340,overflowY:"auto",border:"1px solid var(--b)",borderRadius:"var(--r)",padding:4}}>
+      <VoiceRow selected={!voiceURI} label="Device Default" onClick={()=>chooseVoice("")}/>
+      {voices.map(v=>(<VoiceRow key={v.voiceURI} selected={voiceURI===v.voiceURI} label={v.name} sub={v.lang} onClick={()=>chooseVoice(v.voiceURI)}/>))}
+    </div>}
+    <div style={{fontSize:12,color:"var(--td)",lineHeight:1.5}}>Tap a sound or voice above to hear it and select it. Voices come from your device and browser, so the list and quality vary -- some names (novelty/character voices) won't sound natural for announcements, so it's worth trying a few.</div>
   </div>);
 }
 

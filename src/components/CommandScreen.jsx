@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceGenderPref, pickPreferredVoice } from "../constants.js";
+import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI } from "../constants.js";
 import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote, updateStationLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
@@ -1179,20 +1179,19 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     return()=>clearInterval(iv);
   },[running]);
 
-  // Voice is coach-selectable too (Settings -> Live Practice Audio: Male/
-  // Female/Default, getVoiceGenderPref()) -- pickPreferredVoice is a
-  // name-based heuristic (the Web Speech API has no real gender
-  // metadata), returns null if nothing matches on this device/browser, in
-  // which case this just leaves u.voice unset and falls back to whatever
-  // the browser's own default voice is, exactly like before this setting
-  // existed.
+  // Voice is coach-selectable (Settings -> Live Practice Audio) -- the
+  // coach previews and picks a specific installed voice there, remembered
+  // by voiceURI. If it's not found here (uncleared preference, or a
+  // voice that only existed on a different device), this just leaves
+  // u.voice unset and falls back to whatever the browser's own default
+  // voice is, exactly like before this setting existed.
   const speak=useCallback(txt=>{
     if(!audioOn)return;
     try{
       window.speechSynthesis.cancel();
       const u=new SpeechSynthesisUtterance(txt);
       u.rate=0.9;
-      const v=pickPreferredVoice(getVoiceGenderPref());
+      const v=resolveVoiceByURI(getVoiceURIPref());
       if(v)u.voice=v;
       window.speechSynthesis.speak(u);
     }catch(e){};

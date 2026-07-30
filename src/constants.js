@@ -177,10 +177,10 @@ export function nextTeamColor(existingTeams){
 // Coach-selectable time's-up cue + announcer voice (Settings -> Live
 // Practice Audio). Stored in localStorage, not the database -- both are
 // inherently per-device preferences (available speechSynthesis voices
-// differ by browser/OS, so a "male voice" chosen on one device may not
-// exist on another; re-resolving from a plain gender flag at speak-time
-// on whichever device is playing is simpler and more correct than trying
-// to sync a specific voice name across devices).
+// differ by browser/OS entirely, so a voice chosen on one device may not
+// exist on another; re-resolving at speak-time on whichever device is
+// playing is simpler and more correct than trying to sync a specific
+// voice across devices).
 export const AUDIO_CUES=[
   {id:"whistle",label:"Whistle",file:"/audio/whistle.wav"},
   {id:"buzzer",label:"Buzzer",file:"/audio/gym-buzzer.wav"},
@@ -188,33 +188,44 @@ export const AUDIO_CUES=[
   {id:"beep",label:"Beep",file:"/audio/beep.wav"},
 ];
 const AUDIO_CUE_KEY="rop_audio_cue_pref";
-const VOICE_GENDER_KEY="rop_voice_gender_pref";
+const VOICE_URI_KEY="rop_voice_uri_pref";
 export function getAudioCuePref(){
   try{const v=localStorage.getItem(AUDIO_CUE_KEY);return AUDIO_CUES.some(c=>c.id===v)?v:"whistle";}catch(e){return "whistle";}
 }
 export function setAudioCuePref(id){try{localStorage.setItem(AUDIO_CUE_KEY,id);}catch(e){}}
-export function getVoiceGenderPref(){
-  try{const v=localStorage.getItem(VOICE_GENDER_KEY);return (v==="male"||v==="female")?v:"default";}catch(e){return "default";}
+// A first pass at this picked "male" or "female" via a name-based
+// heuristic (the Web Speech API has no real gender metadata) and just
+// grabbed the first match -- on a real device that surfaced a legacy,
+// dated-sounding voice ("Daniel") ahead of much better ones the hint
+// list didn't know about, since there's no way to infer voice *quality*
+// from a name at all. Replaced with a real picker instead: list every
+// voice actually installed on this device, let the coach preview and
+// choose whichever one sounds best to them, and remember that exact
+// voice by its voiceURI (stable per-device identifier).
+export function getVoiceURIPref(){
+  try{return localStorage.getItem(VOICE_URI_KEY)||"";}catch(e){return "";}
 }
-export function setVoiceGenderPref(g){try{localStorage.setItem(VOICE_GENDER_KEY,g);}catch(e){}}
-// The Web Speech API has no real gender metadata on a voice -- this is a
-// name-based heuristic, the same approach most web speechSynthesis
-// "voice picker" implementations use. Coverage varies a lot by platform:
-// iOS/macOS Safari voices are clearly named ("Samantha", "Daniel"),
-// Android/Chrome mostly exposes "Google US English" (female) without a
-// consistent male counterpart, and availability differs release to
-// release -- so this can legitimately find nothing on some devices and
-// silently fall back to whatever the browser's default voice is.
-const MALE_VOICE_HINTS=["male","david","daniel","alex","fred","tom","mark","james","aaron","oliver","ryan","microsoft david","microsoft mark","google uk english male"];
-const FEMALE_VOICE_HINTS=["female","samantha","victoria","zira","susan","karen","allison","ava","moira","tessa","microsoft zira","google us english","google uk english female"];
-export function pickPreferredVoice(genderPref){
-  if(genderPref!=="male"&&genderPref!=="female")return null;
+export function setVoiceURIPref(uri){try{if(uri)localStorage.setItem(VOICE_URI_KEY,uri);else localStorage.removeItem(VOICE_URI_KEY);}catch(e){}}
+// getVoices() can return [] until the browser's async voice list finishes
+// loading (fires 'voiceschanged' once ready) -- most callers just want the
+// list right now for a dropdown, so this resolves once voices exist or a
+// short timeout elapses, whichever comes first, rather than the caller
+// having to juggle the event itself.
+export function loadVoices(){
+  return new Promise(resolve=>{
+    try{
+      const existing=window.speechSynthesis.getVoices();
+      if(existing&&existing.length)return resolve(existing);
+      const done=()=>resolve(window.speechSynthesis.getVoices()||[]);
+      window.speechSynthesis.onvoiceschanged=done;
+      setTimeout(done,600);
+    }catch(e){resolve([]);}
+  });
+}
+export function resolveVoiceByURI(uri){
+  if(!uri)return null;
   try{
     const voices=(window.speechSynthesis&&window.speechSynthesis.getVoices())||[];
-    if(!voices.length)return null;
-    const en=voices.filter(v=>/^en/i.test(v.lang));
-    const pool=en.length?en:voices;
-    const hints=genderPref==="male"?MALE_VOICE_HINTS:FEMALE_VOICE_HINTS;
-    return pool.find(v=>hints.some(h=>v.name.toLowerCase().includes(h)))||null;
+    return voices.find(v=>v.voiceURI===uri)||null;
   }catch(e){return null;}
 }
