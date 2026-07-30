@@ -72,7 +72,13 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
           registers itself via subViewBack (AppCtx), and its Back button
           renders here instead, on the opposite side from the ellipsis. */}
       {inTeam && team && <div style={{ position: "relative", background: team.colorPrimary || "var(--green)", padding: "14px 46px", textAlign: "center", flexShrink: 0 }} onClick={() => teamMenuOpen && setTeamMenuOpen(false)}>
-        {subViewBack && <button aria-label="Back" onClick={e => { e.stopPropagation(); subViewBack.onBack(); }} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,.18)", border: "none", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", fontSize: 20, lineHeight: 1 }}>&#8249;</button>}
+        {/* subViewBack (a drilled-in sub-view like Practice Detail) takes
+            priority when present -- it un-drills one level. Otherwise this
+            is the team workspace's own top-level Schedule/Roster/Equipment/
+            Goals view, which had no way back to the Teams list at all
+            before (deliberately, per the nav-restructure comment above) --
+            direct feedback said that wasn't enough on its own. */}
+        <button aria-label="Back" onClick={e => { e.stopPropagation(); subViewBack ? subViewBack.onBack() : navigate("/teams"); }} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,.18)", border: "none", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", fontSize: 20, lineHeight: 1 }}>&#8249;</button>
         <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, color: "#fff", letterSpacing: ".01em" }}>{team.name}</span>
         <button className="ell-btn" aria-label="Team options" onClick={e => { e.stopPropagation(); setTeamMenuOpen(o => !o); }} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}>
           <span style={{ background: "#fff" }}/><span style={{ background: "#fff" }}/><span style={{ background: "#fff" }}/>
@@ -101,7 +107,15 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
       </div>
       {!hideTabBar && <nav className={"tabbar" + (isOrgMode ? " org" : "")} style={orgBarStyle}>
         {GLOBAL_TABS.map(({ id, label, path, I }) => {
-          const active = path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
+          // A team workspace (/team/:teamId/*) is reachable straight from
+          // Home too, not just the Teams list -- but Teams is still the
+          // tab that conceptually owns it (it's where the team list lives,
+          // and the new back button above always returns there), so it's
+          // the one that should stay lit up rather than leaving all three
+          // dark the whole time you're inside a team.
+          const active = path === "/" ? location.pathname === "/"
+            : id === "teams" ? (location.pathname.startsWith(path) || location.pathname.startsWith("/team/"))
+            : location.pathname.startsWith(path);
           return (<button key={id} className={"ti " + (active ? "on" : "")} onClick={() => navigate(path)}>
             <I/>{label}
           </button>);

@@ -6,17 +6,17 @@ import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
-import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, reactivateIfNeeded, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer } from "./supabase.js";
+import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode } from "./constants.js";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
-import NewLibraryScreen, { EquipmentTab } from "./components/NewLibraryScreen.jsx";
+import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView } from "./components/CommandScreen.jsx";
 import HomeScreen from "./components/HomeScreen.jsx";
 import ScheduleScreen from "./components/ScheduleScreen.jsx";
 import AbsencePicker from "./components/AbsencePicker.jsx";
 import LandingPage from "./components/LandingPage.jsx";
-import { TermsPage, PrivacyPage } from "./components/LegalPages.jsx";
+import { TermsPage, PrivacyPage, FAQPage } from "./components/LegalPages.jsx";
 import FounderMetricsScreen from "./components/FounderMetricsScreen.jsx";
 
 
@@ -46,6 +46,11 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .live-resume{position:fixed;bottom:var(--tab);left:50%;transform:translateX(-50%);width:100%;max-width:480px;z-index:99;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 14px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border:none;border-top:1px solid rgba(255,255,255,.15);}
 .ti{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:none;border:none;cursor:pointer;color:var(--td);font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 2px;position:relative;}
 .ti.on{color:var(--green);}.ti svg{width:20px;height:20px;stroke-width:1.8;stroke:var(--td);}.ti.on svg{stroke:var(--green);}
+/* Active-tab underline: color alone (the icon/label turning green) wasn't
+   clear enough per direct feedback -- this makes it unambiguous which of
+   the three sections you're actually in, same idea as the team-workspace
+   top row's own active underline just below the color strip. */
+.ti.on::after{content:"";position:absolute;bottom:0;left:10%;right:10%;height:2px;background:var(--green);border-radius:1px;}
 /* Org mode (per-device Coach/Organization toggle): same three tabs, solid
    green bar as the persistent visual cue -- color alone isn't enough for
    accessibility, so Layout.jsx also shows the org name near the top in
@@ -55,11 +60,18 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .tabbar.org .ti.on{color:#fff;}
 .tabbar.org .ti svg{stroke:rgba(255,255,255,.65);}
 .tabbar.org .ti.on svg{stroke:#fff;}
+.tabbar.org .ti.on::after{background:#fff;}
 .phdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
 .ptitle{font-size:26px;font-weight:900;letter-spacing:.02em;font-family:'Barlow Condensed',sans-serif;}
 .card{background:var(--s1);border:1px solid var(--b);border-radius:var(--r);padding:14px;margin-bottom:10px;}
 .clbl{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--td);margin-bottom:8px;}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:none;border-radius:var(--rs);cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;transition:opacity .12s;}
+/* Real gap found live: every color variant (.primary/.outline/...) sets its
+   own solid background/color with no disabled override, so a disabled
+   button (e.g. Goals' Save, gated on totals summing to exactly 100%) was
+   functionally inert but looked completely identical to an enabled one --
+   a coach could tap it, see nothing happen, and have no visual cue why. */
+.btn:disabled{opacity:.4;cursor:not-allowed;}
 .btn:active{opacity:.7;}
 .bxs{padding:4px 10px;font-size:11px;min-height:28px;}.bsm{padding:7px 14px;font-size:13px;min-height:34px;}.bmd{padding:10px 18px;font-size:15px;min-height:40px;}.blg{padding:14px 20px;font-size:17px;min-height:50px;}
 /* Real gap found live: referenced by Home's hero CTAs (Plan/Review/Start
@@ -304,17 +316,33 @@ function NameScreen({onSave}){
     </div>
     <div style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
       <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
-      <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>We'll use this to greet you instead of your email.</div>
       <div className="fld mb10">
-        <label className="lbl">First name</label>
+        <label className="lbl">First name*</label>
         <input className="inp" autoFocus type="text" placeholder="Alex" value={firstName} onChange={e=>setFirstName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")save();}}/>
       </div>
       <div className="fld mb10">
-        <label className="lbl">Last name (optional)</label>
+        <label className="lbl">Last name</label>
         <input className="inp" type="text" placeholder="Rivera" value={lastName} onChange={e=>setLastName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")save();}}/>
       </div>
+      <div style={{fontSize:12,color:"var(--td)",marginBottom:16}}>* required</div>
       <button className="btn primary bmd bfull" onClick={save} disabled={!firstName.trim()||saving}>{saving?"Saving...":"Continue"}</button>
     </div>
+  </div>);
+}
+// Shown on sign-in for an account that deactivated itself last time --
+// replaces the old silent auto-reactivate (see checkDeactivated/
+// reactivateAccount in supabase.js). "Exit" signs back out rather than
+// leaving the coach stuck looking at a screen with only one working
+// button; nothing changes server-side unless Reactivate is actually tapped.
+function ReactivatePrompt({onReactivate,onExit,busy}){
+  return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"var(--black)",padding:"24px"}}>
+    <div style={{width:96,height:96,borderRadius:22,overflow:"hidden",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
+      <img src="/apple-touch-icon.png" style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Run of Practice"/>
+    </div>
+    <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,color:"#fff",textAlign:"center",marginBottom:8}}>Reactivate your account?</div>
+    <div style={{fontSize:14,color:"var(--td)",textAlign:"center",lineHeight:1.5,marginBottom:24,maxWidth:340}}>Your account is currently deactivated. Reactivating brings you back onto your teammates' rosters and picks up right where you left off.</div>
+    <button className="btn primary bmd bfull" style={{maxWidth:340,marginBottom:10}} onClick={onReactivate} disabled={busy}>{busy?"Reactivating...":"Reactivate My Account"}</button>
+    <button className="btn ghost bmd bfull" style={{maxWidth:340,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} onClick={onExit} disabled={busy}>Exit Without Reactivating</button>
   </div>);
 }
 export default function App(){
@@ -332,9 +360,23 @@ export default function App(){
     return ()=>sub.unsubscribe();
   },[]);
   const coachId=session?session.user.id:null;
-  // "Come back and everything's still there" -- signing in again is the
-  // entire reactivation flow, no separate confirmation step.
-  useEffect(()=>{if(coachId)reactivateIfNeeded(coachId);},[coachId]);
+  // Real-usage feedback: silently clearing deactivated_at on sign-in (no
+  // prompt at all) was surprising -- a coach signed back in, went to check
+  // something else, and only later realized their account had quietly come
+  // back to life. null=not checked yet, true=deactivated (show the prompt
+  // below), false=not deactivated (or already reactivated this session).
+  const [needsReactivationCheck,setNeedsReactivationCheck]=useState(null);
+  useEffect(()=>{
+    if(!coachId){setNeedsReactivationCheck(null);return;}
+    checkDeactivated(coachId).then(setNeedsReactivationCheck);
+  },[coachId]);
+  const [reactivating,setReactivating]=useState(false);
+  const doReactivate=useCallback(async()=>{
+    setReactivating(true);
+    await reactivateAccount(coachId);
+    setReactivating(false);
+    setNeedsReactivationCheck(false);
+  },[coachId]);
   // Idempotent server-side, so re-running on every sign-in is cheap and
   // means a coach picks up starter skill tags for any sport/category added
   // after their account was first created, not just at signup.
@@ -421,6 +463,7 @@ export default function App(){
       <Route path="/preview/:token" element={<PreviewViewRoute/>}/>
       <Route path="/terms" element={<TermsPage/>}/>
       <Route path="/privacy" element={<PrivacyPage/>}/>
+      <Route path="/faq" element={<FAQPage/>}/>
       <Route path="/*" element={<AuthedShell/>}>
         <Route path="admin/metrics" element={<FounderAdminRoute/>}/>
         <Route element={<LayoutRoute/>}>
@@ -452,7 +495,8 @@ export default function App(){
     refreshTeams,refreshLibrary,refreshPlanning,
     saveName,onSignOut:signOut,onDeactivate:handleDeactivate,
     mode,setMode,
-  }),[data,coachId,profile,coachName,coachEmailStr,session,wantsAuth,loaded,modal,refreshTeams,refreshLibrary,refreshPlanning,saveName,handleDeactivate,mode]);
+    needsReactivationCheck,doReactivate,reactivating,
+  }),[data,coachId,profile,coachName,coachEmailStr,session,wantsAuth,loaded,modal,refreshTeams,refreshLibrary,refreshPlanning,saveName,handleDeactivate,mode,needsReactivationCheck,doReactivate,reactivating]);
 
   return (<AppCtx.Provider value={ctxValue}>
     <RouterProvider router={router}/>
@@ -492,7 +536,7 @@ function LoadingScreen({message}){
 
 function AuthedShell(){
   const ctx=useAppCtx();
-  const {session,wantsAuth,setWantsAuth,profile,saveName,loaded}=ctx;
+  const {session,wantsAuth,setWantsAuth,profile,saveName,loaded,needsReactivationCheck,doReactivate,reactivating,onSignOut}=ctx;
   const [liveId,setLiveId]=useState(null);
   const [editPracticeId,setEditPracticeId]=useState(null);
   const [startTemplateId,setStartTemplateId]=useState(null);
@@ -542,6 +586,12 @@ function AuthedShell(){
   // landing page lead to the same AuthScreen (wantsAuth), just weighted
   // differently.
   if(!session)return wantsAuth?(<AuthScreen onBack={()=>setWantsAuth(false)}/>):(<LandingPage onGetStarted={()=>setWantsAuth(true)}/>);
+  // Deactivated-account prompt: checkDeactivated hasn't resolved yet
+  // (null) reads the same as the initial session-loading gate above; a
+  // real "yes, deactivated" (true) blocks everything else until the coach
+  // actually decides, rather than silently reactivating for them.
+  if(needsReactivationCheck===null)return <LoadingScreen message="Loading..."/>;
+  if(needsReactivationCheck)return <ReactivatePrompt onReactivate={doReactivate} onExit={onSignOut} busy={reactivating}/>;
   // One-time name prompt -- covers both fresh signups and pre-existing
   // accounts created before name collection existed.
   if(profile&&!profile.first_name)return (<NameScreen onSave={saveName}/>);
@@ -609,9 +659,23 @@ function SettingsRoute(){
 }
 
 // step-3 bridge -- see the router config comment above.
+// Scoped the same way HomeRoute/TeamsRoute already are (teamsForMode, not
+// homeTeamsForMode -- Schedule should list every team you're actually on,
+// not hide ones opted out of Home's own agenda via show_on_home). Real bug
+// this fixed: a team a coach had genuinely left (their own team_staff row
+// archived) stayed visible here as a filterable option and kept showing
+// its practices, because can_access_team's RLS also grants access via org
+// membership independent of that row -- unscoped data.teams still included
+// it even though Home/Teams already correctly dropped it.
 function ScheduleLegacyRoute(){
-  const {data,goToBuilder,goToRun,coachId,refreshPlanning}=useAppCtx();
-  return <ScheduleScreen data={data} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning}/>;
+  const {data,goToBuilder,goToRun,coachId,refreshPlanning,mode,openModal}=useAppCtx();
+  const scopedTeams=teamsForMode(data.teams,mode,coachId);
+  const scopedTeamIds=new Set(scopedTeams.map(t=>t.id));
+  const scopedData=useMemo(()=>Object.assign({},data,{
+    teams:scopedTeams,
+    practices:(data.practices||[]).filter(p=>scopedTeamIds.has(p.teamId)),
+  }),[data,mode,coachId]);
+  return <ScheduleScreen data={scopedData} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning} openModal={openModal}/>;
 }
 
 // Team-scoped Schedule (handoff §4.4). Fetches practices scoped to this one
@@ -660,12 +724,12 @@ function TeamRosterRoute(){
 function TeamEquipmentRoute(){
   const {teamId}=useParams();
   const navigate=useNavigate();
-  const {data,coachId,openModal,refreshLibrary}=useAppCtx();
+  const {data,coachId,openModal,refreshLibrary,mode}=useAppCtx();
   const team=data.teams.find(t=>t.id===teamId);
   useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
   if(!team)return null;
   return (<div style={{padding:"16px 16px calc(var(--tab) + 20px)"}}>
-    <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} sportFilter={team.sport}/>
+    <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} sportFilter={team.sport} mode={mode}/>
   </div>);
 }
 
@@ -737,6 +801,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const [showScheduleModal,setShowScheduleModal]=useState(false);
   const [schedSuccess,setSchedSuccess]=useState(false);
   const [showTplPicker,setShowTplPicker]=useState(false);
+  const [showAddLocation,setShowAddLocation]=useState(false);
   // The sticky just-added-drill row also anchors to the top of the scroll
   // container -- but Builder already has its own sticky Save/Run Now bar
   // pinned at top:0 above it. Both stuck at the same top:0 meant the drill
@@ -791,7 +856,12 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const teamLocations=(!team||!team.locationIds||!team.locationIds.length)
     ?data.locations
     :data.locations.filter(l=>team.locationIds.includes(l.id)||l.id===locId);
-  const filteredLib=data.activityLibrary.filter(a=>(a.sport||"General")===teamSport||(a.sport||"General")==="General");
+  // Excludes Public Library (catalog) drills, matching the station-block
+  // picker's own filter (ActivityConfigs.jsx) -- data.activityLibrary is
+  // RLS-scoped, not client-filtered, so it also contains public-catalog
+  // and org-shared drills alongside the coach's own; this list was
+  // showing all of them mixed together with no way to tell them apart.
+  const filteredLib=data.activityLibrary.filter(a=>!a.sourceCatalogId).filter(a=>(a.sport||"General")===teamSport||(a.sport||"General")==="General");
   const teamTemplates=(data.templates||[]).filter(t=>(t.sport||"General")===teamSport||(t.sport||"General")==="General");
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
@@ -944,6 +1014,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           </>}
         </div>
       </div>}
+      {showAddLocation&&<AddLocationDialog coachId={coachId} orgId={team&&team.organizationId} onClose={()=>setShowAddLocation(false)} onCreated={async(loc)=>{await refreshPlanning();setLocId(loc.id);}}/>}
       {showTplPicker&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowTplPicker(false);}}>
         <div className="modal">
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:12}}>Start with a template</div>
@@ -955,7 +1026,13 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           <button className="btn ghost bmd bfull mt10" onClick={()=>setShowTplPicker(false)}>Cancel</button>
         </div>
       </div>}
-      <div className="card mb10">
+      {/* Real gap found live: the sticky action bar above (border-bottom,
+          no margin of its own) sat flush against this card's own top edge
+          with zero space between them, every time Builder is opened
+          regardless of entry path -- editP's "Editing" banner row and the
+          full 4-button bar both end in the same bare border, and neither
+          the sticky wrapper nor .card added any breathing room after it. */}
+      <div className="card mb10" style={{marginTop:10}}>
         <div className="clbl">Practice Setup</div>
         {!editP&&<div className="fld"><label className="lbl">Team</label>
           <select className="sel" value={teamId} onChange={e=>{const tid=e.target.value;setTeamId(tid);setLocId(lastLocForTeam(tid));}}>
@@ -965,9 +1042,17 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         </div>}
         <div className={editP?"g2":undefined}>
           <div className="fld"><label className="lbl">Location</label>
-            <select className="sel" value={locId} onChange={e=>setLocId(e.target.value)}>
-              {teamLocations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
+            {teamLocations.length>0?(
+              <select className="sel" value={locId} onChange={e=>setLocId(e.target.value)}>
+                {teamLocations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            ):(
+              // No locations exist yet anywhere -- the select would otherwise
+              // render with zero options and no way out. A coach stuck here
+              // had no inline way to add one before; this is the same
+              // add-a-location flow SchedulePracticeModal now offers too.
+              <button type="button" className="btn outline bsm bfull" onClick={()=>setShowAddLocation(true)}>+ Add a Location</button>
+            )}
           </div>
           {editP&&<div className="fld"><label className="lbl">Start Time</label>
             <input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/>

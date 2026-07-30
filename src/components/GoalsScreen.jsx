@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useBlocker } from "react-router-dom";
 import { isHeadCoach } from "../constants.js";
 import {
   fetchTeamGoals, setTeamGoals, updateGoalsWindowWeeks,
   fetchTeamGoalReport, fetchTeamSessionHistory, fetchSessionActivityLog, fetchNotesForPractice, archiveNote,
   setSessionExclusion, adjustSessionActivity, addSessionActivityRow, logGoalViewed,
+  markPracticeNotesViewed, markNotesViewedForPractices,
 } from "../supabase.js";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
 
@@ -82,9 +84,33 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
 
   const categories = (data.skillCategories || []).filter(c => c.sport === team.sport && !c.archived_at).sort((a, b) => a.sort_order - b.sort_order);
 
+  // Real-usage gap found live: a coach dragged sliders to a total that
+  // wasn't 100%, tapped the (already-disabled, but visually identical to
+  // enabled -- see .btn:disabled fix) Save button, nothing happened, then
+  // navigated away and back and their edits were gone -- values only ever
+  // lives in local state, so leaving without a successful save silently
+  // discards it. baselineRef tracks the last-persisted snapshot so `dirty`
+  // can tell "edited, not yet saved" apart from "just loaded."
+  const baselineRef = useRef("{}");
   useEffect(() => {
-    setValues(Object.fromEntries(goals.map(g => [g.categoryId, g.targetPct])));
+    const initial = Object.fromEntries(goals.map(g => [g.categoryId, g.targetPct]));
+    setValues(initial);
+    baselineRef.current = JSON.stringify(initial);
   }, [goals]);
+  const dirty = JSON.stringify(values) !== baselineRef.current;
+
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = e => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
+  const blocker = useBlocker(useCallback(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname, [dirty]));
+  useEffect(() => {
+    if (blocker.state !== "blocked") return;
+    if (window.confirm("You have unsaved changes to your goals. Leave without saving?")) blocker.proceed();
+    else blocker.reset();
+  }, [blocker]);
 
   const total = Object.values(values).reduce((s, v) => s + (v || 0), 0);
   const canSave = total === 100 || total === 0;
@@ -94,7 +120,7 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
     await updateGoalsWindowWeeks(teamId, windowWeeks);
     setSavingWindow(false);
   };
-  const setValue = (categoryId, pct) => setValues(p => ({ ...p, [categoryId]: pct }));
+  const setValue = (categoryId, pct) => setValues(p => ({ ...p, [categoryId]: Math.max(0, Math.min(100, pct)) }));
   const save = async () => {
     if (!canSave) return;
     setSaving(true); setError("");
@@ -102,6 +128,7 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
     const { error } = await setTeamGoals(teamId, targets);
     setSaving(false);
     if (error) { setError("Something went wrong saving. Try again."); return; }
+    baselineRef.current = JSON.stringify(values);
     setSavedAt(new Date().toISOString());
     await refreshGoals();
   };
@@ -121,9 +148,17 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
     {categories.map(cat => {
       const v = values[cat.id] || 0;
       return (<div key={cat.id} style={{ marginBottom: 10 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>{cat.name}</span>
-          <span style={{ fontFamily: "DM Mono,monospace", fontSize: 13, color: "var(--tm)" }}>{v}%</span>
+          {/* Typing a precise number was the actual ask -- dragging a
+              slider to land on an exact value (especially when several
+              categories need to add up to exactly 100) is fiddly. Kept the
+              slider too since it's still the faster way to get in the
+              right neighborhood. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <input type="number" min="0" max="100" value={v} onChange={e => setValue(cat.id, e.target.value === "" ? 0 : Number(e.target.value))} style={{ width: 48, textAlign: "right", fontFamily: "DM Mono,monospace", fontSize: 13, color: "var(--tm)", border: "1px solid var(--b)", borderRadius: 4, padding: "2px 4px" }} />
+            <span style={{ fontFamily: "DM Mono,monospace", fontSize: 13, color: "var(--tm)" }}>%</span>
+          </div>
         </div>
         <input type="range" min="0" max="100" step="1" value={v} onChange={e => setValue(cat.id, Number(e.target.value))} style={{ width: "100%", accentColor: "var(--green)" }} />
       </div>);
@@ -243,6 +278,18 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
   const refreshNotes = useCallback(() => { if (practice) fetchNotesForPractice(practice.id).then(setNotes); }, [practice && practice.id]);
   useEffect(() => { refreshNotes(); }, [refreshNotes]);
   const doArchiveNote = async id => { await archiveNote(id); refreshNotes(); };
+  // Practice History's red dot (see HistoryList below) clears the moment
+  // the head coach actually opens this session -- that's what "reviewed"
+  // means here. Gated on canManage (not any viewer) since an assistant or
+  // helper opening their own read-only view of a session shouldn't silently
+  // clear the head coach's unread indicator. Guarded on the session's own
+  // has_unviewed_notes so this fires at most once per open, not on every
+  // notes refresh (e.g. after archiving one).
+  useEffect(() => {
+    if (!canManage || !practice || !session.has_unviewed_notes) return;
+    markPracticeNotesViewed(practice.id).then(() => { if (onChanged) onChanged(); });
+    // eslint-disable-next-line
+  }, [canManage, practice && practice.id, session.has_unviewed_notes]);
   const taggedPlayerNames = ids => (ids || []).map(id => { const p = team && team.players.find(p => p.id === id); return p ? p.firstName + (p.lastName ? " " + p.lastName[0] + "." : "") : null; }).filter(Boolean);
 
   if (!practice) return (<div style={{ paddingBottom: 80 }}>{!setSubViewBack && <div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>&#8249; History</button></div>}<div className="empty"><div className="emtx">Practice not found.</div></div></div>);
@@ -385,8 +432,11 @@ function HistoryList({ history, data, canManage, onOpen }) {
       return (<div key={s.session_id} className="card" style={{ marginBottom: 8, cursor: "pointer", opacity: s.excluded ? 0.6 : 1 }} onClick={() => onOpen(s)}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700 }}>
-              {s.ended_at ? new Date(s.ended_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "In progress"}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {canManage && s.has_unviewed_notes && <span title="Has a note you haven't reviewed yet" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--red)", flexShrink: 0 }} />}
+              <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700 }}>
+                {s.ended_at ? new Date(s.ended_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "In progress"}
+              </div>
             </div>
             <div style={{ fontSize: 12, color: "var(--td)" }}>
               {s.wall_minutes}min · {s.attendance_count} attended
@@ -429,6 +479,11 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack }) {
   useEffect(() => { logGoalViewed(teamId); }, [teamId]);
 
   const refreshAll = () => { refreshReport(); refreshHistory(); };
+  const anyUnviewed = (history || []).some(s => s.has_unviewed_notes);
+  const markAllViewed = async () => {
+    await markNotesViewedForPractices((history || []).map(s => s.practice_id));
+    refreshHistory();
+  };
 
   if (!team) return null;
   if (goals === null || report === null || history === null) return (<div style={{ padding: "40px 0", textAlign: "center", color: "var(--td)" }}>Loading...</div>);
@@ -450,7 +505,10 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack }) {
   return (<div style={{ paddingBottom: "calc(var(--tab) + 20px)" }}>
     {canManage && <GoalsEditor teamId={teamId} team={team} data={data} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
     <GlanceView report={report} />
-    <div className="clbl mb8" style={{ marginTop: 4 }}>History</div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4, marginBottom: 8 }}>
+      <div className="clbl" style={{ marginBottom: 0 }}>History</div>
+      {canManage && anyUnviewed && <button className="btn ghost bxs" onClick={markAllViewed}>Mark all as viewed</button>}
+    </div>
     <HistoryList history={history} data={data} canManage={canManage} onOpen={s => setOpenSessionId(s.session_id)} />
   </div>);
 }

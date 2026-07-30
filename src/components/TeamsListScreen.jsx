@@ -201,7 +201,7 @@ export default function TeamsListScreen({ data, goToTeam, openModal, mode, refre
       {teams.map(t => (<div key={t.id} className="li tap" style={{ marginBottom: 8, borderLeft: "4px solid " + (t.colorPrimary || "transparent") }} onClick={() => goToTeam(t.id)}>
         <div className="lim">
           <div className="lin">{t.name}</div>
-          <div className="limt">{t.sport} · {t.players.length} player{t.players.length === 1 ? "" : "s"}</div>
+          <div className="limt">{t.sport} · {t.players.length} player{t.players.length === 1 ? "" : "s"}{!isOrgMode && t.organizationName ? " · " + t.organizationName : ""}</div>
         </div>
         <span style={{ color: "var(--green)", fontSize: 22 }}>&#8250;</span>
       </div>))}

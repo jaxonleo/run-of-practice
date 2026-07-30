@@ -59,7 +59,7 @@ function DaySheet({ date, practices, data, todayStr, runStatus, onPick, onClose 
 // data.practices is already scoped to that one team by the caller
 // (fetchPracticesFull(teamId)), so the team-filter chip row is redundant
 // (it would show exactly one, permanently-active chip) and is hidden.
-export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, refreshPlanning, fixedTeamId, setSubViewBack }) {
+export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, refreshPlanning, fixedTeamId, setSubViewBack, openModal }) {
   const navigate = useNavigate();
   const now = new Date();
   const todayStr = localDateStr(now);
@@ -177,6 +177,17 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
       </div>}
     </div>
 
+    {/* No team at all yet: the rest of this screen (team filter chips,
+        agenda/month, +Practice/+Series) has nothing useful to offer, so
+        lead with the one actionable step instead of an empty calendar. */}
+    {!fixedTeamId && data.teams.length === 0 && <div style={{ padding: "20px 16px 8px", textAlign: "center" }}>
+      <div className="card" style={{ padding: "28px 20px" }}>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>No teams yet</div>
+        <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 16 }}>Create a team first, then come back here to schedule its practices.</div>
+        {openModal && <button className="btn primary bmd" onClick={() => openModal("addTeam", {})}>+ Create a Team</button>}
+      </div>
+    </div>}
+
     {!fixedTeamId && data.teams.length > 0 && <div style={{ padding: "0 16px 12px", display: "flex", gap: 6, flexWrap: "wrap" }}>
       {data.teams.map(t => (<button key={t.id} onClick={() => toggleTeam(t.id)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 20, border: "1.5px solid " + (teamFilter.size === 0 || teamFilter.has(t.id) ? (t.colorPrimary || "var(--green)") : "var(--b)"), background: teamFilter.has(t.id) ? (t.colorPrimary || "var(--green)") : "#fff", cursor: "pointer" }}>
         <span style={{ width: 7, height: 7, borderRadius: "50%", background: t.colorPrimary || "var(--green)" }} />
@@ -244,6 +255,6 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
     </div>}
 
     {showWizard && <SeriesWizard data={data} coachId={coachId} presetTeamId={fixedTeamId} onClose={() => setShowWizard(false)} onDone={async () => { setShowWizard(false); await refreshPlanning(); }} />}
-    {showSingle && <SchedulePracticeModal data={data} coachId={coachId} presetTeamId={fixedTeamId} onClose={() => setShowSingle(false)} onDone={async (result, planNow) => { setShowSingle(false); await refreshPlanning(); if (planNow && result) goToBuilder(result.id); }} />}
+    {showSingle && <SchedulePracticeModal data={data} coachId={coachId} presetTeamId={fixedTeamId} refreshPlanning={refreshPlanning} onClose={() => setShowSingle(false)} onDone={async (result, planNow) => { setShowSingle(false); await refreshPlanning(); if (planNow && result) goToBuilder(result.id); }} />}
   </div>);
 }

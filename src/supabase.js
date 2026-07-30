@@ -49,14 +49,19 @@ export async function deactivateOwnAccount(userId) {
   if (error) console.error('deactivateOwnAccount:', error)
   return { error }
 }
-// Called right after a successful sign-in -- if this account was
-// deactivated, silently clear it so "come back" really is just signing in
-// again, no separate reactivation step.
-export async function reactivateIfNeeded(userId) {
+// Checked right after a successful sign-in. Used to silently clear
+// deactivated_at with no user-facing step at all -- real-usage feedback
+// was that this was surprising ("did I actually mean to come back?"), so
+// the caller now prompts (reactivate, or exit back out) before calling
+// reactivateAccount below, rather than this function deciding for them.
+export async function checkDeactivated(userId) {
   const { data } = await supabase.from('profiles').select('deactivated_at').eq('id', userId).maybeSingle()
-  if (data && data.deactivated_at) {
-    await supabase.from('profiles').update({ deactivated_at: null }).eq('id', userId)
-  }
+  return !!(data && data.deactivated_at)
+}
+export async function reactivateAccount(userId) {
+  const { error } = await supabase.from('profiles').update({ deactivated_at: null }).eq('id', userId)
+  if (error) console.error('reactivateAccount:', error)
+  return { error }
 }
 
 
@@ -77,7 +82,12 @@ function splitName(name) {
 
 export async function fetchMyTeams() {
   const [teamsRes, playersRes, staffRes, teamLocationsRes] = await Promise.all([
-    supabase.from('teams').select('*').is('archived_at', null),
+    // organizations(name, color) embed lets a team card show which org it
+    // belongs to -- needs organizations_select_member's RLS to also grant
+    // "anyone who can access a team owned by this org" (not just org_staff
+    // members), or this embed silently comes back null for non-director
+    // staff on an org team.
+    supabase.from('teams').select('*, organizations(name, color)').is('archived_at', null),
     supabase.from('players').select('*').is('archived_at', null),
     supabase.from('team_staff').select('*').is('archived_at', null),
     supabase.from('team_locations').select('*'),
@@ -106,6 +116,8 @@ export async function fetchMyTeams() {
     sport: t.sport,
     ownerUserId: t.owner_user_id,
     organizationId: t.organization_id,
+    organizationName: t.organizations ? t.organizations.name : null,
+    organizationColor: t.organizations ? t.organizations.color : null,
     timezone: t.timezone,
     startDate: t.start_date,
     endDate: t.end_date,
@@ -1424,6 +1436,21 @@ export async function fetchTeamSessionHistory(teamId) {
   const { data, error } = await supabase.rpc('get_team_session_history', { p_team_id: teamId })
   if (error) { console.error('fetchTeamSessionHistory:', error); return [] }
   return data || []
+}
+// Practice History's unreviewed-note dot: marking viewed is a plain update
+// against notes.viewed_at, covered by the same notes_update_archive RLS
+// policy (can_access_practice) archiveNote already relies on -- no RPC
+// needed for either the single-practice or whole-team-at-once case.
+export async function markPracticeNotesViewed(practiceId) {
+  const { error } = await supabase.from('notes').update({ viewed_at: new Date().toISOString() }).eq('practice_id', practiceId).is('viewed_at', null).is('archived_at', null)
+  if (error) console.error('markPracticeNotesViewed:', error)
+  return { error }
+}
+export async function markNotesViewedForPractices(practiceIds) {
+  if (!practiceIds || !practiceIds.length) return { error: null }
+  const { error } = await supabase.from('notes').update({ viewed_at: new Date().toISOString() }).in('practice_id', practiceIds).is('viewed_at', null).is('archived_at', null)
+  if (error) console.error('markNotesViewedForPractices:', error)
+  return { error }
 }
 export async function setSessionExclusion(sessionId, excluded) {
   const { error } = await supabase.rpc('set_session_exclusion', { p_session_id: sessionId, p_excluded: excluded })

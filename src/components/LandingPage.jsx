@@ -298,8 +298,14 @@ function BuilderVisual() {
     { n: "Station Block", d: "45" },
     { n: "Situational Scrimmage", d: "20" },
   ];
+  // Matches the real Builder header exactly (App.jsx): a "planned/objective
+  // min" pill that goes red once the plan sits under 90% of the practice's
+  // scheduled length -- shown here 10 minutes short of a 95-minute practice
+  // so the under-planned state is visible, not just the happy path.
+  const totalMins = rows.reduce((s, r) => s + Number(r.d), 0);
+  const objectiveMins = totalMins + 10;
   return (<div className="lp-phone">
-    <div className="sechdr mb8"><span className="sectitle">4 Activities</span><span className="pill">85m</span></div>
+    <div className="sechdr mb8"><span className="sectitle">4 Activities</span><span className={"pill" + (totalMins < objectiveMins * 0.9 ? " over" : "")}>{totalMins}/{objectiveMins} min</span></div>
     {rows.map((r) => (<div key={r.n} className="ablk" style={{ marginBottom: 6 }}>
       <div className="abhdr" style={{ cursor: "default" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 2, marginRight: 6, flexShrink: 0, color: "var(--s3)", fontSize: 12, lineHeight: 1 }}><span>&#8593;</span><span>&#8595;</span></div>
@@ -617,25 +623,46 @@ function TransitionVisual() {
   </div>);
 }
 
+// Mirrors the real per-drill planned-vs-actual rows (GoalsScreen.jsx's
+// history detail) and the real Notes card (grouped by drill, author +
+// tagged-player chips) instead of a single generic "Station Block" line and
+// a made-up wall-time figure -- the actual app never shows one lump number
+// for the whole practice, it shows it per drill.
+const HISTORY_DRILLS = [
+  { n: "Dynamic Warmup", planned: 10, actual: 9 },
+  { n: "Ground Ball Fundamentals", planned: 15, actual: 19 },
+  { n: "Front Toss", planned: 15, actual: 12 },
+  { n: "Situational Scrimmage", planned: 20, actual: 24 },
+];
+
+function HistoryDrillRow({ n, planned, actual }) {
+  const over = actual > planned;
+  return (<div className="ablk" style={{ marginBottom: 6 }}>
+    <div className="abhdr" style={{ cursor: "default" }}>
+      <div style={{ flex: 1, font: "700 14px 'Barlow Condensed',sans-serif" }}>{n}</div>
+      <span className="bdg bp" style={{ marginRight: 6 }}>{planned}m planned</span>
+      <span className="bdg bs" style={{ color: over ? "var(--amber)" : "var(--green)" }}>{actual}m actual</span>
+    </div>
+  </div>);
+}
+
 function HistoryVisual() {
   return (<div className="lp-phone">
-    <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>Sat, Jun 7 · 88min wall time · 11 attended</div>
-    <div className="card" style={{ marginBottom: 10 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Skill Minutes</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        <span className="bdg bs" style={{ fontSize: 11 }}>Fielding 22m</span><span className="bdg bs" style={{ fontSize: 11 }}>Hitting 34m</span><span className="bdg bs" style={{ fontSize: 11 }}>Footwork 15m</span>
+    <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>Sat, Jun 7 · 11 attended</div>
+    {HISTORY_DRILLS.map(d => <HistoryDrillRow key={d.n} {...d} />)}
+    <div className="card mt8" style={{ marginBottom: 10 }}>
+      <div className="clbl">Notes</div>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--green2)", marginBottom: 4 }}>Ground Ball Fundamentals</div>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 11, color: "var(--td)", marginBottom: 2 }}>Coach Mike · 5:42 PM</div>
+        <div style={{ fontSize: 13 }}>Glove work looked great today, ready for faster reads next week.</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}><span className="bdg bs" style={{ fontSize: 10 }}>Ryker</span></div>
       </div>
-    </div>
-    <div className="ablk" style={{ marginBottom: 8 }}>
-      <div className="abhdr" style={{ cursor: "default" }}>
-        <div style={{ flex: 1, font: "700 14px 'Barlow Condensed',sans-serif" }}>Station Block</div>
-        <span className="bdg bp" style={{ marginRight: 6 }}>45m planned</span>
-        <span className="bdg bs">49m</span>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--green2)", marginBottom: 4 }}>Front Toss</div>
+      <div>
+        <div style={{ fontSize: 11, color: "var(--td)", marginBottom: 2 }}>Ava's Mom (Helper) · 5:58 PM</div>
+        <div style={{ fontSize: 13 }}>Cage 1 group could use more reps on the outside pitch.</div>
       </div>
-    </div>
-    <div className="card" style={{ marginBottom: 10 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>End of Practice Notes</div>
-      <div style={{ fontSize: 13, color: "var(--black)" }}>Cage 1 group needs more reps on the outside pitch. Ryker's throws sailing high, check grip next week.</div>
     </div>
     <button className="btn primary bxl bfull mb8">Run Again</button>
     <button className="btn ghost bmd bfull">Save as Template</button>
@@ -714,10 +741,10 @@ const FAQS = [
   { q: "Is Run of Practice free?", a: "Run of Practice is free during early access while the product is being tested and improved." },
   { q: "Who is it for?", a: "Run of Practice is designed for head coaches, assistant coaches and anyone helping run an organized practice." },
   { q: "Does every helper need an account?", a: "No. Assistant coaches can access practices through their accounts, while temporary or ad hoc helpers can receive a link with the information they need." },
-  { q: "Can I use it for different sports?", a: "Run of Practice is designed around common practice needs such as drills, groups, stations, locations, timing, equipment and transitions. The exact setup can be adjusted for different sports and levels." },
+  { q: "Can I use it for different sports?", a: "Yes. Run of Practice is designed around common practice needs such as drills, groups, stations, locations, timing, equipment and transitions. The exact setup can be adjusted for different sports and levels." },
   { q: "Can I copy an old practice?", a: "Yes. Previous practices can be copied, adjusted and run again. Coaches can also save reusable templates." },
   { q: "What happens if attendance changes?", a: "Player groupings can be updated based on the players who are actually present. Coaches can use random groupings or make manual changes." },
-  { q: "Can I adjust the schedule while practice is happening?", a: "Yes. Coaches can add or reduce time, end an activity, skip an activity or move to the next part of the practice. Run of Practice shows how those changes affect the overall schedule." },
+  { q: "Can I adjust the schedule while practice is happening?", a: "Yes. Coaches can add or reduce time, end an activity early, or skip an activity entirely. These changes are reflected in realtime on all connected devices." },
   { q: "Will I hear the timer if my phone is in my pocket?", a: "Turn on audio and Run of Practice will call out the two-minute warning and blow a whistle when time's up, so you don't need to have the screen in front of you. If a drill runs long, the timer counts into negative time instead of stopping, so you can keep coaching and move on when you're ready." },
 ];
 
@@ -773,7 +800,7 @@ export default function LandingPage({ onGetStarted }) {
     <div className="lp-section tight dark" style={{ textAlign: "center" }}>
       <div className="lp-wrap" style={{ maxWidth: 640 }}>
         <div className="lp-title">A smooth practice starts before you get to the field or the court.</div>
-        <div className="lp-body">Everything the live view shows (drills, groups, stations, equipment) comes from a plan you build in minutes.</div>
+        <div className="lp-body">Everything the live view shows comes from a plan you build in minutes.</div>
       </div>
     </div>
 
@@ -802,7 +829,7 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Practice History" title="Keep the plan and what actually happened together." reverse visual={<HistoryVisual />} body={[
-      "After practice, see attendance, actual drill times, what changed on the fly, and notes on what needs more work. Every session also rolls into Goals & Insights, so you can see whether practice time is actually landing on the skills you're targeting, week over week -- not just what you meant to cover.",
+      "After practice, see attendance, actual drill times, what changed on the fly, and notes captured during practice. Every session is stored in Goals & Insights. You can see how practice time spent aligns to the goals you set.",
     ]} />
 
     <div className="lp-section tight">

@@ -12,7 +12,12 @@ export default function SeriesWizard({ data, coachId, presetTeamId, onClose, onD
   // own team picker (the ScheduleScreen entry point only hides the button
   // when NO team is manageable; a mixed-role user still needs this filter).
   const myTeams = useMemo(() => data.teams.filter(t => isHeadCoach(t, coachId)), [data.teams, coachId]);
-  const [step, setStep] = useState("team");
+  // Consolidated from 5 sequential screens (team / pattern / range /
+  // location / preview) down to 2 -- everything that's just picking fields
+  // (team, days & time, date range, location) now lives on one "details"
+  // screen, with only the review/preview step kept separate since that one
+  // actually needs its own scrollable list and per-date deselect UI.
+  const [step, setStep] = useState("details");
   // Opened from inside a specific team's Schedule tab defaults to that team
   // (only if the coach actually head-coaches it -- myTeams already enforces
   // that) rather than whichever head-coached team sorts first.
@@ -23,18 +28,27 @@ export default function SeriesWizard({ data, coachId, presetTeamId, onClose, onD
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [rangeStart, setRangeStart] = useState(toStr(today));
   const [rangeEnd, setRangeEnd] = useState(() => { const d = new Date(today); d.setDate(d.getDate() + 56); return toStr(d); });
+  // Prefilling the range from the newly-picked team's own season dates used
+  // to happen on a dedicated "entering the range step" transition -- now
+  // that team-pick and range are the same screen, do it the moment the
+  // team selection changes instead (skip it for the initial default team,
+  // since rangeStart/rangeEnd's own useState initializers already cover that).
+  const firstTeamId = useMemo(() => (presetTeamId && myTeams.some(t => t.id === presetTeamId)) ? presetTeamId : (myTeams[0] ? myTeams[0].id : ""), []);
+  const changeTeam = tid => {
+    setTeamId(tid);
+    const t = myTeams.find(x => x.id === tid);
+    if (tid !== firstTeamId) {
+      if (t && t.startDate) setRangeStart(t.startDate);
+      if (t && t.endDate) setRangeEnd(t.endDate);
+    }
+  };
   const [locationId, setLocationId] = useState("");
   const [deselected, setDeselected] = useState(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const toggleDay = d => setDays(s => { const n = new Set(s); if (n.has(d)) n.delete(d); else n.add(d); return n; });
-
-  const enterRange = () => {
-    if (team && team.startDate) setRangeStart(team.startDate);
-    if (team && team.endDate) setRangeEnd(team.endDate);
-    setStep("range");
-  };
+  const detailsValid = teamId && days.size > 0 && rangeStart && rangeEnd && rangeEnd >= rangeStart;
 
   const occurrences = useMemo(() => {
     if (!days.size || !rangeStart || !rangeEnd) return [];
@@ -70,42 +84,34 @@ export default function SeriesWizard({ data, coachId, presetTeamId, onClose, onD
 
   return (<div className="movly" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="modal">
-      {step === "team" && <div>
+      {step === "details" && <div>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, marginBottom: 12 }}>Set up a schedule</div>
         <div className="fld mb10"><label className="lbl">Team</label>
-          <select className="sel" value={teamId} onChange={e => setTeamId(e.target.value)}>
+          <select className="sel" value={teamId} onChange={e => changeTeam(e.target.value)}>
             {myTeams.map(t => (<option key={t.id} value={t.id}>{t.name}</option>))}
           </select>
         </div>
-        <div className="brow"><button className="btn ghost bsm" onClick={onClose}>Cancel</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={() => setStep("pattern")} disabled={!teamId}>Next</button></div>
-      </div>}
-
-      {step === "pattern" && <div>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, marginBottom: 12 }}>Days &amp; time</div>
-        <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-          {DOW.map((d, i) => (<button key={i} onClick={() => toggleDay(i)} style={{ flex: 1, padding: "8px 0", borderRadius: "var(--rs)", border: "1.5px solid " + (days.has(i) ? "var(--green)" : "var(--b)"), background: days.has(i) ? "var(--green)" : "#fff", color: days.has(i) ? "#fff" : "var(--black)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{d}</button>))}
+        <div className="fld mb6"><label className="lbl">Days &amp; Time</label>
+          <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+            {DOW.map((d, i) => (<button key={i} type="button" onClick={() => toggleDay(i)} style={{ flex: 1, padding: "8px 0", borderRadius: "var(--rs)", border: "1.5px solid " + (days.has(i) ? "var(--green)" : "var(--b)"), background: days.has(i) ? "var(--green)" : "#fff", color: days.has(i) ? "#fff" : "var(--black)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{d}</button>))}
+          </div>
         </div>
-        <div className="fld mb10"><label className="lbl">Start Time</label><input className="inp" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} /></div>
-        <div className="fld mb10"><label className="lbl">Duration (minutes)</label><input className="inp" type="number" min="1" value={durationMinutes} onChange={e => { const v = e.target.value; setDurationMinutes(v === "" ? "" : +v); }} onBlur={() => { if (!durationMinutes || durationMinutes < 1) setDurationMinutes(60); }} /></div>
-        <div className="brow"><button className="btn ghost bsm" onClick={() => setStep("team")}>Back</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={enterRange} disabled={days.size === 0}>Next</button></div>
-      </div>}
-
-      {step === "range" && <div>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, marginBottom: 12 }}>Date range</div>
-        <div className="fld mb10"><label className="lbl">Start</label><input className="inp" type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)} /></div>
-        <div className="fld mb10"><label className="lbl">End</label><input className="inp" type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} /></div>
-        <div className="brow"><button className="btn ghost bsm" onClick={() => setStep("pattern")}>Back</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={() => setStep("location")} disabled={!rangeStart || !rangeEnd || rangeEnd < rangeStart}>Next</button></div>
-      </div>}
-
-      {step === "location" && <div>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, marginBottom: 12 }}>Location <span style={{ color: "var(--td)", fontWeight: 400, fontSize: 13 }}>(optional)</span></div>
-        <div className="fld mb10"><label className="lbl">Location</label>
+        <div className="g2 mb10">
+          <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">Start Time</label><input className="inp" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} /></div>
+          <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">Duration (min)</label><input className="inp" type="number" min="1" value={durationMinutes} onChange={e => { const v = e.target.value; setDurationMinutes(v === "" ? "" : +v); }} onBlur={() => { if (!durationMinutes || durationMinutes < 1) setDurationMinutes(60); }} /></div>
+        </div>
+        <div className="g2 mb10">
+          <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">Start Date</label><input className="inp" type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)} /></div>
+          <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">End Date</label><input className="inp" type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} /></div>
+        </div>
+        <div className="fld mb10"><label className="lbl">Location <span style={{ color: "var(--td)", fontWeight: 400 }}>(optional)</span></label>
           <select className="sel" value={locationId} onChange={e => setLocationId(e.target.value)}>
             <option value="">None</option>
             {data.locations.map(l => (<option key={l.id} value={l.id}>{l.name}</option>))}
           </select>
         </div>
-        <div className="brow"><button className="btn ghost bsm" onClick={() => setStep("range")}>Back</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={() => setStep("preview")}>Next</button></div>
+        {rangeEnd < rangeStart && <div style={{ fontSize: 12, color: "var(--red)", marginBottom: 10 }}>End date can't be before the start date.</div>}
+        <div className="brow"><button className="btn ghost bsm" onClick={onClose}>Cancel</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={() => setStep("preview")} disabled={!detailsValid}>Next</button></div>
       </div>}
 
       {step === "preview" && <div>
@@ -122,7 +128,7 @@ export default function SeriesWizard({ data, coachId, presetTeamId, onClose, onD
             </label>);
           })}
         </div>
-        <div className="brow"><button className="btn ghost bsm" onClick={() => setStep("location")}>Back</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={confirm} disabled={saving || selectedOccurrences.length === 0}>{saving ? "Creating..." : "Create Schedule"}</button></div>
+        <div className="brow"><button className="btn ghost bsm" onClick={() => setStep("details")}>Back</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={confirm} disabled={saving || selectedOccurrences.length === 0}>{saving ? "Creating..." : "Create Schedule"}</button></div>
       </div>}
     </div>
   </div>);

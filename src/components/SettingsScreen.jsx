@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { checkIsAdmin, listAdmins, grantAdmin, revokeAdmin, createOrganization, leaveTeam, setTeamStaffShowOnHome } from "../supabase.js";
+import { useNavigate, useLocation } from "react-router-dom";
+import { checkIsAdmin, listAdmins, grantAdmin, revokeAdmin, createOrganization, orgInviteCoach, leaveTeam, setTeamStaffShowOnHome } from "../supabase.js";
 import { myTeamRole, AUDIO_CUES, getAudioCuePref, setAudioCuePref, getVoiceURIPref, setVoiceURIPref, loadVoices } from "../constants.js";
 
 // Settings hub (nav restructure, 2026-07-15; narrowed again in the Library
@@ -77,7 +77,7 @@ function TeamAssignmentsSection({data,coachId,refreshTeams}){
 }
 
 // ── AccountSection ────────────────────────────────────────────────────────────
-function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate}){
+function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate,navigate}){
   const [firstName,setFirstName]=useState(profile?profile.first_name||"":"");
   const [lastName,setLastName]=useState(profile?profile.last_name||"":"");
   const [saving,setSaving]=useState(false);
@@ -104,14 +104,14 @@ function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate}){
     {!dirty&&!saved&&<div style={{marginBottom:24}}/>}
 
     <div className="clbl mb8">Legal</div>
-    <a href="/terms" className="li" style={{textDecoration:"none",marginBottom:6}}><div className="lim"><div className="lin">Terms of Service</div></div><span style={{color:"var(--td)",fontSize:18}}>&#8250;</span></a>
-    <a href="/privacy" className="li" style={{textDecoration:"none",marginBottom:24}}><div className="lim"><div className="lin">Privacy Policy</div></div><span style={{color:"var(--td)",fontSize:18}}>&#8250;</span></a>
+    <div className="li tap" style={{marginBottom:6}} onClick={()=>navigate("/terms",{state:{openSection:"account"}})}><div className="lim"><div className="lin">Terms of Service</div></div><span style={{color:"var(--td)",fontSize:18}}>&#8250;</span></div>
+    <div className="li tap" style={{marginBottom:24}} onClick={()=>navigate("/privacy",{state:{openSection:"account"}})}><div className="lim"><div className="lin">Privacy Policy</div></div><span style={{color:"var(--td)",fontSize:18}}>&#8250;</span></div>
 
-    <div className="clbl mb8" style={{color:"var(--red)"}}>Danger Zone</div>
+    <div className="clbl mb8">Deactivate Account</div>
     {!confirmDeactivate&&<button className="btn ghost bmd bfull" style={{marginBottom:24,color:"var(--red)"}} onClick={()=>setConfirmDeactivate(true)}>Deactivate Account</button>}
     {confirmDeactivate&&<div className="confirm-box" style={{marginBottom:24}}>
       <div className="confirm-title">Deactivate your account?</div>
-      <div className="confirm-body">You'll be signed out and hidden from your teammates' rosters. All your teams, practices, and data stay exactly as they are -- just sign back in any time to pick up right where you left off.</div>
+      <div className="confirm-body">You'll be signed out and hidden from rosters. All your teams, practices, and data stay exactly as they are. To pick up right where you left off, sign in and reactivate your account.</div>
       <div className="brow"><button className="btn ghost bsm" onClick={()=>setConfirmDeactivate(false)}>Cancel</button><button className="btn danger bsm" onClick={()=>{if(onDeactivate)onDeactivate();}}>Deactivate</button></div>
     </div>}
 
@@ -199,7 +199,7 @@ function LivePracticeAudioSection(){
       <VoiceRow selected={!voiceURI} label="Device Default" onClick={()=>chooseVoice("")}/>
       {voices.map(v=>(<VoiceRow key={v.voiceURI} selected={voiceURI===v.voiceURI} label={v.name} sub={v.lang} onClick={()=>chooseVoice(v.voiceURI)}/>))}
     </div>}
-    <div style={{fontSize:12,color:"var(--td)",lineHeight:1.5}}>Tap a voice above to hear it and select it. This list is narrowed to the options that actually sound decent for now -- real recorded voices are coming soon.</div>
+    <div style={{fontSize:12,color:"var(--td)",lineHeight:1.5}}>Select a sound and voice for live practice audio.</div>
   </div>);
 }
 
@@ -250,8 +250,12 @@ function AdminsSection({}){
 
 export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams,profile,coachEmail,saveName,onSignOut,onDeactivate,setMode}){
   const navigate=useNavigate();
+  const location=useLocation();
   // null = the top-level list; otherwise which section is drilled into.
-  const [section,setSection]=useState(null);
+  // Initialized from location.state.openSection when arriving back from
+  // Terms/Privacy (see LegalPages.jsx) so "Back" from there actually lands
+  // on Account, not the Settings root.
+  const [section,setSection]=useState(()=>(location.state&&location.state.openSection)||null);
   // Founder-only row -- checkIsAdmin() resolves false for everyone else, so
   // this quietly stays absent rather than showing and then disappearing.
   const [isAdmin,setIsAdmin]=useState(false);
@@ -261,12 +265,19 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
   // else assumes an org already exists.
   const [showCreateOrg,setShowCreateOrg]=useState(false);
   const [newOrgName,setNewOrgName]=useState("");
+  const [newOrgDirectorEmail,setNewOrgDirectorEmail]=useState("");
   const [creatingOrg,setCreatingOrg]=useState(false);
   const submitCreateOrg=async()=>{
     if(!newOrgName.trim())return;
     setCreatingOrg(true);
     const {data:org}=await createOrganization(coachId,newOrgName.trim());
-    setNewOrgName("");setCreatingOrg(false);setShowCreateOrg(false);
+    // Admin-created orgs are meant to be handed off, not run by the admin
+    // long-term -- inviting the real director right away (reusing the same
+    // consent-based org_invites flow a director would use for anyone else)
+    // means the admin never has to touch org_staff rows by hand to hand it
+    // over. Left blank, the admin just stays director for now.
+    if(org&&newOrgDirectorEmail.trim())await orgInviteCoach(org.id,newOrgDirectorEmail.trim(),null,null,"director");
+    setNewOrgName("");setNewOrgDirectorEmail("");setCreatingOrg(false);setShowCreateOrg(false);
     if(refreshLibrary)await refreshLibrary();
     // Org Home was folded into Home's Organization mode -- switching mode
     // and returning there is now the entry point, not a separate route.
@@ -287,7 +298,7 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
     <BackRow/>
     <div style={{padding:"12px 16px 0"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,marginBottom:14}}>{titles[section]}</div>
-      {section==="account"&&<AccountSection profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate}/>}
+      {section==="account"&&<AccountSection profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate} navigate={navigate}/>}
       {section==="assignments"&&<TeamAssignmentsSection data={data} coachId={coachId} refreshTeams={refreshTeams}/>}
       {section==="admins"&&<AdminsSection/>}
       {section==="audio"&&<LivePracticeAudioSection/>}
@@ -309,17 +320,25 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
         <div className="lim"><div className="lin">{item.label}</div>{item.sub&&<div className="limt">{item.sub}</div>}</div>
         <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
       </div>))}
-      {(data.myOrgs||[]).map(org=>(<div key={org.id} className="li tap" style={{marginBottom:8}} onClick={()=>{setMode({type:"org",orgId:org.id});navigate("/");}}>
-        <div className="lim"><div className="lin">{org.name}</div><div className="limt">Switch to Organization mode</div></div>
-        <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
-      </div>))}
-      {showCreateOrg?(<div className="card" style={{padding:12,marginBottom:8,display:"flex",gap:6}}>
-        <input className="inp" style={{flex:1}} placeholder="Organization name" value={newOrgName} onChange={e=>setNewOrgName(e.target.value)} autoFocus/>
-        <button className="btn primary bxs" disabled={creatingOrg} onClick={submitCreateOrg}>{creatingOrg?"Creating...":"Create"}</button>
-        <button className="btn ghost bxs" onClick={()=>{setShowCreateOrg(false);setNewOrgName("");}}>Cancel</button>
-      </div>):(
-        <div className="li tap" style={{marginBottom:8}} onClick={()=>setShowCreateOrg(true)}>
-          <div className="lim"><div className="lin">+ Create Organization</div></div>
+      {/* Per-org rows to "switch to Organization mode" were removed here --
+          Home's own Coach/Org toggle already covers this, and duplicating
+          it in Settings just as a list of links was redundant now that
+          every org shows there directly. */}
+      {isAdmin?(
+        showCreateOrg?(<div className="card" style={{padding:12,marginBottom:8}}>
+          <div className="fld mb8"><label className="lbl">Organization name</label><input className="inp" placeholder="Organization name" value={newOrgName} onChange={e=>setNewOrgName(e.target.value)} autoFocus/></div>
+          <div className="fld mb8"><label className="lbl">Director's email (optional)</label><input className="inp" type="email" placeholder="Leave blank to stay director yourself for now" value={newOrgDirectorEmail} onChange={e=>setNewOrgDirectorEmail(e.target.value)}/></div>
+          <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowCreateOrg(false);setNewOrgName("");setNewOrgDirectorEmail("");}}>Cancel</button><button className="btn primary bsm" disabled={creatingOrg||!newOrgName.trim()} onClick={submitCreateOrg}>{creatingOrg?"Creating...":"Create"}</button></div>
+        </div>):(
+          <div className="li tap" style={{marginBottom:8}} onClick={()=>setShowCreateOrg(true)}>
+            <div className="lim"><div className="lin">+ Create Organization</div><div className="limt">Admin-only: create an org and hand it to a director</div></div>
+          </div>
+        )
+      ):(
+        <div className="card" style={{marginBottom:8,padding:"14px 16px"}}>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,marginBottom:4}}>Running a club with multiple teams?</div>
+          <div style={{fontSize:13,color:"var(--td)",marginBottom:10,lineHeight:1.4}}>Organizations are set up with our help so everything's configured right from the start. Reach out and we'll get you going.</div>
+          <a className="btn outline bmd bfull" style={{textDecoration:"none",textAlign:"center"}} href="mailto:contact@runofpractice.com?subject=Organization%20consultation">Request a Consultation</a>
         </div>
       )}
       {isAdmin&&<div className="li tap" style={{marginBottom:8}} onClick={()=>navigate("/admin/metrics")}>

@@ -262,6 +262,15 @@ otp_expiry = 3600
 subject = "Your Run of Practice sign-in code"
 content_path = "./supabase/templates/magic_link.html"
 
+# A brand-new email's first signInWithOtp() call goes through THIS
+# template, not magic_link (enable_confirmations=true routes new signups
+# through "confirmation") -- without this, new coaches got Supabase's
+# stock unbranded/link-based default instead of the same branded code the
+# app's own UI tells them to expect. Same {{ .Token }} mechanism as above.
+[auth.email.template.confirmation]
+subject = "Confirm your Run of Practice sign-in code"
+content_path = "./supabase/templates/confirmation.html"
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true

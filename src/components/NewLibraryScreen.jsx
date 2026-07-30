@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import { uid, sumMins, localDateStr } from "../constants.js";
+import { uid, sumMins, localDateStr, planningState } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
-import { archiveDrill, setDrillOrgShares, copyDrillToMyLibrary, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation } from "../supabase.js";
+import { archiveDrill, setDrillOrgShares, copyDrillToMyLibrary, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation } from "../supabase.js";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -39,6 +39,51 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
         {!loc.sublocations.length&&<span style={{fontSize:12,color:"var(--td)"}}>No areas yet</span>}
       </div>
     </div>))}
+  </div>);
+}
+
+// ── AddLocationDialog ──────────────────────────────────────────────────────────
+// Standalone (not the shared openModal("addLocation",...) flow, which has
+// no way to hand the new location's id back to the caller) -- Builder and
+// SchedulePracticeModal both need to auto-select whatever gets created here
+// and resume what the coach was doing, not just refresh a list somewhere
+// else. Optional sublocations in the same step so a coach adding "Eastside
+// Park" can also set up "Field 1"/"Field 2" right then, but doesn't have to.
+// orgId (not the global Coach/Org mode toggle) decides ownership -- based
+// on whatever team the caller is actually scheduling/building for, so this
+// works correctly even from Builder's own team picker, which isn't
+// mode-scoped (a separate, already-known gap this doesn't need to wait on).
+export function AddLocationDialog({coachId,orgId,onClose,onCreated}){
+  const [name,setName]=useState("");
+  const [subNames,setSubNames]=useState([""]);
+  const [saving,setSaving]=useState(false);
+  const updateSub=(i,v)=>setSubNames(s=>s.map((x,idx)=>idx===i?v:x));
+  const submit=async()=>{
+    if(!name.trim()||saving)return;
+    setSaving(true);
+    const {data:loc}=orgId?await createOrgLocation(orgId,name.trim()):await createLocation(coachId,name.trim());
+    if(loc){
+      for(const s of subNames.map(s=>s.trim()).filter(Boolean))await createSublocation(loc.id,s);
+    }
+    setSaving(false);
+    if(loc&&onCreated)onCreated(loc);
+    if(onClose)onClose();
+  };
+  return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div className="modal">
+      <div className="mhandle"/>
+      <div className="mtitle">Add a Location</div>
+      <div className="fld mb10"><label className="lbl">Location Name</label><input className="inp" autoFocus placeholder="e.g. Eastside Park" value={name} onChange={e=>setName(e.target.value)}/></div>
+      <div className="fld mb10">
+        <label className="lbl">Sub-locations (optional)</label>
+        {subNames.map((s,i)=>(<div key={i} style={{display:"flex",gap:6,marginBottom:6}}>
+          <input className="inp" placeholder="e.g. Field 2" value={s} onChange={e=>updateSub(i,e.target.value)}/>
+          {subNames.length>1&&<button type="button" className="btn ghost bxs" onClick={()=>setSubNames(s=>s.filter((_,idx)=>idx!==i))}>&times;</button>}
+        </div>))}
+        <button type="button" className="btn ghost bxs" onClick={()=>setSubNames(s=>[...s,""])}>+ Add Another</button>
+      </div>
+      <div className="brow"><button className="btn ghost bmd" onClick={onClose}>Cancel</button><button className="btn primary bmd" disabled={!name.trim()||saving} onClick={submit}>{saving?"Saving...":"Save Location"}</button></div>
+    </div>
   </div>);
 }
 
@@ -119,8 +164,19 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
   const [collapsed,setCollapsed]=useState({});
   const isOrgMode=mode&&mode.type==="org";
   const myLocations=(data.locations||[]).filter(l=>isOrgMode?l.organizationId===mode.orgId:l.ownerUserId===coachId);
+  // Real bug found live: the sportFilter (Team-tab) path used to filter
+  // *only* by sport against the raw, RLS-scoped-but-unfiltered data.assets
+  // -- with no owner/org check at all, so it leaked in Public Library
+  // catalog equipment (source_catalog_id rows, visible to every coach via
+  // a deliberate RLS carve-out for catalog content) and, in principle, any
+  // other coach's owned assets that happened to share a sport. That's what
+  // produced "9 baseball items already there, cones twice" for a coach who
+  // never added any. Reusing the same visibleEquipment scoping the Library
+  // tab already uses (own/org, catalog rows excluded) and narrowing to
+  // just this one team's sport fixes both the leak and the cross-screen
+  // inconsistency in one move.
   const baseAssets=sportFilter
-    ?(data.assets||[]).filter(a=>(a.sport||"General")===sportFilter||(a.sport||"General")==="General")
+    ?visibleEquipment(data,coachId,mode).filter(a=>(a.sport||"General")===sportFilter||(a.sport||"General")==="General")
     :visibleEquipment(data,coachId,mode);
   const teamAssets=baseAssets.filter(a=>!a.type||a.type==="team");
   const playerAssets=baseAssets.filter(a=>a.type==="player");
@@ -678,6 +734,97 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
   </div>);
 }
 
+// ── SchedulePracticePicker ─────────────────────────────────────────────────────
+// "Build Practice" from the Library used to only ever mean "start a brand
+// new, unscheduled plan" (goToBuilder(null)) -- there was no way to instead
+// pick an already-scheduled practice to plan without leaving Library for the
+// Schedule tab first. This gives the same choice an agenda/calendar-style
+// picker, scoped to upcoming practices only (a past one belongs in History,
+// not the Builder). Deliberately a light read-only picker, not a reuse of
+// the full ScheduleScreen -- that screen owns its own routing/PracticeDetail
+// drill-in, which isn't what tapping a row here should do (this always hands
+// off straight to Builder).
+const plTimeLbl=p=>{if(!p.startTime)return "";const [h,m]=p.startTime.split(":").map(Number);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
+const plDayLbl=(dateStr,todayStr,tomorrowStr)=>{
+  if(dateStr===todayStr)return "Today";
+  if(dateStr===tomorrowStr)return "Tomorrow";
+  return new Date(dateStr+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"});
+};
+function SchedulePracticePicker({data,onPick,onClose}){
+  const [mode,setMode]=useState("agenda");
+  const [monthCursor,setMonthCursor]=useState(()=>{const n=new Date();return new Date(n.getFullYear(),n.getMonth(),1);});
+  const [daySheetDate,setDaySheetDate]=useState(null);
+  const todayStr=localDateStr();
+  const tomorrowStr=localDateStr(new Date(Date.now()+864e5));
+  const teamById=id=>(data.teams||[]).find(t=>t.id===id);
+  const upcoming=(data.practices||[]).filter(p=>p.date>=todayStr&&p.status!=="cancelled").sort((a,b)=>a.date===b.date?(a.startTime||"").localeCompare(b.startTime||""):a.date.localeCompare(b.date));
+  const groupByDay=list=>{const g=[];let cur=null;for(const p of list){if(!cur||cur.date!==p.date){cur={date:p.date,items:[]};g.push(cur);}cur.items.push(p);}return g;};
+  const rowFor=p=>{
+    const team=teamById(p.teamId),planned=(p.activities||[]).length>0;
+    return (<div key={p.id} className="li tap" onClick={()=>onPick(p)}>
+      <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
+        {team&&team.colorPrimary&&<span style={{width:8,height:8,borderRadius:"50%",boxSizing:"border-box",background:planned?team.colorPrimary:"transparent",border:"1.5px solid "+team.colorPrimary,flexShrink:0}}/>}
+        <div className="lim" style={{minWidth:0}}>
+          <div className="lin">{team?team.name:"Practice"}</div>
+          <div className="limt">{plDayLbl(p.date,todayStr,tomorrowStr)}{p.startTime?" · "+plTimeLbl(p):""}{!planned?" · Needs plan":planningState(p)==="under"?" · Under-planned":""}</div>
+        </div>
+      </div>
+      <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+    </div>);
+  };
+  const monthStart=monthCursor;
+  const monthEnd=new Date(monthStart.getFullYear(),monthStart.getMonth()+1,0);
+  const gridStart=new Date(monthStart);gridStart.setDate(gridStart.getDate()-gridStart.getDay());
+  const gridEnd=new Date(monthEnd);gridEnd.setDate(gridEnd.getDate()+(6-gridEnd.getDay()));
+  const days=[];for(let d=new Date(gridStart);d<=gridEnd;d.setDate(d.getDate()+1))days.push(new Date(d));
+  const toDateStr=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  const practicesByDate={};upcoming.forEach(p=>{(practicesByDate[p.date]||=[]).push(p);});
+  return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div className="modal" style={{maxHeight:"80vh",overflowY:"auto"}}>
+      <div className="mhandle"/>
+      <div className="mtitle">Choose a Scheduled Practice</div>
+      <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:12}}>
+        {["agenda","month"].map(m=>(<button key={m} onClick={()=>setMode(m)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:mode===m?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:mode===m?"var(--black)":"var(--td)"}}>{m}</button>))}
+      </div>
+      {mode==="agenda"&&<div>
+        {groupByDay(upcoming).map(g=>(<div key={g.date} style={{marginBottom:14}}>
+          <div className="clbl" style={{marginBottom:6}}>{plDayLbl(g.date,todayStr,tomorrowStr)}</div>
+          {g.items.map(rowFor)}
+        </div>))}
+        {upcoming.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Nothing scheduled yet. Schedule a practice first, or build an unscheduled one instead.</div>}
+      </div>}
+      {mode==="month"&&<div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+          <button className="btn ghost bxs" onClick={()=>setMonthCursor(new Date(monthStart.getFullYear(),monthStart.getMonth()-1,1))}>&#8249;</button>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{monthStart.toLocaleDateString("en-US",{month:"long",year:"numeric"})}</div>
+          <button className="btn ghost bxs" onClick={()=>setMonthCursor(new Date(monthStart.getFullYear(),monthStart.getMonth()+1,1))}>&#8250;</button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
+          {["S","M","T","W","T","F","S"].map((d,i)=>(<div key={i} style={{textAlign:"center",fontSize:11,fontWeight:700,color:"var(--td)"}}>{d}</div>))}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+          {days.map((d,i)=>{
+            const ds=toDateStr(d);
+            const dayPractices=practicesByDate[ds]||[];
+            const inMonth=d.getMonth()===monthStart.getMonth();
+            return (<div key={i} onClick={()=>dayPractices.length&&setDaySheetDate(ds)} style={{aspectRatio:"1",border:"1px solid var(--b)",borderRadius:6,padding:3,cursor:dayPractices.length?"pointer":"default",opacity:inMonth?1:.35,background:ds===todayStr?"var(--gbg)":"#fff"}}>
+              <div style={{fontSize:10,color:"var(--td)",marginBottom:2}}>{d.getDate()}</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:2}}>
+                {dayPractices.slice(0,4).map(p=>{const team=teamById(p.teamId);const planned=(p.activities||[]).length>0;const color=(team&&team.colorPrimary)||"var(--green)";return (<span key={p.id} style={{width:6,height:6,borderRadius:"50%",background:planned?color:"transparent",border:"1.5px solid "+color}}/>);})}
+              </div>
+            </div>);
+          })}
+        </div>
+        {daySheetDate&&<div style={{marginTop:14,borderTop:"1px solid var(--b)",paddingTop:12}}>
+          <div className="clbl" style={{marginBottom:6}}>{plDayLbl(daySheetDate,todayStr,tomorrowStr)}</div>
+          {(practicesByDate[daySheetDate]||[]).map(rowFor)}
+        </div>}
+      </div>}
+      <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={onClose}>Cancel</button>
+    </div>
+  </div>);
+}
+
 // ── NewLibraryScreen ──────────────────────────────────────────────────────────
 // Library split (nav restructure, 2026-07-15): two shelves -- "My Library"
 // (your drills + templates, with a sub-toggle) and "Explore" (content that
@@ -705,6 +852,8 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const [showFilter,setShowFilter]=useState(false);
   const [newTplPrompt,setNewTplPrompt]=useState(false);
   const [newTplNameDraft,setNewTplNameDraft]=useState("");
+  const [showBuildChoice,setShowBuildChoice]=useState(false);
+  const [showSchedulePicker,setShowSchedulePicker]=useState(false);
   const [isAdmin,setIsAdmin]=useState(false);
   useEffect(()=>{checkIsAdmin().then(setIsAdmin);},[]);
   const toggle=sport=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}));
@@ -820,7 +969,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   return (<div style={{paddingBottom:80}}>
     <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>{isOrgMode?"Club Library":"Library"}</div>
-      <button className="btn primary bsm" onClick={()=>goToBuilder(null)}>+ Build Practice</button>
+      <button className="btn primary bsm" onClick={()=>setShowBuildChoice(true)}>+ Build Practice</button>
     </div>
     <div style={{padding:"0 16px 12px"}}>
       <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:0}}>
@@ -977,5 +1126,21 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       </div>);})}
       {confirmDel&&<div className="movly" onClick={()=>setConfirmDel(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="mtitle">Delete template?</div><div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This cannot be undone.</div><div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDel(null)}>Cancel</button><button className="btn primary bmd" onClick={async()=>{await archiveTemplate(confirmDel);await refreshPlanning();setConfirmDel(null);}}>Delete</button></div></div></div>}
     </div>}
+    {showBuildChoice&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowBuildChoice(false);}}>
+      <div className="modal">
+        <div className="mhandle"/>
+        <div className="mtitle">Build Practice</div>
+        <div className="li tap" style={{marginBottom:8}} onClick={()=>{setShowBuildChoice(false);goToBuilder(null);}}>
+          <div className="lim"><div className="lin">Unscheduled Practice</div><div className="limt">Build now, then save it as a template or run it right away.</div></div>
+          <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+        </div>
+        <div className="li tap" onClick={()=>{setShowBuildChoice(false);setShowSchedulePicker(true);}}>
+          <div className="lim"><div className="lin">A Scheduled Practice</div><div className="limt">Pick an upcoming practice from your schedule to plan.</div></div>
+          <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+        </div>
+        <button className="btn ghost bmd bfull" style={{marginTop:12}} onClick={()=>setShowBuildChoice(false)}>Cancel</button>
+      </div>
+    </div>}
+    {showSchedulePicker&&<SchedulePracticePicker data={data} onClose={()=>setShowSchedulePicker(false)} onPick={p=>{setShowSchedulePicker(false);goToBuilder(p.id);}}/>}
   </div>);
 }

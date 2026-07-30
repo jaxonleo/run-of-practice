@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, leaveTeam, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, fetchOrgWeeklyPracticeRollup, findOrCreatePreviewToken, ORG_ROLE_LABELS } from "../supabase.js";
+import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, fetchOrgWeeklyPracticeRollup, findOrCreatePreviewToken, ORG_ROLE_LABELS } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
@@ -21,33 +21,42 @@ function PlanPill({ practice }) {
 // client state (no stored progress flags to drift) except the "run a
 // practice" step, which needs one lightweight query since nothing else on
 // Home already tracks completed-session history.
-function ChecklistModal({ data, hasCompleted, onClose, coachId, mode }) {
-  // data.activityLibrary is never mode-scoped upstream (HomeRoute only
-  // scopes teams/practices) -- it's always this coach's full personal drill
-  // list, so in Org mode this step needs its own org-scoped count instead of
-  // reusing that unfiltered one, or it reads "done" off personal drills that
-  // have nothing to do with the org being viewed.
+//
+// Was a "?" popup with a green-dot nudge and static, non-clickable rows --
+// direct feedback was that a brand-new coach's first Home screen wasn't
+// intuitive about how to actually proceed. Now a persistent card right on
+// Home (gone once every step is done) whose rows are real navigation, not
+// just a progress readout, and the green dot is dropped since the card
+// itself is now the visible nudge.
+function GettingStartedCard({ data, hasCompleted, coachId, mode, goToBuilder, goToSchedule, navigate }) {
   const isOrgMode = mode && mode.type === "org";
   const libraryDone = isOrgMode
     ? (data.activityLibrary || []).some(a => a.organizationId === mode.orgId)
     : (data.activityLibrary || []).some(a => a.ownerUserId === coachId);
+  const firstTeam = data.teams[0] || null;
+  const unplannedPractice = data.practices.find(p => (p.activities || []).length === 0) || null;
   const steps = [
-    { label: "Create a team", done: data.teams.length > 0 },
-    { label: "Add players", done: data.teams.some(t => t.players.length > 0) },
-    { label: isOrgMode ? "Build out the club's library" : "Build out your library", done: libraryDone },
-    { label: "Set your practice schedule", done: data.practices.length > 0 },
-    { label: "Plan your first practice", done: data.practices.some(p => (p.activities || []).length > 0) },
+    { label: "Create a team", done: data.teams.length > 0, onClick: () => navigate("/teams") },
+    { label: "Add players", done: data.teams.some(t => t.players.length > 0), onClick: () => navigate(firstTeam ? "/team/" + firstTeam.id + "/roster" : "/teams") },
+    { label: isOrgMode ? "Build out the club's library" : "Build out your library", done: libraryDone, onClick: () => navigate("/library") },
+    { label: "Set your practice schedule", done: data.practices.length > 0, onClick: goToSchedule },
+    { label: "Plan your first practice", done: data.practices.some(p => (p.activities || []).length > 0), onClick: () => goToBuilder(unplannedPractice ? unplannedPractice.id : null) },
+    // Not clickable -- there's no single screen to jump to for this one,
+    // it's the outcome of the hero card's own Start Practice button once a
+    // practice is actually planned and today, not a page of its own.
     { label: "Run it live", done: hasCompleted },
   ];
-  return (<div className="movly" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-    <div className="modal">
-      <div className="mhandle" />
-      <div className="mtitle">Getting Started</div>
-      {steps.map((s, i) => (<div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < steps.length - 1 ? "1px solid var(--s2)" : "none" }}>
-        <span style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, background: s.done ? "var(--green)" : "var(--s2)", color: s.done ? "#fff" : "var(--td)" }}>{s.done ? "✓" : i + 1}</span>
-        <span style={{ fontSize: 14, color: s.done ? "var(--td)" : "var(--black)", textDecoration: s.done ? "line-through" : "none" }}>{s.label}</span>
-      </div>))}
-      <button className="btn ghost bmd bfull" style={{ marginTop: 12 }} onClick={onClose}>Close</button>
+  return (<div style={{ margin: "0 16px 16px" }}>
+    <div className="card">
+      <div className="clbl mb8">Getting Started</div>
+      {steps.map((s, i) => {
+        const Row = s.onClick ? "button" : "div";
+        return (<Row key={i} onClick={s.onClick} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: "none", borderLeft: "none", borderRight: "none", borderBottom: i < steps.length - 1 ? "1px solid var(--s2)" : "none", width: "100%", background: "none", textAlign: "left", cursor: s.onClick ? "pointer" : "default", font: "inherit" }}>
+          <span style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, background: s.done ? "var(--green)" : "var(--s2)", color: s.done ? "#fff" : "var(--td)" }}>{s.done ? "✓" : i + 1}</span>
+          <span style={{ flex: 1, fontSize: 14, color: s.done ? "var(--td)" : "var(--black)", textDecoration: s.done ? "line-through" : "none" }}>{s.label}</span>
+          {s.onClick && !s.done && <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>}
+        </Row>);
+      })}
     </div>
   </div>);
 }
@@ -136,7 +145,6 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   const [absenceCounts, setAbsenceCounts] = useState({});
   const [runStatus, setRunStatus] = useState({});
   const [showHelpMenu, setShowHelpMenu] = useState(false);
-  const [showChecklist, setShowChecklist] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [hasCompleted, setHasCompleted] = useState(false);
   const practiceIdsKey = JSON.stringify(data.practices.map(p => p.id));
@@ -229,8 +237,14 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   const adderName = pendingWelcome ? ((pendingWelcome.team.coaches || []).find(c => c.userId === pendingWelcome.staff.addedBy)?.name || "a coach") : null;
   const pendingWelcomeStaffId = pendingWelcome ? pendingWelcome.staff.id : null;
   useEffect(() => { if (pendingWelcomeStaffId) markTeamStaffWelcomed(pendingWelcomeStaffId); }, [pendingWelcomeStaffId]);
-  const [leavingTeamId, setLeavingTeamId] = useState(null);
-  const handleLeave = async teamId => { setLeavingTeamId(teamId); await leaveTeam(teamId); if (refreshTeams) await refreshTeams(); setLeavingTeamId(null); };
+  // "Accept" is a purely local dismissal -- welcomedAt is already set the
+  // moment this banner would show (effect above), so there's no separate
+  // server-side "accepted" state to flip; this just hides the card for the
+  // rest of the session without leaving the team. Real leaving/hiding now
+  // lives in Settings > My Team Assignments (see the "Manage Team
+  // Assignments" link below), not as a raw "Leave" link right here.
+  const [dismissedWelcomeIds, setDismissedWelcomeIds] = useState(new Set());
+  const showWelcome = pendingWelcome && !dismissedWelcomeIds.has(pendingWelcome.team.id);
 
   // Org Experience handoff Sec 5: unlike the team_staff welcome card above
   // (already-added, just an FYI), an org invite is a real consent gate --
@@ -284,10 +298,13 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
         <div style={{ position: "relative" }}>
           <button onClick={() => setShowHelpMenu(s => !s)} style={{ position: "relative", background: "var(--s2)", border: "1.5px solid var(--b)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, color: "var(--green)" }}>
             ?
-            {!checklistDone && <span style={{ position: "absolute", top: 2, right: 2, width: 8, height: 8, borderRadius: "50%", background: "var(--green)" }} />}
           </button>
+          {/* Getting Started moved out of this menu entirely -- it's now a
+              persistent card on Home itself (see GettingStartedCard below),
+              so the green dot nudging you toward this menu for it is gone
+              too. FAQs replaces it here (task: only Send Feedback / FAQs). */}
           {showHelpMenu && <div className="mini-menu" style={{ minWidth: 170 }}>
-            <button className="mm-item" onClick={() => { setShowHelpMenu(false); setShowChecklist(true); }}>Getting Started</button>
+            <button className="mm-item" onClick={() => { setShowHelpMenu(false); navigate("/faq"); }}>FAQs</button>
             <button className="mm-item" onClick={() => { setShowHelpMenu(false); setShowFeedback(true); }}>Send Feedback</button>
           </div>}
         </div>
@@ -298,18 +315,21 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
     </div>
     {myOrgs.length > 0 && <div style={{ padding: "0 16px 12px" }}>
       <div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3 }}>
-        <button onClick={() => setMode({ type: "coach" })} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: !isOrgMode ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: !isOrgMode ? "var(--black)" : "var(--td)" }}>Coach</button>
-        <button onClick={switchToOrgMode} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: isOrgMode ? "var(--green)" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: isOrgMode ? "#fff" : "var(--td)" }}>Organization</button>
+        <button onClick={() => setMode({ type: "coach" })} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: !isOrgMode ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: !isOrgMode ? "var(--black)" : "var(--td)" }}>Coach Mode</button>
+        <button onClick={switchToOrgMode} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: isOrgMode ? "var(--green)" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: isOrgMode ? "#fff" : "var(--td)" }}>Organization Mode</button>
       </div>
       {showOrgPicker && <div className="card" style={{ marginTop: 6, padding: 8 }}>
         {myOrgs.map(org => (<button key={org.id} className="mm-item" style={{ width: "100%", textAlign: "left" }} onClick={() => pickOrg(org.id)}>{org.name}</button>))}
       </div>}
     </div>}
-    {showChecklist && <ChecklistModal data={data} hasCompleted={hasCompleted} onClose={() => setShowChecklist(false)} coachId={coachId} mode={mode} />}
+    {!checklistDone && <GettingStartedCard data={data} hasCompleted={hasCompleted} coachId={coachId} mode={mode} goToBuilder={goToBuilder} goToSchedule={goToSchedule} navigate={navigate} />}
     {showFeedback && <FeedbackModal coachId={coachId} coachEmail={coachEmail} onClose={() => setShowFeedback(false)} />}
-    {pendingWelcome && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
-      <div style={{ fontSize: 14, marginBottom: 6 }}>You've been added to <strong>{pendingWelcome.team.name}</strong> by {adderName}.</div>
-      <button style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 12, color: "var(--td)", textDecoration: "underline" }} disabled={leavingTeamId === pendingWelcome.team.id} onClick={() => handleLeave(pendingWelcome.team.id)}>Not your team? Leave</button>
+    {showWelcome && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
+      <div style={{ fontSize: 14, marginBottom: 10 }}>You've been added to <strong>{pendingWelcome.team.name}</strong> by {adderName}.</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button className="btn primary bxs" style={{ flex: 1 }} onClick={() => setDismissedWelcomeIds(s => new Set(s).add(pendingWelcome.team.id))}>Accept</button>
+        <button className="btn ghost bxs" style={{ flex: 1 }} onClick={() => navigate("/settings", { state: { openSection: "assignments" } })}>Manage Team Assignments</button>
+      </div>
     </div></div>}
     {pendingOrgInvite && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 14, marginBottom: 8 }}>You've been invited to help lead <strong>{pendingOrgInvite.organizationName}</strong> as {articleFor(ORG_ROLE_LABELS[pendingOrgInvite.role] || "Director")} {ORG_ROLE_LABELS[pendingOrgInvite.role] || "Director"}{pendingOrgInvite.teamRole ? ", with a team role waiting for you once you accept" : ""}.</div>
@@ -349,6 +369,12 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
           {data.teams.map(team => (<div key={team.id} className="card" style={{ flexShrink: 0, minWidth: 140, cursor: "pointer", borderLeft: "4px solid " + (team.colorPrimary || "transparent"), padding: "10px 12px" }} onClick={() => goToTeam(team.id)}>
             <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700, whiteSpace: "nowrap" }}>{team.name}</div>
             <div style={{ fontSize: 11, color: "var(--td)" }}>{team.sport}</div>
+            {/* Org name shown here (Coach mode only) so a coach juggling
+                personal teams and org teams together can tell which is
+                which at a glance -- Org mode already says the org's name
+                in the greeting header above, so repeating it per-card there
+                would just be noise. */}
+            {!isOrgMode && team.organizationName && <div style={{ fontSize: 10, color: "var(--td)", marginTop: 2 }}>{team.organizationName}</div>}
             {!isOrgMode && <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--td)", marginTop: 2 }}>{myTeamRole(team, coachId)}</div>}
           </div>))}
         </div>

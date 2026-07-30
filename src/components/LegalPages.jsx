@@ -1,12 +1,28 @@
-import React from "react";
+import React, { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const LAST_UPDATED = "July 10, 2026";
 const CONTACT_EMAIL = "contact@runofpractice.com";
 
+// Back used to hard-navigate to "/" regardless of where you came from --
+// most noticeably wrong from Settings > Account, which landed you back on
+// Home instead. navigate(-1) is the generically correct fix (works for the
+// landing page and auth-screen entry points too, since it's just browser
+// history), but Settings > Account isn't its own URL (SettingsScreen keeps
+// which section is open in local component state, reset on remount), so a
+// plain history pop there would land on Settings' top-level list, not back
+// inside Account specifically. location.state.openSection carries that
+// intent across the navigation for the one caller that needs it.
 function LegalLayout({ title, children }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const goBack = () => {
+    if (location.state && location.state.openSection) navigate("/settings", { state: { openSection: location.state.openSection } });
+    else navigate(-1);
+  };
   return (<div style={{ minHeight: "100dvh", background: "var(--bg)" }}>
     <div style={{ background: "var(--black)", padding: "20px 20px 24px", display: "flex", alignItems: "center", gap: 12 }}>
-      <a href="/" style={{ color: "#fff", textDecoration: "none", background: "rgba(255,255,255,.08)", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>&#8249;</a>
+      <button onClick={goBack} style={{ color: "#fff", background: "rgba(255,255,255,.08)", border: "none", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0, cursor: "pointer" }}>&#8249;</button>
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900, color: "#fff" }}>{title}</div>
     </div>
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 20px 60px" }}>
@@ -23,6 +39,57 @@ function S({ n, title, children }) {
     <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 17, fontWeight: 900, marginBottom: 6, color: "var(--black)" }}>{n ? n + ". " : ""}{title}</div>
     <div>{children}</div>
   </div>);
+}
+
+// ── FAQPage ────────────────────────────────────────────────────────────────────
+// Reached from Home's "?" menu (signed-in only), but not gated behind auth
+// as a route -- same top-level-sibling treatment as Terms/Privacy, since
+// there's nothing sensitive here and it means a link to it works whether
+// or not the recipient happens to be signed in yet.
+function FAQItem({ q, children, open, onToggle }) {
+  return (<div style={{ borderBottom: "1px solid var(--b)" }}>
+    <button onClick={onToggle} style={{ width: "100%", textAlign: "left", background: "none", border: "none", padding: "16px 0", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, cursor: "pointer", font: "inherit" }}>
+      <span style={{ fontWeight: 700, color: "var(--black)" }}>{q}</span>
+      <span style={{ color: "var(--td)", fontSize: 20, flexShrink: 0 }}>{open ? "−" : "+"}</span>
+    </button>
+    {open && <div style={{ paddingBottom: 16 }}>{children}</div>}
+  </div>);
+}
+
+export function FAQPage() {
+  const [open, setOpen] = useState(0);
+  const toggle = i => setOpen(open === i ? -1 : i);
+  const items = [
+    {
+      q: "Can I delete my account?",
+      a: (<>
+        <p style={{ margin: "0 0 10px" }}>You can deactivate your account any time from Settings &gt; Account. Deactivating signs you out and hides you from your teammates' rosters, but nothing is thrown away: all your teams, practices, and data stay exactly as they are. Sign in again whenever you're ready and everything picks up right where you left off, no re-setup needed.</p>
+        <p style={{ margin: 0 }}>If you really do want your account and data permanently deleted instead, we don't yet have a self-serve way to do that. Email us at {CONTACT_EMAIL} and we'll take care of it manually.</p>
+      </>),
+    },
+    {
+      q: "How do I set up an organization with multiple teams?",
+      a: (<>
+        <p style={{ margin: "0 0 10px" }}>Organizations are for clubs running more than one team, with a director who can see across all of them and coaches managing their own team day to day. We set these up with you rather than offering instant self-service, so everything (sports, teams, coaches) starts out configured correctly.</p>
+        <p style={{ margin: 0 }}>Reach out and we'll get you going: <a href="mailto:contact@runofpractice.com?subject=Organization%20consultation" style={{ color: "var(--green)" }}>request a consultation</a>.</p>
+      </>),
+    },
+    { q: "Is Run of Practice free?", a: "Yes, Run of Practice is free during early access while we're still testing and improving it." },
+    { q: "Who is it for?", a: "Head coaches, assistant coaches, and anyone helping run an organized practice, from a single team to a whole club." },
+    { q: "Does every helper need an account?", a: "No. Assistant coaches get ongoing access through their own account, while a parent or ad hoc helper can just use a shared link with the information they need for that practice, no account or download required." },
+    { q: "Can I use it for different sports?", a: "Yes. Run of Practice is built around things every sport's practices share, like drills, groups, stations, locations, timing, and equipment. The setup adjusts to whatever sport and level you coach." },
+    { q: "What happens if attendance changes?", a: "Update who's present and your groupings adjust with them. You can shuffle players randomly or make changes yourself, whichever fits the moment." },
+    { q: "Can I adjust the schedule while practice is happening?", a: "Yes. You can add or reduce time, end an activity early, or skip one entirely, and everyone connected sees the change reflected in real time." },
+    { q: "Will I hear the timer if my phone is in my pocket?", a: "Turn on audio in a live practice and Run of Practice will call out the two-minute warning and play a sound when time's up, so you don't need to keep the screen in front of you." },
+  ];
+  return (<LegalLayout title="FAQs">
+    <div>
+      {items.map((it, i) => (<FAQItem key={i} q={it.q} open={open === i} onToggle={() => toggle(i)}>
+        {typeof it.a === "string" ? <p style={{ margin: 0 }}>{it.a}</p> : it.a}
+      </FAQItem>))}
+    </div>
+    <div style={{ marginTop: 20, fontSize: 13, color: "var(--td)" }}>Still stuck on something? Reach us at {CONTACT_EMAIL}.</div>
+  </LegalLayout>);
 }
 
 export function TermsPage() {

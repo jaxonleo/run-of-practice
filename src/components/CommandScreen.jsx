@@ -589,10 +589,10 @@ function NoteComposer({roster,currentActivityLabel,onSubmit,showAuthorLabel}){
   };
   return (<div className="card mb10">
     {showAuthorLabel&&<input className="inp mb8" placeholder="Your name (optional)" value={authorLabel} onChange={e=>setAuthorLabel(e.target.value)} maxLength={100}/>}
-    {currentActivityLabel&&<label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--td)",marginBottom:6,cursor:"pointer"}}>
-      <input type="checkbox" checked={endOfPractice} onChange={e=>setEndOfPractice(e.target.checked)}/>
-      End-of-practice note{!endOfPractice?" (otherwise tagged to \""+currentActivityLabel+"\")":""}
-    </label>}
+    {currentActivityLabel&&<div style={{display:"flex",gap:6,marginBottom:8}}>
+      <button type="button" onClick={()=>setEndOfPractice(false)} style={{flex:1,padding:"8px 6px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:!endOfPractice?"var(--green)":"var(--s1)",color:!endOfPractice?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer"}}>{currentActivityLabel}</button>
+      <button type="button" onClick={()=>setEndOfPractice(true)} style={{flex:1,padding:"8px 6px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:endOfPractice?"var(--green)":"var(--s1)",color:endOfPractice?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer"}}>General</button>
+    </div>}
     <div style={{position:"relative"}}>
       <textarea ref={taRef} className="ta" placeholder="Add a note... type @ to tag a player" value={body} onChange={handleChange} maxLength={500}/>
       {mentionQuery!==null&&filtered.length>0&&<div className="mini-menu" style={{position:"absolute",top:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}}>
@@ -626,6 +626,7 @@ function HelperView({token}){
   const [showROS,setShowROS]=useState(false);
   const [showNotes,setShowNotes]=useState(false);
   const [markingId,setMarkingId]=useState(null);
+  const [showAudioPrompt,setShowAudioPrompt]=useState(true);
   const spokenRef=useRef({});
   const buzzedRef=useRef(false);
 
@@ -703,6 +704,18 @@ function HelperView({token}){
   const upcomingMins=a=>a.type==="station_block"?(a.station_count||0)*Math.round((a.station_duration_seconds||0)/60)+Math.max(0,(a.station_count||0)-1)*(a.rotate!==false?Math.round((a.transition_duration_seconds||0)/60):0):(a.duration_minutes||0);
 
   return(<div className="ccs">
+    {showAudioPrompt&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowAudioPrompt(false);}}>
+      <div className="modal">
+        <div className="mhandle"/>
+        <div className="mtitle">Turn On Audio?</div>
+        <div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>Run of Practice can call out the two-minute warning and time's up, so you don't need to keep watching the screen. Make sure your device's volume is turned up so you can hear the prompts.</div>
+        <button className="btn primary bmd bfull mb8" onClick={()=>{
+          if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}
+          spokenRef.current={};buzzedRef.current=false;setAudioOn(true);setShowAudioPrompt(false);
+        }}>🔊 Turn On Audio</button>
+        <button className="btn ghost bmd bfull" onClick={()=>{setAudioOn(false);setShowAudioPrompt(false);}}>🔇 Keep Audio Off</button>
+      </div>
+    </div>}
     <div className="cc-header">
       <div>
         <div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span><span style={{marginLeft:8,fontSize:11,color:"var(--td)"}}>Helper View</span></div>
@@ -1057,6 +1070,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const [shareScope,setShareScope]=useState("helper_read");
   const [showShare,setShowShare]=useState(false);
   const [showStationWarning,setShowStationWarning]=useState(false);
+  const [showAudioPrompt,setShowAudioPrompt]=useState(false);
   const spoken=useRef({});
   const activityLogIdRef=useRef(null);
   // Rapidly tapping through the Overview jump list (browsing for the right
@@ -1159,6 +1173,17 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     }
     // eslint-disable-next-line
   },[stage,isController,session&&session.id,unassignedStations.length]);
+  // Fires once per session for every viewer (not just the controller) the
+  // moment they land in the live view -- audio is off by default (see
+  // audioOn above), so without this a coach/helper who never taps the tiny
+  // header speaker icon simply never hears the two-minute/time's-up cues.
+  const audioPromptSessionRef=useRef(null);
+  useEffect(()=>{
+    if(stage==="live"&&session&&audioPromptSessionRef.current!==session.id){
+      audioPromptSessionRef.current=session.id;
+      setShowAudioPrompt(true);
+    }
+  },[stage,session&&session.id]);
   const phaseSecs=isBlock?(inBlockIntro?(cur.transitionDuration||2)*60:blockRotate&&inTrans?cur.transitionDuration*60:cur.stationDuration*60):(cur?actSecs(cur):0);
   const isOver=elapsed>phaseSecs;
   const rem=phaseSecs-elapsed;
@@ -2132,7 +2157,19 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>{setReassignStationId(null);setHelperDraft("");}}>Cancel</button>
         </div>
       </div>}
-      {showStationWarning&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowStationWarning(false);}}>
+      {showAudioPrompt&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowAudioPrompt(false);}}>
+        <div className="modal">
+          <div className="mhandle"/>
+          <div className="mtitle">Turn On Audio?</div>
+          <div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>Run of Practice can call out the two-minute warning and time's up, so you don't need to keep watching the screen. Make sure your device's volume is turned up so you can hear the prompts.</div>
+          <button className="btn primary bmd bfull mb8" onClick={()=>{
+            if(!audioOn){try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}startBgAudioSession();}
+            spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(true);setShowAudioPrompt(false);
+          }}>🔊 Turn On Audio</button>
+          <button className="btn ghost bmd bfull" onClick={()=>{setAudioOn(false);setShowAudioPrompt(false);}}>🔇 Keep Audio Off</button>
+        </div>
+      </div>}
+      {showStationWarning&&!showAudioPrompt&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowStationWarning(false);}}>
         <div className="modal">
           <div className="mhandle"/>
           <div className="mtitle">{unassignedStations.length===1?"A Station Has No Leader":unassignedStations.length+" Stations Have No Leader"}</div>
