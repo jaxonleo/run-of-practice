@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { checkIsAdmin, listAdmins, grantAdmin, revokeAdmin, createOrganization, leaveTeam, setTeamStaffShowOnHome } from "../supabase.js";
-import { myTeamRole } from "../constants.js";
+import { myTeamRole, AUDIO_CUES, getAudioCuePref, setAudioCuePref, getVoiceGenderPref, setVoiceGenderPref, pickPreferredVoice } from "../constants.js";
 
 // Settings hub (nav restructure, 2026-07-15; narrowed again in the Library
 // 5-tab redesign): originally held Account, Locations, Equipment & Gear, and
@@ -119,6 +119,54 @@ function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate}){
   </div>);
 }
 
+// ── LivePracticeAudioSection ─────────────────────────────────────────────────
+// Coach-selectable time's-up cue + announcer voice, requested after the
+// default whistle+"Time" combo didn't land for everyone. Stored in
+// localStorage (constants.js) rather than the database -- both are
+// inherently per-device: available speechSynthesis voices differ by
+// browser/OS, so a specific voice chosen on one device may not exist on
+// another, and re-resolving from a plain gender flag at speak-time on
+// whichever device is playing is simpler and more correct than trying to
+// sync an exact voice name across devices.
+function LivePracticeAudioSection(){
+  const [cue,setCue]=useState(getAudioCuePref());
+  const [gender,setGender]=useState(getVoiceGenderPref());
+  const previewAudioRef=useRef(null);
+  const previewCue=id=>{
+    try{
+      if(previewAudioRef.current)previewAudioRef.current.pause();
+      const found=AUDIO_CUES.find(c=>c.id===id);
+      if(!found)return;
+      const audio=new Audio(found.file);
+      previewAudioRef.current=audio;
+      audio.play().catch(()=>{});
+    }catch(e){}
+  };
+  const chooseCue=id=>{setCue(id);setAudioCuePref(id);previewCue(id);};
+  const previewVoice=g=>{
+    try{
+      window.speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance("Two minutes remaining.");
+      u.rate=0.9;
+      const v=pickPreferredVoice(g);
+      if(v)u.voice=v;
+      window.speechSynthesis.speak(u);
+    }catch(e){}
+  };
+  const chooseGender=g=>{setGender(g);setVoiceGenderPref(g);previewVoice(g);};
+  return (<div>
+    <div className="clbl mb8">Time's Up Sound</div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:24}}>
+      {AUDIO_CUES.map(c=>(<button key={c.id} className={"btn bsm "+(cue===c.id?"primary":"outline")} onClick={()=>chooseCue(c.id)}>{c.label}</button>))}
+    </div>
+    <div className="clbl mb8">Announcer Voice</div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+      {[["default","Device Default"],["male","Male"],["female","Female"]].map(([id,label])=>(<button key={id} className={"btn bsm "+(gender===id?"primary":"outline")} onClick={()=>chooseGender(id)}>{label}</button>))}
+    </div>
+    <div style={{fontSize:12,color:"var(--td)",lineHeight:1.5}}>Tap a sound or voice above to hear it before you pick. Voice options depend on your device and browser -- if Male or Female sounds the same as Device Default, your device doesn't have a distinct voice installed for that choice, and it'll just use the default one instead.</div>
+  </div>);
+}
+
 // LocationsSection moved to NewLibraryScreen.jsx (Library 5-tab redesign).
 
 // ── AdminsSection ──────────────────────────────────────────────────────────
@@ -194,9 +242,10 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
   const NAV_ITEMS=[
     {id:"account",label:"Account",sub:coachEmail||undefined},
     {id:"assignments",label:"My Team Assignments",sub:"Leave a team or hide it from your Home agenda"},
+    {id:"audio",label:"Live Practice Audio",sub:"Time's-up sound and announcer voice"},
   ];
   const BackRow=()=>(<div style={{padding:"12px 14px 0"}}><button className="btn ghost bxs" onClick={()=>setSection(null)}>&#8249; Settings</button></div>);
-  const titles={account:"Account",assignments:"My Team Assignments",admins:"Admins"};
+  const titles={account:"Account",assignments:"My Team Assignments",admins:"Admins",audio:"Live Practice Audio"};
 
   if(section)return(<div style={{paddingBottom:80}}>
     <BackRow/>
@@ -205,6 +254,7 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
       {section==="account"&&<AccountSection profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate}/>}
       {section==="assignments"&&<TeamAssignmentsSection data={data} coachId={coachId} refreshTeams={refreshTeams}/>}
       {section==="admins"&&<AdminsSection/>}
+      {section==="audio"&&<LivePracticeAudioSection/>}
     </div>
   </div>);
 

@@ -60,9 +60,19 @@ export default function PracticePlanPrint({ practice, team, loc, data, onClose }
       <button className="btn outline bmd" style={{ background: "#fff" }} onClick={onClose}>Close</button>
     </div>
     <div id="rop-print-root" style={{ maxWidth: 800, margin: "0 auto", background: "#fff", padding: "40px 48px", fontFamily: "Georgia,'Times New Roman',serif", color: P.black }}>
+      {/* A small letterhead above the practice-specific header -- this used
+          to just be "PRACTICE PLAN / Team Name", nothing tying it back to
+          the app, so a printed sheet handed to a parent or another coach
+          had no sense of where it came from. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+        <img src="/icon-192.png" alt="" width={28} height={28} style={{ borderRadius: 6, display: "block" }} />
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 900, color: P.black, letterSpacing: ".01em" }}>Run of Practice</div>
+      </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "3px solid " + P.black, paddingBottom: 14, marginBottom: 20 }}>
         <div>
-          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: P.green, marginBottom: 4 }}>Practice Plan</div>
+          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: P.green, marginBottom: 4 }}>
+            The Run of Practice{practice.date && (" for " + (team ? team.name : "this team") + " on " + new Date(practice.date + "T12:00:00").toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }))}
+          </div>
           <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 34, fontWeight: 900, lineHeight: 1 }}>{team ? team.name : "Practice"}</div>
         </div>
         <div style={{ textAlign: "right", fontSize: 13, color: P.td }}>

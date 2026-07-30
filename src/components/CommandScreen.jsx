@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach } from "../constants.js";
+import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceGenderPref, pickPreferredVoice } from "../constants.js";
 import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote, updateStationLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
+import PracticePlanPrint from "./PracticePlanPrint.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
 const Ic={
@@ -168,6 +169,7 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
   const equipNames=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean).join(", ");
   const [tplNameInput,setTplNameInput]=useState("");
   const [showTplInput,setShowTplInput]=useState(false);
+  const [showPrint,setShowPrint]=useState(false);
   // Fetched from the notes table on demand (not bulk-loaded with the rest
   // of the app's data) -- keyed by real practice_activity_id/station_id,
   // not the old blob's fragile context-name match.
@@ -216,6 +218,12 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
         <div className="limt">{fmtDate(practice.date)}{practice.startTime?" at "+practice.startTime:""}{loc?" · "+loc.name:""}</div>
       </div>
     </div>
+    {/* Print/PDF export used to only exist on PracticeDetail, which a
+        past/run practice never routes to (ScheduleScreen sends those here
+        instead) -- so a coach who forgot to print beforehand had no way
+        to get the plan afterward. Same component, same data this screen
+        already has. */}
+    <button className="btn outline bsm bfull" style={{marginBottom:12}} onClick={()=>setShowPrint(true)}>Print / Export PDF</button>
     <div className="sechdr mb8">
       <span className="sectitle">{practice.activities.length} Activities</span>
       <span className="pill">{sumMins(practice.activities)}m</span>
@@ -299,6 +307,7 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
       </div>}
       {!showTplInput&&<button className="btn ghost bmd bfull" onClick={()=>setShowTplInput(true)}>{tplSaved?"Saved as Template":"Save as Template"}</button>}
     </div>
+    {showPrint&&<PracticePlanPrint practice={practice} team={team} loc={loc} data={data} onClose={()=>setShowPrint(false)}/>}
   </div>);
 }
 
@@ -1070,21 +1079,21 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   // in the coach's hand rather than being switched away from entirely.
   const bgAudioRef=useRef(null);
   const beepAudioRef=useRef(null);
-  const whistleAudioRef=useRef(null);
+  const cueAudioRefs=useRef({});
   const wakeLockRef=useRef(null);
   useEffect(()=>{
     beepAudioRef.current=new Audio('/audio/tennis-beep.wav');
-    // Time's-up cue: was gym-buzzer.wav -- swapped for an actual referee
-    // whistle (synthesized, since no real sample existed in the repo) so
-    // it reads as audible/appropriate for a sports practice rather than a
-    // gym-class buzzer.
-    whistleAudioRef.current=new Audio('/audio/whistle.wav');
+    // Time's-up cue is now coach-selectable (Settings -> Live Practice
+    // Audio: whistle/buzzer/ding/beep, getAudioCuePref()) -- all four are
+    // preloaded here so switching the setting mid-session never needs a
+    // fresh Audio() at play time.
+    AUDIO_CUES.forEach(c=>{cueAudioRefs.current[c.id]=new Audio(c.file);});
     const bg=new Audio('/audio/silence-loop.wav');
     bg.loop=true;bg.volume=0.02;
     bgAudioRef.current=bg;
     return()=>{
       try{bg.pause();}catch(e){}
-      bgAudioRef.current=null;beepAudioRef.current=null;whistleAudioRef.current=null;
+      bgAudioRef.current=null;beepAudioRef.current=null;cueAudioRefs.current={};
       if(wakeLockRef.current){try{wakeLockRef.current.release();}catch(e){}wakeLockRef.current=null;}
     };
   },[]);
@@ -1170,21 +1179,38 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     return()=>clearInterval(iv);
   },[running]);
 
-  const speak=useCallback(txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){};},[audioOn]);
-  // Time's-up cue: one short whistle blast, then a spoken "Time" once the
-  // blast finishes (whistle.wav is now a single ~0.5s blast, was a
-  // double-blow before -- the spoken word now carries the job the second
-  // blast used to). onended (not a fixed setTimeout) so the two stay in
-  // sync with the file's actual length regardless of playback hiccups.
+  // Voice is coach-selectable too (Settings -> Live Practice Audio: Male/
+  // Female/Default, getVoiceGenderPref()) -- pickPreferredVoice is a
+  // name-based heuristic (the Web Speech API has no real gender
+  // metadata), returns null if nothing matches on this device/browser, in
+  // which case this just leaves u.voice unset and falls back to whatever
+  // the browser's own default voice is, exactly like before this setting
+  // existed.
+  const speak=useCallback(txt=>{
+    if(!audioOn)return;
+    try{
+      window.speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(txt);
+      u.rate=0.9;
+      const v=pickPreferredVoice(getVoiceGenderPref());
+      if(v)u.voice=v;
+      window.speechSynthesis.speak(u);
+    }catch(e){};
+  },[audioOn]);
+  // Time's-up cue: the coach's chosen sound (whistle/buzzer/ding/beep),
+  // then a spoken "Time" once it finishes -- onended (not a fixed
+  // setTimeout) so the two stay in sync with the file's actual length
+  // regardless of playback hiccups.
   const beep=useCallback(()=>{
     if(!audioOn)return;
     try{
-      if(whistleAudioRef.current){
-        whistleAudioRef.current.currentTime=0;
-        whistleAudioRef.current.onended=()=>speak("Time");
-        whistleAudioRef.current.play().catch(()=>{});
+      const audio=cueAudioRefs.current[getAudioCuePref()]||cueAudioRefs.current.whistle;
+      if(audio){
+        audio.currentTime=0;
+        audio.onended=()=>speak("Time");
+        audio.play().catch(()=>{});
       }
-    }catch(e){console.error('whistle error:',e);}
+    }catch(e){console.error('time cue error:',e);}
   },[audioOn,speak]);
   const playWarningTone=useCallback(()=>{
     if(!audioOn)return;

@@ -5,6 +5,7 @@ import {
   fetchTeamGoalReport, fetchTeamSessionHistory, fetchSessionActivityLog, fetchNotesForPractice, archiveNote,
   setSessionExclusion, adjustSessionActivity, addSessionActivityRow, logGoalViewed,
 } from "../supabase.js";
+import PracticePlanPrint from "./PracticePlanPrint.jsx";
 
 // Author-role labeling (Assistant Coach handoff §2.3): resolve a staff
 // note's real name+role from the team roster already loaded here (never a
@@ -215,7 +216,7 @@ function TimeRangeForm({ start, end, setStart, setEnd, onSave, onCancel, busy, s
 // time" client-side guardrail (§5.4) -- the DB-side sane-bounds check
 // (adjust_session_activity's +/-1h/12h window, built in step 2) is the real
 // safety net; this is UI polish on top of it, not core correctness.
-function SessionHistoryDetail({ session, practice, team, canManage, onBack, onChanged, setSubViewBack }) {
+function SessionHistoryDetail({ session, practice, team, data, canManage, onBack, onChanged, setSubViewBack }) {
   // Nav restructure round 3: GoalsScreen is always team-scoped, so this
   // always registers with Layout's colored bar instead of its own inline
   // Back button -- the !setSubViewBack fallback below is just defensive
@@ -234,6 +235,8 @@ function SessionHistoryDetail({ session, practice, team, canManage, onBack, onCh
   const [addStart, setAddStart] = useState("");
   const [addEnd, setAddEnd] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPrint, setShowPrint] = useState(false);
+  const loc = (practice && data) ? data.locations.find(l => l.id === practice.locationId) : null;
 
   const refresh = useCallback(() => { fetchSessionActivityLog(session.session_id).then(setLogs); }, [session.session_id]);
   useEffect(() => { refresh(); }, [refresh]);
@@ -276,6 +279,7 @@ function SessionHistoryDetail({ session, practice, team, canManage, onBack, onCh
     <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>
       {session.ended_at ? new Date(session.ended_at).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }) : "In progress"}
     </div>
+    <button className="btn outline bsm bfull" style={{ marginBottom: 12 }} onClick={() => setShowPrint(true)}>Print / Export PDF</button>
     <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>
       {session.wall_minutes}min wall time · {session.attendance_count} attended
       {session.excluded && <span className="bdg bs" style={{ marginLeft: 6 }}>Excluded from goals</span>}
@@ -367,6 +371,7 @@ function SessionHistoryDetail({ session, practice, team, canManage, onBack, onCh
     {canManage && <button className={"btn bmd bfull " + (session.excluded ? "primary" : "outline")} onClick={toggleExclude} disabled={busy}>
       {session.excluded ? "Restore to goals" : "Exclude from goals"}
     </button>}
+    {showPrint && data && <PracticePlanPrint practice={practice} team={team} loc={loc} data={data} onClose={() => setShowPrint(false)} />}
   </div>);
 }
 
@@ -430,7 +435,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack }) {
 
   if (openSession) {
     const practice = data.practices.find(p => p.id === openSession.practice_id);
-    return <SessionHistoryDetail session={openSession} practice={practice} team={team} canManage={canManage}
+    return <SessionHistoryDetail session={openSession} practice={practice} team={team} data={data} canManage={canManage}
       onBack={() => setOpenSessionId(null)}
       onChanged={() => { refreshAll(); }}
       setSubViewBack={setSubViewBack} />;

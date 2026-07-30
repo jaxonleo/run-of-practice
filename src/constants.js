@@ -172,3 +172,49 @@ export function nextTeamColor(existingTeams){
   const used=new Set((existingTeams||[]).map(t=>t.colorPrimary).filter(Boolean));
   return TEAM_COLORS.find(c=>!used.has(c))||TEAM_COLORS[Math.floor(Math.random()*TEAM_COLORS.length)];
 }
+
+// ── Live practice audio prefs ─────────────────────────────────────────────────
+// Coach-selectable time's-up cue + announcer voice (Settings -> Live
+// Practice Audio). Stored in localStorage, not the database -- both are
+// inherently per-device preferences (available speechSynthesis voices
+// differ by browser/OS, so a "male voice" chosen on one device may not
+// exist on another; re-resolving from a plain gender flag at speak-time
+// on whichever device is playing is simpler and more correct than trying
+// to sync a specific voice name across devices).
+export const AUDIO_CUES=[
+  {id:"whistle",label:"Whistle",file:"/audio/whistle.wav"},
+  {id:"buzzer",label:"Buzzer",file:"/audio/gym-buzzer.wav"},
+  {id:"ding",label:"Ding",file:"/audio/ding.wav"},
+  {id:"beep",label:"Beep",file:"/audio/beep.wav"},
+];
+const AUDIO_CUE_KEY="rop_audio_cue_pref";
+const VOICE_GENDER_KEY="rop_voice_gender_pref";
+export function getAudioCuePref(){
+  try{const v=localStorage.getItem(AUDIO_CUE_KEY);return AUDIO_CUES.some(c=>c.id===v)?v:"whistle";}catch(e){return "whistle";}
+}
+export function setAudioCuePref(id){try{localStorage.setItem(AUDIO_CUE_KEY,id);}catch(e){}}
+export function getVoiceGenderPref(){
+  try{const v=localStorage.getItem(VOICE_GENDER_KEY);return (v==="male"||v==="female")?v:"default";}catch(e){return "default";}
+}
+export function setVoiceGenderPref(g){try{localStorage.setItem(VOICE_GENDER_KEY,g);}catch(e){}}
+// The Web Speech API has no real gender metadata on a voice -- this is a
+// name-based heuristic, the same approach most web speechSynthesis
+// "voice picker" implementations use. Coverage varies a lot by platform:
+// iOS/macOS Safari voices are clearly named ("Samantha", "Daniel"),
+// Android/Chrome mostly exposes "Google US English" (female) without a
+// consistent male counterpart, and availability differs release to
+// release -- so this can legitimately find nothing on some devices and
+// silently fall back to whatever the browser's default voice is.
+const MALE_VOICE_HINTS=["male","david","daniel","alex","fred","tom","mark","james","aaron","oliver","ryan","microsoft david","microsoft mark","google uk english male"];
+const FEMALE_VOICE_HINTS=["female","samantha","victoria","zira","susan","karen","allison","ava","moira","tessa","microsoft zira","google us english","google uk english female"];
+export function pickPreferredVoice(genderPref){
+  if(genderPref!=="male"&&genderPref!=="female")return null;
+  try{
+    const voices=(window.speechSynthesis&&window.speechSynthesis.getVoices())||[];
+    if(!voices.length)return null;
+    const en=voices.filter(v=>/^en/i.test(v.lang));
+    const pool=en.length?en:voices;
+    const hints=genderPref==="male"?MALE_VOICE_HINTS:FEMALE_VOICE_HINTS;
+    return pool.find(v=>hints.some(h=>v.name.toLowerCase().includes(h)))||null;
+  }catch(e){return null;}
+}
