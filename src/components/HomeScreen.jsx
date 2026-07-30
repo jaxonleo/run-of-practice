@@ -386,14 +386,18 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
               subordinate outline link -- easy to miss, and it made "jump
               straight into the live timer" the only obvious path even for
               a coach who just wants to get equipment/stations together
-              first. Made a co-equal side-by-side choice instead: same
-              width/height, Setup first (the "get things together" step)
-              since Start/Review is the one action a coach already knows
-              how to find. */}
+              first. Made a co-equal side-by-side choice instead, Setup
+              first (the "get things together" step) since Start/Review is
+              the one action a coach already knows how to find. Sized down
+              from bxl to blg and forced minWidth:0 on both -- two bxl
+              buttons (nowrap text, big padding) never actually fit side
+              by side on a phone-width screen: flex items default to
+              min-width:auto, so flex-shrink couldn't shrink either below
+              its own text width and the row overflowed the viewport. */}
           {planned && <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn outline bxl" style={{ flex: 1 }} disabled={openingPreview} onClick={() => openPracticeSetup(nextPractice.id)}>{openingPreview ? "Opening..." : "Practice Setup"}</button>
-            {!soon && <button className="btn primary bxl" style={{ flex: 1 }} onClick={() => setViewPractice(nextPractice)}>Review Plan</button>}
-            {soon && <button className="btn primary bxl" style={{ flex: 1 }} onClick={() => goToRun(nextPractice.id)}>Start Practice &#8594;</button>}
+            <button className="btn outline blg" style={{ flex: 1, minWidth: 0 }} disabled={openingPreview} onClick={() => openPracticeSetup(nextPractice.id)}>{openingPreview ? "Opening..." : "Practice Setup"}</button>
+            {!soon && <button className="btn primary blg" style={{ flex: 1, minWidth: 0 }} onClick={() => setViewPractice(nextPractice)}>Review Plan</button>}
+            {soon && <button className="btn primary blg" style={{ flex: 1, minWidth: 0 }} onClick={() => goToRun(nextPractice.id)}>Start Practice &#8594;</button>}
           </div>}
         </div>);
       })()}

@@ -1170,6 +1170,34 @@ export function subscribeToLiveSession(id, onUpdate) {
     .subscribe()
 }
 
+// "Who has this practice open" presence -- pure Realtime Presence, no
+// table and no RLS involved (it's ephemeral client-to-client state over
+// the same websocket infra subscribeToLiveSession already uses, not a DB
+// write). Keyed by practice_id rather than live_session_id so a coach
+// still on the Practice Setup screen and a helper who already opened the
+// live link show up together, and so PreviewView/CommandScreen/HelperView
+// all land on the same channel for the same practice regardless of which
+// stage each viewer is in. Each client tracks {kind:'coach', label} or
+// {kind:'anon'}; onChange gets the merged {coachNames, anonCount} every
+// time anyone joins or leaves. Returns an unsubscribe function.
+export function subscribeToPracticePresence(practiceId, me, onChange) {
+  const channel = supabase.channel('practice_presence_' + practiceId, {
+    config: { presence: { key: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()) } }
+  })
+  channel.on('presence', { event: 'sync' }, () => {
+    const raw = channel.presenceState()
+    const coachNames = new Set()
+    let anonCount = 0
+    Object.values(raw).forEach(entries => entries.forEach(e => {
+      if (e.kind === 'coach' && e.label) coachNames.add(e.label)
+      else if (e.kind === 'anon') anonCount++
+    }))
+    onChange({ coachNames: [...coachNames], anonCount })
+  })
+  channel.subscribe(status => { if (status === 'SUBSCRIBED') channel.track(me) })
+  return () => { supabase.removeChannel(channel) }
+}
+
 // Best-effort audit log of control actions. Not yet wired to client-side
 // retry/offline-queue logic (that's stage 7) so duplicate suppression only
 // helps against double-submits within this session, not resumed retries.

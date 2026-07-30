@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach } from "../constants.js";
-import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote, updateStationLead, submitPracticeNoteByToken, archiveNote } from "../supabase.js";
+import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote, updateStationLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
@@ -11,6 +12,32 @@ const Ic={
   Restart:()=><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>,
   Chev:({up})=><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points={up?"4 10 8 6 12 10":"4 6 8 10 12 6"}/></svg>,
 };
+
+// "Who has this practice open" -- shared by PreviewView, the staff
+// CommandScreen, and HelperView, all three of which key onto the same
+// practice_id so a coach in Practice Setup and a helper who already
+// opened the live link show up together. `me` is `null` until the
+// caller actually knows who they are (or that they're anonymous); the
+// effect no-ops until both practiceId and me are ready.
+function usePracticePresence(practiceId, me) {
+  const [presence, setPresence] = useState({ coachNames: [], anonCount: 0 });
+  useEffect(() => {
+    if (!practiceId || !me) return;
+    setPresence({ coachNames: [], anonCount: 0 });
+    return subscribeToPracticePresence(practiceId, me, setPresence);
+  }, [practiceId, me && me.kind, me && me.label]);
+  return presence;
+}
+function PresenceBadge({ coachNames, anonCount, dark }) {
+  if (!coachNames.length && !anonCount) return null;
+  const parts = [];
+  if (coachNames.length) parts.push(coachNames.join(", "));
+  if (anonCount) parts.push(anonCount + (anonCount === 1 ? " person watching" : " people watching"));
+  return (<div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: dark ? "#8fa89b" : "var(--td)", flexWrap: "wrap" }}>
+    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#52b788", display: "inline-block", flexShrink: 0 }} />
+    {parts.join(" · ")}
+  </div>);
+}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -277,6 +304,7 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
 
 // ── PreviewView — shown at /preview/[token] before practice starts ───────────
 export function PreviewView({token}){
+  const navigate=useNavigate();
   const [preview,setPreview]=useState(null);
   const [loading,setLoading]=useState(true);
   const [now,setNow]=useState(Date.now());
@@ -289,6 +317,8 @@ export function PreviewView({token}){
   const [helperDraft,setHelperDraft]=useState("");
   const [busy,setBusy]=useState(false);
   const [copied,setCopied]=useState(false);
+  const presenceMe=preview&&!preview.error?(preview.can_manage?{kind:"coach",label:preview.my_coach_name||"A coach"}:{kind:"anon"}):null;
+  const presence=usePracticePresence(preview&&preview.practice_id,presenceMe);
 
   useEffect(()=>{const iv=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(iv);},[]);
 
@@ -354,7 +384,16 @@ export function PreviewView({token}){
     return s+(a.duration_minutes||0);
   },0);
 
-  return(<div style={{minHeight:"100dvh",background:"#0d1512",color:"#fff",paddingBottom:40}}>
+  return(<div style={{minHeight:"100dvh",background:"#0d1512",color:"#fff",paddingBottom:preview.can_manage?100:40}}>
+    {/* Back-to-Home + a persistent Start Practice bar -- neither existed
+        before, so a coach who reached this via Home's "Practice Setup"
+        button had no way back except the browser's own Back button, and
+        no way to actually start the run from here at all. Anonymous
+        helpers get neither (no can_manage, no "home" to go back to, and
+        starting the practice isn't theirs to do). */}
+    {preview.can_manage&&<div style={{padding:"14px 20px 0"}}>
+      <button className="btn ghost bxs" style={{color:"#aaa",background:"transparent"}} onClick={()=>navigate("/")}>&#8249; Back to Home</button>
+    </div>}
     <div style={{padding:"24px 20px 16px",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
         <span style={{width:8,height:8,borderRadius:"50%",background:"#52b788",display:"inline-block",flexShrink:0}}/>
@@ -363,7 +402,8 @@ export function PreviewView({token}){
       </div>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:4}}>{preview.team_name||"Practice"}</div>
       {preview.scheduled_at&&<div style={{fontSize:13,color:"#aaa"}}>{new Date(preview.scheduled_at).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})} at {new Date(preview.scheduled_at).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</div>}
-      {preview.can_manage&&<button className="btn outline bxs" style={{marginTop:12,background:"transparent",borderColor:"rgba(255,255,255,.25)",color:"#fff"}} onClick={shareSetup}>{copied?"Link Copied!":"Share Setup Link"}</button>}
+      <div style={{marginTop:10}}><PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount} dark/></div>
+      {preview.can_manage&&<button className="btn outline bxs" style={{marginTop:10,background:"transparent",borderColor:"rgba(255,255,255,.25)",color:"#fff"}} onClick={shareSetup}>{copied?"Link Copied!":"Share Setup Link"}</button>}
     </div>
 
     <div style={{padding:"24px 20px",textAlign:"center",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
@@ -444,6 +484,9 @@ export function PreviewView({token}){
         </div>);
       })}
     </div>
+    {preview.can_manage&&<div style={{position:"fixed",bottom:0,left:0,right:0,padding:"12px 20px calc(12px + env(safe-area-inset-bottom))",background:"#0d1512",borderTop:"1px solid rgba(255,255,255,.1)",zIndex:100}}>
+      <button className="btn primary bxl bfull" onClick={()=>navigate("/run/"+preview.practice_id)}>Start Practice &#8594;</button>
+    </div>}
     {reassignStationId&&<div className="movly" style={{zIndex:200}} onClick={e=>{if(e.target===e.currentTarget){setReassignStationId(null);setHelperDraft("");}}}>
       <div className="modal" style={{background:"#151f1a",color:"#fff"}}>
         <div className="mhandle"/>
@@ -603,6 +646,7 @@ function HelperView({token}){
   const beep=()=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Next up!");u.rate=1.1;u.pitch=1.2;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}};
 
   const valid=session&&!session.error;
+  const presence=usePracticePresence(valid?session.practice_id:null,valid?{kind:"anon"}:null);
   const cur=valid?session.current_activity:null;
   const isBlock=cur&&cur.type==="station_block";
   const isCl=cur&&cur.type==="checklist";
@@ -655,6 +699,7 @@ function HelperView({token}){
         <div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span><span style={{marginLeft:8,fontSize:11,color:"var(--td)"}}>Helper View</span></div>
         {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>{stations.length} Stations</div>}
         <div className="cc-act-name">{phaseLabel}</div>
+        <PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount}/>
       </div>
       <div className="row" style={{gap:6}}>
         {pTotal>0&&<button onClick={()=>setShowAtt(s=>!s)} style={{background:pCount<pTotal?"var(--ambg)":"var(--gbg)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--ambb)":"var(--gb)",borderRadius:20,padding:"4px 10px",cursor:"pointer"}}>
@@ -924,6 +969,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const team=practice?data.teams.find(t=>t.id===practice.teamId):null;
   const loc=practice?data.locations.find(l=>l.id===practice.locationId):null;
   const liveActs=practice?practice.activities:[];
+  const myCoachRecord=team&&team.coaches.find(c=>c.userId===coachId);
+  const presence=usePracticePresence(liveId,liveId?{kind:"coach",label:myCoachRecord?myCoachRecord.name:"A coach"}:null);
 
   const [stage,setStage]=useState("pick");
   // Distinguishes the shared "stage==='end'" screen's copy between a real
@@ -1722,6 +1769,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           {(()=>{const totalBlocks=liveActs.filter(a=>a.type==="station_block").length;const n2=cur.stations?cur.stations.length:0;const totalMins=n2*(cur.stationDuration||0)+Math.max(0,n2-1)*(blockRotate?(cur.transitionDuration||0):0);return(totalBlocks>1?"Block "+(blockCount+1)+" of "+totalBlocks+" · ":"")+n2+" Stations · "+totalMins+"min total";})()}
         </div>}
         <div className="cc-act-name">{phaseLabel}</div>
+        <PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount}/>
       </div>
       <div className="row">
         <button onClick={()=>setShowAtt(true)} style={{background:pCount<pTotal?"var(--ambg)":"var(--gbg)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--ambb)":"var(--gb)",borderRadius:20,padding:"4px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
