@@ -136,6 +136,16 @@ function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate}){
 // there's no way to infer voice *quality* from a name. This lists every
 // voice actually installed on the device instead, so the coach can
 // preview and pick whichever one genuinely sounds best to them.
+// Jax's read after trying the full device list: every option was "simply
+// awful" -- real recorded audio is coming later (see BUILD-STATUS), but
+// until then the list is narrowed to just the two names that actually
+// sounded acceptable (Samantha/Daniel) rather than leaving a long list of
+// novelty/character voices that just waste the coach's time previewing.
+// Curated by name, not hardcoded voiceURIs, since voiceURI includes
+// platform-specific bits that won't match across devices -- name is what
+// stays stable. On a device with neither installed, this list is just
+// empty and Device Default is the only choice, same as it already was.
+const CURATED_VOICE_NAMES=["samantha","daniel"];
 function LivePracticeAudioSection(){
   const [cue,setCue]=useState(getAudioCuePref());
   const [voiceURI,setVoiceURI]=useState(getVoiceURIPref());
@@ -145,7 +155,8 @@ function LivePracticeAudioSection(){
   useEffect(()=>{
     loadVoices().then(list=>{
       const en=list.filter(v=>/^en/i.test(v.lang));
-      setVoices(en.length?en:list);
+      const pool=en.length?en:list;
+      setVoices(pool.filter(v=>CURATED_VOICE_NAMES.includes(v.name.trim().toLowerCase())));
       setLoadingVoices(false);
     });
   },[]);
@@ -188,7 +199,7 @@ function LivePracticeAudioSection(){
       <VoiceRow selected={!voiceURI} label="Device Default" onClick={()=>chooseVoice("")}/>
       {voices.map(v=>(<VoiceRow key={v.voiceURI} selected={voiceURI===v.voiceURI} label={v.name} sub={v.lang} onClick={()=>chooseVoice(v.voiceURI)}/>))}
     </div>}
-    <div style={{fontSize:12,color:"var(--td)",lineHeight:1.5}}>Tap a sound or voice above to hear it and select it. Voices come from your device and browser, so the list and quality vary -- some names (novelty/character voices) won't sound natural for announcements, so it's worth trying a few.</div>
+    <div style={{fontSize:12,color:"var(--td)",lineHeight:1.5}}>Tap a voice above to hear it and select it. This list is narrowed to the options that actually sound decent for now -- real recorded voices are coming soon.</div>
   </div>);
 }
 
