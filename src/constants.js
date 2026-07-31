@@ -229,3 +229,39 @@ export function resolveVoiceByURI(uri){
     return voices.find(v=>v.voiceURI===uri)||null;
   }catch(e){return null;}
 }
+
+// ── Builder: Practice Components ──────────────────────────────────────────────
+// The full menu of quick-add types Builder's "Practice Components" section
+// can offer. `kind` drives which shape gets appended to `acts` -- every
+// entry except station_block is a plain checklist activity (same shape as
+// today's Intro/Closer) with a different starting name/duration, reusing
+// ChecklistConfig/live-run/PDF-export/Goals bucketing as-is rather than
+// introducing a new `act.type` that'd need updating everywhere those already
+// switch on type. `description` is shown in the long-press preview and in
+// the Add/Remove picker -- natural voice, no em dashes, matching the rest of
+// this app's copy conventions.
+export const PRACTICE_COMPONENT_TYPES=[
+  {key:"intro",label:"Intro",kind:"checklist",defaultName:"Intro",defaultDuration:5,description:"A quick check-in to start practice. Cover today's plan, reminders, or a light warm-up.",defaultOn:true},
+  {key:"closer",label:"Closer",kind:"checklist",defaultName:"Closer",defaultDuration:5,description:"Wrap up practice with a recap, announcements, or a short cool-down.",defaultOn:true},
+  {key:"checklist",label:"Checklist",kind:"checklist",defaultName:"Checklist",defaultDuration:5,description:"A blank checklist for tracking anything step by step during practice.",defaultOn:false},
+  {key:"water_break",label:"Water Break",kind:"checklist",defaultName:"Water Break",defaultDuration:2,description:"A short pause for players to hydrate before continuing.",defaultOn:false},
+  {key:"stretch",label:"Stretch",kind:"checklist",defaultName:"Stretch",defaultDuration:5,description:"Time set aside for warming up or cooling down.",defaultOn:false},
+  {key:"station_block",label:"Station Block",kind:"station_block",description:"Multiple stations players rotate through, each with its own drill, coach, and equipment.",defaultOn:true},
+  {key:"other",label:"Other",kind:"checklist",defaultName:"Other",defaultDuration:5,description:"For anything that doesn't fit the categories above, like a guest speaker or a team photo. Name it once it's added -- it's a one-off, not saved to your library.",defaultOn:false},
+];
+const PRACTICE_COMPONENT_TYPES_KEY="rop_practice_component_types";
+// Which of the types above show as one-tap tiles in Builder -- per-coach,
+// per-device (same rationale as the audio prefs above: a lightweight UI
+// preference, not data worth syncing through the database). Falls back to
+// today's existing set (Intro/Closer/Station Block) so nobody's Builder
+// changes shape until they actually open the picker and choose otherwise.
+export function getVisibleComponentTypes(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(PRACTICE_COMPONENT_TYPES_KEY)||"null");
+    if(Array.isArray(raw)&&raw.length)return raw.filter(k=>PRACTICE_COMPONENT_TYPES.some(t=>t.key===k));
+  }catch(e){}
+  return PRACTICE_COMPONENT_TYPES.filter(t=>t.defaultOn).map(t=>t.key);
+}
+export function setVisibleComponentTypes(keys){
+  try{localStorage.setItem(PRACTICE_COMPONENT_TYPES_KEY,JSON.stringify(keys));}catch(e){}
+}

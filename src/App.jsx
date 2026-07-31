@@ -7,10 +7,10 @@ import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode } from "./constants.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes } from "./constants.js";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
-import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
+import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow, longPressHandlers } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView } from "./components/CommandScreen.jsx";
 import HomeScreen from "./components/HomeScreen.jsx";
 import ScheduleScreen from "./components/ScheduleScreen.jsx";
@@ -795,6 +795,24 @@ function DurStepper({value,min,onChange,step}){
   );
 }
 
+// Same stopwatch mark as LoadingScreen (the app's own loading-screen logo),
+// but the hand's rotation is controlled here rather than an infinite CSS
+// animation -- Builder spins it exactly once per activity added (forward)
+// or removed (backward), via a CSS transition on the `rotation` prop rather
+// than a keyframe loop. White throughout (not LoadingScreen's black-bg
+// palette) since it sits on the Run of Practice section's solid green.
+function RunOfPracticeMark({rotation}){
+  return (<svg width="30" height="30" viewBox="0 0 100 100" style={{flexShrink:0}}>
+    <rect x="42" y="0" width="16" height="10" rx="5" fill="#fff" opacity=".85"/>
+    <rect x="68" y="6" width="16" height="9" rx="4.5" fill="#fff" opacity=".85" transform="rotate(35 76 10)"/>
+    <circle cx="50" cy="50" r="40" fill="none" stroke="#fff" strokeOpacity=".35" strokeWidth="6"/>
+    <g style={{transformOrigin:"50px 50px",transform:"rotate("+rotation+"deg)",transition:"transform .6s cubic-bezier(.4,0,.2,1)"}}>
+      <line x1="50" y1="50" x2="50" y2="20" stroke="#fff" strokeWidth="7" strokeLinecap="round"/>
+    </g>
+    <circle cx="50" cy="50" r="6" fill="#fff"/>
+  </svg>);
+}
+
 function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,coachId,refreshPlanning,refreshLibrary}){
   const navigate=useNavigate();
   const editP=editPracticeId?data.practices.find(p=>p.id===editPracticeId):null;
@@ -820,6 +838,46 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const [schedSuccess,setSchedSuccess]=useState(false);
   const [showTplPicker,setShowTplPicker]=useState(false);
   const [showAddLocation,setShowAddLocation]=useState(false);
+  // Practice Details collapses by default now -- Team/Location/Start Time
+  // matter most on first open (or when they're wrong), not on every glance
+  // back at the screen while building out the run of practice below.
+  const [detailsOpen,setDetailsOpen]=useState(false);
+  // Which of PRACTICE_COMPONENT_TYPES show as one-tap tiles -- per-coach
+  // preference (see getVisibleComponentTypes), editable via the "..." menu.
+  const [visibleTypeKeys,setVisibleTypeKeysState]=useState(()=>getVisibleComponentTypes());
+  const [componentsOpen,setComponentsOpen]=useState(true);
+  const [showComponentsPicker,setShowComponentsPicker]=useState(false);
+  const toggleComponentType=key=>{
+    setVisibleTypeKeysState(prev=>{
+      const next=prev.includes(key)?prev.filter(k=>k!==key):[...prev,key];
+      setVisibleComponentTypes(next);
+      return next;
+    });
+  };
+  // Long-press preview (drill or practice-component tile) -- {kind:"drill",
+  // drill} | {kind:"component",type}. A plain tap still adds directly,
+  // unchanged; this is purely an additional "see it first" path.
+  const [previewItem,setPreviewItem]=useState(null);
+  // One Map for the whole screen's long-press rows (drills + component
+  // tiles) -- longPressHandlers isn't a hook, so this is the single useRef
+  // its per-row state actually lives in. See its own comment for why.
+  const longPressStoreRef=useRef(new Map());
+  // Rotates the Run of Practice header mark: +360 per add, -360 per remove.
+  // CSS transition on the mark itself animates the change; this is just the
+  // running total driving it.
+  const [handRotation,setHandRotation]=useState(0);
+  // Real element per activity row, so a row that was just collapsed (Done
+  // tapped inside its config) can be scrolled back into view at the top of
+  // the screen instead of leaving scroll position wherever it happened to
+  // land -- previously that was often halfway down the drill library below.
+  const rowRefs=useRef({});
+  const collapseAndScroll=id=>{
+    setExpandedId(null);
+    requestAnimationFrame(()=>{
+      const el=rowRefs.current[id];
+      if(el)el.scrollIntoView({behavior:"smooth",block:"start"});
+    });
+  };
   // The sticky just-added-drill row also anchors to the top of the scroll
   // container -- but Builder already has its own sticky Save/Run Now bar
   // pinned at top:0 above it. Both stuck at the same top:0 meant the drill
@@ -883,6 +941,8 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const teamTemplates=(data.templates||[]).filter(t=>(t.sport||"General")===teamSport||(t.sport||"General")==="General");
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
+  const assetsById=Object.fromEntries((data.assets||[]).map(a=>[a.id,a]));
+  const equipNames=ids=>(ids||[]).map(id=>assetsById[id]?assetsById[id].name:null).filter(Boolean);
   // Same drift check as TemplateWorkspace -- a fresh single-drill add always
   // matches the library (nothing to flag), but stripIdsForCopy(startTpl.
   // activities)/applyTemplate below copy a template's activities exactly as
@@ -933,10 +993,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     const id=uid();
     setActs(p=>[...p,{id,type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:defaultAssignIds,coachId:headCoachId,sublocationId:"",notes:"",description:lib.description||"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);
     setLastAddedId(id);
-  };
-  const addChecklist=isClose=>{
-    const a={id:uid(),type:"checklist",name:isClose?"Closer":"Intro",duration:5,assignments:defaultAssignIds,coachId:headCoachId,items:[],notes:""};
-    setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
+    setHandRotation(r=>r+360);
   };
   const addBlock=()=>{
     const n=2;const groups=mkGroups(defaultAssignIds,n);
@@ -945,10 +1002,31 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:groups[1]||[],coachingPoints:"",equipment:[],playerGear:""},
     ]};
     setActs(p=>[...p,b]);setExpandedId(b.id);setLastAddedId(b.id);
+    setHandRotation(r=>r+360);
   };
-  const remAct=id=>{setActs(p=>p.filter(a=>a.id!==id));if(lastAddedId===id)setLastAddedId(null);};
+  // Replaces the old fixed addChecklist(isClose) -- Intro/Closer are now
+  // just two of PRACTICE_COMPONENT_TYPES, all sharing this one path.
+  // station_block is the one non-checklist kind, so it just delegates to
+  // addBlock (which already handles its own hand-rotation bump).
+  const addComponentType=key=>{
+    const type=PRACTICE_COMPONENT_TYPES.find(t=>t.key===key);
+    if(!type)return;
+    if(type.kind==="station_block"){addBlock();return;}
+    const a={id:uid(),type:"checklist",name:type.defaultName,duration:type.defaultDuration,assignments:defaultAssignIds,coachId:headCoachId,items:[],notes:""};
+    setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
+    setHandRotation(r=>r+360);
+  };
+  const remAct=id=>{setActs(p=>p.filter(a=>a.id!==id));if(lastAddedId===id)setLastAddedId(null);setHandRotation(r=>r-360);};
   const updAct=(id,ch)=>setActs(p=>p.map(a=>a.id===id?Object.assign({},a,ch):a));
   const updSt=(aid,sid,ch)=>setActs(p=>p.map(a=>a.id===aid?Object.assign({},a,{stations:a.stations.map(s=>s.id===sid?Object.assign({},s,ch):s)}):a));
+  // Long-press "Back"/"Add to Practice" preview -- Back just closes;
+  // Add to Practice runs the exact same add path a normal tap would.
+  const confirmPreviewAdd=()=>{
+    if(!previewItem)return;
+    if(previewItem.kind==="drill")addAct(previewItem.drill);
+    else addComponentType(previewItem.type.key);
+    setPreviewItem(null);
+  };
   const {sensors:dndSensors,onDragEnd:onActDragEnd}=useActivityDnd(setActs);
   const doSchedule=async(dateVal,timeVal)=>{
     if(!dateVal)return;
@@ -1048,44 +1126,105 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           <button className="btn ghost bmd bfull mt10" onClick={()=>setShowTplPicker(false)}>Cancel</button>
         </div>
       </div>}
+      {/* Long-press preview -- opened by holding a drill or a practice
+          component tile, without adding it. "Back" just closes; "Add to
+          Practice" runs the exact same add path a normal tap would. */}
+      {previewItem&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setPreviewItem(null);}}>
+        <div className="modal">
+          {previewItem.kind==="drill"?(<>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>{previewItem.drill.name}</div>
+            <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>{previewItem.drill.sport||"General"} · {previewItem.drill.duration}min</div>
+            {previewItem.drill.description&&<div style={{fontSize:14,lineHeight:1.5,marginBottom:10}}>{previewItem.drill.description}</div>}
+            {previewItem.drill.coachingPoints&&<div className="fld"><label className="lbl">Coaching Points</label><div style={{fontSize:14,color:"var(--green2)",lineHeight:1.5}}>{previewItem.drill.coachingPoints}</div></div>}
+            {previewItem.drill.skillTagIds&&previewItem.drill.skillTagIds.length>0&&<div className="fld"><label className="lbl">Skill Tags</label>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{tagNames(previewItem.drill.skillTagIds).map(name=>(<span key={name} className="bdg bs">{name}</span>))}</div>
+            </div>}
+            {previewItem.drill.equipment&&previewItem.drill.equipment.length>0&&<div className="fld"><label className="lbl">Equipment</label>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{equipNames(previewItem.drill.equipment).map(name=>(<span key={name} className="bdg bs">{name}</span>))}</div>
+            </div>}
+          </>):(<>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>{previewItem.type.label}</div>
+            <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>{previewItem.type.kind==="station_block"?"2+ stations, 10 min each with a 2 min transition (defaults, all adjustable)":previewItem.type.defaultDuration+" min (default, adjustable)"}</div>
+            <div style={{fontSize:14,lineHeight:1.5,marginBottom:4}}>{previewItem.type.description}</div>
+          </>)}
+          <div className="brow" style={{marginTop:14}}>
+            <button className="btn ghost bsm" onClick={()=>setPreviewItem(null)}>Back</button>
+            <button className="btn primary bsm" style={{flex:1}} onClick={confirmPreviewAdd}>Add to Practice</button>
+          </div>
+        </div>
+      </div>}
+      {/* Add/Remove Practice Components -- which of the 7 types show as
+          one-tap tiles in the section above. Persisted per coach/device
+          (getVisibleComponentTypes), so today's Intro/Closer/Station Block
+          set keeps working unchanged until a coach actually opens this. */}
+      {showComponentsPicker&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowComponentsPicker(false);}}>
+        <div className="modal">
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>Add/Remove Practice Components</div>
+          <div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>Choose which of these show as one-tap buttons below. You can change this anytime.</div>
+          {PRACTICE_COMPONENT_TYPES.map(t=>{
+            const on=visibleTypeKeys.includes(t.key);
+            return (<div key={t.key} className="li tap" style={{marginBottom:8}} onClick={()=>toggleComponentType(t.key)}>
+              <div className="lim">
+                <div className="lin">{t.label}</div>
+                <div className="limt">{t.kind==="station_block"?"2+ stations":t.defaultDuration+" min"}</div>
+              </div>
+              <span style={{width:22,height:22,borderRadius:"50%",border:"2px solid "+(on?"var(--green)":"var(--b)"),background:on?"var(--green)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{on&&<Ic.Check/>}</span>
+            </div>);
+          })}
+          <button className="btn primary bmd bfull mt10" onClick={()=>setShowComponentsPicker(false)}>Done</button>
+        </div>
+      </div>}
       {/* Real gap found live: the sticky action bar above (border-bottom,
           no margin of its own) sat flush against this card's own top edge
           with zero space between them, every time Builder is opened
           regardless of entry path -- editP's "Editing" banner row and the
           full 4-button bar both end in the same bare border, and neither
           the sticky wrapper nor .card added any breathing room after it. */}
-      <div className="card mb10" style={{marginTop:10}}>
-        <div className="clbl">Practice Details</div>
-        {!editP&&<div className="fld"><label className="lbl">Team</label>
-          <select className="sel" value={teamId} onChange={e=>{const tid=e.target.value;setTeamId(tid);setLocId(lastLocForTeam(tid));}}>
-            {!data.teams.length&&<option value="">-- Add a team first --</option>}
-            {data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-        </div>}
-        <div className={editP?"g2":undefined}>
-          <div className="fld"><label className="lbl">Location</label>
-            {teamLocations.length>0?(
-              // "+ Add New Location..." is a real option in the dropdown
-              // itself, not just a fallback for the zero-locations case --
-              // a coach editing an already-scheduled practice whose actual
-              // location isn't in their list yet shouldn't have to leave
-              // Builder to add it first.
-              <select className="sel" value={locId} onChange={e=>{const v=e.target.value;if(v==="__add_new__"){setShowAddLocation(true);return;}setLocId(v);}}>
-                {teamLocations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
-                <option value="__add_new__">+ Add New Location...</option>
-              </select>
-            ):(
-              // No locations exist yet anywhere -- the select would otherwise
-              // render with zero options and no way out. A coach stuck here
-              // had no inline way to add one before; this is the same
-              // add-a-location flow SchedulePracticeModal now offers too.
-              <button type="button" className="btn outline bsm bfull" onClick={()=>setShowAddLocation(true)}>+ Add a Location</button>
-            )}
-          </div>
-          {editP&&<div className="fld"><label className="lbl">Start Time</label>
-            <input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/>
-          </div>}
+      {/* Black header bar, matching Practice Components/My Drill Library
+          below -- defaults to collapsed since Team/Location/Start Time
+          matter most on first open (or when something's actually wrong),
+          not on every glance back at this screen while building out the
+          run of practice. The collapsed state still shows a one-line
+          summary so a coach isn't left with zero context. */}
+      <div className="card mb10" style={{marginTop:10,padding:0,overflow:"hidden"}}>
+        <div onClick={()=>setDetailsOpen(o=>!o)} style={{background:"var(--black)",color:"#fff",padding:"9px 12px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flexShrink:0}}>Practice Details</span>
+          {!detailsOpen&&<span style={{fontSize:12,color:"rgba(255,255,255,.65)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{team?team.name:"No team selected"}{loc?" · "+loc.name:""}</span>}
+          {detailsOpen&&<span style={{flex:1}}/>}
+          <span style={{color:"#fff",display:"flex",flexShrink:0}}><Ic.Chev up={detailsOpen}/></span>
         </div>
+        {detailsOpen&&<div style={{padding:14}}>
+          {!editP&&<div className="fld"><label className="lbl">Team</label>
+            <select className="sel" value={teamId} onChange={e=>{const tid=e.target.value;setTeamId(tid);setLocId(lastLocForTeam(tid));}}>
+              {!data.teams.length&&<option value="">-- Add a team first --</option>}
+              {data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>}
+          <div className={editP?"g2":undefined}>
+            <div className="fld"><label className="lbl">Location</label>
+              {teamLocations.length>0?(
+                // "+ Add New Location..." is a real option in the dropdown
+                // itself, not just a fallback for the zero-locations case --
+                // a coach editing an already-scheduled practice whose actual
+                // location isn't in their list yet shouldn't have to leave
+                // Builder to add it first.
+                <select className="sel" value={locId} onChange={e=>{const v=e.target.value;if(v==="__add_new__"){setShowAddLocation(true);return;}setLocId(v);}}>
+                  {teamLocations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
+                  <option value="__add_new__">+ Add New Location...</option>
+                </select>
+              ):(
+                // No locations exist yet anywhere -- the select would otherwise
+                // render with zero options and no way out. A coach stuck here
+                // had no inline way to add one before; this is the same
+                // add-a-location flow SchedulePracticeModal now offers too.
+                <button type="button" className="btn outline bsm bfull" onClick={()=>setShowAddLocation(true)}>+ Add a Location</button>
+              )}
+            </div>
+            {editP&&<div className="fld"><label className="lbl">Start Time</label>
+              <input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/>
+            </div>}
+          </div>
+        </div>}
       </div>
       {/* Margin fix, found live across every entry path: .screen already
           gives the whole route 14px of horizontal inset, but everything
@@ -1094,91 +1233,118 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           that card both get, so it read as flush against the edge by
           comparison. This wrapper adds the missing 14px to match. */}
       <div style={{padding:"0 14px"}}>
-      <div className="sechdr mb8">
-        <span className="sectitle" style={{fontSize:14}}>The Run of Practice</span>
-        {(acts.length>0||(editP&&editP.scheduledDurationMinutes))&&<span className={"pill"+(editP&&editP.scheduledDurationMinutes&&totalMins<editP.scheduledDurationMinutes*0.9?" over":"")}>{editP&&editP.scheduledDurationMinutes?totalMins+"/"+editP.scheduledDurationMinutes+" min":totalMins+"m"}</span>}
-      </div>
-      {acts.length===0&&(<div style={{textAlign:"center",padding:"20px 16px",background:"var(--s2)",borderRadius:"var(--r)",marginBottom:10,border:"1.5px dashed var(--b)"}}>
-          <div style={{fontSize:13,color:"var(--td)",lineHeight:1.7,marginBottom:teamTemplates.length?10:0}}>Nothing added yet.<br/>Add activities below to begin building your Run of Practice.</div>
-          {teamTemplates.length>0&&<button className="btn outline bsm" onClick={()=>setShowTplPicker(true)}>Start with a Template</button>}
+      {/* The Run of Practice: one solid dark-green, dashed-bordered section
+          for the header AND whatever's inside it (empty message or the
+          real list), rather than a plain header floating above a separate
+          light empty-state box or a black canvas -- this is the app's own
+          brand color and this is its moment, per direct feedback. Header
+          always renders, even with nothing added yet, so it's clear from
+          the first tap that this is where the practice gets built. */}
+      <div style={{background:"var(--green)",border:"2px dashed rgba(255,255,255,.4)",borderRadius:"var(--r)",padding:10,marginBottom:14}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <RunOfPracticeMark rotation={handRotation}/>
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",letterSpacing:".01em",flex:1,lineHeight:1.1}}>The Run of Practice</span>
+          {(()=>{
+            const over=editP&&editP.scheduledDurationMinutes&&totalMins<editP.scheduledDurationMinutes*0.9;
+            // White-on-green for the normal case -- the pill's own default
+            // (light green bg, green text) would nearly disappear against
+            // this section's solid green. The under-planned "over" state
+            // already reads fine here (red/pink against green), so it
+            // keeps its own .pill.over styling untouched rather than being
+            // forced white too, which would hide the warning entirely.
+            return (acts.length>0||(editP&&editP.scheduledDurationMinutes))&&<span className={"pill"+(over?" over":"")} style={over?{flexShrink:0}:{background:"#fff",borderColor:"#fff",flexShrink:0}}>{editP&&editP.scheduledDurationMinutes?totalMins+"/"+editP.scheduledDurationMinutes+" min":totalMins+"m"}</span>;
+          })()}
         </div>
-      )}
-      {/* Once there's real content, the whole list sits on a dark canvas --
-          a clear visual break from the (light) drill library below it, and
-          from the light Practice Details card above -- so it's obvious
-          this is the practice actually being assembled, not more picker
-          UI. Individual rows stay their normal light cards on top of it. */}
-      {acts.length>0&&(<div style={{background:"var(--black)",borderRadius:"var(--r)",padding:"8px 8px 2px",marginBottom:10}}>
-      <ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
-      {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId&&expandedId!==act.id} stickyTop={stickyHeaderH}>{dragHandle=>(<div>
-          <div className="ablk">
-            {/* Expanding a just-added row (especially a station block, which
-                can be very tall once open) used to stay pinned via the
-                sticky feedback above -- taller than the viewport, so
-                scrolling past it felt broken. Expanding it means the coach
-                has already seen the "it was added" confirmation, so drop
-                the sticky treatment for good rather than just suppressing
-                it while open. */}
-            <div className="abhdr" style={{position:"relative"}} onClick={()=>{const willExpand=expandedId!==act.id;setExpandedId(willExpand?act.id:null);if(willExpand&&act.id===lastAddedId)setLastAddedId(null);}}>
-              {dragHandle}
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                  {act.type==="station_block"?"Station Block":act.name}
-                </div>
-                {act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m</div>:<div className="limt">{act.duration}min</div>}
-              </div>
-              <div className="row">
-                {act.type==="activity"&&isStale(act)&&<div style={{position:"relative"}}>
-                  <button type="button" onClick={e=>{e.stopPropagation();setStaleMenuId(staleMenuId===act.id?null:act.id);}} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 2px",display:"flex",alignItems:"center"}} aria-label="Drill updated since added" title="This drill has changed in your library since it was added here">
-                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 2L18.5 17H1.5L10 2Z" fill="#f59e0b" stroke="#b45309" strokeWidth="1" strokeLinejoin="round"/><rect x="9.1" y="7.5" width="1.8" height="5" rx="0.9" fill="#fff"/><rect x="9.1" y="13.3" width="1.8" height="1.8" rx="0.9" fill="#fff"/></svg>
-                  </button>
-                  {staleMenuId===act.id&&<div className="mini-menu" style={{right:0,minWidth:220,padding:10}} onClick={e=>e.stopPropagation()}>
-                    <div style={{fontSize:12,color:"var(--td)",marginBottom:8,lineHeight:1.4}}>This drill has changed in your library since it was added here.</div>
-                    <button type="button" className="btn primary bxs bfull" style={{marginBottom:6}} onClick={()=>refreshFromLibrary(act)}>Refresh to Latest</button>
-                    <button type="button" className="btn ghost bxs bfull" onClick={()=>setStaleMenuId(null)}>Keep This Version</button>
-                  </div>}
-                </div>}
-                {act.type!=="station_block"&&<span className="bdg bp">{act.duration}m</span>}
-                {act.type==="station_block"&&<span className="bdg bp">{act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*act.transitionDuration:0)}m</span>}
-                {/* Expand/collapse affordance, made explicit: a chevron that
-                    flips with state, offset with its own margin so it reads
-                    as coming out of the header rather than just another
-                    icon in the row -- direct feedback was that tapping the
-                    header to expand a drill wasn't obviously interactive. */}
-                <span style={{marginLeft:2,color:"var(--td)",display:"flex"}}><Ic.Chev up={expandedId===act.id}/></span>
-                <button className="btn danger bxs" onClick={e=>{e.stopPropagation();remAct(act.id);}}>x</button>
-              </div>
-            </div>
-            {expandedId===act.id&&(<div className="abbody">
-                {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} sport={teamSport} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
-                {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-                {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
-              </div>
-            )}
+        {acts.length===0&&(<div style={{textAlign:"center",padding:"18px 12px"}}>
+            <div style={{fontSize:13,color:"rgba(255,255,255,.9)",lineHeight:1.7,marginBottom:teamTemplates.length?10:0}}>Nothing added yet.<br/>Add activities below to begin building your Run of Practice.</div>
+            {teamTemplates.length>0&&<button className="btn bsm" style={{background:"#fff",color:"var(--green)"}} onClick={()=>setShowTplPicker(true)}>Start with a Template</button>}
           </div>
-        </div>)}</SortableActivityRow>
-      ))}
-      </ActivityDndContext>
-      </div>)}
-      {/* "Practice Components" and "My Drill Library" -- two distinct dark
-          green section titles so it's clear the Intro/Closer/Station Block
-          builders below are structural pieces, separate from the coach's
-          actual saved drills further down. */}
-      <div style={{background:"var(--green)",color:"#fff",padding:"9px 12px",borderRadius:"var(--r)",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",marginBottom:8}}>Practice Components</div>
-      <div className="g2" style={{marginBottom:6}}>
-        <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(false)}><div className="lim"><div className="lin">Intro</div><div className="limt">Checklist</div></div><span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span></div>
-        <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(true)}><div className="lim"><div className="lin">Closer</div><div className="limt">Checklist</div></div><span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span></div>
+        )}
+        {acts.length>0&&(<ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
+        {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId&&expandedId!==act.id} stickyTop={stickyHeaderH}>{dragHandle=>(<div>
+            <div className="ablk" ref={el=>{if(el)rowRefs.current[act.id]=el;else delete rowRefs.current[act.id];}}>
+              {/* Expanding a just-added row (especially a station block, which
+                  can be very tall once open) used to stay pinned via the
+                  sticky feedback above -- taller than the viewport, so
+                  scrolling past it felt broken. Expanding it means the coach
+                  has already seen the "it was added" confirmation, so drop
+                  the sticky treatment for good rather than just suppressing
+                  it while open. */}
+              <div className="abhdr" style={{position:"relative"}} onClick={()=>{const willExpand=expandedId!==act.id;setExpandedId(willExpand?act.id:null);if(willExpand&&act.id===lastAddedId)setLastAddedId(null);}}>
+                {dragHandle}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {act.type==="station_block"?"Station Block":act.name}
+                  </div>
+                  {act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m</div>:<div className="limt">{act.duration}min</div>}
+                </div>
+                <div className="row">
+                  {act.type==="activity"&&isStale(act)&&<div style={{position:"relative"}}>
+                    <button type="button" onClick={e=>{e.stopPropagation();setStaleMenuId(staleMenuId===act.id?null:act.id);}} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 2px",display:"flex",alignItems:"center"}} aria-label="Drill updated since added" title="This drill has changed in your library since it was added here">
+                      <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 2L18.5 17H1.5L10 2Z" fill="#f59e0b" stroke="#b45309" strokeWidth="1" strokeLinejoin="round"/><rect x="9.1" y="7.5" width="1.8" height="5" rx="0.9" fill="#fff"/><rect x="9.1" y="13.3" width="1.8" height="1.8" rx="0.9" fill="#fff"/></svg>
+                    </button>
+                    {staleMenuId===act.id&&<div className="mini-menu" style={{right:0,minWidth:220,padding:10}} onClick={e=>e.stopPropagation()}>
+                      <div style={{fontSize:12,color:"var(--td)",marginBottom:8,lineHeight:1.4}}>This drill has changed in your library since it was added here.</div>
+                      <button type="button" className="btn primary bxs bfull" style={{marginBottom:6}} onClick={()=>refreshFromLibrary(act)}>Refresh to Latest</button>
+                      <button type="button" className="btn ghost bxs bfull" onClick={()=>setStaleMenuId(null)}>Keep This Version</button>
+                    </div>}
+                  </div>}
+                  {/* Chevron now sits to the left of the duration badge
+                      (was between duration and the red X) -- direct
+                      feedback was that having it right next to delete
+                      risked an accidental removal tap. */}
+                  <span style={{color:"var(--td)",display:"flex"}}><Ic.Chev up={expandedId===act.id}/></span>
+                  {act.type!=="station_block"&&<span className="bdg bp">{act.duration}m</span>}
+                  {act.type==="station_block"&&<span className="bdg bp">{act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*act.transitionDuration:0)}m</span>}
+                  <button className="btn danger bxs" onClick={e=>{e.stopPropagation();remAct(act.id);}}>x</button>
+                </div>
+              </div>
+              {expandedId===act.id&&(<div className="abbody">
+                  {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} sport={teamSport} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
+                  {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)}/>}
+                  {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
+                </div>
+              )}
+            </div>
+          </div>)}</SortableActivityRow>
+        ))}
+        </ActivityDndContext>)}
       </div>
-      <div className="li tap" style={{marginBottom:14,background:"var(--gbg)",borderColor:"var(--gb)"}} onClick={addBlock}>
-        <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">2 stations, add or remove as needed</div></div>
-        <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
+      {/* Practice Components -- black bar (matches Practice Details/My
+          Drill Library), a caret to collapse the tile row, and a "..."
+          that opens the Add/Remove picker for which of
+          PRACTICE_COMPONENT_TYPES show as one-tap tiles here. */}
+      <div style={{display:"flex",alignItems:"center",gap:4,background:"var(--black)",color:"#fff",padding:"9px 12px",borderRadius:"var(--r)",marginBottom:8,minHeight:40}}>
+        <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flex:1}}>Practice Components</span>
+        {/* A literal horizontal ellipsis, not the vertical 3-dot kebab used
+            elsewhere in the app (.ell-btn) -- asked for specifically, and
+            visually distinct from a "more options" menu trigger since this
+            opens a whole picker, not a small dropdown. */}
+        <button type="button" onClick={()=>setShowComponentsPicker(true)} aria-label="Add or remove practice components" style={{background:"none",border:"none",color:"#fff",cursor:"pointer",padding:"0 6px",fontSize:22,fontWeight:900,lineHeight:1,display:"flex",alignItems:"center"}}>⋯</button>
+        <button type="button" onClick={()=>setComponentsOpen(o=>!o)} aria-label={componentsOpen?"Collapse Practice Components":"Expand Practice Components"} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",padding:6,display:"flex",alignItems:"center"}}><Ic.Chev up={componentsOpen}/></button>
       </div>
-      <div style={{background:"var(--green)",color:"#fff",padding:"9px 12px",borderRadius:"var(--r)",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-        <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase"}}>My Drill Library</span>
+      {componentsOpen&&(<>
+        {visibleTypeKeys.length===0&&<div style={{fontSize:13,color:"var(--td)",textAlign:"center",padding:"12px 0",marginBottom:8}}>No quick-add types selected. Tap the ⋯ above to choose some.</div>}
+        {visibleTypeKeys.length>0&&<div className="g2" style={{marginBottom:14}}>
+          {PRACTICE_COMPONENT_TYPES.filter(t=>visibleTypeKeys.includes(t.key)).map(t=>{
+            const lp=longPressHandlers(longPressStoreRef.current,"comp:"+t.key,()=>setPreviewItem({kind:"component",type:t}),()=>addComponentType(t.key));
+            return (<div key={t.key} className="li tap" {...lp} style={Object.assign({marginBottom:0},lp.style)}>
+              <div className="lim"><div className="lin">{t.label}</div><div className="limt">{t.kind==="station_block"?"2+ stations":t.defaultDuration+" min"}</div></div>
+              <span style={{color:"var(--green)",fontSize:18,fontWeight:700,flexShrink:0}}>+</span>
+            </div>);
+          })}
+        </div>}
+      </>)}
+      {/* My Drill Library -- same black bar treatment/thickness as
+          Practice Components above, just no caret (nothing to collapse). */}
+      <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--black)",color:"#fff",padding:"9px 12px",borderRadius:"var(--r)",marginBottom:8,minHeight:40}}>
+        <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flex:1}}>My Drill Library</span>
         <button className="btn bxs" style={{background:"rgba(255,255,255,.16)",color:"#fff"}} onClick={()=>openModal("addActivity")}>+ New Activity</button>
       </div>
       {team&&<div className="clbl" style={{marginBottom:8}}>{teamSport} + General</div>}
-      {filteredLib.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>addAct(lib)}>
+      {filteredLib.map(lib=>{
+        const lp=longPressHandlers(longPressStoreRef.current,"drill:"+lib.id,()=>setPreviewItem({kind:"drill",drill:lib}),()=>addAct(lib));
+        return (<div key={lib.id} className="li tap" {...lp} style={lp.style}>
           <div className="lim">
             <div className="lin">{lib.name}</div>
             <div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div>
@@ -1188,8 +1354,8 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
             </div>}
           </div>
           <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
-        </div>
-      ))}
+        </div>);
+      })}
       </div>
 
 

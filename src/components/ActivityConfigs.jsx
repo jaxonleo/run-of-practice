@@ -44,6 +44,48 @@ export function ActivityDndContext({sensors,onDragEnd,items,children}){
   </DndContext>);
 }
 const Ic_Grip=()=><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="5" cy="3" r="1.3"/><circle cx="11" cy="3" r="1.3"/><circle cx="5" cy="8" r="1.3"/><circle cx="11" cy="8" r="1.3"/><circle cx="5" cy="13" r="1.3"/><circle cx="11" cy="13" r="1.3"/></svg>;
+
+// Press-and-hold-to-preview for a tappable row: a normal tap still fires
+// onTap (unchanged add-to-practice behavior); holding past `ms` fires
+// onLongPress instead (opens the preview) and suppresses the click that
+// would otherwise follow on release, so a long press never *also* adds.
+// Pointer Events unify touch/mouse in one handler set rather than juggling
+// separate touch/mouse listeners. WebkitTouchCallout/WebkitUserSelect stop
+// iOS's own long-press text-selection callout from fighting this, same
+// reasoning as SortableActivityRow's own drag handle.
+//
+// Deliberately *not* a hook -- a screen rendering a whole list of these
+// (one per drill/component tile) needs to build one per row inside a
+// .map(), which the Rules of Hooks don't allow. The caller owns one stable
+// `store` (a plain Map, kept alive across renders via a single useRef for
+// the whole list) so a re-render mid-press swaps in a fresh closure without
+// losing track of that row's still-pending timer -- the timer itself lives
+// in `store`, not in this function's own scope.
+export function longPressHandlers(store,id,onLongPress,onTap,ms){
+  const delay=ms||500;
+  const get=()=>{if(!store.has(id))store.set(id,{timer:null,fired:false});return store.get(id);};
+  const start=()=>{
+    const st=get();
+    st.fired=false;
+    if(st.timer)clearTimeout(st.timer);
+    st.timer=setTimeout(()=>{st.fired=true;onLongPress();},delay);
+  };
+  const clear=()=>{const st=get();if(st.timer){clearTimeout(st.timer);st.timer=null;}};
+  const handleClick=e=>{
+    const st=get();
+    if(st.fired){e.preventDefault();e.stopPropagation();st.fired=false;return;}
+    if(onTap)onTap(e);
+  };
+  return {
+    onPointerDown:start,
+    onPointerUp:clear,
+    onPointerLeave:clear,
+    onPointerCancel:clear,
+    onContextMenu:e=>e.preventDefault(),
+    onClick:handleClick,
+    style:{touchAction:"manipulation",WebkitTouchCallout:"none",WebkitUserSelect:"none",userSelect:"none"},
+  };
+}
 // children is a render-prop: (dragHandleEl) => JSX, so callers can place the
 // handle wherever it fits their row layout while the wrapper itself owns the
 // sortable positioning/transform.
