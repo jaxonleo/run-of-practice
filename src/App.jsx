@@ -882,27 +882,36 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // below the last row for it to stick within, nowhere near enough to stay
   // pinned while scrolling through the drill library further down the
   // page. This is why the coach reported the "just added, stays pinned"
-  // behavior broken -- not something today's changes caused, but the real
-  // root cause of it. Fix: the header/empty-state/rows render as normal
-  // children of the *same* tall padding:"0 14px" wrapper Practice
+  // behavior broken -- not something that session's changes caused, but
+  // the real root cause of it. Fix: the header/empty-state/rows render as
+  // normal children of the *same* tall padding:"0 14px" wrapper Practice
   // Components/My Drill Library already live in (ample sticky room), and
   // this absolutely-positioned div paints the green behind just that
   // portion, sized via runOfPracticeEndRef's measured position rather than
   // by actually containing the rows.
+  // The backdrop is anchored to runOfPracticeStartRef itself (not the
+  // outer padded wrapper) specifically so it inherits that wrapper's 14px
+  // padding correctly -- an absolutely positioned element is placed
+  // relative to its containing block's *padding* edge, which ignores that
+  // same padding entirely, so anchoring straight to the padded wrapper
+  // made the green run 14px wider than Practice Components/My Drill
+  // Library on each side (a real regression, found live). The sentinel is
+  // itself a normal-flow child of the padded wrapper, so it's already
+  // correctly inset -- anchoring to it (a zero-padding box) lets left:0/
+  // right:0 mean what they look like they mean.
   const runOfPracticeOuterRef=useRef(null);
   const runOfPracticeStartRef=useRef(null);
   const runOfPracticeEndRef=useRef(null);
-  const [runOfPracticeBox,setRunOfPracticeBox]=useState({top:0,height:0});
+  const [runOfPracticeH,setRunOfPracticeH]=useState(0);
   useEffect(()=>{
     const outer=runOfPracticeOuterRef.current;
     const start=runOfPracticeStartRef.current;
     const end=runOfPracticeEndRef.current;
     if(!outer||!start||!end)return;
     const recompute=()=>{
-      const oRect=outer.getBoundingClientRect();
       const sRect=start.getBoundingClientRect();
       const eRect=end.getBoundingClientRect();
-      setRunOfPracticeBox({top:Math.max(0,sRect.top-oRect.top),height:Math.max(0,eRect.bottom-sRect.top)});
+      setRunOfPracticeH(Math.max(0,eRect.bottom-sRect.top));
     };
     recompute();
     const ro=new ResizeObserver(recompute);
@@ -1237,16 +1246,15 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           run of practice. The collapsed state still shows a one-line
           summary so a coach isn't left with zero context. */}
       <div className="card mb10" style={{marginTop:10,padding:0,overflow:"hidden"}}>
-        {/* Takes on the selected team's own color once one's picked (falls
-            back to black otherwise) -- Practice Details is the one bar
-            that actually names the team, so it's the one that gets to
-            look like theirs; Run of Practice stays the app's own brand
-            green regardless of team. */}
-        <div onClick={()=>setDetailsOpen(o=>!o)} style={{background:(team&&team.colorPrimary)||"var(--black)",color:"#fff",padding:"9px 12px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+        {/* Solid black, matching Practice Components/My Drill Library --
+            a full-width team-color fill read as too loud; the team still
+            shows up here, just as a subtle stripe on the right instead. */}
+        <div onClick={()=>setDetailsOpen(o=>!o)} style={{position:"relative",background:"var(--black)",color:"#fff",padding:"9px 12px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",overflow:"hidden"}}>
+          {team&&team.colorPrimary&&<span style={{position:"absolute",top:0,right:0,bottom:0,width:6,background:team.colorPrimary}}/>}
           <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flexShrink:0}}>Practice Details</span>
           {!detailsOpen&&<span style={{fontSize:12,color:"rgba(255,255,255,.65)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{team?team.name:"No team selected"}{loc?" · "+loc.name:""}</span>}
           {detailsOpen&&<span style={{flex:1}}/>}
-          <span style={{color:"#fff",display:"flex",flexShrink:0}}><Ic.Chev up={detailsOpen}/></span>
+          <span style={{color:"#fff",display:"flex",flexShrink:0,marginRight:team&&team.colorPrimary?6:0}}><Ic.Chev up={detailsOpen}/></span>
         </div>
         {/* Field order is deliberately "when, then where/how long":
             Date+Start Time paired first (only meaningful once a practice
@@ -1308,7 +1316,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           nothing added yet, so it's clear from the first tap that this is
           where the practice gets built.
           The backdrop itself is an absolutely-positioned div (see
-          runOfPracticeBox/the ResizeObserver effect above), NOT a real
+          runOfPracticeH/the ResizeObserver effect above), NOT a real
           wrapping box around the header/rows -- see that effect's comment
           for why: a real wrapping box constrains position:sticky rows to
           barely any "room" to actually stay pinned while scrolling. The
@@ -1317,8 +1325,9 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           Drill Library already live in, each carrying its own 10px
           inset (padding or margin) to match the backdrop's old uniform
           padding:10 look. */}
-      <div ref={runOfPracticeStartRef}/>
-      <div style={{position:"absolute",top:runOfPracticeBox.top,left:0,right:0,height:runOfPracticeBox.height,background:"var(--green)",border:"2px dashed rgba(255,255,255,.4)",borderRadius:"var(--r)",pointerEvents:"none",zIndex:0}}/>
+      <div ref={runOfPracticeStartRef} style={{position:"relative"}}>
+        <div style={{position:"absolute",top:0,left:0,right:0,height:runOfPracticeH,background:"var(--green)",border:"2px dashed rgba(255,255,255,.4)",borderRadius:"var(--r)",pointerEvents:"none",zIndex:0}}/>
+      </div>
       <div style={{position:"relative",zIndex:1,display:"flex",alignItems:"center",gap:10,padding:"10px 10px 8px"}}>
         <RunOfPracticeMark rotation={handRotation}/>
         <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",letterSpacing:".01em",flex:1,lineHeight:1.1}}>The Run of Practice</span>

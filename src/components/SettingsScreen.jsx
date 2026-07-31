@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { checkIsAdmin, listAdmins, grantAdmin, revokeAdmin, createOrganization, orgInviteCoach, leaveTeam, setTeamStaffShowOnHome } from "../supabase.js";
 import { myTeamRole, AUDIO_CUES, getAudioCuePref, setAudioCuePref, getVoiceURIPref, setVoiceURIPref, loadVoices } from "../constants.js";
+import { ConsultationRequestForm } from "./LegalPages.jsx";
 
 // Settings hub (nav restructure, 2026-07-15; narrowed again in the Library
 // 5-tab redesign): originally held Account, Locations, Equipment & Gear, and
@@ -77,12 +78,13 @@ function TeamAssignmentsSection({data,coachId,refreshTeams}){
 }
 
 // ── AccountSection ────────────────────────────────────────────────────────────
-function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate,navigate}){
+function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate,navigate,coachId,isAdmin}){
   const [firstName,setFirstName]=useState(profile?profile.first_name||"":"");
   const [lastName,setLastName]=useState(profile?profile.last_name||"":"");
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
   const [confirmDeactivate,setConfirmDeactivate]=useState(false);
+  const [showConsult,setShowConsult]=useState(false);
   // Profile loads async after this screen can already be mounted -- sync
   // the fields once it arrives instead of only reading it at first render.
   useEffect(()=>{setFirstName(profile?profile.first_name||"":"");setLastName(profile?profile.last_name||"":"");},[profile]);
@@ -102,6 +104,22 @@ function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate,navi
     {dirty&&<button className="btn primary bmd bfull" style={{marginBottom:24}} onClick={save} disabled={!firstName.trim()||saving}>{saving?"Saving...":"Save Changes"}</button>}
     {!dirty&&saved&&<div style={{fontSize:13,color:"var(--green)",marginBottom:24}}>Saved.</div>}
     {!dirty&&!saved&&<div style={{marginBottom:24}}/>}
+
+    {/* Moved here from the main Settings list -- that top-level list is
+        the first thing anyone poking around Settings sees, and a card
+        reading as "this needs us to set it up for you" isn't the right
+        first impression for a prospective club. Admins already have the
+        real self-serve create-org flow (still on the main list), so this
+        is coach-only. */}
+    {!isAdmin&&<>
+      <div className="clbl mb8">Membership</div>
+      <div className="card" style={{marginBottom:24,padding:"14px 16px"}}>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,marginBottom:4}}>Running a club with multiple teams?</div>
+        <div style={{fontSize:13,color:"var(--td)",marginBottom:10,lineHeight:1.4}}>Organizations are for clubs running more than one team, with a director who can see across all of them. Our team personally sets up every organization, so tell us a bit about your club and we'll be in touch.</div>
+        <button type="button" className="btn outline bmd bfull" onClick={()=>setShowConsult(true)}>Request a Consultation</button>
+      </div>
+      {showConsult&&<ConsultationRequestForm coachId={coachId} coachEmail={coachEmail} pageContext="Settings > Account" onClose={()=>setShowConsult(false)}/>}
+    </>}
 
     <div className="clbl mb8">Legal</div>
     <div className="li tap" style={{marginBottom:6}} onClick={()=>navigate("/terms",{state:{openSection:"account"}})}><div className="lim"><div className="lin">Terms of Service</div></div><span style={{color:"var(--td)",fontSize:18}}>&#8250;</span></div>
@@ -298,7 +316,7 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
     <BackRow/>
     <div style={{padding:"12px 16px 0"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,marginBottom:14}}>{titles[section]}</div>
-      {section==="account"&&<AccountSection profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate} navigate={navigate}/>}
+      {section==="account"&&<AccountSection profile={profile} coachEmail={coachEmail} saveName={saveName} onSignOut={onSignOut} onDeactivate={onDeactivate} navigate={navigate} coachId={coachId} isAdmin={isAdmin}/>}
       {section==="assignments"&&<TeamAssignmentsSection data={data} coachId={coachId} refreshTeams={refreshTeams}/>}
       {section==="admins"&&<AdminsSection/>}
       {section==="audio"&&<LivePracticeAudioSection/>}
@@ -324,7 +342,14 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
           Home's own Coach/Org toggle already covers this, and duplicating
           it in Settings just as a list of links was redundant now that
           every org shows there directly. */}
-      {isAdmin?(
+      {/* Non-admin coaches used to see a "Running a club with multiple
+          teams?" consultation card right here -- moved to Settings >
+          Account > Membership instead, since this top-level list is the
+          first thing anyone poking around Settings sees, and a card that
+          reads as "this feature needs us to set it up for you" isn't the
+          first impression a prospective club should get. Founder-admins
+          still get the real create-org flow here, unchanged. */}
+      {isAdmin&&(
         showCreateOrg?(<div className="card" style={{padding:12,marginBottom:8}}>
           <div className="fld mb8"><label className="lbl">Organization name</label><input className="inp" placeholder="Organization name" value={newOrgName} onChange={e=>setNewOrgName(e.target.value)} autoFocus/></div>
           <div className="fld mb8"><label className="lbl">Director's email (optional)</label><input className="inp" type="email" placeholder="Leave blank to stay director yourself for now" value={newOrgDirectorEmail} onChange={e=>setNewOrgDirectorEmail(e.target.value)}/></div>
@@ -334,12 +359,6 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
             <div className="lim"><div className="lin">+ Create Organization</div><div className="limt">Admin-only: create an org and hand it to a director</div></div>
           </div>
         )
-      ):(
-        <div className="card" style={{marginBottom:8,padding:"14px 16px"}}>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,marginBottom:4}}>Running a club with multiple teams?</div>
-          <div style={{fontSize:13,color:"var(--td)",marginBottom:10,lineHeight:1.4}}>Organizations are set up with our help so everything's configured right from the start. Reach out and we'll get you going.</div>
-          <a className="btn outline bmd bfull" style={{textDecoration:"none",textAlign:"center"}} href="mailto:contact@runofpractice.com?subject=Organization%20consultation">Request a Consultation</a>
-        </div>
       )}
       {isAdmin&&<div className="li tap" style={{marginBottom:8}} onClick={()=>navigate("/admin/metrics")}>
         <div className="lim"><div className="lin">Founder Metrics</div></div>

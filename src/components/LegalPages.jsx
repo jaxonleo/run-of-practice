@@ -1,8 +1,76 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { submitFeedback, submitPublicFeedback } from "../supabase.js";
 
 const LAST_UPDATED = "July 10, 2026";
 const CONTACT_EMAIL = "contact@runofpractice.com";
+
+// ── ConsultationRequestForm ───────────────────────────────────────────────────
+// Shared between the FAQ answer below and Settings > Account > Membership
+// (SettingsScreen.jsx imports this). Replaces a bare mailto link with real
+// fields, since a mailto gave Jax nothing to prep for the actual sales call
+// with -- no phone number, no sense of how big the club even is. Reuses the
+// existing `feedback` table/submitFeedback+submitPublicFeedback RPCs rather
+// than a new table: same actor-identity pattern, same triage-by-Jax-directly
+// workflow, and per this file's own history the anonymous RPC path was built
+// and deliberately left in place for exactly this kind of future contact
+// form. coachId present -> authenticated path (attaches user_id); absent ->
+// the anonymous RPC (used from FAQ, which is reachable signed out).
+function ConsultationRequestForm({coachId, coachEmail, pageContext, onClose}){
+  const [name,setName]=useState("");
+  const [email,setEmail]=useState(coachEmail||"");
+  const [phone,setPhone]=useState("");
+  const [numTeams,setNumTeams]=useState("");
+  const [details,setDetails]=useState("");
+  const [sending,setSending]=useState(false);
+  const [done,setDone]=useState(false);
+  const [sendError,setSendError]=useState("");
+  const canSend=name.trim()&&email.trim()&&phone.trim()&&numTeams;
+  const send=async()=>{
+    if(!canSend||sending)return;
+    setSending(true);
+    setSendError("");
+    const message="Organization consultation request\n\n"
+      +"Name: "+name.trim()+"\n"
+      +"Phone: "+phone.trim()+"\n"
+      +"Number of teams: "+numTeams+"\n\n"
+      +(details.trim()?details.trim():"No additional details provided.");
+    // Real gap found live: both submit* helpers can fail (network, a
+    // server-side validation error inside the RPC's own JSON return) --
+    // this is a sales-lead form, so silently claiming success on a failed
+    // submit would be actively harmful, not just a minor bug.
+    const result=coachId
+      ?await submitFeedback(coachId,{contactEmail:email.trim(),message,pageContext:pageContext||"Organization consultation"})
+      :await submitPublicFeedback({email:email.trim(),message,pageContext:pageContext||"Organization consultation"});
+    setSending(false);
+    if(result&&result.error){setSendError("Something went wrong sending this. Please try again, or email us directly at contact@runofpractice.com.");return;}
+    setDone(true);
+  };
+  return(<div className="movly" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div className="modal">
+      <div className="mhandle"/>
+      {done?(<div>
+        <div className="mtitle">Thanks, that's in.</div>
+        <div style={{fontSize:14,color:"var(--black2)",marginBottom:16,lineHeight:1.5}}>We'll follow up at {email.trim()} (or by phone) to set up a quick call and get your organization going.</div>
+        <button className="btn primary bmd bfull" onClick={onClose}>Close</button>
+      </div>):(<div>
+        <div className="mtitle">Request a Consultation</div>
+        <div style={{fontSize:13,color:"var(--td)",marginBottom:16,lineHeight:1.5}}>Tell us a bit about your club and we'll reach out to get your organization set up.</div>
+        <div className="fld mb10"><label className="lbl">Name</label><input className="inp" autoFocus value={name} onChange={e=>setName(e.target.value)}/></div>
+        <div className="fld mb10"><label className="lbl">Email</label><input className="inp" type="email" value={email} onChange={e=>setEmail(e.target.value)}/></div>
+        <div className="fld mb10"><label className="lbl">Phone</label><input className="inp" type="tel" value={phone} onChange={e=>setPhone(e.target.value)}/></div>
+        <div className="fld mb10"><label className="lbl">Number of Teams</label><input className="inp" type="number" min="1" value={numTeams} onChange={e=>{const v=e.target.value;setNumTeams(v===""?"":+v);}}/></div>
+        <div className="fld mb10">
+          <label className="lbl">Anything else that would help? <span style={{color:"var(--td)",fontWeight:400}}>(optional)</span></label>
+          <textarea className="ta" rows={3} placeholder="Sport, location, timeline, anything that'll help us prep for the call." value={details} onChange={e=>setDetails(e.target.value)}/>
+        </div>
+        {sendError&&<div style={{fontSize:13,color:"var(--red)",marginBottom:10}}>{sendError}</div>}
+        <div className="brow"><button className="btn ghost bsm" onClick={onClose}>Cancel</button><button className="btn primary bsm" style={{flex:1}} onClick={send} disabled={!canSend||sending}>{sending?"Sending...":"Send Request"}</button></div>
+      </div>)}
+    </div>
+  </div>);
+}
+export { ConsultationRequestForm };
 
 // Back used to hard-navigate to "/" regardless of where you came from --
 // most noticeably wrong from Settings > Account, which landed you back on
@@ -58,6 +126,7 @@ function FAQItem({ q, children, open, onToggle }) {
 
 export function FAQPage() {
   const [open, setOpen] = useState(0);
+  const [showConsult, setShowConsult] = useState(false);
   const toggle = i => setOpen(open === i ? -1 : i);
   const items = [
     {
@@ -68,10 +137,14 @@ export function FAQPage() {
       </>),
     },
     {
+      // Reworded: the old copy ("we set these up with you rather than
+      // offering instant self-service") read as a limitation to a
+      // prospective club sizing up the product. Same underlying process,
+      // framed as white-glove onboarding instead of a missing feature.
       q: "How do I set up an organization with multiple teams?",
       a: (<>
-        <p style={{ margin: "0 0 10px" }}>Organizations are for clubs running more than one team, with a director who can see across all of them and coaches managing their own team day to day. We set these up with you rather than offering instant self-service, so everything (sports, teams, coaches) starts out configured correctly.</p>
-        <p style={{ margin: 0 }}>Reach out and we'll get you going: <a href="mailto:contact@runofpractice.com?subject=Organization%20consultation" style={{ color: "var(--green)" }}>request a consultation</a>.</p>
+        <p style={{ margin: "0 0 10px" }}>Organizations are for clubs running more than one team, with a director who can see across all of them and coaches managing their own team day to day. Our team personally sets up every organization, so sports, teams, and coaches all start out configured correctly.</p>
+        <p style={{ margin: 0 }}>Tell us a bit about your club and we'll be in touch: <button type="button" onClick={() => setShowConsult(true)} style={{ background: "none", border: "none", padding: 0, color: "var(--green)", textDecoration: "underline", cursor: "pointer", font: "inherit" }}>request a consultation</button>.</p>
       </>),
     },
     { q: "Is Run of Practice free?", a: "Yes, Run of Practice is free during early access while we're still testing and improving it." },
@@ -89,6 +162,7 @@ export function FAQPage() {
       </FAQItem>))}
     </div>
     <div style={{ marginTop: 20, fontSize: 13, color: "var(--td)" }}>Still stuck on something? Reach us at {CONTACT_EMAIL}.</div>
+    {showConsult && <ConsultationRequestForm pageContext="FAQ" onClose={() => setShowConsult(false)} />}
   </LegalLayout>);
 }
 
