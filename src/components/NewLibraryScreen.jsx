@@ -87,7 +87,7 @@ export function AddLocationDialog({coachId,orgId,onClose,onCreated}){
   </div>);
 }
 
-// ── LocationChips — multi-select for which locations a piece of equipment
+// -- LocationChips, multi-select for which locations a piece of equipment
 // is available at. No selection = travels with the coach (available
 // everywhere), same convention the schema uses (no asset_locations rows).
 export function LocationChips({locations,selectedIds,onToggle,label,emptyHint,selectedHint}){
@@ -100,7 +100,7 @@ export function LocationChips({locations,selectedIds,onToggle,label,emptyHint,se
   </div>);
 }
 
-// ── GearEditRow — inline edit for a player gear item ─────────────────────────
+// -- GearEditRow, inline edit for a player gear item --
 function GearEditRow({asset,locations,refreshLibrary,onDone}){
   const [name,setName]=useState(asset.name);
   const [sport,setSport]=useState(asset.sport||"General");
@@ -647,7 +647,7 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
     ))}
     </ActivityDndContext>
 
-    {/* Add drills panel — same as builder */}
+    {/* Add drills panel, same as builder */}
     <div style={{borderTop:"1px solid var(--b)",paddingTop:14,marginTop:8}}>
       <div className="sechdr mb8">
         <span className="sectitle">Add to Template</span>

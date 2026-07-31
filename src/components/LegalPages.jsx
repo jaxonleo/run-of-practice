@@ -206,13 +206,13 @@ export function PrivacyPage() {
     <S title="What we collect">
       <ul style={{ paddingLeft: 20, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
         <li><strong>Account information:</strong> your email address, and a display name you provide.</li>
-        <li><strong>Team and roster information you enter:</strong> team names, player first/last names, jersey numbers, positions, coaching staff, and similar — entered by coaches to plan and run practices.</li>
+        <li><strong>Team and roster information you enter:</strong> team names, player first/last names, jersey numbers, positions, coaching staff, and similar, entered by coaches to plan and run practices.</li>
         <li><strong>Practice content:</strong> drills, plans, schedules, attendance records, and notes you create.</li>
         <li><strong>Usage information:</strong> basic activity events (e.g. that a practice was created or a session was run) used to understand how the app is used, and any feedback you submit to us.</li>
       </ul>
     </S>
     <S title="About players' information">
-      Player information (name, jersey number, position, focus areas) is entered by coaches, not collected directly from players. Where teams include minors, we deliberately minimize what's shared with anonymous helpers — helper links show first name, last initial, and jersey number only; full names and other details are visible only to signed-in coaching staff on the team.
+      Player information (name, jersey number, position, focus areas) is entered by coaches, not collected directly from players. Where teams include minors, we deliberately minimize what's shared with anonymous helpers. Helper links show first name, last initial, and jersey number only; full names and other details are visible only to signed-in coaching staff on the team.
       <div style={{ marginTop: 8 }}>If you are a parent or guardian with questions about your child's information in the app, contact the coach who manages your child's team directly, or reach us at {CONTACT_EMAIL}.</div>
     </S>
     <S title="How we use information">

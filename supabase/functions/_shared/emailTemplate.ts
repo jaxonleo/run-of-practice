@@ -42,7 +42,7 @@ export function renderEmailHtml({ headline, bodyHtml, ctaLabel, signInEmail }: {
         </td></tr>
         <tr><td style="padding:12px 28px 32px;">
           <a href="https://www.runofpractice.com/?signin=1" style="display:inline-block;background:#2d6a4f;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:.02em;padding:13px 26px;border-radius:9px;">${ctaLabel}</a>
-          <p style="margin:18px 0 0;font-size:13px;color:#6b7a72;line-height:1.5;">Sign in with <strong>${signInEmail}</strong> — we'll send a one-time code, no password needed.</p>
+          <p style="margin:18px 0 0;font-size:13px;color:#6b7a72;line-height:1.5;">Sign in with <strong>${signInEmail}</strong>. We'll send a one-time code, no password needed.</p>
         </td></tr>
         <tr><td style="padding:16px 28px;background:#f7f9f8;border-top:1px solid #eef2f0;">
           <p style="margin:0;font-size:12px;color:#8a9a91;">Practice planning and live execution · <a href="https://www.runofpractice.com" style="color:#8a9a91;">runofpractice.com</a></p>

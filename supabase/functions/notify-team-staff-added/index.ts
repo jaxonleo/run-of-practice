@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
   const html = renderEmailHtml({
     headline: `You've been added to ${teamName}`,
     bodyHtml: `<p style="margin:0 0 12px;">${adderName} added you to <strong>${teamName}</strong> on Run of Practice.</p>
-<p style="margin:0;">This is just an FYI — nothing to click or confirm here.</p>`,
+<p style="margin:0;">This is just an FYI, no need to log in until you're ready.</p>`,
     ctaLabel: 'Sign In',
     signInEmail: staff.invite_email,
   })

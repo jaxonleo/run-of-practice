@@ -142,7 +142,7 @@ export default function PracticePlanPrint({ practice, team, loc, data, onClose }
                 const s = loc && loc.sublocations.find(s => s.id === st.sublocationId);
                 const c = team && team.coaches.find(c => c.id === st.coachId);
                 return (<div key={st.id} style={{ borderLeft: "2px solid " + P.b, paddingLeft: 10 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>Station {si + 1}{st.activityName ? " — " + st.activityName : ""} <span style={{ fontWeight: 400, color: P.td, fontSize: 12 }}>({a.stationDuration || 0} min)</span></div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>Station {si + 1}{st.activityName ? "  ·  " + st.activityName : ""} <span style={{ fontWeight: 400, color: P.td, fontSize: 12 }}>({a.stationDuration || 0} min)</span></div>
                   {(s || c) && <div style={{ fontSize: 12, color: P.td }}>{[s && s.name, c && ("Coach: " + c.name)].filter(Boolean).join("  ·  ")}</div>}
                   {st.coachingPoints && <div style={{ fontSize: 12, lineHeight: 1.5, marginTop: 2 }}>{st.coachingPoints}</div>}
                   {stTags.length > 0 && <div style={{ fontSize: 11, color: P.td }}><em>Skills: {stTags.join(", ")}</em></div>}

@@ -311,7 +311,7 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
   </div>);
 }
 
-// ── PreviewView — shown at /preview/[token] before practice starts ───────────
+// -- PreviewView, shown at /preview/[token] before practice starts --
 export function PreviewView({token}){
   const navigate=useNavigate();
   const [preview,setPreview]=useState(null);
@@ -738,7 +738,7 @@ function HelperView({token}){
       <button className="btn ghost bxs" onClick={()=>setShowNotes(false)}>Close</button>
     </div>}
     {showAtt&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",padding:"12px 14px",maxHeight:280,overflowY:"auto",flexShrink:0}}>
-      <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Attendance ({pCount}/{pTotal}){canMark?"":" — view only"}</div>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Attendance ({pCount}/{pTotal}){canMark?"":" · view only"}</div>
       {!canMark&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
         {roster.map(p=>(<span key={p.id} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid",borderColor:p.status==="present"?"var(--green)":"var(--b)",background:p.status==="present"?"var(--gbg)":"var(--s2)",color:p.status==="present"?"var(--green)":"var(--td)",fontSize:13,fontWeight:600}}>{p.jersey_number?"#"+p.jersey_number+" ":""}{p.first_name} {p.last_initial}.</span>))}
       </div>}
@@ -837,11 +837,11 @@ function HelperView({token}){
           {(rotatedStations[focusSt].equipment&&rotatedStations[focusSt].equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
             <span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#854d0e",fontWeight:600}}>Equipment: {rotatedStations[focusSt].equipment.join(", ")}</span>
           </div>}
-          <div><div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station — tap a name for their focus</div>
+          <div><div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station · tap a name for their focus</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(rotatedStations[focusSt].players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p} focus={rotatedStations[focusSt].player_focus&&rotatedStations[focusSt].player_focus[p.id]}/>))}</div></div>
         </div>}
         {focusSt===null&&<div>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+n+" — Tap to focus":"All Stations — Tap to focus"}</div>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+n+" · Tap to focus":"All Stations · Tap to focus"}</div>
           {rotatedStations.map((st,i)=>(<div key={st.id||i} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
             <div onClick={()=>setFocusSt(i)} style={{cursor:"pointer"}}>
               <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {i+1}</div>
@@ -1130,7 +1130,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     }catch(e){}
     try{
       if('mediaSession' in navigator){
-        navigator.mediaSession.metadata=new window.MediaMetadata({title:(team?team.name:'Practice')+' — Live',artist:'Run of Practice'});
+        navigator.mediaSession.metadata=new window.MediaMetadata({title:(team?team.name:'Practice')+' · Live',artist:'Run of Practice'});
         navigator.mediaSession.playbackState='playing';
       }
     }catch(e){}
@@ -1806,10 +1806,10 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   return (<div className="ccs">
     {syncOffline&&<div style={{background:"var(--rbg)",borderBottom:"1px solid var(--rb)",padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
       <span style={{width:8,height:8,borderRadius:"50%",background:"var(--red)",flexShrink:0}}/>
-      <span style={{fontSize:12,color:"var(--red)",fontWeight:600}}>Offline — will sync automatically when reconnected</span>
+      <span style={{fontSize:12,color:"var(--red)",fontWeight:600}}>Offline. Will sync automatically when reconnected.</span>
     </div>}
     {!isController&&<div style={{background:"var(--ambg)",borderBottom:"1px solid var(--ambb)",padding:"8px 14px"}}>
-      <span style={{fontSize:12,color:"var(--amber)",fontWeight:600}}>Read-only — {controllerName} has control</span>
+      <span style={{fontSize:12,color:"var(--amber)",fontWeight:600}}>Read-only · {controllerName} has control</span>
     </div>}
     {controlToast&&<div style={{position:"fixed",top:12,left:"50%",transform:"translateX(-50%)",zIndex:50,background:"var(--black2)",color:"#fff",padding:"8px 16px",borderRadius:20,fontSize:13,fontWeight:600,boxShadow:"0 4px 12px rgba(0,0,0,.3)"}}>{controlToast}</div>}
     <div className="cc-header">
@@ -2015,7 +2015,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           </div>
         </div>}
         {focusSt===null&&<div>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+cur.stations.length+" — Tap to focus":"All Stations — Tap to focus"}</div>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+cur.stations.length+" · Tap to focus":"All Stations · Tap to focus"}</div>
           {rotatedStations.map((st,i)=>{
             const stEquip=Array.isArray(st.equipment)?st.equipment:[];
             const equipNames=stEquip.map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);

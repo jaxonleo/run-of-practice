@@ -84,7 +84,7 @@ function FeedbackModal({ coachId, coachEmail, onClose }) {
       <div className="mhandle" />
       <div className="mtitle">Send Feedback</div>
       {done ? (<div>
-        <div style={{ fontSize: 14, color: "var(--black2)", marginBottom: 16 }}>Thanks — got it.</div>
+        <div style={{ fontSize: 14, color: "var(--black2)", marginBottom: 16 }}>Thanks, got it.</div>
         <button className="btn ghost bmd bfull" onClick={onClose}>Close</button>
       </div>) : (<div>
         <div className="fld mb10">

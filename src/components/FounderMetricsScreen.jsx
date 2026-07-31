@@ -151,7 +151,7 @@ export default function FounderMetricsScreen() {
         </div>
       </div>
       <div style={{ fontSize: 11, color: "var(--td)", marginTop: -8 }}>
-        Self-instrumented from in-app events. Directional, not exact — treat trends over absolute counts as the managed quantity.
+        Self-instrumented from in-app events. Directional, not exact. Treat trends over absolute counts as the managed quantity.
       </div>
 
       {!summary && <div style={{ padding: "40px 0", textAlign: "center", color: "var(--td)" }}>Loading...</div>}
@@ -208,7 +208,7 @@ export default function FounderMetricsScreen() {
           <RetentionGrid retention={detail.retention} cohortSizes={detail.cohort_sizes} />
         </Card>
 
-        <ChartCard title="Library reuse rate" subtitle="Rising means the compounding-value story — reusing past drills, not rebuilding from scratch — is real." height={160}>
+        <ChartCard title="Library reuse rate" subtitle="Rising means the compounding-value story (reusing past drills, not rebuilding from scratch) is real." height={160}>
           <LineChart data={detail.library_reuse}>
             <CartesianGrid stroke="var(--b)" strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="wk" tickFormatter={fmtWeek} tick={{ fontSize: 10, fill: "var(--tm)" }} axisLine={{ stroke: "var(--b)" }} tickLine={false} />
@@ -229,7 +229,7 @@ export default function FounderMetricsScreen() {
           </div>
         </Card>
 
-        <ChartCard title="Weekly signups" subtitle="Growth, below the fold on purpose — validation metrics matter more right now." height={150}>
+        <ChartCard title="Weekly signups" subtitle="Growth, below the fold on purpose. Validation metrics matter more right now." height={150}>
           <BarChart data={weekly || []}>
             <CartesianGrid stroke="var(--b)" strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="wk" tickFormatter={fmtWeek} tick={{ fontSize: 10, fill: "var(--tm)" }} axisLine={{ stroke: "var(--b)" }} tickLine={false} />
@@ -241,7 +241,7 @@ export default function FounderMetricsScreen() {
 
         <Card>
           <SectionTitle>Landing traffic</SectionTitle>
-          <Subtitle>No self-instrumented visitor funnel yet — Vercel Web Analytics is the traffic source of truth for now.</Subtitle>
+          <Subtitle>No self-instrumented visitor funnel yet. Vercel Web Analytics is the traffic source of truth for now.</Subtitle>
           <a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer"
             style={{ display: "inline-block", fontSize: 12, fontWeight: 700, color: "var(--green)", textDecoration: "none" }}>
             View traffic in Vercel Analytics &#8250;

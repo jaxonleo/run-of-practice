@@ -1529,13 +1529,22 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
     onBack();
   };
   // Nav restructure round 3: registers with Layout's colored bar instead of
-  // rendering its own inline Back button -- re-registers every render so
-  // the isDirty check handleBack closes over never goes stale.
+  // rendering its own inline Back button. Registers once (a ref keeps the
+  // callback seeing the latest isDirty/handleBack without needing to
+  // re-register) -- re-registering on every render, as this used to, formed
+  // a real infinite render loop once useBlocker was added above: blocker's
+  // own re-render on every parent render kept re-triggering this effect,
+  // whose setSubViewBack call itself triggers a re-render via AppCtx,
+  // feeding back into the same cycle. Found live (React's "Maximum update
+  // depth exceeded" warning, reproduced fresh in a clean tab) after last
+  // session's leave-prompt work shipped.
   const {setSubViewBack}=useAppCtx();
+  const handleBackRef=useRef(handleBack);
+  handleBackRef.current=handleBack;
   useEffect(()=>{
-    setSubViewBack({onBack:handleBack});
+    setSubViewBack({onBack:()=>handleBackRef.current()});
     return ()=>setSubViewBack(null);
-  });
+  },[setSubViewBack]);
 
   // Assistant-coach handoff §2.4: reverse-chron read of every session/
   // practice note this player was @mentioned in, across any team practice
