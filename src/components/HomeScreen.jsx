@@ -14,7 +14,9 @@ function PlanPill({ practice }) {
   if (!st) return null;
   const total = sumMins(practice.activities || []);
   const onTrack = st === "onTrack";
-  return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
+  // whiteSpace:nowrap -- otherwise a tight card can wrap mid-phrase (e.g.
+  // "0/60" on one line, "min" starting the next), which reads as broken.
+  return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600, whiteSpace: "nowrap" }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
 }
 
 // §6: getting-started checklist, completion fully derived from existing
@@ -395,7 +397,11 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
         const canManage = canManageTeamInMode(team, coachId, mode);
         const count = absenceCounts[nextPractice.id] || 0;
         const headcount = team ? Math.max(0, team.players.length - count) : null;
-        return (<div className="card" style={{ marginBottom: 16, borderColor: soon ? "var(--green)" : "var(--b)", borderWidth: soon ? 2 : 1.5 }}>
+        // "Up Next" names what this card actually is -- the single soonest
+        // practice -- distinct from the "Upcoming Practices" list further
+        // down, which covers the whole week.
+        return (<><div className="clbl mb8">Up Next</div>
+        <div className="card" style={{ marginBottom: 16, borderColor: soon ? "var(--green)" : "var(--b)", borderWidth: soon ? 2 : 1.5 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
             {team && team.colorPrimary && <span style={{ width: 10, height: 10, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
             <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)" }}>{dayLbl(nextPractice.date, todayStr, tomorrowStr)}{nextPractice.startTime ? " · " + timeLbl(nextPractice) : ""}</span>
@@ -406,8 +412,12 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
             {headcount !== null && <span> · {headcount} of {team.players.length} expected</span>}
             {planningState(nextPractice) && <span> · <PlanPill practice={nextPractice} /></span>}
           </div>
-          {!planned && canManage && <button className="btn primary bxl bfull" onClick={() => goToBuilder(nextPractice.id)}>Plan Practice</button>}
-          {!planned && !canManage && <div className="btn outline bxl bfull" style={{ textAlign: "center", cursor: "default" }}>Not planned yet</div>}
+          {/* .blg, not .bxl -- matches the planned-state buttons below
+              (already sized down from bxl for the same overflow reason
+              documented there); bxl here just made this one button read
+              taller than every other button on the screen for no reason. */}
+          {!planned && canManage && <button className="btn primary blg bfull" onClick={() => goToBuilder(nextPractice.id)}>Plan Practice</button>}
+          {!planned && !canManage && <div className="btn outline blg bfull" style={{ textAlign: "center", cursor: "default" }}>Not planned yet</div>}
           {/* Practice Setup used to sit below Start Practice as a small,
               subordinate outline link -- easy to miss, and it made "jump
               straight into the live timer" the only obvious path even for
@@ -425,7 +435,7 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
             {!soon && <button className="btn primary blg" style={{ flex: 1, minWidth: 0 }} onClick={() => setViewPractice(nextPractice)}>Review Plan</button>}
             {soon && <button className="btn primary blg" style={{ flex: 1, minWidth: 0 }} onClick={() => goToRun(nextPractice.id)}>Start Practice &#8594;</button>}
           </div>}
-        </div>);
+        </div></>);
       })()}
 
       {needsPlanning.length > 0 && <div className="li" style={{ marginBottom: 16, cursor: "pointer" }} onClick={goToSchedule}>
@@ -444,7 +454,10 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
             {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
             <div className="lim" style={{ minWidth: 0 }}>
               <div className="lin">{team ? team.name : "Practice"}</div>
-              <div className="limt">{dayLbl(p.date, todayStr, tomorrowStr)}{p.startTime ? " · " + timeLbl(p) : ""}{loc ? " · " + loc.name : ""}{!planned && " · Needs plan"}{planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{count > 0 && " · " + count + " out"}</div>
+              {/* count>0 branch wraps "N out" in its own nowrap span -- found
+                  live wrapping mid-phrase ("1" ending one line, "out"
+                  starting the next), same fix as PlanPill's "0/60 min". */}
+              <div className="limt">{dayLbl(p.date, todayStr, tomorrowStr)}{p.startTime ? " · " + timeLbl(p) : ""}{loc ? " · " + loc.name : ""}{!planned && " · Needs plan"}{planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{count > 0 && <React.Fragment> · <span style={{ whiteSpace: "nowrap" }}>{count} out</span></React.Fragment>}</div>
             </div>
           </div>
           <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>

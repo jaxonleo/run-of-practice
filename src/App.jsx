@@ -280,7 +280,7 @@ function AuthScreen({onBack}){
       <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
       {!sent&&<div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Welcome, Coach</div>
-        <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Enter your email — we'll send you a sign-in code.</div>
+        <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Enter your email. We'll send you a sign-in code.</div>
         <div className="fld mb10">
           <label className="lbl">Email</label>
           <input className="inp" autoFocus type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")send();}}/>
@@ -984,36 +984,40 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     if(saved)launchRun(saved.id);
   };
   return (<div style={{paddingBottom:80}}>
+      <div ref={stickyHeaderRef} style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
       {/* Back-button audit (2026-07-15): was a hardcoded navigate("/") --
           always dropped you on Home regardless of where you actually came
           from (a team's Plan tab, Schedule, Library...). navigate(-1)
           returns to wherever that was; the useBlocker guard above already
-          intercepts this exact navigation when there are unsaved edits. */}
-      <div style={{padding:"10px 14px 0"}}><button className="btn ghost bxs" onClick={()=>navigate(-1)}>Back</button></div>
-      <div ref={stickyHeaderRef} style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
-      {editP&&<div style={{padding:"8px 14px",background:"var(--gbg)",borderBottom:"1px solid var(--gb)",display:"flex",alignItems:"baseline",gap:8}}>
+          intercepts this exact navigation when there are unsaved edits.
+          Save/Run Now now share this same row -- the two actions a coach
+          reaches for most -- instead of living in a separate bar below an
+          isolated Back button. */}
+      <div style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
+        <button className="btn ghost bxs" onClick={()=>navigate(-1)}>Back</button>
+        <div style={{flex:1}}/>
+        {(!bottomMode||bottomMode==="")&&<><button className="btn outline bsm" onClick={handleSave}>Save</button>
+        <button className="btn primary bsm" onClick={handleRun}>Run Now</button></>}
+      </div>
+      {editP&&<div style={{padding:"0 14px 8px",display:"flex",alignItems:"baseline",gap:8}}>
         <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",flexShrink:0}}>Editing</span>
         <span style={{fontSize:13,fontWeight:700,color:"var(--black)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{team?team.name:"Practice"} · {schedDate?new Date(schedDate+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"No date"}{schedTime?" · "+fmt12(schedTime):""}</span>
       </div>}
-      {!editP&&startTpl&&<div style={{padding:"8px 14px",background:"var(--gbg)",borderBottom:"1px solid var(--gb)",display:"flex",alignItems:"baseline",gap:8}}>
+      {!editP&&startTpl&&<div style={{padding:"0 14px 8px",display:"flex",alignItems:"baseline",gap:8}}>
         <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",flexShrink:0}}>From Template</span>
         <span style={{fontSize:13,fontWeight:700,color:"var(--black)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{startTpl.name}</span>
       </div>}
-      <div style={{padding:"8px 14px",display:"flex",gap:6}}>
-        {(!bottomMode||bottomMode==="")&&<div style={{display:"flex",gap:6,width:"100%"}}>
-          <button className="btn outline bsm" style={{flex:1}} onClick={handleSave}>Save</button>
-          {!editP&&<button className="btn outline bsm" style={{flex:1}} onClick={()=>{setSchedSuccess(false);setShowScheduleModal(true);}}>Schedule</button>}
-          {!editP&&<button className="btn ghost bsm" style={{flex:1}} onClick={()=>{setTplName("");setBottomMode("template");}}>Template</button>}
-          <button className="btn primary bsm" style={{flex:2}} onClick={handleRun}>Run Now</button>
-        </div>}
-        {bottomMode==="template"&&<div style={{width:"100%"}}>
-          <div className="fld mb6"><input className="inp" autoFocus placeholder="Template name..." value={tplName} onChange={e=>setTplName(e.target.value)}/></div>
-          <div className="brow">
-            <button className="btn ghost bsm" onClick={()=>setBottomMode(null)}>Cancel</button>
-            <button className="btn primary bsm" onClick={()=>doSaveTpl(tplName)} disabled={!tplName.trim()}>Save Template</button>
-          </div>
-        </div>}
-      </div>
+      {!editP&&(!bottomMode||bottomMode==="")&&<div style={{padding:"0 14px 10px",display:"flex",gap:6}}>
+        <button className="btn outline bsm" style={{flex:1}} onClick={()=>{setSchedSuccess(false);setShowScheduleModal(true);}}>Schedule</button>
+        <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{setTplName("");setBottomMode("template");}}>Template</button>
+      </div>}
+      {bottomMode==="template"&&<div style={{padding:"0 14px 10px"}}>
+        <div className="fld mb6"><input className="inp" autoFocus placeholder="Template name..." value={tplName} onChange={e=>setTplName(e.target.value)}/></div>
+        <div className="brow">
+          <button className="btn ghost bsm" onClick={()=>setBottomMode(null)}>Cancel</button>
+          <button className="btn primary bsm" onClick={()=>doSaveTpl(tplName)} disabled={!tplName.trim()}>Save Template</button>
+        </div>
+      </div>}
       </div>
       {showScheduleModal&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowScheduleModal(false);}}>
         <div className="modal">
@@ -1051,7 +1055,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           full 4-button bar both end in the same bare border, and neither
           the sticky wrapper nor .card added any breathing room after it. */}
       <div className="card mb10" style={{marginTop:10}}>
-        <div className="clbl">Practice Setup</div>
+        <div className="clbl">Practice Details</div>
         {!editP&&<div className="fld"><label className="lbl">Team</label>
           <select className="sel" value={teamId} onChange={e=>{const tid=e.target.value;setTeamId(tid);setLocId(lastLocForTeam(tid));}}>
             {!data.teams.length&&<option value="">-- Add a team first --</option>}
@@ -1061,8 +1065,14 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         <div className={editP?"g2":undefined}>
           <div className="fld"><label className="lbl">Location</label>
             {teamLocations.length>0?(
-              <select className="sel" value={locId} onChange={e=>setLocId(e.target.value)}>
+              // "+ Add New Location..." is a real option in the dropdown
+              // itself, not just a fallback for the zero-locations case --
+              // a coach editing an already-scheduled practice whose actual
+              // location isn't in their list yet shouldn't have to leave
+              // Builder to add it first.
+              <select className="sel" value={locId} onChange={e=>{const v=e.target.value;if(v==="__add_new__"){setShowAddLocation(true);return;}setLocId(v);}}>
                 {teamLocations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
+                <option value="__add_new__">+ Add New Location...</option>
               </select>
             ):(
               // No locations exist yet anywhere -- the select would otherwise
@@ -1077,16 +1087,28 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           </div>}
         </div>
       </div>
+      {/* Margin fix, found live across every entry path: .screen already
+          gives the whole route 14px of horizontal inset, but everything
+          below the Practice Details card relied on that alone -- half the
+          ~28px (screen's 14 + the card's own 14px padding) the top nav and
+          that card both get, so it read as flush against the edge by
+          comparison. This wrapper adds the missing 14px to match. */}
+      <div style={{padding:"0 14px"}}>
+      <div className="sechdr mb8">
+        <span className="sectitle" style={{fontSize:14}}>The Run of Practice</span>
+        {(acts.length>0||(editP&&editP.scheduledDurationMinutes))&&<span className={"pill"+(editP&&editP.scheduledDurationMinutes&&totalMins<editP.scheduledDurationMinutes*0.9?" over":"")}>{editP&&editP.scheduledDurationMinutes?totalMins+"/"+editP.scheduledDurationMinutes+" min":totalMins+"m"}</span>}
+      </div>
       {acts.length===0&&(<div style={{textAlign:"center",padding:"20px 16px",background:"var(--s2)",borderRadius:"var(--r)",marginBottom:10,border:"1.5px dashed var(--b)"}}>
-          <div style={{fontSize:13,color:"var(--td)",lineHeight:1.7,marginBottom:teamTemplates.length?10:0}}>Nothing added yet.<br/>Select activities below to begin building your practice.</div>
+          <div style={{fontSize:13,color:"var(--td)",lineHeight:1.7,marginBottom:teamTemplates.length?10:0}}>Nothing added yet.<br/>Add activities below to begin building your Run of Practice.</div>
           {teamTemplates.length>0&&<button className="btn outline bsm" onClick={()=>setShowTplPicker(true)}>Start with a Template</button>}
         </div>
       )}
-      {(acts.length>0||(editP&&editP.scheduledDurationMinutes))&&(<div className="sechdr mb8">
-          <span className="sectitle">{acts.length} Activities</span>
-          <span className={"pill"+(editP&&editP.scheduledDurationMinutes&&totalMins<editP.scheduledDurationMinutes*0.9?" over":"")}>{editP&&editP.scheduledDurationMinutes?totalMins+"/"+editP.scheduledDurationMinutes+" min":totalMins+"m"}</span>
-        </div>
-      )}
+      {/* Once there's real content, the whole list sits on a dark canvas --
+          a clear visual break from the (light) drill library below it, and
+          from the light Practice Details card above -- so it's obvious
+          this is the practice actually being assembled, not more picker
+          UI. Individual rows stay their normal light cards on top of it. */}
+      {acts.length>0&&(<div style={{background:"var(--black)",borderRadius:"var(--r)",padding:"8px 8px 2px",marginBottom:10}}>
       <ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
       {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId&&expandedId!==act.id} stickyTop={stickyHeaderH}>{dragHandle=>(<div>
           <div className="ablk">
@@ -1097,7 +1119,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                 has already seen the "it was added" confirmation, so drop
                 the sticky treatment for good rather than just suppressing
                 it while open. */}
-            <div className="abhdr" onClick={()=>{const willExpand=expandedId!==act.id;setExpandedId(willExpand?act.id:null);if(willExpand&&act.id===lastAddedId)setLastAddedId(null);}}>
+            <div className="abhdr" style={{position:"relative"}} onClick={()=>{const willExpand=expandedId!==act.id;setExpandedId(willExpand?act.id:null);if(willExpand&&act.id===lastAddedId)setLastAddedId(null);}}>
               {dragHandle}
               <div style={{flex:1,minWidth:0}}>
                 <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -1118,6 +1140,12 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                 </div>}
                 {act.type!=="station_block"&&<span className="bdg bp">{act.duration}m</span>}
                 {act.type==="station_block"&&<span className="bdg bp">{act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*act.transitionDuration:0)}m</span>}
+                {/* Expand/collapse affordance, made explicit: a chevron that
+                    flips with state, offset with its own margin so it reads
+                    as coming out of the header rather than just another
+                    icon in the row -- direct feedback was that tapping the
+                    header to expand a drill wasn't obviously interactive. */}
+                <span style={{marginLeft:2,color:"var(--td)",display:"flex"}}><Ic.Chev up={expandedId===act.id}/></span>
                 <button className="btn danger bxs" onClick={e=>{e.stopPropagation();remAct(act.id);}}>x</button>
               </div>
             </div>
@@ -1131,29 +1159,37 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         </div>)}</SortableActivityRow>
       ))}
       </ActivityDndContext>
-      <div style={{borderTop:"1px solid var(--b)",paddingTop:14}}>
-        <div className="sechdr mb8"><span className="sectitle">Add Drills</span><div className="row"><button className="btn ghost bxs" onClick={()=>openModal("addActivity")}>+ New Activity</button></div></div>
-        <div className="g2" style={{marginBottom:6}}>
-          <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(false)}><div className="lim"><div className="lin">Intro</div><div className="limt">Checklist</div></div><span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span></div>
-          <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(true)}><div className="lim"><div className="lin">Closer</div><div className="limt">Checklist</div></div><span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span></div>
-        </div>
-        <div className="li tap" style={{marginBottom:6,background:"var(--gbg)",borderColor:"var(--gb)"}} onClick={addBlock}>
-          <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">2 stations, add or remove as needed</div></div>
-          <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
-        </div>
-        {team&&<div className="clbl" style={{marginBottom:8}}>{teamSport} + General</div>}
-        {filteredLib.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>addAct(lib)}>
-            <div className="lim">
-              <div className="lin">{lib.name}</div>
-              <div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div>
-              {lib.coachingPoints&&<div style={{fontSize:11,color:"var(--green2)",marginTop:2}}>{lib.coachingPoints}</div>}
-              {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
-              </div>}
-            </div>
-            <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
+      </div>)}
+      {/* "Practice Components" and "My Drill Library" -- two distinct dark
+          green section titles so it's clear the Intro/Closer/Station Block
+          builders below are structural pieces, separate from the coach's
+          actual saved drills further down. */}
+      <div style={{background:"var(--green)",color:"#fff",padding:"9px 12px",borderRadius:"var(--r)",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",marginBottom:8}}>Practice Components</div>
+      <div className="g2" style={{marginBottom:6}}>
+        <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(false)}><div className="lim"><div className="lin">Intro</div><div className="limt">Checklist</div></div><span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span></div>
+        <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(true)}><div className="lim"><div className="lin">Closer</div><div className="limt">Checklist</div></div><span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span></div>
+      </div>
+      <div className="li tap" style={{marginBottom:14,background:"var(--gbg)",borderColor:"var(--gb)"}} onClick={addBlock}>
+        <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">2 stations, add or remove as needed</div></div>
+        <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
+      </div>
+      <div style={{background:"var(--green)",color:"#fff",padding:"9px 12px",borderRadius:"var(--r)",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+        <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase"}}>My Drill Library</span>
+        <button className="btn bxs" style={{background:"rgba(255,255,255,.16)",color:"#fff"}} onClick={()=>openModal("addActivity")}>+ New Activity</button>
+      </div>
+      {team&&<div className="clbl" style={{marginBottom:8}}>{teamSport} + General</div>}
+      {filteredLib.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>addAct(lib)}>
+          <div className="lim">
+            <div className="lin">{lib.name}</div>
+            <div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div>
+            {lib.coachingPoints&&<div style={{fontSize:11,color:"var(--green2)",marginTop:2}}>{lib.coachingPoints}</div>}
+            {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+              {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+            </div>}
           </div>
-        ))}
+          <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
+        </div>
+      ))}
       </div>
 
 

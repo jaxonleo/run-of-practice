@@ -40,6 +40,25 @@ export function HandednessPicker({sport,value,onChange}){
   </div>);
 }
 
+// Tracks window.visualViewport's height so a bottom-sheet modal can size
+// itself to the actually-visible area instead of the full layout viewport.
+// Real gap found: on mobile, opening the on-screen keyboard to search skill
+// tags didn't shrink the modal at all (100dvh doesn't reliably follow the
+// keyboard across browsers for position:fixed content), so the search
+// results sat partly or fully underneath the keyboard.
+function useVisualViewportHeight(){
+  const [h,setH]=useState(()=>(typeof window!=="undefined"&&window.visualViewport)?window.visualViewport.height:(typeof window!=="undefined"?window.innerHeight:0));
+  useEffect(()=>{
+    if(typeof window==="undefined"||!window.visualViewport)return;
+    const vv=window.visualViewport;
+    const update=()=>setH(vv.height);
+    update();
+    vv.addEventListener("resize",update);
+    return()=>vv.removeEventListener("resize",update);
+  },[]);
+  return h;
+}
+
 // Closed by default: shows only the selected tags as removable chips plus an
 // "Add/Edit" button that opens the full category-grouped, searchable picker
 // in an overlay. A flat always-open pill grid stopped scaling once a coach's
@@ -54,6 +73,7 @@ function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshLibrary,
   const [search,setSearch]=useState("");
   const [newTagName,setNewTagName]=useState("");
   const [newTagCategoryId,setNewTagCategoryId]=useState("");
+  const vpHeight=useVisualViewportHeight();
   const cats=(data.skillCategories||[]).filter(c=>c.sport===sport&&!c.archived_at);
   if(cats.length===0)return null;
   const allTags=(data.skillTags||[]).filter(t=>!catalogId||t.scope==="global");
@@ -72,6 +92,7 @@ function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshLibrary,
   };
   const q=search.trim().toLowerCase();
   return(<div className="fld"><label className="lbl">Skill Tags</label>
+    <div style={{fontSize:11,color:"var(--td)",marginBottom:6,lineHeight:1.4}}>Tagging skills helps power Goals &amp; Insights and reporting on what your team actually practices.</div>
     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
       {selectedTags.map(t=>(<span key={t.id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 4px 4px 10px",borderRadius:20,background:"var(--green)",color:"#fff",fontSize:13}}>
         {t.name}
@@ -79,8 +100,13 @@ function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshLibrary,
       </span>))}
       <button type="button" className="btn ghost bxs" onClick={()=>setOpen(true)}>{selectedTags.length?"Edit":"+ Add"} Skill Tags</button>
     </div>
-    {open&&(<div className="movly" style={{zIndex:300}} onClick={e=>{if(e.target===e.currentTarget)setOpen(false);}}>
-      <div className="modal">
+    {/* height/bottom overrides here (rather than the default full-inset
+        .movly) pin this sheet to window.visualViewport's actual visible
+        height -- with the on-screen keyboard open for the search input,
+        that's the area above the keyboard, not the full layout viewport,
+        so results no longer end up hidden underneath it. */}
+    {open&&(<div className="movly" style={{zIndex:300,height:vpHeight?vpHeight+"px":undefined,bottom:"auto"}} onClick={e=>{if(e.target===e.currentTarget)setOpen(false);}}>
+      <div className="modal" style={{maxHeight:vpHeight?Math.round(vpHeight*0.92)+"px":undefined}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900}}>Skill Tags</div>
           <button type="button" className="btn ghost bxs" onClick={()=>setOpen(false)}>Done</button>
@@ -125,14 +151,22 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
   const navigate=useNavigate();
   const [confirmDeleteTeam,setConfirmDeleteTeam]=useState(false);
   const [deletingTeam,setDeletingTeam]=useState(false);
+  // A single-sport coach always gets that sport as the default for a new
+  // drill, full stop -- not just when their library happens to be empty.
+  // A multi-sport coach (or one with no team yet) falls back to whatever
+  // sport was on the drill they most recently added, same as before.
+  const mySports=[...new Set((data.teams||[]).map(t=>t.sport).filter(Boolean))];
   const defaultSport=()=>{
+    if(mySports.length===1)return mySports[0];
     const lib=data.activityLibrary||[];
     if(lib.length>0)return lib[lib.length-1].sport||"Basketball";
-    const sports=[...new Set((data.teams||[]).map(t=>t.sport).filter(Boolean))];
-    if(sports.length===1)return sports[0];
-    return "Basketball";
+    return mySports[0]||"Basketball";
   };
   const lastSportRef=useRef(defaultSport());
+  // Sport dropdown order for the drill form: sports the coach actually has
+  // teams for first (so the common case is at the top of the list), then
+  // whatever's left of the full sport list, in its existing order.
+  const orderedSports=[...mySports,...SPORTS.filter(s=>!mySports.includes(s))];
   const playerTeamId=modal.type==="addPlayer"?modal.payload.teamId:null;
   const playerTeam=playerTeamId?(data.teams||[]).find(t=>t.id===playerTeamId):null;
   const playerSport=(playerTeam&&playerTeam.sport)||"General";
@@ -230,6 +264,21 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
     if(t==="addSublocation"){if(!f.name)return;await createSublocation(p.locationId,f.name);await refreshPlanning();}
     if(t==="addAsset"){if(!f.name)return;await createAsset(coachId,{name:f.name,type:f.assetType||"team",sport:f.assetSport||"General"});await refreshLibrary();}
     if(t==="editAsset"){if(!f.name)return;await updateAsset(p.asset.id,{name:f.name,sport:f.sport||"General"});await setAssetLocations(p.asset.id,f.locationIds||[]);await refreshLibrary();}
+    // Real gap found: the equipment/gear inputs are plain uncontrolled text
+    // fields read only by their own "Add" button (addInline, above) -- a
+    // coach who types a name and then taps Save without ever clicking Add
+    // had that text silently discarded, with no equipment actually linked
+    // and no indication anything was wrong. Checked here as a real DOM
+    // read (these inputs aren't part of `f` state) rather than blocking
+    // Add itself, which already works fine on its own.
+    if(t==="addActivity"||t==="editActivity"){
+      const pendingEquip=document.getElementById("new-equip-inp");
+      const pendingGear=document.getElementById("new-gear-inp");
+      if((pendingEquip&&pendingEquip.value.trim())||(pendingGear&&pendingGear.value.trim())){
+        setSaveError("You typed new equipment but haven't added it yet. Tap Add next to it, or clear the field, before saving.");
+        return;
+      }
+    }
     if(t==="addActivity"){
       if(!f.name)return;
       if(isPublicLibraryAdd&&!catalogId){setSaveError("No public catalog exists for "+(f.sport||"this sport")+" yet.");return;}
@@ -337,7 +386,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
         {(modal.type==="addActivity"||modal.type==="editActivity")&&(<div>
             <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus={!activity} value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
             <div className="g2">
-              <div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||"General"} onChange={e=>set("sport",e.target.value)}>{SPORTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+              <div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||"General"} onChange={e=>{set("sport",e.target.value);lastSportRef.current=e.target.value;}}>{orderedSports.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
               <div className="fld"><label className="lbl">Default Duration (min)</label><DurStepper value={f.duration||10} min={1} onChange={v=>set("duration",v)}/></div>
             </div>
             <div className="fld"><label className="lbl">Description</label><AutoTextarea minHeight={50} value={f.description||""} onChange={e=>set("description",e.target.value)}/></div>

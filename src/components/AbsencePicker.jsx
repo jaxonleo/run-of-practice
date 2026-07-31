@@ -21,7 +21,6 @@ const roleRank = (t, coachId) => {
 // action) -- presetPlayer skips straight to the practice-picking step.
 export default function AbsencePicker({ data, coachId, mode, practice, team, presetPlayer, onClose }) {
   const todayStr = localDateStr();
-  const in14Str = localDateStr(new Date(Date.now() + 14 * 864e5));
   const sortedTeams = [...(data.teams || [])].sort((a, b) => {
     const ra = roleRank(a, coachId), rb = roleRank(b, coachId);
     return ra !== rb ? ra - rb : (a.name || "").localeCompare(b.name || "");
@@ -37,8 +36,11 @@ export default function AbsencePicker({ data, coachId, mode, practice, team, pre
   const allPlayers = (data.teams || [])
     .filter(t => !teamFilter || t.id === teamFilter)
     .flatMap(t => t.players.map(p => ({ ...p, teamId: t.id, teamName: t.name })));
+  // Was capped to a 14-day window -- real gap found live: a coach marking a
+  // player out further ahead than that had no way to do it. Any scheduled,
+  // non-cancelled practice for the player's team is a valid candidate now.
   const candidatePractices = player
-    ? (data.practices || []).filter(p => p.teamId === player.teamId && p.date >= todayStr && p.date <= in14Str && p.status !== "cancelled").sort((a, b) => a.date.localeCompare(b.date))
+    ? (data.practices || []).filter(p => p.teamId === player.teamId && p.date >= todayStr && p.status !== "cancelled").sort((a, b) => a.date.localeCompare(b.date))
     : [];
 
   useEffect(() => {
@@ -106,7 +108,7 @@ export default function AbsencePicker({ data, coachId, mode, practice, team, pre
       {mode === "pickPlayerThenPractices" && step === "practices" && <div>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, marginBottom: 4 }}>Mark out for...</div>
         {player && <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>{player.firstName} {player.lastName}</div>}
-        {candidatePractices.length === 0 && <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>No upcoming practices in the next 14 days.</div>}
+        {candidatePractices.length === 0 && <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>No upcoming practices scheduled.</div>}
         <div style={{ maxHeight: 320, overflowY: "auto" }}>
           {candidatePractices.map(p => (<label key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer" }}>
             <div className="lim"><div className="lin">{dayLbl(p.date)}</div><div className="limt">{timeLbl(p)}</div></div>

@@ -1029,7 +1029,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           applied to Templates/Locations/Equipment/Skill Tags in the first
           place (each of those is always just "mine," coach- or org-scoped). */}
       {mineTab==="drills"&&<div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginTop:10}}>
-        {[{k:"mine",label:isOrgMode?"Org Drills":"My Drills"},{k:"explore",label:"Team Libraries"}].map(t=>(<button key={t.k} onClick={()=>goSection(t.k)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:section===t.k?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:section===t.k?"var(--black)":"var(--td)"}}>{t.label}</button>))}
+        {[{k:"mine",label:isOrgMode?"Org Drills":"My Drills"},{k:"explore",label:"Explore"}].map(t=>(<button key={t.k} onClick={()=>goSection(t.k)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:section===t.k?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:section===t.k?"var(--black)":"var(--td)"}}>{t.label}</button>))}
       </div>}
     </div>
     {mineTab==="locations"&&<div style={{padding:"0 16px"}}><LocationsSection data={data} openModal={openModal} refreshPlanning={refreshPlanning} coachId={coachId} mode={mode}/></div>}

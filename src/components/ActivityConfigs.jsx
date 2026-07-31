@@ -234,6 +234,11 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   const [newGearIdx,setNewGearIdx]=useState(null);
   const [libraryPickerIdx,setLibraryPickerIdx]=useState(null);
   const [groupByOpen,setGroupByOpen]=useState(false);
+  // Purely a UI label, not persisted -- once a coach picks a criterion the
+  // button itself should reflect the choice ("Group By...Position") instead
+  // of staying generic, so it's clear what's currently applied and that
+  // tapping it again lets them change it.
+  const [groupByLabel,setGroupByLabel]=useState("");
   const [helperIdx,setHelperIdx]=useState(null);
   const sport=teamSport||"General";
   const players=team?team.players:[];
@@ -269,8 +274,9 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
     const groups=Array.from({length:n},()=>[]);
     shuffled.forEach((p,i)=>groups[i%n].push(p.id));
     onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:groups[i]||[],groupLabel:""}))});
+    setGroupByLabel("");
   };
-  const clearGroups=()=>onChange({stations:act.stations.map(st=>Object.assign({},st,{assignments:[],groupLabel:""}))});
+  const clearGroups=()=>{onChange({stations:act.stations.map(st=>Object.assign({},st,{assignments:[],groupLabel:""}))});setGroupByLabel("");};
   // Buckets whole-station assignments by a shared attribute (first listed
   // position, or a handedness field) instead of shuffling -- e.g. every
   // catcher ends up at the same station rather than scattered one-per-group
@@ -282,11 +288,13 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   const groupByPosition=()=>{
     const groups=groupByAttribute(players,act.stations.length,p=>(p.positions&&p.positions[0])||"",v=>v);
     onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:(groups[i]&&groups[i].ids)||[],groupLabel:(groups[i]&&groups[i].label)||""}))});
+    setGroupByLabel("Position");
     setGroupByOpen(false);
   };
-  const groupByHand=key=>{
+  const groupByHand=(key,label)=>{
     const groups=groupByAttribute(players,act.stations.length,p=>p[key]||"",v=>HAND_GROUP_LABELS[v]||v);
     onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:(groups[i]&&groups[i].ids)||[],groupLabel:(groups[i]&&groups[i].label)||""}))});
+    setGroupByLabel(label);
     setGroupByOpen(false);
   };
   const handFields=HAND_FIELDS_BY_SPORT[sport]||[];
@@ -318,10 +326,10 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
       <button className="btn outline bmd" style={{flex:1}} onClick={genRandom}>Generate Random Groups</button>
       <button className="btn ghost bmd" style={{flex:1}} onClick={clearGroups}>Clear Groups</button>
       <div style={{position:"relative",flex:1}}>
-        <button type="button" className="btn ghost bmd bfull" onClick={()=>setGroupByOpen(o=>!o)}>Group By...</button>
+        <button type="button" className="btn ghost bmd bfull" onClick={()=>setGroupByOpen(o=>!o)}>Group By...{groupByLabel}</button>
         {groupByOpen&&<div style={{position:"absolute",top:"100%",left:0,right:0,marginTop:4,background:"#fff",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:8,zIndex:20,boxShadow:"0 4px 16px rgba(0,0,0,.12)"}}>
           <button type="button" className="mm-item" onClick={groupByPosition}>Position</button>
-          {handFields.map(hf=>(<button key={hf.key} type="button" className="mm-item" onClick={()=>groupByHand(hf.key)}>{hf.label}</button>))}
+          {handFields.map(hf=>(<button key={hf.key} type="button" className="mm-item" onClick={()=>groupByHand(hf.key,hf.label)}>{hf.label}</button>))}
           <button type="button" className="mm-item" style={{color:"var(--td)"}} onClick={()=>setGroupByOpen(false)}>Cancel</button>
         </div>}
       </div>

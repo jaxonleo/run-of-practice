@@ -15,7 +15,7 @@ function PlanPill({ practice }) {
   if (!st) return null;
   const total = sumMins(practice.activities || []);
   const onTrack = st === "onTrack";
-  return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
+  return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600, whiteSpace: "nowrap" }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
 }
 
 const timeLbl = p => { if (!p.startTime) return ""; const [h, m] = p.startTime.split(":").map(Number); return (h % 12 || 12) + ":" + (m < 10 ? "0" + m : m) + (h >= 12 ? " PM" : " AM"); };
@@ -215,7 +215,7 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
               {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
               <div className="lim" style={{ minWidth: 0 }}>
                 <div className="lin" style={{ textDecoration: cancelled ? "line-through" : "none" }}>{team ? team.name : "Practice"}</div>
-                <div className="limt">{timeLbl(p)}{!planned && !cancelled && " · Needs plan"}{!cancelled && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{cancelled && " · Cancelled"}{count > 0 && " · " + count + " out"}</div>
+                <div className="limt">{timeLbl(p)}{!planned && !cancelled && " · Needs plan"}{!cancelled && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{cancelled && " · Cancelled"}{count > 0 && <React.Fragment> · <span style={{ whiteSpace: "nowrap" }}>{count} out</span></React.Fragment>}</div>
               </div>
             </div>
             <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>
