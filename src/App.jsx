@@ -1248,13 +1248,13 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       <div className="card mb10" style={{marginTop:10,padding:0,overflow:"hidden"}}>
         {/* Solid black, matching Practice Components/My Drill Library --
             a full-width team-color fill read as too loud; the team still
-            shows up here, just as a subtle stripe on the right instead. */}
+            shows up here, just as a subtle stripe on the left instead. */}
         <div onClick={()=>setDetailsOpen(o=>!o)} style={{position:"relative",background:"var(--black)",color:"#fff",padding:"9px 12px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",overflow:"hidden"}}>
-          {team&&team.colorPrimary&&<span style={{position:"absolute",top:0,right:0,bottom:0,width:6,background:team.colorPrimary}}/>}
-          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flexShrink:0}}>Practice Details</span>
+          {team&&team.colorPrimary&&<span style={{position:"absolute",top:0,left:0,bottom:0,width:6,background:team.colorPrimary}}/>}
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flexShrink:0,marginLeft:team&&team.colorPrimary?6:0}}>Practice Details</span>
           {!detailsOpen&&<span style={{fontSize:12,color:"rgba(255,255,255,.65)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{team?team.name:"No team selected"}{loc?" · "+loc.name:""}</span>}
           {detailsOpen&&<span style={{flex:1}}/>}
-          <span style={{color:"#fff",display:"flex",flexShrink:0,marginRight:team&&team.colorPrimary?6:0}}><Ic.Chev up={detailsOpen}/></span>
+          <span style={{color:"#fff",display:"flex",flexShrink:0}}><Ic.Chev up={detailsOpen}/></span>
         </div>
         {/* Field order is deliberately "when, then where/how long":
             Date+Start Time paired first (only meaningful once a practice
@@ -1410,8 +1410,13 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       {/* Practice Components -- black bar (matches Practice Details/My
           Drill Library), a caret to collapse the tile row, and a "..."
           that opens the Add/Remove picker for which of
-          PRACTICE_COMPONENT_TYPES show as one-tap tiles here. */}
-      <div style={{display:"flex",alignItems:"center",gap:4,background:"var(--black)",color:"#fff",padding:"9px 12px",borderRadius:"var(--r)",marginBottom:8,minHeight:40}}>
+          PRACTICE_COMPONENT_TYPES show as one-tap tiles here.
+          marginTop here is a real gap from the green section above, not
+          just the sentinel's internal bottom padding -- runOfPracticeH is
+          measured off runOfPracticeEndRef's own bottom edge, so anything
+          added to *this* bar's spacing (instead of the sentinel's height)
+          shows up as visible space rather than more green. */}
+      <div style={{display:"flex",alignItems:"center",gap:4,background:"var(--black)",color:"#fff",padding:"9px 12px",borderRadius:"var(--r)",marginTop:14,marginBottom:8,minHeight:40}}>
         <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flex:1}}>Practice Components</span>
         {/* A literal horizontal ellipsis, not the vertical 3-dot kebab used
             elsewhere in the app (.ell-btn) -- asked for specifically, and

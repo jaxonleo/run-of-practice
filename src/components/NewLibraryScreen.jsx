@@ -1084,7 +1084,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       {sports.map(sport=>(<div key={sport} style={{marginBottom:8}}>
         <button onClick={()=>toggle(sport)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
           <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700}}>{sport}</span>
-          <span style={{fontSize:12,color:"var(--td)"}}>{shelfDrills.filter(a=>(a.sport||"General")===sport).length} drills {collapsed[sport]?"":"v"}</span>
+          <span style={{fontSize:12,color:"var(--td)"}}>{shelfDrills.filter(a=>(a.sport||"General")===sport).length} drills {collapsed[sport]?"▶":"▼"}</span>
         </button>
         {!collapsed[sport]&&(()=>{
           const naturalOrder=shelfDrills.filter(a=>(a.sport||"General")===sport).slice().sort((a,b)=>isMine?a.position-b.position:a.name.localeCompare(b.name));
