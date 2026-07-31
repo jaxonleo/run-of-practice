@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Outlet, useNavigate, useParams, useLocation } from "react-router-dom";
 import { Ic } from "./icons.jsx";
+import { canManageTeamInMode } from "./constants.js";
 
 // App shell shared by every authenticated route (ROP-Goals-TeamNav-Handoff.md
 // §4.1-4.2). Context-sensitive tab bar: outside a team it's Home/Library;
@@ -38,7 +39,7 @@ const teamWorkspaceTabs = (teamId, isOrgMode) => [
   { id: "goals", label: "Goals & Insights", path: `/team/${teamId}/goals` },
 ];
 
-export default function Layout({ data, liveId, goToRun, mode, openModal, subViewBack }) {
+export default function Layout({ data, liveId, goToRun, mode, openModal, subViewBack, coachId }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { teamId } = useParams();
@@ -48,6 +49,12 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
   const [teamMenuOpen, setTeamMenuOpen] = useState(false);
 
   const team = inTeam ? (data.teams || []).find(t => t.id === teamId) : null;
+  // Direct feedback: an assistant coach (view-only on this team) saw the
+  // same ellipsis a head coach gets, which reads as "I can edit this team"
+  // even though tapping through to Edit Team would just fail server-side.
+  // Gated on the same canManageTeamInMode check the rest of the app already
+  // uses for Add Coach/Player, +Practice, etc.
+  const canManageThisTeam = !!(team && canManageTeamInMode(team, coachId, mode));
   const workspaceTabs = inTeam ? teamWorkspaceTabs(teamId, isOrgMode) : [];
   // Org color (Jax's ask: "so when they're logged in to their org it looks
   // like their org") -- falls back to the plain .tabbar.org green when the
@@ -86,10 +93,10 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
             direct feedback said that wasn't enough on its own. */}
         <button aria-label="Back" onClick={e => { e.stopPropagation(); subViewBack ? subViewBack.onBack() : navigate("/teams"); }} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,.18)", border: "none", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", fontSize: 20, lineHeight: 1 }}>&#8249;</button>
         <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, color: "#fff", letterSpacing: ".01em" }}>{team.name}</span>
-        <button className="ell-btn" aria-label="Team options" onClick={e => { e.stopPropagation(); setTeamMenuOpen(o => !o); }} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}>
+        {canManageThisTeam && <button className="ell-btn" aria-label="Team options" onClick={e => { e.stopPropagation(); setTeamMenuOpen(o => !o); }} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}>
           <span style={{ background: "#fff" }}/><span style={{ background: "#fff" }}/><span style={{ background: "#fff" }}/>
-        </button>
-        {teamMenuOpen && <div className="mini-menu" onClick={e => e.stopPropagation()} style={{ right: 8, top: 44 }}>
+        </button>}
+        {canManageThisTeam && teamMenuOpen && <div className="mini-menu" onClick={e => e.stopPropagation()} style={{ right: 8, top: 44 }}>
           <button className="mm-item" onClick={() => { setTeamMenuOpen(false); openModal("editTeam", { team }); }}>Edit Team</button>
         </div>}
       </div>}

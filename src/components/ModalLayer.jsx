@@ -307,7 +307,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
     // close the modal silently, same as a successful save, so the user had
     // no way to tell their change hadn't actually persisted.
     if(res&&res.error){setSaveError("Something went wrong saving. Try again.");return;}
-    if(t==="addCoach"){setAddedCoachInfo({name:f.name,email:f.inviteEmail});}else{closeModal();}
+    if(t==="addCoach"){const addedTeam=(data.teams||[]).find(team=>team.id===p.teamId);setAddedCoachInfo({name:f.name,email:f.inviteEmail,teamName:addedTeam?addedTeam.name:"the team"});}else{closeModal();}
     }finally{savingRef.current=false;setSaving(false);}
   };
   const TITLES={addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",addCoach:"Add Coach",editCoach:"Edit Coach",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
@@ -315,7 +315,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
       <div className="modal">
         <div className="mhandle"/>
         <div className="mtitle">{addedCoachInfo?"Added":(TITLES[modal.type]||"Add")}</div>
-        {addedCoachInfo&&<div className="fld"><div style={{fontSize:14,lineHeight:1.5}}>{addedCoachInfo.name} will get an email at {addedCoachInfo.email}, and you can also just tell them: sign in at runofpractice.com with {addedCoachInfo.email}.</div></div>}
+        {addedCoachInfo&&<div className="fld"><div style={{fontSize:14,lineHeight:1.5}}>{addedCoachInfo.name} will get an email at {addedCoachInfo.email} and will see {addedCoachInfo.teamName} when they log in.</div></div>}
         {!addedCoachInfo&&modal.type==="addTeam"&&(<div><div className="fld"><label className="lbl">Team Name</label><input className="inp" autoFocus placeholder="e.g. Peoria Eagles 10U" onChange={e=>set("name",e.target.value)}/></div>
           <div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||""} onChange={e=>{set("sport",e.target.value);lastSportRef.current=e.target.value;}}>{(modal.payload&&modal.payload.orgSports&&modal.payload.orgSports.length?modal.payload.orgSports:SPORTS).map(s=><option key={s}>{s}</option>)}</select></div>
           <div className="fld">

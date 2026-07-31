@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { fetchOrgMembers, fetchOrgSentInvites, orgInviteCoach, cancelOrgInvite, updateOrganization, setOrgMemberRole, removeOrgMember, ORG_ROLE_LABELS } from "../supabase.js";
-import { SPORTS, TEAM_COLORS } from "../constants.js";
+import { SPORTS, TEAM_COLORS, myTeamRole } from "../constants.js";
 
 // Org details (Jax's ask): the Teams list itself just shows a tappable
 // org card now, no inline Edit/Add-Member buttons -- everything lives one
@@ -202,6 +202,11 @@ export default function TeamsListScreen({ data, goToTeam, openModal, mode, refre
         <div className="lim">
           <div className="lin">{t.name}</div>
           <div className="limt">{t.sport} · {t.players.length} player{t.players.length === 1 ? "" : "s"}{!isOrgMode && t.organizationName ? " · " + t.organizationName : ""}</div>
+          {/* Same coach-type shortcut Home's own team cards already show
+              (myTeamRole), so a coach juggling several teams gets the same
+              at-a-glance context here, not just on Home. Org membership is
+              already covered by the organizationName segment above. */}
+          {!isOrgMode && myTeamRole(t, coachId) && <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--td)", marginTop: 2 }}>{myTeamRole(t, coachId)}</div>}
         </div>
         <span style={{ color: "var(--green)", fontSize: 22 }}>&#8250;</span>
       </div>))}

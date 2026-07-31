@@ -405,7 +405,7 @@ export default function App(){
     if(!coachId)return;
     setTeams(await fetchMyTeams());
   },[coachId]);
-  const [library,setLibrary]=useState({assets:[],skillCategories:[],skillTags:[],activityLibrary:[],myOrgs:[],pendingOrgInvites:[],profilesById:{}});
+  const [library,setLibrary]=useState({assets:[],skillCategories:[],skillTags:[],activityLibrary:[],myOrgs:[],pendingOrgInvites:[],pendingTeamDepartures:[],profilesById:{}});
   const refreshLibrary=useCallback(async()=>{
     if(!coachId)return;
     setLibrary(await fetchLibraryData());
@@ -618,8 +618,8 @@ function AuthedShell(){
 }
 
 function LayoutRoute(){
-  const {data,liveId,goToRun,mode,openModal,subViewBack}=useAppCtx();
-  return <Layout data={data} liveId={liveId} goToRun={goToRun} mode={mode} openModal={openModal} subViewBack={subViewBack}/>;
+  const {data,liveId,goToRun,mode,openModal,subViewBack,coachId}=useAppCtx();
+  return <Layout data={data} liveId={liveId} goToRun={goToRun} mode={mode} openModal={openModal} subViewBack={subViewBack} coachId={coachId}/>;
 }
 
 // Founder-only gate. Settings shows a "Founder Metrics" row only when
@@ -1309,12 +1309,12 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           </div>
         </div>}
       </div>
-      {/* The Run of Practice: solid dark-green, dashed-bordered backdrop
-          behind the header and whatever's inside it (empty message or the
-          real list) -- this is the app's own brand color and this is its
-          moment, per direct feedback. Header always renders, even with
-          nothing added yet, so it's clear from the first tap that this is
-          where the practice gets built.
+      {/* The Run of Practice: solid dark-green backdrop behind the header
+          and whatever's inside it (empty message or the real list) -- this
+          is the app's own brand color and this is its moment, per direct
+          feedback. Header always renders, even with nothing added yet, so
+          it's clear from the first tap that this is where the practice
+          gets built.
           The backdrop itself is an absolutely-positioned div (see
           runOfPracticeH/the ResizeObserver effect above), NOT a real
           wrapping box around the header/rows -- see that effect's comment
@@ -1326,7 +1326,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           inset (padding or margin) to match the backdrop's old uniform
           padding:10 look. */}
       <div ref={runOfPracticeStartRef} style={{position:"relative"}}>
-        <div style={{position:"absolute",top:0,left:0,right:0,height:runOfPracticeH,background:"var(--green)",border:"2px dashed rgba(255,255,255,.4)",borderRadius:"var(--r)",pointerEvents:"none",zIndex:0}}/>
+        <div style={{position:"absolute",top:0,left:0,right:0,height:runOfPracticeH,background:"var(--green)",borderRadius:"var(--r)",pointerEvents:"none",zIndex:0}}/>
       </div>
       <div style={{position:"relative",zIndex:1,display:"flex",alignItems:"center",gap:10,padding:"10px 10px 8px"}}>
         <RunOfPracticeMark rotation={handRotation}/>
@@ -1486,7 +1486,7 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   const [f,setF]=useState(blankForm);
   const [savedSnapshot,setSavedSnapshot]=useState(blankForm);
   const setFld=(k,v)=>setF(p=>Object.assign({},p,{[k]:v}));
-  const isDirty=JSON.stringify(f)!==JSON.stringify(savedSnapshot);
+  const isDirty=canManage&&JSON.stringify(f)!==JSON.stringify(savedSnapshot);
   const discardEdits=()=>setF(savedSnapshot);
   const saveEdit=async()=>{
     if(!f.firstName.trim())return;
@@ -1496,10 +1496,36 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
     setSavedSnapshot(f);
     setSaving(false);
   };
-  // Same "leave without saving?" confirm CommandScreen's finishPractice
-  // already uses for an unsaved end-of-practice note.
+  // Direct feedback: a plain "leave without saving?" confirm only offered
+  // leave-or-stay, no way to actually save from the prompt itself. Replaced
+  // with a real three-way choice (Save & Leave / Discard / Cancel), and
+  // widened to cover every way off this screen, not just its own Back
+  // button -- bottom-tab and workspace-tab taps navigate via the router
+  // directly, bypassing a component-local Back handler entirely. useBlocker
+  // is the same guard BuilderScreen/GoalsScreen already use for their own
+  // unsaved-changes cases; pendingBack covers this screen's own Back
+  // button, which un-drills a view rather than changing the route.
+  useEffect(()=>{
+    if(!isDirty)return;
+    const onBeforeUnload=e=>{e.preventDefault();e.returnValue="";};
+    window.addEventListener("beforeunload",onBeforeUnload);
+    return()=>window.removeEventListener("beforeunload",onBeforeUnload);
+  },[isDirty]);
+  const blocker=useBlocker(useCallback(({currentLocation,nextLocation})=>isDirty&&currentLocation.pathname!==nextLocation.pathname,[isDirty]));
+  const [pendingBack,setPendingBack]=useState(false);
+  const showLeavePrompt=blocker.state==="blocked"||pendingBack;
+  const resolveLeave=()=>{
+    if(blocker.state==="blocked")blocker.proceed();
+    if(pendingBack){setPendingBack(false);onBack();}
+  };
+  const cancelLeave=()=>{
+    if(blocker.state==="blocked")blocker.reset();
+    setPendingBack(false);
+  };
+  const saveAndLeave=async()=>{await saveEdit();resolveLeave();};
+  const discardAndLeave=()=>{discardEdits();resolveLeave();};
   const handleBack=()=>{
-    if(isDirty&&!window.confirm("You have unsaved changes. Leave without saving?"))return;
+    if(isDirty){setPendingBack(true);return;}
     onBack();
   };
   // Nav restructure round 3: registers with Layout's colored bar instead of
@@ -1593,9 +1619,22 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
         :(player.notes?<div style={{fontSize:14,color:"var(--black)",lineHeight:1.6}}>{player.notes}</div>:<div style={{fontSize:13,color:"var(--td)"}}>No notes yet.</div>)}
     </div>
 
-    {canManage&&isDirty&&<div className="brow mt10 mb10">
-      <button className="btn ghost bmd" style={{flex:1}} onClick={discardEdits} disabled={saving}>Discard Changes</button>
-      <button className="btn primary bmd" style={{flex:1}} onClick={saveEdit} disabled={saving||!f.firstName.trim()}>{saving?"Saving...":"Save"}</button>
+    {/* Save now always present (not just once dirty) -- direct feedback:
+        a button that appears/disappears as you type made it easy to lose
+        track of where it'd be. Discard stays conditional since there's
+        nothing to discard until something's actually changed. */}
+    {canManage&&<div className="brow mt10 mb10">
+      {isDirty&&<button className="btn ghost bmd" style={{flex:1}} onClick={discardEdits} disabled={saving}>Discard Changes</button>}
+      <button className="btn primary bmd" style={{flex:1}} onClick={saveEdit} disabled={saving||!isDirty||!f.firstName.trim()}>{saving?"Saving...":"Save"}</button>
+    </div>}
+    {showLeavePrompt&&<div className="confirm-box mb10">
+      <div className="confirm-title">Unsaved Changes</div>
+      <div className="confirm-body">You have unsaved changes to this player. Would you like to save before leaving?</div>
+      <div className="brow" style={{marginBottom:8}}>
+        <button className="btn ghost bsm" onClick={cancelLeave} disabled={saving}>Cancel</button>
+        <button className="btn outline bsm" style={{flex:1}} onClick={discardAndLeave} disabled={saving}>Leave Without Saving</button>
+      </div>
+      <button className="btn primary bsm bfull" onClick={saveAndLeave} disabled={saving||!f.firstName.trim()}>{saving?"Saving...":"Save & Leave"}</button>
     </div>}
 
     <div className="clbl mb8" style={{marginTop:16}}>Player Focus</div>

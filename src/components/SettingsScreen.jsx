@@ -48,7 +48,7 @@ function TeamAssignmentsSection({data,coachId,refreshTeams}){
   };
   if(mine.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>You're not on any teams yet.</div>;
   return(<div>
-    <div style={{fontSize:13,color:"var(--td)",marginBottom:14,lineHeight:1.4}}>Every team you're on, across every organization. "Show on Home" controls whether its practices show up in your own Home agenda -- turning it off doesn't remove you from the team, and you'll still see everything if you open the team directly.</div>
+    <div style={{fontSize:13,color:"var(--td)",marginBottom:14,lineHeight:1.4}}>Every team you're on, across every organization. "Show on Home" controls where the team's practices show up in your own Home agenda. Turning it off doesn't remove you from the team, and you'll still see everything if you open the team directly.</div>
     {mine.map(({team,staff,role})=>{
       const isOwner=team.ownerUserId===coachId;
       return(<div key={team.id} className="card" style={{marginBottom:10}}>

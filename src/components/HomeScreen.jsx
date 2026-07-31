@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, fetchOrgWeeklyPracticeRollup, findOrCreatePreviewToken, ORG_ROLE_LABELS } from "../supabase.js";
+import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, fetchOrgWeeklyPracticeRollup, findOrCreatePreviewToken, ORG_ROLE_LABELS } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
@@ -238,15 +238,41 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   }).filter(Boolean)[0] || null;
   const adderName = pendingWelcome ? ((pendingWelcome.team.coaches || []).find(c => c.userId === pendingWelcome.staff.addedBy)?.name || "a coach") : null;
   const pendingWelcomeStaffId = pendingWelcome ? pendingWelcome.staff.id : null;
-  useEffect(() => { if (pendingWelcomeStaffId) markTeamStaffWelcomed(pendingWelcomeStaffId); }, [pendingWelcomeStaffId]);
-  // "Accept" is a purely local dismissal -- welcomedAt is already set the
-  // moment this banner would show (effect above), so there's no separate
-  // server-side "accepted" state to flip; this just hides the card for the
-  // rest of the session without leaving the team. Real leaving/hiding now
-  // lives in Settings > My Team Assignments (see the "Manage Team
-  // Assignments" link below), not as a raw "Leave" link right here.
+  // Real bug found live: this used to only call markTeamStaffWelcomed and
+  // never refresh local `data.teams` with the result, so `welcomedAt` here
+  // stayed stale-null for the rest of the session. "Accept" only ever
+  // dismissed the card via component-local state (dismissedWelcomeIds), so
+  // simply navigating to another tab and back to Home (no full page
+  // reload) remounted this component with a fresh, empty dismissal set --
+  // the card reappeared even though the coach had already accepted it.
+  // Following the mark with refreshTeams() catches the real data up
+  // immediately, so pendingWelcome correctly computes to null on its own
+  // as soon as the refresh lands, independent of any local-only state.
+  useEffect(() => { if (pendingWelcomeStaffId) markTeamStaffWelcomed(pendingWelcomeStaffId).then(() => refreshTeams && refreshTeams()); }, [pendingWelcomeStaffId]);
+  // "Accept" is a purely local dismissal for the moment before the refresh
+  // above lands -- welcomedAt is already set server-side and reflected
+  // locally within a beat, so there's no separate server-side "accepted"
+  // state to flip here. Real leaving/hiding now lives in Settings > My Team
+  // Assignments (see the "Manage Team Assignments" link below), not as a
+  // raw "Leave" link right here.
   const [dismissedWelcomeIds, setDismissedWelcomeIds] = useState(new Set());
   const showWelcome = pendingWelcome && !dismissedWelcomeIds.has(pendingWelcome.team.id);
+
+  // The reverse of the welcome card above (direct feedback: leaving a team
+  // used to be silent to the head coach). One notice at a time, oldest
+  // first, same "pick the first, refetch clears it once acted on" shape as
+  // the org-invite card below -- acknowledging is a real server-side write
+  // (acknowledge_team_departure), not a local-only dismissal, so it won't
+  // resurface the way the welcome card's used to.
+  const [ackingDepartureId, setAckingDepartureId] = useState(null);
+  const pendingDeparture = (data.pendingTeamDepartures || [])[0] || null;
+  const acknowledgeDeparture = async () => {
+    if (!pendingDeparture) return;
+    setAckingDepartureId(pendingDeparture.id);
+    await acknowledgeTeamDeparture(pendingDeparture.id);
+    if (refreshLibrary) await refreshLibrary();
+    setAckingDepartureId(null);
+  };
 
   // Org Experience handoff Sec 5: unlike the team_staff welcome card above
   // (already-added, just an FYI), an org invite is a real consent gate --
@@ -338,6 +364,13 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn primary bxs" disabled={respondingInviteId === pendingOrgInvite.id} onClick={() => respondToInvite(true)}>Accept</button>
         <button className="btn ghost bxs" disabled={respondingInviteId === pendingOrgInvite.id} onClick={() => respondToInvite(false)}>Decline</button>
+      </div>
+    </div></div>}
+    {pendingDeparture && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
+      <div style={{ fontSize: 14, marginBottom: 10 }}><strong>{pendingDeparture.departedName}</strong> ({pendingDeparture.role}) left <strong>{pendingDeparture.teamName}</strong>.</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button className="btn primary bxs" style={{ flex: 1 }} disabled={ackingDepartureId === pendingDeparture.id} onClick={acknowledgeDeparture}>Acknowledge</button>
+        <button className="btn ghost bxs" style={{ flex: 1 }} onClick={() => navigate("/team/" + pendingDeparture.teamId + "/roster")}>View Coaches</button>
       </div>
     </div></div>}
 

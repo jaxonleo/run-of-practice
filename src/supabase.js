@@ -230,6 +230,21 @@ export async function leaveTeam(teamId) {
   if (error) console.error('leaveTeam:', error)
   return { error }
 }
+// Home notification mirroring the "you were added to X" welcome card in
+// the other direction (direct feedback: leaving used to be silent to the
+// head coach). RLS (team_departures_select) already scopes this to teams
+// the caller can manage, so no client-side filtering needed beyond the
+// unacknowledged check.
+export async function fetchPendingTeamDepartures() {
+  const { data, error } = await supabase.from('team_departures').select('id, team_id, departed_name, role, left_at, teams(name)').is('acknowledged_at', null).order('left_at', { ascending: false })
+  if (error) { console.error('fetchPendingTeamDepartures:', error); return [] }
+  return (data || []).map(d => ({ id: d.id, teamId: d.team_id, teamName: d.teams ? d.teams.name : '', departedName: d.departed_name, role: ROLE_LABELS[d.role] || d.role, leftAt: d.left_at }))
+}
+export async function acknowledgeTeamDeparture(id) {
+  const { error } = await supabase.rpc('acknowledge_team_departure', { p_departure_id: id })
+  if (error) console.error('acknowledgeTeamDeparture:', error)
+  return { error }
+}
 // Personal Home-agenda visibility only -- narrow, self-row-only RPC (see
 // migration comment), not an access-control change.
 export async function setTeamStaffShowOnHome(teamStaffId, show) {
@@ -326,6 +341,9 @@ export async function fetchLibraryData() {
   // the existing app-wide refreshLibrary() call is what surfaces "you've
   // been invited" on Home, same as the rest of this function's data.
   const pendingOrgInvites = await fetchPendingOrgInvites()
+  // Same reasoning for team-departure notices -- refreshLibrary() is already
+  // the one call every "something happened elsewhere" Home banner piggybacks on.
+  const pendingTeamDepartures = await fetchPendingTeamDepartures()
   if (drillsRes.error) console.error('fetchLibraryData drills:', drillsRes.error)
   if (assetsRes.error) console.error('fetchLibraryData assets:', assetsRes.error)
 
@@ -347,6 +365,7 @@ export async function fetchLibraryData() {
     activityLibrary: (drillsRes.data || []).map(a => mapDrillRow(a, equipmentByDrill, tagsByDrill, sharesByDrill)),
     myOrgs: (orgsRes.data || []).map(m => ({ id: m.organization_id, name: m.organizations ? m.organizations.name : '', role: m.role, sports: (m.organizations && m.organizations.sports) || [], createdAt: m.organizations ? m.organizations.created_at : null, color: m.organizations ? m.organizations.color : null })),
     pendingOrgInvites,
+    pendingTeamDepartures,
     profilesById,
     catalogs: (catalogsRes.data || []).map(mapCatalogRow),
   }
