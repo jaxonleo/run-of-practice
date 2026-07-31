@@ -10,7 +10,7 @@ import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, sig
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes } from "./constants.js";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
-import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow, longPressHandlers } from "./components/ActivityConfigs.jsx";
+import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView } from "./components/CommandScreen.jsx";
 import HomeScreen from "./components/HomeScreen.jsx";
 import ScheduleScreen from "./components/ScheduleScreen.jsx";
@@ -833,19 +833,30 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const [bottomMode,setBottomMode]=useState(null);
   const [schedDate,setSchedDate]=useState(editP?(editP.date||localDateStr()):localDateStr());
   const [schedTime,setSchedTime]=useState(editP?(editP.startTime||"16:00"):"16:00");
+  // Target/planned duration -- drives the "35/60 min" progress pill.
+  // Real bug found while wiring this up: savePracticeTree does a full
+  // column update, and handleSave/handleRun never included this field, so
+  // saving an already-scheduled practice from Builder was silently
+  // resetting scheduled_duration_minutes to null every time. Threading it
+  // through as real state (rather than reading editP directly) fixes that
+  // and lets the pill react live as the coach edits it.
+  const [schedDuration,setSchedDuration]=useState(editP?(editP.scheduledDurationMinutes||""):"");
   const [tplName,setTplName]=useState("");
   const [showScheduleModal,setShowScheduleModal]=useState(false);
   const [schedSuccess,setSchedSuccess]=useState(false);
   const [showTplPicker,setShowTplPicker]=useState(false);
   const [showAddLocation,setShowAddLocation]=useState(false);
-  // Practice Details collapses by default now -- Team/Location/Start Time
-  // matter most on first open (or when they're wrong), not on every glance
-  // back at the screen while building out the run of practice below.
-  const [detailsOpen,setDetailsOpen]=useState(false);
+  // Practice Details collapses by default for an already-scheduled
+  // practice -- Team/Location/Date/etc. matter most on first open (or when
+  // something's actually wrong), not on every glance back at this screen.
+  // A fresh/unscheduled build is the opposite: those fields are the first
+  // thing that needs deciding, so it starts expanded instead.
+  const [detailsOpen,setDetailsOpen]=useState(()=>!editP);
   // Which of PRACTICE_COMPONENT_TYPES show as one-tap tiles -- per-coach
   // preference (see getVisibleComponentTypes), editable via the "..." menu.
   const [visibleTypeKeys,setVisibleTypeKeysState]=useState(()=>getVisibleComponentTypes());
   const [componentsOpen,setComponentsOpen]=useState(true);
+  const [myDrillsOpen,setMyDrillsOpen]=useState(true);
   const [showComponentsPicker,setShowComponentsPicker]=useState(false);
   const toggleComponentType=key=>{
     setVisibleTypeKeysState(prev=>{
@@ -854,14 +865,6 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       return next;
     });
   };
-  // Long-press preview (drill or practice-component tile) -- {kind:"drill",
-  // drill} | {kind:"component",type}. A plain tap still adds directly,
-  // unchanged; this is purely an additional "see it first" path.
-  const [previewItem,setPreviewItem]=useState(null);
-  // One Map for the whole screen's long-press rows (drills + component
-  // tiles) -- longPressHandlers isn't a hook, so this is the single useRef
-  // its per-row state actually lives in. See its own comment for why.
-  const longPressStoreRef=useRef(new Map());
   // Rotates the Run of Practice header mark: +360 per add, -360 per remove.
   // CSS transition on the mark itself animates the change; this is just the
   // running total driving it.
@@ -871,6 +874,41 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // the screen instead of leaving scroll position wherever it happened to
   // land -- previously that was often halfway down the drill library below.
   const rowRefs=useRef({});
+  // Green backdrop for the Run of Practice header + rows, measured rather
+  // than a real wrapping box. Real bug found live: position:sticky can
+  // never move an element past its own DOM parent's bottom edge -- wrapping
+  // the rows in a div sized to just fit them (the green box, added when
+  // this section's redesign first landed) leaves only a few px of "room"
+  // below the last row for it to stick within, nowhere near enough to stay
+  // pinned while scrolling through the drill library further down the
+  // page. This is why the coach reported the "just added, stays pinned"
+  // behavior broken -- not something today's changes caused, but the real
+  // root cause of it. Fix: the header/empty-state/rows render as normal
+  // children of the *same* tall padding:"0 14px" wrapper Practice
+  // Components/My Drill Library already live in (ample sticky room), and
+  // this absolutely-positioned div paints the green behind just that
+  // portion, sized via runOfPracticeEndRef's measured position rather than
+  // by actually containing the rows.
+  const runOfPracticeOuterRef=useRef(null);
+  const runOfPracticeStartRef=useRef(null);
+  const runOfPracticeEndRef=useRef(null);
+  const [runOfPracticeBox,setRunOfPracticeBox]=useState({top:0,height:0});
+  useEffect(()=>{
+    const outer=runOfPracticeOuterRef.current;
+    const start=runOfPracticeStartRef.current;
+    const end=runOfPracticeEndRef.current;
+    if(!outer||!start||!end)return;
+    const recompute=()=>{
+      const oRect=outer.getBoundingClientRect();
+      const sRect=start.getBoundingClientRect();
+      const eRect=end.getBoundingClientRect();
+      setRunOfPracticeBox({top:Math.max(0,sRect.top-oRect.top),height:Math.max(0,eRect.bottom-sRect.top)});
+    };
+    recompute();
+    const ro=new ResizeObserver(recompute);
+    ro.observe(outer);
+    return()=>ro.disconnect();
+  },[]);
   const collapseAndScroll=id=>{
     setExpandedId(null);
     requestAnimationFrame(()=>{
@@ -878,6 +916,33 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       if(el)el.scrollIntoView({behavior:"smooth",block:"start"});
     });
   };
+  // Clicking away from the expanded row collapses it (no forced scroll --
+  // unlike Done, this is incidental, not a confirm action). Only two early
+  // exits are needed rather than trying to enumerate every button that has
+  // its own expandedId-setting logic (a Practice Component tile, another
+  // row's own header, ...): a click inside the currently-expanded row
+  // itself, or inside an open overlay (.movly -- e.g. the skill-tag
+  // picker), never collapses. Everything else uses functional setState
+  // updaters that only null out the id if it's *still* the same one this
+  // effect was attached for -- if some other same-tick handler (adding a
+  // new activity, switching to a different row) already changed it, the
+  // functional check naturally no-ops instead of clobbering that update,
+  // regardless of which handler happened to run first in the click's
+  // bubble order.
+  useEffect(()=>{
+    if(!expandedId)return;
+    const idAtAttach=expandedId;
+    const handler=e=>{
+      const target=e.target;
+      if(target.closest&&target.closest(".movly"))return;
+      const el=rowRefs.current[idAtAttach];
+      if(el&&el.contains(target))return;
+      setExpandedId(prev=>prev===idAtAttach?null:prev);
+      setLastAddedId(prev=>prev===idAtAttach?null:prev);
+    };
+    document.addEventListener("click",handler);
+    return()=>document.removeEventListener("click",handler);
+  },[expandedId]);
   // The sticky just-added-drill row also anchors to the top of the scroll
   // container -- but Builder already has its own sticky Save/Run Now bar
   // pinned at top:0 above it. Both stuck at the same top:0 meant the drill
@@ -941,8 +1006,6 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const teamTemplates=(data.templates||[]).filter(t=>(t.sport||"General")===teamSport||(t.sport||"General")==="General");
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
-  const assetsById=Object.fromEntries((data.assets||[]).map(a=>[a.id,a]));
-  const equipNames=ids=>(ids||[]).map(id=>assetsById[id]?assetsById[id].name:null).filter(Boolean);
   // Same drift check as TemplateWorkspace -- a fresh single-drill add always
   // matches the library (nothing to flag), but stripIdsForCopy(startTpl.
   // activities)/applyTemplate below copy a template's activities exactly as
@@ -992,6 +1055,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const addAct=lib=>{
     const id=uid();
     setActs(p=>[...p,{id,type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:defaultAssignIds,coachId:headCoachId,sublocationId:"",notes:"",description:lib.description||"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);
+    setExpandedId(id);
     setLastAddedId(id);
     setHandRotation(r=>r+360);
   };
@@ -1019,18 +1083,10 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const remAct=id=>{setActs(p=>p.filter(a=>a.id!==id));if(lastAddedId===id)setLastAddedId(null);setHandRotation(r=>r-360);};
   const updAct=(id,ch)=>setActs(p=>p.map(a=>a.id===id?Object.assign({},a,ch):a));
   const updSt=(aid,sid,ch)=>setActs(p=>p.map(a=>a.id===aid?Object.assign({},a,{stations:a.stations.map(s=>s.id===sid?Object.assign({},s,ch):s)}):a));
-  // Long-press "Back"/"Add to Practice" preview -- Back just closes;
-  // Add to Practice runs the exact same add path a normal tap would.
-  const confirmPreviewAdd=()=>{
-    if(!previewItem)return;
-    if(previewItem.kind==="drill")addAct(previewItem.drill);
-    else addComponentType(previewItem.type.key);
-    setPreviewItem(null);
-  };
   const {sensors:dndSensors,onDragEnd:onActDragEnd}=useActivityDnd(setActs);
   const doSchedule=async(dateVal,timeVal)=>{
     if(!dateVal)return;
-    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:dateVal,startTime:timeVal||"",timezone:team&&team.timezone,activities:acts});
+    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:dateVal,startTime:timeVal||"",timezone:team&&team.timezone,scheduledDurationMinutes:schedDuration||null,activities:acts});
     if(saved){setExistingId(saved.id);markSaved();}
     await refreshPlanning();
     setSchedSuccess(true);
@@ -1043,7 +1099,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     setTimeout(()=>setBottomMode(null),2000);
   };
   const handleSave=async()=>{
-    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,activities:acts});
+    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,scheduledDurationMinutes:schedDuration||null,activities:acts});
     if(saved){setExistingId(saved.id);markSaved();}
     await refreshPlanning();
     // Saving an already-scheduled practice's plan is a "make this edit and
@@ -1056,7 +1112,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     }
   };
   const handleRun=async()=>{
-    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,activities:acts});
+    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,scheduledDurationMinutes:schedDuration||null,activities:acts});
     if(saved)markSaved();
     await refreshPlanning();
     if(saved)launchRun(saved.id);
@@ -1074,7 +1130,12 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       <div style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
         <button className="btn ghost bxs" onClick={()=>navigate(-1)}>Back</button>
         <div style={{flex:1}}/>
-        {(!bottomMode||bottomMode==="")&&<><button className="btn outline bsm" onClick={handleSave}>Save</button>
+        {/* For an unscheduled build, Save no longer saves silently with no
+            visible outcome -- it opens a choice between the two things a
+            coach would actually want to do with it (see the savechoice
+            row below). An already-scheduled practice's Save still saves
+            directly, unchanged. */}
+        {(!bottomMode||bottomMode==="")&&<><button className="btn outline bsm" onClick={editP?handleSave:()=>setBottomMode("savechoice")}>Save</button>
         <button className="btn primary bsm" onClick={handleRun}>Run Now</button></>}
       </div>
       {editP&&<div style={{padding:"0 14px 8px",display:"flex",alignItems:"baseline",gap:8}}>
@@ -1085,9 +1146,13 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",flexShrink:0}}>From Template</span>
         <span style={{fontSize:13,fontWeight:700,color:"var(--black)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{startTpl.name}</span>
       </div>}
-      {!editP&&(!bottomMode||bottomMode==="")&&<div style={{padding:"0 14px 10px",display:"flex",gap:6}}>
-        <button className="btn outline bsm" style={{flex:1}} onClick={()=>{setSchedSuccess(false);setShowScheduleModal(true);}}>Schedule</button>
-        <button className="btn ghost bsm" style={{flex:1}} onClick={()=>{setTplName("");setBottomMode("template");}}>Template</button>
+      {!editP&&bottomMode==="savechoice"&&<div style={{padding:"0 14px 10px"}}>
+        <div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>Save this practice as...</div>
+        <div className="brow">
+          <button className="btn ghost bsm" onClick={()=>setBottomMode(null)}>Cancel</button>
+          <button className="btn outline bsm" style={{flex:1}} onClick={()=>{setTplName("");setBottomMode("template");}}>Template</button>
+          <button className="btn primary bsm" style={{flex:1}} onClick={()=>{setBottomMode(null);setSchedSuccess(false);setShowScheduleModal(true);}}>Add to Schedule</button>
+        </div>
       </div>}
       {bottomMode==="template"&&<div style={{padding:"0 14px 10px"}}>
         <div className="fld mb6"><input className="inp" autoFocus placeholder="Template name..." value={tplName} onChange={e=>setTplName(e.target.value)}/></div>
@@ -1106,6 +1171,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/></div>
               <div className="fld"><label className="lbl">Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
             </div>
+            <div className="fld mb10"><label className="lbl">Duration (min) <span style={{color:"var(--td)",fontWeight:400}}>(optional)</span></label><input className="inp" type="number" min="1" placeholder="e.g. 60" value={schedDuration} onChange={e=>{const v=e.target.value;setSchedDuration(v===""?"":+v);}}/></div>
             <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowScheduleModal(false)}>Cancel</button><button className="btn primary bsm" style={{flex:1}} onClick={()=>doSchedule(schedDate,schedTime)} disabled={!schedDate}>Schedule Practice</button></div>
           </>:<>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>Practice scheduled</div>
@@ -1124,33 +1190,6 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
             <span style={{color:"var(--green)",fontSize:20,fontWeight:700,flexShrink:0}}>+</span>
           </div>))}
           <button className="btn ghost bmd bfull mt10" onClick={()=>setShowTplPicker(false)}>Cancel</button>
-        </div>
-      </div>}
-      {/* Long-press preview -- opened by holding a drill or a practice
-          component tile, without adding it. "Back" just closes; "Add to
-          Practice" runs the exact same add path a normal tap would. */}
-      {previewItem&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setPreviewItem(null);}}>
-        <div className="modal">
-          {previewItem.kind==="drill"?(<>
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>{previewItem.drill.name}</div>
-            <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>{previewItem.drill.sport||"General"} · {previewItem.drill.duration}min</div>
-            {previewItem.drill.description&&<div style={{fontSize:14,lineHeight:1.5,marginBottom:10}}>{previewItem.drill.description}</div>}
-            {previewItem.drill.coachingPoints&&<div className="fld"><label className="lbl">Coaching Points</label><div style={{fontSize:14,color:"var(--green2)",lineHeight:1.5}}>{previewItem.drill.coachingPoints}</div></div>}
-            {previewItem.drill.skillTagIds&&previewItem.drill.skillTagIds.length>0&&<div className="fld"><label className="lbl">Skill Tags</label>
-              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{tagNames(previewItem.drill.skillTagIds).map(name=>(<span key={name} className="bdg bs">{name}</span>))}</div>
-            </div>}
-            {previewItem.drill.equipment&&previewItem.drill.equipment.length>0&&<div className="fld"><label className="lbl">Equipment</label>
-              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{equipNames(previewItem.drill.equipment).map(name=>(<span key={name} className="bdg bs">{name}</span>))}</div>
-            </div>}
-          </>):(<>
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>{previewItem.type.label}</div>
-            <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>{previewItem.type.kind==="station_block"?"2+ stations, 10 min each with a 2 min transition (defaults, all adjustable)":previewItem.type.defaultDuration+" min (default, adjustable)"}</div>
-            <div style={{fontSize:14,lineHeight:1.5,marginBottom:4}}>{previewItem.type.description}</div>
-          </>)}
-          <div className="brow" style={{marginTop:14}}>
-            <button className="btn ghost bsm" onClick={()=>setPreviewItem(null)}>Back</button>
-            <button className="btn primary bsm" style={{flex:1}} onClick={confirmPreviewAdd}>Add to Practice</button>
-          </div>
         </div>
       </div>}
       {/* Add/Remove Practice Components -- which of the 7 types show as
@@ -1179,7 +1218,18 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           with zero space between them, every time Builder is opened
           regardless of entry path -- editP's "Editing" banner row and the
           full 4-button bar both end in the same bare border, and neither
-          the sticky wrapper nor .card added any breathing room after it. */}
+          the sticky wrapper nor .card added any breathing room after it.
+          This whole section (Practice Details through the drill library)
+          shares one padding:"0 14px" wrapper -- .screen already gives the
+          route 14px of horizontal inset, and this adds the matching 14px
+          every section here relies on for its outer edge. Practice Details
+          used to sit *outside* this wrapper, back when it still had its
+          own 14px of inner .card padding to make up the difference --
+          once that became a padding:0 black-bar header instead, its outer
+          box was 28px wider than every section below it. Moving it inside
+          fixes that instead of re-adding padding that would fight the
+          black bar's own edge-to-edge look. */}
+      <div style={{padding:"0 14px",position:"relative"}} ref={runOfPracticeOuterRef}>
       {/* Black header bar, matching Practice Components/My Drill Library
           below -- defaults to collapsed since Team/Location/Start Time
           matter most on first open (or when something's actually wrong),
@@ -1187,18 +1237,37 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           run of practice. The collapsed state still shows a one-line
           summary so a coach isn't left with zero context. */}
       <div className="card mb10" style={{marginTop:10,padding:0,overflow:"hidden"}}>
-        <div onClick={()=>setDetailsOpen(o=>!o)} style={{background:"var(--black)",color:"#fff",padding:"9px 12px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+        {/* Takes on the selected team's own color once one's picked (falls
+            back to black otherwise) -- Practice Details is the one bar
+            that actually names the team, so it's the one that gets to
+            look like theirs; Run of Practice stays the app's own brand
+            green regardless of team. */}
+        <div onClick={()=>setDetailsOpen(o=>!o)} style={{background:(team&&team.colorPrimary)||"var(--black)",color:"#fff",padding:"9px 12px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
           <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flexShrink:0}}>Practice Details</span>
           {!detailsOpen&&<span style={{fontSize:12,color:"rgba(255,255,255,.65)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{team?team.name:"No team selected"}{loc?" · "+loc.name:""}</span>}
           {detailsOpen&&<span style={{flex:1}}/>}
           <span style={{color:"#fff",display:"flex",flexShrink:0}}><Ic.Chev up={detailsOpen}/></span>
         </div>
+        {/* Field order is deliberately "when, then where/how long":
+            Date+Start Time paired first (only meaningful once a practice
+            is actually scheduled), then Location+Duration paired below.
+            Team stays its own row above both, only shown for a fresh
+            build -- an already-scheduled practice's team isn't editable
+            here. */}
         {detailsOpen&&<div style={{padding:14}}>
           {!editP&&<div className="fld"><label className="lbl">Team</label>
             <select className="sel" value={teamId} onChange={e=>{const tid=e.target.value;setTeamId(tid);setLocId(lastLocForTeam(tid));}}>
               {!data.teams.length&&<option value="">-- Add a team first --</option>}
               {data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
+          </div>}
+          {editP&&<div className="g2">
+            <div className="fld"><label className="lbl">Date</label>
+              <input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/>
+            </div>
+            <div className="fld"><label className="lbl">Start Time</label>
+              <input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/>
+            </div>
           </div>}
           <div className={editP?"g2":undefined}>
             <div className="fld"><label className="lbl">Location</label>
@@ -1220,57 +1289,76 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                 <button type="button" className="btn outline bsm bfull" onClick={()=>setShowAddLocation(true)}>+ Add a Location</button>
               )}
             </div>
-            {editP&&<div className="fld"><label className="lbl">Start Time</label>
-              <input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/>
+            {/* Real bug found wiring this up: Builder's own save calls
+                never included scheduledDurationMinutes at all, so saving
+                an already-scheduled practice from here silently reset its
+                target duration to null every time -- this field, and
+                threading schedDuration through handleSave/handleRun, is
+                also the fix for that, not just new UI. */}
+            {editP&&<div className="fld"><label className="lbl">Duration (min)</label>
+              <input className="inp" type="number" min="1" placeholder="e.g. 60" value={schedDuration} onChange={e=>{const v=e.target.value;setSchedDuration(v===""?"":+v);}}/>
             </div>}
           </div>
         </div>}
       </div>
-      {/* Margin fix, found live across every entry path: .screen already
-          gives the whole route 14px of horizontal inset, but everything
-          below the Practice Details card relied on that alone -- half the
-          ~28px (screen's 14 + the card's own 14px padding) the top nav and
-          that card both get, so it read as flush against the edge by
-          comparison. This wrapper adds the missing 14px to match. */}
-      <div style={{padding:"0 14px"}}>
-      {/* The Run of Practice: one solid dark-green, dashed-bordered section
-          for the header AND whatever's inside it (empty message or the
-          real list), rather than a plain header floating above a separate
-          light empty-state box or a black canvas -- this is the app's own
-          brand color and this is its moment, per direct feedback. Header
-          always renders, even with nothing added yet, so it's clear from
-          the first tap that this is where the practice gets built. */}
-      <div style={{background:"var(--green)",border:"2px dashed rgba(255,255,255,.4)",borderRadius:"var(--r)",padding:10,marginBottom:14}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-          <RunOfPracticeMark rotation={handRotation}/>
-          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",letterSpacing:".01em",flex:1,lineHeight:1.1}}>The Run of Practice</span>
-          {(()=>{
-            const over=editP&&editP.scheduledDurationMinutes&&totalMins<editP.scheduledDurationMinutes*0.9;
-            // White-on-green for the normal case -- the pill's own default
-            // (light green bg, green text) would nearly disappear against
-            // this section's solid green. The under-planned "over" state
-            // already reads fine here (red/pink against green), so it
-            // keeps its own .pill.over styling untouched rather than being
-            // forced white too, which would hide the warning entirely.
-            return (acts.length>0||(editP&&editP.scheduledDurationMinutes))&&<span className={"pill"+(over?" over":"")} style={over?{flexShrink:0}:{background:"#fff",borderColor:"#fff",flexShrink:0}}>{editP&&editP.scheduledDurationMinutes?totalMins+"/"+editP.scheduledDurationMinutes+" min":totalMins+"m"}</span>;
-          })()}
+      {/* The Run of Practice: solid dark-green, dashed-bordered backdrop
+          behind the header and whatever's inside it (empty message or the
+          real list) -- this is the app's own brand color and this is its
+          moment, per direct feedback. Header always renders, even with
+          nothing added yet, so it's clear from the first tap that this is
+          where the practice gets built.
+          The backdrop itself is an absolutely-positioned div (see
+          runOfPracticeBox/the ResizeObserver effect above), NOT a real
+          wrapping box around the header/rows -- see that effect's comment
+          for why: a real wrapping box constrains position:sticky rows to
+          barely any "room" to actually stay pinned while scrolling. The
+          header, empty-state, and each row are instead normal children of
+          the same tall padding:"0 14px" wrapper Practice Components/My
+          Drill Library already live in, each carrying its own 10px
+          inset (padding or margin) to match the backdrop's old uniform
+          padding:10 look. */}
+      <div ref={runOfPracticeStartRef}/>
+      <div style={{position:"absolute",top:runOfPracticeBox.top,left:0,right:0,height:runOfPracticeBox.height,background:"var(--green)",border:"2px dashed rgba(255,255,255,.4)",borderRadius:"var(--r)",pointerEvents:"none",zIndex:0}}/>
+      <div style={{position:"relative",zIndex:1,display:"flex",alignItems:"center",gap:10,padding:"10px 10px 8px"}}>
+        <RunOfPracticeMark rotation={handRotation}/>
+        <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",letterSpacing:".01em",flex:1,lineHeight:1.1}}>The Run of Practice</span>
+        {(()=>{
+          // Reads the live schedDuration state, not editP directly, so
+          // the pill updates immediately as the coach edits Duration in
+          // Practice Details rather than only after a save/reload.
+          const over=editP&&schedDuration&&totalMins<schedDuration*0.9;
+          // White-on-green for the normal case -- the pill's own default
+          // (light green bg, green text) would nearly disappear against
+          // this section's solid green. The under-planned "over" state
+          // already reads fine here (red/pink against green), so it
+          // keeps its own .pill.over styling untouched rather than being
+          // forced white too, which would hide the warning entirely.
+          return (acts.length>0||(editP&&schedDuration))&&<span className={"pill"+(over?" over":"")} style={over?{flexShrink:0}:{background:"#fff",borderColor:"#fff",flexShrink:0}}>{editP&&schedDuration?totalMins+"/"+schedDuration+" min":totalMins+"m"}</span>;
+        })()}
+      </div>
+      {acts.length===0&&(<div style={{position:"relative",zIndex:1,textAlign:"center",padding:"8px 22px 18px"}}>
+          <div style={{fontSize:13,color:"rgba(255,255,255,.9)",lineHeight:1.7,marginBottom:teamTemplates.length?10:0}}>Nothing added yet.<br/>Add activities below to begin building your Run of Practice.</div>
+          {teamTemplates.length>0&&<button className="btn bsm" style={{background:"#fff",color:"var(--green)"}} onClick={()=>setShowTplPicker(true)}>Start with a Template</button>}
         </div>
-        {acts.length===0&&(<div style={{textAlign:"center",padding:"18px 12px"}}>
-            <div style={{fontSize:13,color:"rgba(255,255,255,.9)",lineHeight:1.7,marginBottom:teamTemplates.length?10:0}}>Nothing added yet.<br/>Add activities below to begin building your Run of Practice.</div>
-            {teamTemplates.length>0&&<button className="btn bsm" style={{background:"#fff",color:"var(--green)"}} onClick={()=>setShowTplPicker(true)}>Start with a Template</button>}
-          </div>
-        )}
-        {acts.length>0&&(<ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
-        {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId&&expandedId!==act.id} stickyTop={stickyHeaderH}>{dragHandle=>(<div>
-            <div className="ablk" ref={el=>{if(el)rowRefs.current[act.id]=el;else delete rowRefs.current[act.id];}}>
-              {/* Expanding a just-added row (especially a station block, which
-                  can be very tall once open) used to stay pinned via the
-                  sticky feedback above -- taller than the viewport, so
-                  scrolling past it felt broken. Expanding it means the coach
-                  has already seen the "it was added" confirmation, so drop
-                  the sticky treatment for good rather than just suppressing
-                  it while open. */}
-              <div className="abhdr" style={{position:"relative"}} onClick={()=>{const willExpand=expandedId!==act.id;setExpandedId(willExpand?act.id:null);if(willExpand&&act.id===lastAddedId)setLastAddedId(null);}}>
+      )}
+      {acts.length>0&&(<ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
+      {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId} stickyTop={stickyHeaderH}>{dragHandle=>(<div>
+            <div className="ablk" style={{marginLeft:10,marginRight:10}} ref={el=>{if(el)rowRefs.current[act.id]=el;else delete rowRefs.current[act.id];}}>
+              {/* A newly-added row is both expanded (see addAct/addBlock/
+                  addComponentType) and sticky-pinned to the top while the
+                  coach scrolls up to review it, at the same time now --
+                  direct feedback was that seeing the just-added drill's
+                  content immediately, without an extra tap, mattered more
+                  than the old worry about a very tall sticky row blocking
+                  scroll. That's a real risk in principle, but per-station
+                  collapse (StationConfig) keeps even a multi-station block
+                  short by default, so it isn't the trap it would have been
+                  before. Tapping this header (to expand or collapse) always
+                  clears lastAddedId -- once the coach has interacted with
+                  the row directly, it's done being "the one that just got
+                  added." Clicking away from it (see the click-away effect
+                  above) collapses it the same way. */}
+              <div className="abhdr" style={{position:"relative"}} onClick={()=>{const willExpand=expandedId!==act.id;setExpandedId(willExpand?act.id:null);if(act.id===lastAddedId)setLastAddedId(null);}}>
                 {dragHandle}
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -1307,9 +1395,9 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               )}
             </div>
           </div>)}</SortableActivityRow>
-        ))}
-        </ActivityDndContext>)}
-      </div>
+      ))}
+      </ActivityDndContext>)}
+      <div ref={runOfPracticeEndRef} style={{height:14}}/>
       {/* Practice Components -- black bar (matches Practice Details/My
           Drill Library), a caret to collapse the tile row, and a "..."
           that opens the Add/Remove picker for which of
@@ -1326,25 +1414,26 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       {componentsOpen&&(<>
         {visibleTypeKeys.length===0&&<div style={{fontSize:13,color:"var(--td)",textAlign:"center",padding:"12px 0",marginBottom:8}}>No quick-add types selected. Tap the ⋯ above to choose some.</div>}
         {visibleTypeKeys.length>0&&<div className="g2" style={{marginBottom:14}}>
-          {PRACTICE_COMPONENT_TYPES.filter(t=>visibleTypeKeys.includes(t.key)).map(t=>{
-            const lp=longPressHandlers(longPressStoreRef.current,"comp:"+t.key,()=>setPreviewItem({kind:"component",type:t}),()=>addComponentType(t.key));
-            return (<div key={t.key} className="li tap" {...lp} style={Object.assign({marginBottom:0},lp.style)}>
+          {PRACTICE_COMPONENT_TYPES.filter(t=>visibleTypeKeys.includes(t.key)).map(t=>(
+            <div key={t.key} className="li tap" style={{marginBottom:0}} onClick={()=>addComponentType(t.key)}>
               <div className="lim"><div className="lin">{t.label}</div><div className="limt">{t.kind==="station_block"?"2+ stations":t.defaultDuration+" min"}</div></div>
               <span style={{color:"var(--green)",fontSize:18,fontWeight:700,flexShrink:0}}>+</span>
-            </div>);
-          })}
+            </div>
+          ))}
         </div>}
       </>)}
       {/* My Drill Library -- same black bar treatment/thickness as
-          Practice Components above, just no caret (nothing to collapse). */}
+          Practice Components above, with its own collapse caret too
+          (defaults open). */}
       <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--black)",color:"#fff",padding:"9px 12px",borderRadius:"var(--r)",marginBottom:8,minHeight:40}}>
         <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flex:1}}>My Drill Library</span>
         <button className="btn bxs" style={{background:"rgba(255,255,255,.16)",color:"#fff"}} onClick={()=>openModal("addActivity")}>+ New Activity</button>
+        <button type="button" onClick={()=>setMyDrillsOpen(o=>!o)} aria-label={myDrillsOpen?"Collapse My Drill Library":"Expand My Drill Library"} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",padding:6,display:"flex",alignItems:"center"}}><Ic.Chev up={myDrillsOpen}/></button>
       </div>
+      {myDrillsOpen&&(<>
       {team&&<div className="clbl" style={{marginBottom:8}}>{teamSport} + General</div>}
-      {filteredLib.map(lib=>{
-        const lp=longPressHandlers(longPressStoreRef.current,"drill:"+lib.id,()=>setPreviewItem({kind:"drill",drill:lib}),()=>addAct(lib));
-        return (<div key={lib.id} className="li tap" {...lp} style={lp.style}>
+      {filteredLib.map(lib=>(
+        <div key={lib.id} className="li tap" onClick={()=>addAct(lib)}>
           <div className="lim">
             <div className="lin">{lib.name}</div>
             <div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div>
@@ -1354,8 +1443,9 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
             </div>}
           </div>
           <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
-        </div>);
-      })}
+        </div>
+      ))}
+      </>)}
       </div>
 
 

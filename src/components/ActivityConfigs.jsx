@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { uid, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, groupByAttribute } from "../constants.js";
 import { createAsset } from "../supabase.js";
+import { Ic } from "../icons.jsx";
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -44,48 +45,6 @@ export function ActivityDndContext({sensors,onDragEnd,items,children}){
   </DndContext>);
 }
 const Ic_Grip=()=><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="5" cy="3" r="1.3"/><circle cx="11" cy="3" r="1.3"/><circle cx="5" cy="8" r="1.3"/><circle cx="11" cy="8" r="1.3"/><circle cx="5" cy="13" r="1.3"/><circle cx="11" cy="13" r="1.3"/></svg>;
-
-// Press-and-hold-to-preview for a tappable row: a normal tap still fires
-// onTap (unchanged add-to-practice behavior); holding past `ms` fires
-// onLongPress instead (opens the preview) and suppresses the click that
-// would otherwise follow on release, so a long press never *also* adds.
-// Pointer Events unify touch/mouse in one handler set rather than juggling
-// separate touch/mouse listeners. WebkitTouchCallout/WebkitUserSelect stop
-// iOS's own long-press text-selection callout from fighting this, same
-// reasoning as SortableActivityRow's own drag handle.
-//
-// Deliberately *not* a hook -- a screen rendering a whole list of these
-// (one per drill/component tile) needs to build one per row inside a
-// .map(), which the Rules of Hooks don't allow. The caller owns one stable
-// `store` (a plain Map, kept alive across renders via a single useRef for
-// the whole list) so a re-render mid-press swaps in a fresh closure without
-// losing track of that row's still-pending timer -- the timer itself lives
-// in `store`, not in this function's own scope.
-export function longPressHandlers(store,id,onLongPress,onTap,ms){
-  const delay=ms||500;
-  const get=()=>{if(!store.has(id))store.set(id,{timer:null,fired:false});return store.get(id);};
-  const start=()=>{
-    const st=get();
-    st.fired=false;
-    if(st.timer)clearTimeout(st.timer);
-    st.timer=setTimeout(()=>{st.fired=true;onLongPress();},delay);
-  };
-  const clear=()=>{const st=get();if(st.timer){clearTimeout(st.timer);st.timer=null;}};
-  const handleClick=e=>{
-    const st=get();
-    if(st.fired){e.preventDefault();e.stopPropagation();st.fired=false;return;}
-    if(onTap)onTap(e);
-  };
-  return {
-    onPointerDown:start,
-    onPointerUp:clear,
-    onPointerLeave:clear,
-    onPointerCancel:clear,
-    onContextMenu:e=>e.preventDefault(),
-    onClick:handleClick,
-    style:{touchAction:"manipulation",WebkitTouchCallout:"none",WebkitUserSelect:"none",userSelect:"none"},
-  };
-}
 // children is a render-prop: (dragHandleEl) => JSX, so callers can place the
 // handle wherever it fits their row layout while the wrapper itself owns the
 // sortable positioning/transform.
@@ -101,7 +60,12 @@ export function longPressHandlers(store,id,onLongPress,onTap,ms){
 // renders hidden underneath the first.
 export function SortableActivityRow({id,children,sticky,stickyTop}){
   const {attributes,listeners,setNodeRef,transform,transition,isDragging}=useSortable({id});
-  const style={transform:CSS.Transform.toString(transform),transition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?(stickyTop||0):undefined,zIndex:isDragging?1:(sticky?5:undefined)};
+  // zIndex always at least 1 (not just when dragging/sticky) -- Builder's
+  // Run of Practice paints its green background as an absolutely
+  // positioned backdrop behind these rows (position:absolute, zIndex:0),
+  // not a real wrapping box, so every row needs to reliably stack above it
+  // regardless of its own sticky/dragging state.
+  const style={transform:CSS.Transform.toString(transform),transition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?(stickyTop||0):undefined,zIndex:isDragging?1:(sticky?5:1)};
   // touchAction:"none" alone stops the page from scrolling under a drag,
   // but iOS Safari still fires its own long-press text-selection callout
   // (the magnifying-glass loupe) independently of that -- WebkitTouchCallout
@@ -256,7 +220,12 @@ export function ChecklistConfig({act,onChange,onDone}){
   const addItem=()=>{if(!newItem.trim())return;const items=[...(act.items||[]),{id:uid(),text:newItem.trim(),done:false}];onChange({items});setNewItem("");};
   const remItem=id=>onChange({items:(act.items||[]).filter(it=>it.id!==id)});
   return (<div>
-    <div className="fld"><label className="lbl">Name</label><input className="inp" value={act.name} onChange={e=>onChange({name:e.target.value})}/></div>
+    {/* select() on focus -- most useful for a default placeholder name
+        like "Other" that's meant to always be renamed, but applies to any
+        practice component (Intro/Closer/Water Break/...) so tapping in and
+        typing immediately replaces the old name instead of requiring a
+        manual select-all first. */}
+    <div className="fld"><label className="lbl">Name</label><input className="inp" value={act.name} onChange={e=>onChange({name:e.target.value})} onFocus={e=>e.target.select()}/></div>
     <div className="fld"><label className="lbl">Duration (min)</label><DurStepper value={act.duration||5} min={1} onChange={v=>onChange({duration:v})}/></div>
     <div className="fld"><label className="lbl">Items</label>
       {(act.items||[]).map(it=>(<div key={it.id} className="row" style={{marginBottom:6}}>
@@ -282,6 +251,12 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   // tapping it again lets them change it.
   const [groupByLabel,setGroupByLabel]=useState("");
   const [helperIdx,setHelperIdx]=useState(null);
+  // Per-station collapse -- a station block with several fully-configured
+  // stations got very long to scroll through. Collapsing one down to just
+  // its number + drill name (manual, no auto-collapse) lets a coach shrink
+  // the ones they're not actively editing without losing the overview.
+  const [collapsedStations,setCollapsedStations]=useState(new Set());
+  const toggleStationCollapsed=id=>setCollapsedStations(prev=>{const next=new Set(prev);if(next.has(id))next.delete(id);else next.add(id);return next;});
   const sport=teamSport||"General";
   const players=team?team.players:[];
   // Same catalog-equipment/sport/location scoping as ActConfig -- see its
@@ -378,11 +353,19 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
     </div>}
     {act.stations.map((st,si)=>{
       const stEquip=Array.isArray(st.equipment)?st.equipment:[];
+      const collapsed=collapsedStations.has(st.id);
       return(<div key={st.id} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 12px 10px",marginBottom:10}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:900,color:"var(--green)",letterSpacing:".05em"}}>STATION {si+1}</div>
-          {act.stations.length>1&&<button type="button" onClick={()=>removeStation(si)} style={{background:"none",border:"none",color:"var(--td)",fontSize:12,cursor:"pointer",padding:"2px 6px"}}>Remove</button>}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:collapsed?0:10}}>
+          <button type="button" onClick={()=>toggleStationCollapsed(st.id)} aria-label={collapsed?"Expand station":"Collapse station"} style={{background:"none",border:"none",color:"var(--green)",cursor:"pointer",padding:"2px 6px 2px 0",display:"flex",alignItems:"center",gap:8,minWidth:0,flex:1}}>
+            <Ic.Chev up={!collapsed}/>
+            <span style={{minWidth:0,overflow:"hidden"}}>
+              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:900,color:"var(--green)",letterSpacing:".05em"}}>STATION {si+1}</span>
+              {collapsed&&<span style={{display:"block",fontSize:12,color:"var(--black2)",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{st.activityName||st.name||"No drill set yet"}</span>}
+            </span>
+          </button>
+          {act.stations.length>1&&<button type="button" onClick={()=>removeStation(si)} style={{background:"none",border:"none",color:"var(--td)",fontSize:12,cursor:"pointer",padding:"2px 6px",flexShrink:0}}>Remove</button>}
         </div>
+        {!collapsed&&<>
         <div className="fld">
           <label className="lbl">Name</label>
           <input className="inp" placeholder="Write your own, or choose from library below" value={st.activityName||st.name||""} onChange={e=>onSt(st.id,{activityName:e.target.value,name:e.target.value})}/>
@@ -484,6 +467,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
             <span style={{color:"var(--td)"}}>Gray</span> = unassigned
           </div>
         </div>}
+        </>}
       </div>);
     })}
     <button type="button" className="btn outline bsm bfull mb8" onClick={addStation}>+ Add Station</button>
