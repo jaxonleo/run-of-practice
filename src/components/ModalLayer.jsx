@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { uid, TEAM_COLORS, nextTeamColor, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "../constants.js";
-import { createTeam, orgCreateTeam, updateTeam, archiveTeam, setTeamLocations, createPlayer, createStaff, updateStaff, createAsset, updateAsset, setAssetLocations, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, createSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
+import { createTeam, orgCreateTeam, updateTeam, archiveTeam, setTeamLocations, createPlayer, inviteTeamStaff, updateStaff, editTeamInvite, createAsset, updateAsset, setAssetLocations, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, createSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
 import { AutoTextarea } from "./ActivityConfigs.jsx";
 import { LocationChips } from "./NewLibraryScreen.jsx";
 
@@ -181,6 +181,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
   const editTeamData=modal.type==="editTeam"?modal.payload.team:null;
   const asset=modal.type==="editAsset"?modal.payload.asset:null;
   const coach=modal.type==="editCoach"?modal.payload.coach:null;
+  const editingInvite=modal.type==="editInvite"?modal.payload.invite:null;
   const [f,setF]=useState(()=>{
     if(modal.type==="addPlayer")return{firstName:"",lastName:"",jersey:"",notes:"",positions:[],bats:"",throws:""};
     if(activity){
@@ -200,6 +201,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
     if(location)return{name:location.name};
     if(asset)return{name:asset.name,sport:asset.sport||"General",locationIds:asset.locationIds||[]};
     if(coach)return{name:coach.name,role:coach.role||"Assistant Coach",inviteEmail:coach.inviteEmail||""};
+    if(editingInvite)return{name:editingInvite.name,role:editingInvite.role||"Assistant Coach",inviteEmail:editingInvite.email||""};
     if(editTeamData)return{name:editTeamData.name,sport:editTeamData.sport||"Basketball",colorPrimary:editTeamData.colorPrimary||"",locationIds:editTeamData.locationIds||[]};
     // New org team defaults to (and, in the Sport field below, is restricted
     // to) one of the org's own sports (payload.orgSports, set by
@@ -252,8 +254,9 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
     }
     if(t==="editTeam"){if(!f.name)return;await updateTeam(p.team.id,{name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||p.team.colorPrimary});await setTeamLocations(p.team.id,f.locationIds||[]);await refreshTeams();}
     if(t==="addPlayer"){if(!f.firstName)return;await createPlayer(p.teamId,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:f.positions||[],bats:f.bats||"",throws:f.throws||"",notes:f.notes||""});await refreshTeams();}
-    if(t==="addCoach"){if(!f.name||!f.inviteEmail)return;await createStaff(p.teamId,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail});await refreshTeams();}
+    if(t==="addCoach"){if(!f.name||!f.inviteEmail)return;await inviteTeamStaff(p.teamId,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail});await refreshTeams();}
     if(t==="editCoach"){if(!f.name)return;if(!coach.userId&&!f.inviteEmail)return;await updateStaff(p.coach.id,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail||""});await refreshTeams();}
+    if(t==="editInvite"){if(!f.name||!f.inviteEmail)return;await editTeamInvite(p.invite.id,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail});await refreshTeams();}
     if(t==="addLocation"){
       if(!f.name)return;
       if(p&&p.organizationId)await createOrgLocation(p.organizationId,f.name);
@@ -307,15 +310,15 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
     // close the modal silently, same as a successful save, so the user had
     // no way to tell their change hadn't actually persisted.
     if(res&&res.error){setSaveError("Something went wrong saving. Try again.");return;}
-    if(t==="addCoach"){const addedTeam=(data.teams||[]).find(team=>team.id===p.teamId);setAddedCoachInfo({name:f.name,email:f.inviteEmail,teamName:addedTeam?addedTeam.name:"the team"});}else{closeModal();}
+    if(t==="addCoach"){setAddedCoachInfo({name:f.name,email:f.inviteEmail});}else{closeModal();}
     }finally{savingRef.current=false;setSaving(false);}
   };
-  const TITLES={addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",addCoach:"Add Coach",editCoach:"Edit Coach",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
+  const TITLES={addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",addCoach:"Add Coach",editCoach:"Edit Coach",editInvite:"Edit Invite",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
   return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget)closeModal();}}>
       <div className="modal">
         <div className="mhandle"/>
-        <div className="mtitle">{addedCoachInfo?"Added":(TITLES[modal.type]||"Add")}</div>
-        {addedCoachInfo&&<div className="fld"><div style={{fontSize:14,lineHeight:1.5}}>{addedCoachInfo.name} will get an email at {addedCoachInfo.email} and will see {addedCoachInfo.teamName} when they log in.</div></div>}
+        <div className="mtitle">{addedCoachInfo?"Invite Sent":(TITLES[modal.type]||"Add")}</div>
+        {addedCoachInfo&&<div className="fld"><div style={{fontSize:14,lineHeight:1.5}}>{addedCoachInfo.name} will get an email at {addedCoachInfo.email} to accept or decline. You can see the status of this invite on your Coaches screen.</div></div>}
         {!addedCoachInfo&&modal.type==="addTeam"&&(<div><div className="fld"><label className="lbl">Team Name</label><input className="inp" autoFocus placeholder="e.g. Peoria Eagles 10U" onChange={e=>set("name",e.target.value)}/></div>
           <div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||""} onChange={e=>{set("sport",e.target.value);lastSportRef.current=e.target.value;}}>{(modal.payload&&modal.payload.orgSports&&modal.payload.orgSports.length?modal.payload.orgSports:SPORTS).map(s=><option key={s}>{s}</option>)}</select></div>
           <div className="fld">
@@ -341,7 +344,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
             </div>
           </div>
         )}
-        {!addedCoachInfo&&(modal.type==="addCoach"||modal.type==="editCoach")&&(<div>
+        {!addedCoachInfo&&(modal.type==="addCoach"||modal.type==="editCoach"||modal.type==="editInvite")&&(<div>
             <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
             <div className="fld"><label className="lbl">Role</label>
               <div className="brow">

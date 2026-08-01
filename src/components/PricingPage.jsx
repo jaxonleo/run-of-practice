@@ -5,21 +5,34 @@ const CONTACT_EMAIL = "contact@runofpractice.com";
 
 // Public preview page, not yet linked from anywhere in the app (still under
 // review -- reachable only by typing /pricing directly, same deliberate
-// choice as the prior version of this page). Rewritten this session for the
-// launch structure confirmed in the pricing/entitlements brief: Free, Pro,
-// and Organizations only (Pro+ removed). Forward-looking on purpose: the
-// rest of the site still says "free during early access" everywhere, and
-// FEATURE_FLAGS.BILLING_ENABLED is false, so every CTA here either points a
-// visitor at using the product today or at a plain mailto -- nothing reads
-// as a live checkout that isn't real.
+// choice as the prior version of this page). Header now matches
+// LandingPage's own lp-header pattern (same sticky white bar, brand, and nav
+// treatment) rather than the plain centered-logo bar this page started with
+// -- reimplemented locally (not imported) since this file is deliberately
+// self-contained, same reasoning as PP_CSS itself.
+// Launch structure: Free, Pro, Pro+, and Organizations. Pro+ (added back
+// after a follow-up request) grants everything Pro does, plus delegating
+// practice planning to one assistant per team and 2 concurrent live
+// practices -- pricing-page content only for now, not enforced anywhere
+// (see src/entitlements.js's PLAN_LIMITS.pro_plus, same inert scaffolding
+// as free/pro). Forward-looking on purpose: the rest of the site still says
+// "free during early access" everywhere, and FEATURE_FLAGS.BILLING_ENABLED
+// is false, so every CTA here either points a visitor at using the product
+// today or at a plain mailto -- nothing reads as a live checkout that isn't
+// real.
 const PP_CSS = `
 .pp{background:#fff;color:var(--black);min-height:100dvh;font-family:'Barlow',sans-serif;}
-.pp-header{padding:18px 24px;display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--b);}
-.pp-brand{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--black);}
-.pp-brand img{width:26px;height:26px;border-radius:6px;display:block;}
-.pp-brand span{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;}
+.pp-header{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between;padding:10px 20px;}
+.pp-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--black);}
+.pp-brand img{width:32px;height:32px;border-radius:8px;flex-shrink:0;display:block;}
+.pp-brand span{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:-.01em;}
+.pp-nav{display:flex;align-items:center;gap:22px;}
+.pp-navlink{font-size:13px;font-weight:600;color:var(--black2);text-decoration:none;white-space:nowrap;}
+.pp-navlink.hideonsm{display:none;}
+.pp-signin{font-size:13px;font-weight:600;color:var(--black2);text-decoration:underline;white-space:nowrap;background:none;border:none;cursor:pointer;}
+@media (min-width:860px){.pp-navlink.hideonsm{display:inline;}}
 .pp-hero{max-width:720px;margin:0 auto;padding:48px 24px 4px;text-align:center;}
-.pp-eyebrow{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--green);margin-bottom:10px;}
+.pp-eyebrow{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--green2);margin-bottom:8px;}
 .pp-h1{font-family:'Barlow Condensed',sans-serif;font-size:38px;font-weight:900;line-height:1.08;letter-spacing:-.01em;margin-bottom:14px;}
 .pp-sub{font-size:16px;color:var(--tm);line-height:1.6;max-width:560px;margin:0 auto;}
 
@@ -33,6 +46,7 @@ const PP_CSS = `
 .pp-btn.primary{background:var(--green);color:#fff;}
 .pp-btn.outline{background:transparent;color:var(--black);border:1.5px solid var(--b);}
 .pp-btn.disabled{background:var(--s2);color:var(--tm);cursor:default;}
+.pp-btn.sm{padding:8px 16px;font-size:12.5px;}
 
 .pp-toggle-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;margin:34px auto 0;}
 .pp-toggle{display:inline-flex;border:1.5px solid var(--b);border-radius:24px;padding:3px;background:#fff;}
@@ -40,8 +54,9 @@ const PP_CSS = `
 .pp-toggle button[aria-pressed="true"]{background:var(--green);color:#fff;}
 .pp-toggle-help{font-size:12.5px;color:var(--td);}
 
-.pp-grid{max-width:760px;margin:32px auto 0;padding:0 24px;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch;}
-@media (max-width:700px){.pp-grid{grid-template-columns:1fr;max-width:420px;}}
+.pp-grid{max-width:1020px;margin:32px auto 0;padding:0 24px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:stretch;}
+@media (max-width:900px){.pp-grid{grid-template-columns:1fr 1fr;max-width:520px;}}
+@media (max-width:560px){.pp-grid{grid-template-columns:1fr;max-width:420px;}}
 .pp-card{border:1.5px solid var(--b);border-radius:16px;padding:26px 22px;display:flex;flex-direction:column;background:#fff;}
 .pp-card.featured{border-color:var(--green);box-shadow:0 0 0 1px var(--green);}
 .pp-tier-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
@@ -71,7 +86,7 @@ const PP_CSS = `
 .pp-table-wrap{max-width:1180px;margin:56px auto 0;padding:0 24px;}
 .pp-table-title{font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:900;text-align:center;margin-bottom:24px;}
 .pp-scroll{overflow-x:auto;border:1px solid var(--b);border-radius:14px;}
-.pp-cmp{width:100%;border-collapse:collapse;min-width:640px;font-size:13.5px;}
+.pp-cmp{width:100%;border-collapse:collapse;min-width:760px;font-size:13.5px;}
 .pp-cmp thead th{text-align:center;padding:14px 12px;font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.04em;font-size:12.5px;border-bottom:1.5px solid var(--b);}
 .pp-cmp thead th:first-child{text-align:left;}
 .pp-cmp .pp-group-row th,.pp-cmp .pp-group-row td{text-align:left;background:var(--s2);color:var(--tm);font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.06em;font-size:11.5px;padding:9px 12px;}
@@ -119,6 +134,12 @@ const PRO_FEATURES = [
   "Planned-versus-actual practice insights",
 ];
 
+const PROPLUS_FEATURES = PRO_FEATURES.concat([
+  "Delegate practice planning to one assistant coach on each of your teams",
+  "Run two practices live at the same time, ideal when your teams practice at overlapping hours",
+  "Share drill-library and practice-planning permissions with your assistants even when they aren't on Pro themselves",
+]);
+
 const ORG_FEATURES = [
   "Create and assign organization teams",
   "Add and manage coaches centrally",
@@ -133,58 +154,60 @@ const COMPARISON_GROUPS = [
   {
     title: "Teams",
     rows: [
-      { feature: "Active personal teams", free: "1", pro: "3", org: "Personal plan still applies" },
-      { feature: "Archived personal teams", free: "Unlimited", pro: "Unlimited", org: "Personal plan still applies" },
-      { feature: "Organization teams", free: "No", pro: "No", org: "Based on agreement" },
-      { feature: "Personal and organization teams in one account", free: "No organization context", pro: "No organization context", org: "Included" },
+      { feature: "Active personal teams", free: "1", pro: "3", proplus: "3", org: "Personal plan still applies" },
+      { feature: "Archived personal teams", free: "Unlimited", pro: "Unlimited", proplus: "Unlimited", org: "Personal plan still applies" },
+      { feature: "Organization teams", free: "No", pro: "No", proplus: "No", org: "Based on agreement" },
+      { feature: "Personal and organization teams in one account", free: "No organization context", pro: "No organization context", proplus: "No organization context", org: "Included" },
     ],
   },
   {
     title: "Plan and run",
     rows: [
-      { feature: "Practice builder", free: "Included", pro: "Included", org: "Included" },
-      { feature: "Scheduling and attendance", free: "Included", pro: "Included", org: "Included" },
-      { feature: "Live practice mode", free: "Included", pro: "Included", org: "Included" },
-      { feature: "Timers, transitions, and live adjustments", free: "Included", pro: "Included", org: "Included" },
-      { feature: "Personal equipment and locations", free: "Included", pro: "Included", org: "Included" },
-      { feature: "Organization equipment and locations", free: "No", pro: "No", org: "Included" },
+      { feature: "Practice builder", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
+      { feature: "Scheduling and attendance", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
+      { feature: "Live practice mode", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
+      { feature: "Concurrent live practices", free: "1", pro: "1", proplus: "2", org: "Unlimited" },
+      { feature: "Timers, transitions, and live adjustments", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
+      { feature: "Personal equipment and locations", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
+      { feature: "Organization equipment and locations", free: "No", pro: "No", proplus: "No", org: "Included" },
     ],
   },
   {
     title: "Coaches and helpers",
     rows: [
-      { feature: "Assistant coaches", free: "Up to 2", pro: "No plan-based cap", org: "Based on role" },
-      { feature: "Assistant future absence updates", free: "Included", pro: "Included", org: "Included" },
-      { feature: "Assistant live takeover", free: "Included", pro: "Included", org: "Included" },
-      { feature: "Parent-helper links", free: "Unlimited", pro: "Unlimited", org: "Unlimited" },
-      { feature: "Central coach assignment", free: "No", pro: "No", org: "Included" },
+      { feature: "Assistant coaches", free: "Up to 2", pro: "No plan-based cap", proplus: "No plan-based cap", org: "Based on role" },
+      { feature: "Delegate practice planning to an assistant", free: "No", pro: "No", proplus: "One assistant per team", org: "Based on role" },
+      { feature: "Assistant future absence updates", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
+      { feature: "Assistant live takeover", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
+      { feature: "Parent-helper links", free: "Unlimited", pro: "Unlimited", proplus: "Unlimited", org: "Unlimited" },
+      { feature: "Central coach assignment", free: "No", pro: "No", proplus: "No", org: "Included" },
     ],
   },
   {
     title: "Player development",
     rows: [
-      { feature: "Player focus areas", free: "Included", pro: "Included", org: "Included" },
-      { feature: "Season goals", free: "No", pro: "Included", org: "Included" },
-      { feature: "Planned-versus-actual insights", free: "No", pro: "Included", org: "Included" },
-      { feature: "Cross-team development reporting", free: "No", pro: "No", org: "Future capability" },
+      { feature: "Player focus areas", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
+      { feature: "Season goals", free: "No", pro: "Included", proplus: "Included", org: "Included" },
+      { feature: "Planned-versus-actual insights", free: "No", pro: "Included", proplus: "Included", org: "Included" },
+      { feature: "Cross-team development reporting", free: "No", pro: "No", proplus: "No", org: "Future capability" },
     ],
   },
   {
     title: "Libraries and templates",
     rows: [
-      { feature: "Personal drills", free: "20 active", pro: "Unlimited", org: "Personal plan still applies" },
-      { feature: "Run of Practice drill library", free: "Starter collection", pro: "Full library", org: "Full library" },
-      { feature: "Personal templates", free: "3 active", pro: "Unlimited", org: "Personal plan still applies" },
-      { feature: "Organization drill library", free: "No", pro: "No", org: "Included" },
+      { feature: "Personal drills", free: "20 active", pro: "Unlimited", proplus: "Unlimited", org: "Personal plan still applies" },
+      { feature: "Run of Practice drill library", free: "Starter collection", pro: "Full library", proplus: "Full library", org: "Full library" },
+      { feature: "Personal templates", free: "3 active", pro: "Unlimited", proplus: "Unlimited", org: "Personal plan still applies" },
+      { feature: "Organization drill library", free: "No", pro: "No", proplus: "No", org: "Included" },
     ],
   },
   {
     title: "History and oversight",
     rows: [
-      { feature: "Personal practice history", free: "10 most recent", pro: "Complete", org: "Personal plan still applies" },
-      { feature: "Organization-team history", free: "No", pro: "No", org: "Complete" },
-      { feature: "Weekly live-practice dashboard", free: "No", pro: "No", org: "Included" },
-      { feature: "Advanced adoption reporting", free: "No", pro: "No", org: "Future capability" },
+      { feature: "Personal practice history", free: "10 most recent", pro: "Complete", proplus: "Complete", org: "Personal plan still applies" },
+      { feature: "Organization-team history", free: "No", pro: "No", proplus: "No", org: "Complete" },
+      { feature: "Weekly live-practice dashboard", free: "No", pro: "No", proplus: "No", org: "Included" },
+      { feature: "Advanced adoption reporting", free: "No", pro: "No", proplus: "No", org: "Future capability" },
     ],
   },
 ];
@@ -201,6 +224,7 @@ const FAQ_ITEMS = [
   { q: "What happens when early access ends?", a: "Early-access coaches will receive at least 30 days' notice. No data will be deleted. Eligible early-access coaches may receive a discounted first year of Pro." },
   { q: "Is there a Pro trial?", a: "After paid plans launch, new coaches can use a 14-day Pro preview without entering a credit card." },
   { q: "Do you offer pricing for schools, leagues, or nonprofits?", a: "Organization pricing is based on the number of active teams and the support the program needs. Contact us so we can understand your setup." },
+  { q: "What do I do if my sport isn't listed?", a: "If you're creating a team for a sport that isn't listed, reach out to us at " + CONTACT_EMAIL + " and we'll add it." },
 ];
 
 function useSeo() {
@@ -239,7 +263,7 @@ function FaqItem({ q, a, open, onToggle }) {
 
 export default function PricingPage() {
   useSeo();
-  const [billing, setBilling] = useState("annual");
+  const [billing, setBilling] = useState("monthly");
   const [openFaq, setOpenFaq] = useState(0);
   const annual = billing === "annual";
 
@@ -247,6 +271,12 @@ export default function PricingPage() {
     <style>{PP_CSS}</style>
     <div className="pp-header">
       <a href="/" className="pp-brand"><img src="/apple-touch-icon.png" alt="" /><span>Run of Practice</span></a>
+      <div className="pp-nav">
+        <a className="pp-navlink hideonsm" href="/">Home</a>
+        <a className="pp-navlink hideonsm" href="/faq">FAQ</a>
+        <a href="/" className="pp-signin">Sign In</a>
+        <a href="/" className="pp-btn primary sm">{FEATURE_FLAGS.EARLY_ACCESS_ACTIVE ? "Start Coaching Free" : "Try It Free"}</a>
+      </div>
     </div>
 
     <div className="pp-hero">
@@ -269,7 +299,7 @@ export default function PricingPage() {
         <button type="button" aria-pressed={annual} onClick={() => setBilling("annual")}>Annual</button>
         <button type="button" aria-pressed={!annual} onClick={() => setBilling("monthly")}>Monthly</button>
       </div>
-      <div className="pp-toggle-help">Save $45 compared with monthly billing</div>
+      <div className="pp-toggle-help">Save $45/year on Pro or $56/year on Pro+ with annual billing</div>
     </div>
 
     <div className="pp-grid">
@@ -300,6 +330,21 @@ export default function PricingPage() {
           {PRO_FEATURES.map((f, i) => (<li key={i}><span className="mk">&#10003;</span><span>{f}</span></li>))}
         </ul>
       </div>
+
+      <div className="pp-card">
+        <div className="pp-tier-row"><div className="pp-tier">Pro+</div></div>
+        <div className="pp-pitch">For a coaching staff that plans together: delegate practice building to an assistant and run two practices at once.</div>
+        <div className="pp-price">{annual ? "$124/year" : "$15/month"}</div>
+        <div className="pp-price-sub">{annual ? "Equivalent to $10.33/month" : "Cancel anytime"}</div>
+        <div className="pp-cta">
+          {FEATURE_FLAGS.BILLING_ENABLED
+            ? <a href="/" className="pp-btn primary" style={{ width: "100%" }}>Start your Pro preview</a>
+            : <a href="/" className="pp-btn primary" style={{ width: "100%" }}>Included during early access</a>}
+        </div>
+        <ul className="pp-feat">
+          {PROPLUS_FEATURES.map((f, i) => (<li key={i}><span className="mk">&#10003;</span><span>{f}</span></li>))}
+        </ul>
+      </div>
     </div>
 
     <div className="pp-org">
@@ -324,22 +369,24 @@ export default function PricingPage() {
       <div className="pp-table-title">Compare plans in detail</div>
       <div className="pp-scroll">
         <table className="pp-cmp">
-          <caption style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }}>Feature comparison across Free, Pro, and Organizations plans</caption>
+          <caption style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }}>Feature comparison across Free, Pro, Pro+, and Organizations plans</caption>
           <thead>
             <tr>
               <th scope="col">Feature</th>
               <th scope="col">Free</th>
               <th scope="col">Pro</th>
+              <th scope="col">Pro+</th>
               <th scope="col">Organizations</th>
             </tr>
           </thead>
           <tbody>
             {COMPARISON_GROUPS.map((g) => (<React.Fragment key={g.title}>
-              <tr className="pp-group-row"><th scope="colgroup">{g.title}</th><td colSpan={3} aria-hidden="true"></td></tr>
+              <tr className="pp-group-row"><th scope="colgroup">{g.title}</th><td colSpan={4} aria-hidden="true"></td></tr>
               {g.rows.map((r, i) => (<tr key={i}>
                 <th scope="row">{r.feature}</th>
                 <td>{r.free}</td>
                 <td>{r.pro}</td>
+                <td>{r.proplus}</td>
                 <td>{r.org}</td>
               </tr>))}
             </React.Fragment>))}

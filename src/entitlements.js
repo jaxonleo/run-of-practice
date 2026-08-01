@@ -33,6 +33,8 @@ export const PLAN_LIMITS = {
     fullDrillLibrary: false,
     goals: false,
     insights: false,
+    concurrentLivePractices: 1,
+    delegatedPlanningPerTeam: 0,
   },
   pro: {
     activePersonalTeams: 3,
@@ -43,6 +45,26 @@ export const PLAN_LIMITS = {
     fullDrillLibrary: true,
     goals: true,
     insights: true,
+    concurrentLivePractices: 1,
+    delegatedPlanningPerTeam: 0,
+  },
+  // Everything Pro has, plus delegating practice planning to one assistant
+  // per team and running 2 concurrent live practices. Added per a follow-up
+  // request (2026-08-01) after the original brief's launch structure
+  // shipped with Free/Pro/Organizations only -- pricing-page content and
+  // this config entry only, same inert-until-BILLING_ENABLED treatment as
+  // every other plan here, not wired into any real gate yet.
+  pro_plus: {
+    activePersonalTeams: 3,
+    assistants: null,
+    personalDrills: null,
+    personalTemplates: null,
+    visibleCompletedPractices: null,
+    fullDrillLibrary: true,
+    goals: true,
+    insights: true,
+    concurrentLivePractices: 2,
+    delegatedPlanningPerTeam: 1,
   },
 };
 
@@ -65,7 +87,7 @@ const ACTION_LIMITS = {
 
 // Recommended conceptual API from the brief:
 //   can(user, action, resourceContext): EntitlementDecision
-// `user` is expected to carry a resolved plan, e.g. {planType: "free"|"pro"}
+// `user` is expected to carry a resolved plan, e.g. {planType: "free"|"pro"|"pro_plus"}
 // (from a user_entitlements row -- see the migration). `resourceContext` may
 // include `currentUsage` (a number, for count-based limits) and
 // `resourceScope` ("personal" | "organization").
@@ -85,7 +107,7 @@ export function can(user, action, resourceContext = {}) {
     return { allowed: true, plan: "organization", resourceScope };
   }
 
-  const plan = user && user.planType === "pro" ? "pro" : "free";
+  const plan = user && PLAN_LIMITS[user.planType] ? user.planType : "free";
 
   if (!FEATURE_FLAGS.BILLING_ENABLED || FEATURE_FLAGS.EARLY_ACCESS_ACTIVE) {
     return { allowed: true, reason: "early_access", plan, resourceScope };

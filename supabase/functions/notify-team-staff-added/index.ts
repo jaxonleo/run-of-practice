@@ -1,61 +1,73 @@
-// Testing-round-1 addendum §2(e): informational-only notification when a
-// coach adds staff to their team. NOT an auth mechanism -- deliberately
-// does not use Supabase's admin.inviteUserByEmail (that sends a magic
-// link, the exact thing already ripped out in favor of Email OTP because
-// it breaks for installed-PWA sign-in). Just names who added them, which
-// team, and points at the normal sign-in flow.
+// Rewritten 2026-08-01 for the new team_invites consent flow -- this used
+// to be a pure FYI ("you've been added, no need to log in until you're
+// ready") since add_team_staff granted access immediately. Now a real
+// invite requiring accept/decline, so the copy needs to actually ask for a
+// response, and needs to branch on whether the invited email already has a
+// Run of Practice account: an existing coach can "sign in to respond," but
+// someone brand new has no account to sign into yet -- Email OTP creates
+// one automatically on first use, so the underlying link/mechanism is
+// identical either way, only the wording differs. Kept the same deployed
+// function name/URL rather than standing up a new one, to avoid a
+// dangling old function plus a trigger-URL cutover on a live app.
 //
-// Triggered only by the pg_net trigger on team_staff insert (see
-// 20260710020000_team_staff_notify_trigger.sql) -- verify_jwt is off for
-// this function since pg_net calls carry no user JWT, so the shared
-// x-webhook-secret header is the only thing standing between this
-// endpoint and the open internet.
+// Triggered by the pg_net trigger on team_invites insert, and again on any
+// update that puts status back to 'pending' (a resend or an edited invite)
+// -- see 20260801020000_team_invites.sql. verify_jwt is off since pg_net
+// calls carry no user JWT, so the shared x-webhook-secret header is the
+// only thing standing between this endpoint and the open internet.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { renderEmailHtml } from '../_shared/emailTemplate.ts'
+import { renderEmailHtml, articleFor } from '../_shared/emailTemplate.ts'
+
+const ROLE_LABELS: Record<string, string> = { head_coach: 'Head Coach', assistant_coach: 'Assistant Coach', helper: 'Helper' }
 
 Deno.serve(async (req) => {
   if (req.headers.get('x-webhook-secret') !== Deno.env.get('WEBHOOK_SECRET')) {
     return new Response('unauthorized', { status: 401 })
   }
 
-  const { staff_id } = await req.json()
+  const { invite_id } = await req.json()
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   )
 
-  const { data: staff, error: staffErr } = await supabase
-    .from('team_staff')
-    .select('invite_email, team_id, added_by')
-    .eq('id', staff_id)
+  const { data: invite, error: inviteErr } = await supabase
+    .from('team_invites')
+    .select('email, role, team_id, invited_by, status')
+    .eq('id', invite_id)
     .single()
 
-  if (staffErr) {
-    console.error('staff lookup failed', staffErr)
-    return new Response('staff lookup failed', { status: 500 })
+  if (inviteErr) {
+    console.error('invite lookup failed', inviteErr)
+    return new Response('invite lookup failed', { status: 500 })
   }
-  if (!staff || !staff.invite_email) {
+  if (!invite || invite.status !== 'pending') {
     return new Response('nothing to notify', { status: 200 })
   }
 
-  const [{ data: team }, { data: adder }] = await Promise.all([
-    supabase.from('teams').select('name').eq('id', staff.team_id).single(),
-    staff.added_by
-      ? supabase.from('profiles').select('first_name, last_name').eq('id', staff.added_by).single()
+  const [{ data: team }, { data: inviter }, { data: existingProfile }] = await Promise.all([
+    supabase.from('teams').select('name').eq('id', invite.team_id).single(),
+    invite.invited_by
+      ? supabase.from('profiles').select('first_name, last_name').eq('id', invite.invited_by).single()
       : Promise.resolve({ data: null }),
+    supabase.from('profiles').select('id').ilike('email', invite.email).maybeSingle(),
   ])
 
   const teamName = team?.name || 'a team'
-  const adderName = adder ? `${adder.first_name} ${adder.last_name}`.trim() : 'a coach'
+  const inviterName = inviter ? `${inviter.first_name} ${inviter.last_name}`.trim() : 'A coach'
+  const roleLabel = ROLE_LABELS[invite.role] || invite.role
+  const isNewUser = !existingProfile
 
   const html = renderEmailHtml({
-    headline: `You've been added to ${teamName}`,
-    bodyHtml: `<p style="margin:0 0 12px;">${adderName} added you to <strong>${teamName}</strong> on Run of Practice.</p>
-<p style="margin:0;">This is just an FYI, no need to log in until you're ready.</p>`,
-    ctaLabel: 'Sign In',
-    signInEmail: staff.invite_email,
+    headline: `You're invited to join ${teamName}`,
+    bodyHtml: `<p style="margin:0 0 12px;">${inviterName} invited you to join <strong>${teamName}</strong> on Run of Practice as ${articleFor(roleLabel)} <strong>${roleLabel}</strong>.</p>
+<p style="margin:0;">${isNewUser
+      ? 'Create your account with this email address, then you\'ll see the invite waiting on your Home screen with the option to accept or decline.'
+      : 'Once you sign in, you\'ll see the invite waiting on your Home screen with the option to accept or decline.'}</p>`,
+    ctaLabel: isNewUser ? 'Create Your Account' : 'Sign In to Respond',
+    signInEmail: invite.email,
   })
 
   const resendRes = await fetch('https://api.resend.com/emails', {
@@ -66,8 +78,8 @@ Deno.serve(async (req) => {
     },
     body: JSON.stringify({
       from: 'Run of Practice <noreply@runofpractice.com>',
-      to: [staff.invite_email],
-      subject: `You've been added to ${teamName} on Run of Practice`,
+      to: [invite.email],
+      subject: `You've been invited to join ${teamName} on Run of Practice`,
       html,
     }),
   })

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, fetchOrgWeeklyPracticeRollup, findOrCreatePreviewToken, ORG_ROLE_LABELS } from "../supabase.js";
+import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, fetchOrgWeeklyPracticeRollup, findOrCreatePreviewToken, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
@@ -289,6 +289,20 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
     setRespondingInviteId(null);
   };
 
+  // Real consent gate (2026-08-01), unlike the team_staff welcome card
+  // above -- team_invites requires an explicit accept/decline before
+  // anything is granted, same pattern as the org-invite card just above.
+  const [respondingTeamInviteId,setRespondingTeamInviteId]=useState(null);
+  const pendingTeamInvite=(data.pendingTeamInvites||[])[0]||null;
+  const respondToTeamInvite=async(accept)=>{
+    if(!pendingTeamInvite)return;
+    setRespondingTeamInviteId(pendingTeamInvite.id);
+    if(accept)await acceptTeamInvite(pendingTeamInvite.id); else await declineTeamInvite(pendingTeamInvite.id);
+    if(refreshLibrary)await refreshLibrary();
+    if(accept&&refreshTeams)await refreshTeams();
+    setRespondingTeamInviteId(null);
+  };
+
   // Coach/Org mode toggle. Switching to Org with more than one org shows a
   // picker instead of jumping straight in -- with exactly one, no picker
   // needed. Switching back to Coach is always a single tap, no picker.
@@ -364,6 +378,13 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn primary bxs" disabled={respondingInviteId === pendingOrgInvite.id} onClick={() => respondToInvite(true)}>Accept</button>
         <button className="btn ghost bxs" disabled={respondingInviteId === pendingOrgInvite.id} onClick={() => respondToInvite(false)}>Decline</button>
+      </div>
+    </div></div>}
+    {pendingTeamInvite && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
+      <div style={{ fontSize: 14, marginBottom: 8 }}>You've been invited to join <strong>{pendingTeamInvite.teamName}</strong> as {articleFor(pendingTeamInvite.role)} {pendingTeamInvite.role}.</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button className="btn primary bxs" disabled={respondingTeamInviteId === pendingTeamInvite.id} onClick={() => respondToTeamInvite(true)}>Accept</button>
+        <button className="btn ghost bxs" disabled={respondingTeamInviteId === pendingTeamInvite.id} onClick={() => respondToTeamInvite(false)}>Decline</button>
       </div>
     </div></div>}
     {pendingDeparture && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>

@@ -6,7 +6,7 @@ import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
-import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer } from "./supabase.js";
+import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, inviteTeamStaff, cancelTeamInvite } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes } from "./constants.js";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
@@ -406,7 +406,7 @@ export default function App(){
     if(!coachId)return;
     setTeams(await fetchMyTeams());
   },[coachId]);
-  const [library,setLibrary]=useState({assets:[],skillCategories:[],skillTags:[],activityLibrary:[],myOrgs:[],pendingOrgInvites:[],pendingTeamDepartures:[],profilesById:{}});
+  const [library,setLibrary]=useState({assets:[],skillCategories:[],skillTags:[],activityLibrary:[],myOrgs:[],pendingOrgInvites:[],pendingTeamDepartures:[],pendingTeamInvites:[],profilesById:{}});
   const refreshLibrary=useCallback(async()=>{
     if(!coachId)return;
     setLibrary(await fetchLibraryData());
@@ -1696,6 +1696,12 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
     setConfirmRemovePlayer(null);
   };
   const delC=async id=>{await archiveStaff(id);await refreshTeams();};
+  // Resend reuses invite_team_staff's own upsert-by-email logic -- calling
+  // it again with the same stored fields just refreshes the existing
+  // pending row (or revives a declined one) rather than creating a
+  // duplicate, no separate "resend" RPC needed.
+  const resendInvite=async inv=>{await inviteTeamStaff(inv.teamId,{name:inv.name,role:inv.role,inviteEmail:inv.email});await refreshTeams();};
+  const clearInvite=async id=>{await cancelTeamInvite(id);await refreshTeams();};
   const sorted=team?[...team.players].sort((a,b)=>{
     let av,bv;
     if(sort.by==="jersey"){av=parseInt(a.jersey)||0;bv=parseInt(b.jersey)||0;}
@@ -1750,9 +1756,24 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
       {tab==="coaches"&&(<div>
         <div className="sechdr mb8"><span className="sectitle">{team.coaches.length} Coaches</span>{canManage&&<button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addCoach",{teamId});}}>+ Add</button>}</div>
         {team.coaches.map(c=>(<div key={c.id} className="li" style={{position:"relative"}}>
-          <div className="lim"><div className="lin">{c.name}</div><div className="limt">{c.role}{!c.userId&&c.inviteEmail?" · Invite pending ("+c.inviteEmail+")":""}</div></div>
+          <div className="lim"><div className="lin">{c.name}</div><div className="limt">{c.role}</div></div>
           {canManage&&<button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="coach_"+c.id?null:"coach_"+c.id);}}><span/><span/><span/></button>}
           {canManage&&openMenu==="coach_"+c.id&&<div className="mini-menu"><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editCoach",{teamId,coach:c});}}>Edit</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delC(c.id);}}>Remove</button></div>}
+        </div>))}
+        {/* Sent invites still waiting on a response or already declined --
+            kept visible (not folded into the roster list above, which is
+            real active members only) so a head coach can tell "did they
+            ever respond" at a glance, per direct feedback that a silently-
+            added assistant was confusing. */}
+        {(team.invites||[]).length>0&&(<div className="sechdr mb8" style={{marginTop:16}}><span className="sectitle" style={{fontSize:13,color:"var(--td)"}}>Pending Invites</span></div>)}
+        {(team.invites||[]).map(inv=>(<div key={inv.id} className="li" style={{position:"relative"}}>
+          <div className="lim"><div className="lin">{inv.name}</div><div className="limt">{inv.role} · {inv.status==="pending"?"Invite pending":"Declined"} ({inv.email})</div></div>
+          {canManage&&<button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="invite_"+inv.id?null:"invite_"+inv.id);}}><span/><span/><span/></button>}
+          {canManage&&openMenu==="invite_"+inv.id&&<div className="mini-menu">
+            <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);resendInvite(inv);}}>{inv.status==="pending"?"Resend":"Request Again"}</button>
+            <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editInvite",{invite:inv});}}>Edit</button>
+            <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);clearInvite(inv.id);}}>Clear</button>
+          </div>}
         </div>))}
       </div>)}
     </div>)}

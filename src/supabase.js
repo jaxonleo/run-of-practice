@@ -98,6 +98,15 @@ export async function fetchMyTeams() {
   const teamIds = (teamsRes.data || []).map(t => t.id)
   const locationsByTeam = {}
   for (const tl of teamLocationsRes.data || []) (locationsByTeam[tl.team_id] ||= []).push(tl.location_id)
+  // Pending/declined invites the caller sent (team_invites_select's RLS
+  // shows a manager every invite for their own team, any status) -- the
+  // Coaches tab shows these alongside real team_staff rows so a head coach
+  // can see request status, not just who's already on the roster.
+  const invitesRes = teamIds.length
+    ? await supabase.from('team_invites').select('id, team_id, email, first_name, last_name, role, status, created_at').in('team_id', teamIds).in('status', ['pending', 'declined'])
+    : { data: [] }
+  const invitesByTeam = {}
+  for (const i of invitesRes.data || []) (invitesByTeam[i.team_id] ||= []).push(mapTeamInviteRow(i))
 
   const [focusRes, deactivatedRes] = await Promise.all([
     players.length ? supabase.from('player_focus_areas').select('id, player_id, category_id, note').in('player_id', players.map(p => p.id)) : Promise.resolve({ data: [] }),
@@ -128,6 +137,7 @@ export async function fetchMyTeams() {
     locationIds: locationsByTeam[t.id] || [],
     players: players.filter(p => p.team_id === t.id).map(p => Object.assign(mapPlayerRow(p), { focusAreas: focusByPlayer[p.id] || [] })),
     coaches: staff.filter(s => s.team_id === t.id && !(s.user_id && deactivatedUserIds.has(s.user_id))).map(mapStaffRow),
+    invites: invitesByTeam[t.id] || [],
   }))
 }
 
@@ -203,10 +213,16 @@ export async function setPlayerCategoryNote(playerId, categoryId, note, createdB
   return { error }
 }
 
-export async function createStaff(teamId, { name, role, inviteEmail }) {
+// Real gap found live (2026-08-01): this used to call add_team_staff,
+// which linked an existing account and granted access immediately with no
+// consent step. Now creates/refreshes a team_invites row instead --
+// nothing is granted until the invited person accepts. Same function name
+// kept in the JS layer since every call site's intent ("invite this
+// person to the team") hasn't changed, only what happens server-side.
+export async function inviteTeamStaff(teamId, { name, role, inviteEmail }) {
   const { firstName, lastName } = splitName(name)
-  const { error } = await supabase.rpc('add_team_staff', { p_team_id: teamId, p_email: inviteEmail, p_first_name: firstName, p_last_name: lastName, p_role: ROLE_VALUES[role] || 'assistant_coach' })
-  if (error) console.error('createStaff:', error)
+  const { error } = await supabase.rpc('invite_team_staff', { p_team_id: teamId, p_email: inviteEmail, p_first_name: firstName, p_last_name: lastName, p_role: ROLE_VALUES[role] || 'assistant_coach' })
+  if (error) console.error('inviteTeamStaff:', error)
   return { error }
 }
 export async function updateStaff(id, { name, role, inviteEmail }) {
@@ -218,6 +234,49 @@ export async function updateStaff(id, { name, role, inviteEmail }) {
 export async function archiveStaff(id) {
   const { error } = await supabase.from('team_staff').update({ archived_at: new Date().toISOString() }).eq('id', id)
   if (error) console.error('archiveStaff:', error)
+  return { error }
+}
+// ── Team invites (pending/declined, requiring explicit accept/decline) ──────
+// Mirrors org_invites' own JS wrappers below almost exactly -- same shape,
+// same reasoning (fetchPendingTeamInvites is the invitee's view, matched
+// against their own verified email; edit/cancel are the sender's-side
+// actions, gated server-side on can_manage_team, not the invitee's email).
+const TEAM_INVITE_ROLE_LABELS = { head_coach: 'Head Coach', assistant_coach: 'Assistant Coach', helper: 'Helper' }
+function mapTeamInviteRow(i, teamsById) {
+  const team = teamsById ? teamsById[i.team_id] : null
+  return { id: i.id, teamId: i.team_id, teamName: team ? team.name : '', email: i.email, name: (i.first_name + ' ' + (i.last_name || '')).trim(), role: TEAM_INVITE_ROLE_LABELS[i.role] || i.role, status: i.status, createdAt: i.created_at }
+}
+// Called from fetchLibraryData, same convention as fetchPendingOrgInvites --
+// every refreshLibrary() is what surfaces "you've been invited" on Home.
+export async function fetchPendingTeamInvites() {
+  const { data: userData } = await supabase.auth.getUser()
+  const myEmail = userData && userData.user ? userData.user.email : null
+  if (!myEmail) return []
+  const { data, error } = await supabase.from('team_invites').select('id, team_id, role, created_at, teams(id, name)').eq('status', 'pending').ilike('email', myEmail)
+  if (error) { console.error('fetchPendingTeamInvites:', error); return [] }
+  return (data || []).map(i => ({ id: i.id, teamId: i.team_id, teamName: i.teams ? i.teams.name : '', role: TEAM_INVITE_ROLE_LABELS[i.role] || i.role, createdAt: i.created_at }))
+}
+export async function acceptTeamInvite(inviteId) {
+  const { error } = await supabase.rpc('accept_team_invite', { p_invite_id: inviteId })
+  if (error) console.error('acceptTeamInvite:', error)
+  return { error }
+}
+export async function declineTeamInvite(inviteId) {
+  const { error } = await supabase.rpc('decline_team_invite', { p_invite_id: inviteId })
+  if (error) console.error('declineTeamInvite:', error)
+  return { error }
+}
+// Head-coach-side "Clear" (pending or declined) and "Edit" (fixes a
+// typo'd email/name/role, puts it back to pending).
+export async function cancelTeamInvite(inviteId) {
+  const { error } = await supabase.rpc('cancel_team_invite', { p_invite_id: inviteId })
+  if (error) console.error('cancelTeamInvite:', error)
+  return { error }
+}
+export async function editTeamInvite(inviteId, { name, role, inviteEmail }) {
+  const { firstName, lastName } = splitName(name)
+  const { error } = await supabase.rpc('edit_team_invite', { p_invite_id: inviteId, p_email: inviteEmail, p_first_name: firstName, p_last_name: lastName, p_role: ROLE_VALUES[role] || 'assistant_coach' })
+  if (error) console.error('editTeamInvite:', error)
   return { error }
 }
 export async function markTeamStaffWelcomed(teamStaffId) {
@@ -344,6 +403,9 @@ export async function fetchLibraryData() {
   // Same reasoning for team-departure notices -- refreshLibrary() is already
   // the one call every "something happened elsewhere" Home banner piggybacks on.
   const pendingTeamDepartures = await fetchPendingTeamDepartures()
+  // Same reasoning again for team_invites -- the invitee's own pending
+  // invites, surfaced as a real accept/decline card on Home.
+  const pendingTeamInvites = await fetchPendingTeamInvites()
   if (drillsRes.error) console.error('fetchLibraryData drills:', drillsRes.error)
   if (assetsRes.error) console.error('fetchLibraryData assets:', assetsRes.error)
 
@@ -366,6 +428,7 @@ export async function fetchLibraryData() {
     myOrgs: (orgsRes.data || []).map(m => ({ id: m.organization_id, name: m.organizations ? m.organizations.name : '', role: m.role, sports: (m.organizations && m.organizations.sports) || [], createdAt: m.organizations ? m.organizations.created_at : null, color: m.organizations ? m.organizations.color : null })),
     pendingOrgInvites,
     pendingTeamDepartures,
+    pendingTeamInvites,
     profilesById,
     catalogs: (catalogsRes.data || []).map(mapCatalogRow),
   }

@@ -151,6 +151,7 @@ export function FAQPage() {
     { q: "Who is it for?", a: "Head coaches, assistant coaches, and anyone helping run an organized practice, from a single team to a whole club." },
     { q: "Does every helper need an account?", a: "No. Assistant coaches get ongoing access through their own account, while a parent or ad hoc helper can just use a shared link with the information they need for that practice, no account or download required." },
     { q: "Can I use it for different sports?", a: "Yes. Run of Practice is built around things every sport's practices share, like drills, groups, stations, locations, timing, and equipment. The setup adjusts to whatever sport and level you coach." },
+    { q: "What do I do if my sport isn't listed?", a: <>If you're creating a team for a sport that isn't listed, reach out to us at {CONTACT_EMAIL} and we'll add it.</> },
     { q: "What happens if attendance changes?", a: "Update who's present and your groupings adjust with them. You can shuffle players randomly or make changes yourself, whichever fits the moment." },
     { q: "Can I adjust the schedule while practice is happening?", a: "Yes. You can add or reduce time, end an activity early, or skip one entirely, and everyone connected sees the change reflected in real time." },
     { q: "Will I hear the timer if my phone is in my pocket?", a: "Turn on audio in a live practice and Run of Practice will call out the two-minute warning and play a sound when time's up, so you don't need to keep the screen in front of you." },
