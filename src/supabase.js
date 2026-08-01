@@ -73,7 +73,10 @@ function mapPlayerRow(p) {
   return { id: p.id, firstName: p.first_name, lastName: p.last_name, jersey: p.jersey_number || '', positions: p.positions || [], bats: p.bats || '', throws: p.throws || '', notes: p.notes || '' }
 }
 function mapStaffRow(s) {
-  return { id: s.id, name: (s.first_name + ' ' + s.last_name).trim(), role: ROLE_LABELS[s.role] || s.role, inviteEmail: s.invite_email, userId: s.user_id, addedBy: s.added_by, welcomedAt: s.welcomed_at, showOnHome: s.show_on_home !== false }
+  return {
+    id: s.id, name: (s.first_name + ' ' + s.last_name).trim(), role: ROLE_LABELS[s.role] || s.role, inviteEmail: s.invite_email, userId: s.user_id, addedBy: s.added_by, welcomedAt: s.welcomed_at, showOnHome: s.show_on_home !== false,
+    headCoachSharesLibrary: s.head_coach_shares_library !== false, assistantSharesLibrary: s.assistant_shares_library !== false, canBuildPractices: !!s.can_build_practices,
+  }
 }
 function splitName(name) {
   const parts = (name || '').trim().split(/\s+/)
@@ -311,6 +314,27 @@ export async function setTeamStaffShowOnHome(teamStaffId, show) {
   if (error) console.error('setTeamStaffShowOnHome:', error)
   return { error }
 }
+// Permissions screen (2026-08-01): assistantSharesLibrary is self-service
+// (own row only, same narrow shape as setTeamStaffShowOnHome above);
+// headCoachSharesLibrary and canBuildPractices are manager-only, gated
+// server-side on can_manage_team.
+export async function setOwnLibraryShare(teamStaffId, shared) {
+  const { error } = await supabase.rpc('set_own_library_share', { p_team_staff_id: teamStaffId, p_shared: shared })
+  if (error) console.error('setOwnLibraryShare:', error)
+  return { error }
+}
+export async function setManagerLibraryShare(teamStaffId, shared) {
+  const { error } = await supabase.rpc('set_manager_library_share', { p_team_staff_id: teamStaffId, p_shared: shared })
+  if (error) console.error('setManagerLibraryShare:', error)
+  return { error }
+}
+// Errors here are real and user-facing (the one-delegate-per-team cap) --
+// callers must surface `error.message`, not just log it.
+export async function setPracticeDelegate(teamStaffId, canBuild) {
+  const { error } = await supabase.rpc('set_practice_delegate', { p_team_staff_id: teamStaffId, p_can_build: canBuild })
+  if (error) console.error('setPracticeDelegate:', error)
+  return { error }
+}
 // §5: staff the current user has already added on their OTHER teams, so
 // they can tap-to-fill instead of re-typing. Deduped by email; excludes
 // the team currently being added to.
@@ -376,6 +400,7 @@ function mapDrillRow(a, equipmentByDrill, tagsByDrill, sharesByDrill) {
     updatedAt: a.updated_at, position: a.position || 0,
     equipment: equipmentByDrill[a.id] || [],
     skillTagIds: tagsByDrill[a.id] || [],
+    isPrivate: !!a.is_private,
   }
 }
 function mapCatalogRow(c) {
@@ -585,6 +610,18 @@ export async function createDrill(ownerUserId, { name, sport, duration, descript
 // to match that order's indices.
 export async function reorderDrills(orderedIds) {
   await Promise.all(orderedIds.map((id, i) => supabase.from('activity_library').update({ position: i }).eq('id', id)))
+}
+// Excludes a drill from the default team_staff-peer sharing (rostered
+// assistants/head coaches with a library-sharing toggle on) -- separate
+// axis from organization sharing (setDrillOrgShares' explicit opt-in list),
+// which this does not touch. Deliberately its own small setter rather than
+// folded into updateDrill, which always writes every field it's passed --
+// safer than requiring every future updateDrill caller to remember to
+// carry isPrivate through untouched.
+export async function setDrillPrivate(id, isPrivate) {
+  const { error } = await supabase.from('activity_library').update({ is_private: isPrivate }).eq('id', id)
+  if (error) console.error('setDrillPrivate:', error)
+  return { error }
 }
 export async function updateDrill(id, { name, sport, duration, description, coachingPoints, grouping, numGroups, equipment, skillTagIds }) {
   const { error } = await supabase.from('activity_library').update({

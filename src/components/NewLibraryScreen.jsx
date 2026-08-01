@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { uid, sumMins, localDateStr, planningState } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
-import { archiveDrill, setDrillOrgShares, copyDrillToMyLibrary, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation } from "../supabase.js";
+import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation } from "../supabase.js";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -914,7 +914,24 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       .sort((a,b)=>a.name.localeCompare(b.name))
       .map(c=>({key:"sharedBy:"+org.id+":"+c.ownerId,label:c.name+" ("+c.count+")",org}));
     return [{key:"orgLib:"+org.id,label:org.name+" Library",org},...coachShelves];
-  })];
+  }),...(()=>{
+    // Peer-shared personal drills (2026-08-01): one shelf per rostered
+    // head coach/assistant sharing their library via Permissions, on a
+    // personal (non-org) team -- same "one shelf per coach, not a flat
+    // merged list" treatment the org shelves above already use. Anything
+    // showing up here at all already passed can_access_activity's RLS, so
+    // no client-side permission check is needed -- just group what's
+    // already visible.
+    const sharedByPeer={};
+    (data.activityLibrary||[]).forEach(a=>{
+      if(!a.ownerUserId||a.ownerUserId===coachId||a.organizationId)return;
+      (sharedByPeer[a.ownerUserId]=sharedByPeer[a.ownerUserId]||[]).push(a);
+    });
+    return Object.keys(sharedByPeer)
+      .map(ownerId=>({ownerId,name:coachDisplayName(ownerId),count:sharedByPeer[ownerId].length}))
+      .sort((a,b)=>a.name.localeCompare(b.name))
+      .map(c=>({key:"sharedBy:peer:"+c.ownerId,label:c.name+" ("+c.count+")"}));
+  })()];
   const goSection=s=>{
     setSection(s);
     setShelf(s==="mine"?"mine":(exploreShelves[0]?exploreShelves[0].key:""));
@@ -926,6 +943,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const shelfDrillsAll=(()=>{
     if(shelf==="mine")return (data.activityLibrary||[]).filter(a=>isOrgMode?a.organizationId===mode.orgId:a.ownerUserId===coachId);
     if(shelf.startsWith("orgLib:")){const orgId=shelf.slice(7);return (data.activityLibrary||[]).filter(a=>a.organizationId===orgId);}
+    if(shelf.startsWith("sharedBy:peer:")){const ownerId=shelf.slice(14);return (data.activityLibrary||[]).filter(a=>a.ownerUserId===ownerId&&!a.organizationId);}
     if(shelf.startsWith("sharedBy:")){const [,orgId,ownerId]=shelf.split(":");return (data.activityLibrary||[]).filter(a=>a.ownerUserId===ownerId&&(a.sharedWithOrganizationIds||[]).includes(orgId));}
     return [];
   })();
@@ -970,6 +988,13 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   // more than one org, so this is a multi-select toggle, not a single pick.
   const toggleShare=async(drillId,orgId)=>{const drill=(data.activityLibrary||[]).find(a=>a.id===drillId);const cur=(drill&&drill.sharedWithOrganizationIds)||[];const next=cur.includes(orgId)?cur.filter(id=>id!==orgId):[...cur,orgId];await setDrillOrgShares(drillId,next);await refreshLibrary();};
   const makePrivate=async(drillId)=>{setShareMenuId(null);await setDrillOrgShares(drillId,[]);await refreshLibrary();};
+  // Separate axis from org sharing above -- excludes a drill from the
+  // default sharing a coach's Permissions screen grants to a rostered
+  // head coach/assistant. Deliberately never labeled "Private" in this
+  // menu (organization sharing already uses that word for a different
+  // thing, "Make Private" above means "remove all org shares") --
+  // "hide/show from my coaches" avoids the collision.
+  const toggleDrillPrivate=async(drillId,isPrivate)=>{setDrillMenu(null);await setDrillPrivate(drillId,isPrivate);await refreshLibrary();};
   const doCopy=async(drill)=>{setCopyingId(drill.id);await copyDrillToMyLibrary(coachId,drill,assetsById,skillTagsById,mode);await refreshLibrary();setCopyingId(null);};
   // Coach mode: templates I own. Org mode: the org's own templates. (Coach
   // mode's own-only filter is new here -- this list previously showed every
@@ -1115,6 +1140,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
                 <button className="mm-item" onClick={()=>{setDrillMenu(null);openModal("editActivity",{activity:act});}}>Edit</button>
                 {myOrgs.length>0&&<button className="mm-item" onClick={e=>{e.stopPropagation();setDrillMenu(null);setShareMenuId(shareMenuId===act.id?null:act.id);}}>{(act.sharedWithOrganizationIds||[]).length>0?"Change Sharing":"Share..."}</button>}
                 {(act.sharedWithOrganizationIds||[]).length>0&&<button className="mm-item" onClick={()=>makePrivate(act.id)}>Make Private</button>}
+                <button className="mm-item" onClick={()=>toggleDrillPrivate(act.id,!act.isPrivate)}>{act.isPrivate?"Share with My Coaches":"Hide from My Coaches"}</button>
                 <button className="mm-item mm-danger" onClick={async()=>{setDrillMenu(null);await archiveDrill(act.id);await refreshLibrary();}}>Delete</button>
               </div>}
               {shareMenuId===act.id&&<div className="mini-menu" style={{right:0,top:"100%",minWidth:160}} onClick={e=>e.stopPropagation()}>

@@ -15,6 +15,7 @@ import CommandScreen, { HelperView, HistoryViewer, PreviewView } from "./compone
 import HomeScreen from "./components/HomeScreen.jsx";
 import ScheduleScreen from "./components/ScheduleScreen.jsx";
 import AbsencePicker from "./components/AbsencePicker.jsx";
+import PermissionsModal from "./components/PermissionsModal.jsx";
 import LandingPage from "./components/LandingPage.jsx";
 import { TermsPage, PrivacyPage, FAQPage } from "./components/LegalPages.jsx";
 import PricingPage from "./components/PricingPage.jsx";
@@ -1684,6 +1685,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
   const [sort,setSort]=useState({by:"firstName",dir:"asc"});
   const [viewPlayer,setViewPlayer]=useState(null);
   const [confirmRemovePlayer,setConfirmRemovePlayer]=useState(null);
+  const [permissionsCoach,setPermissionsCoach]=useState(null);
   const team=data.teams.find(t=>t.id===teamId)||null;
   // canManageTeamInMode, not bare isHeadCoach -- a director managing an org
   // team should be able to add/edit players and staff without needing a
@@ -1757,8 +1759,17 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
         <div className="sechdr mb8"><span className="sectitle">{team.coaches.length} Coaches</span>{canManage&&<button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addCoach",{teamId});}}>+ Add</button>}</div>
         {team.coaches.map(c=>(<div key={c.id} className="li" style={{position:"relative"}}>
           <div className="lim"><div className="lin">{c.name}</div><div className="limt">{c.role}</div></div>
+          {/* Self-service entry point for an assistant/helper viewing their
+              own row without manage rights -- there's no ellipsis menu for
+              a non-manager otherwise, so this is a plain text button
+              instead of hiding the same action inside one. */}
+          {!canManage&&c.userId===coachId&&c.role!=="Head Coach"&&<button className="btn ghost bxs" onClick={e=>{e.stopPropagation();setPermissionsCoach(c);}}>Permissions</button>}
           {canManage&&<button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="coach_"+c.id?null:"coach_"+c.id);}}><span/><span/><span/></button>}
-          {canManage&&openMenu==="coach_"+c.id&&<div className="mini-menu"><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editCoach",{teamId,coach:c});}}>Edit</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delC(c.id);}}>Remove</button></div>}
+          {canManage&&openMenu==="coach_"+c.id&&<div className="mini-menu">
+            {c.role!=="Head Coach"&&<button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setPermissionsCoach(c);}}>Permissions</button>}
+            <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editCoach",{teamId,coach:c});}}>Edit</button>
+            <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delC(c.id);}}>Remove</button>
+          </div>}
         </div>))}
         {/* Sent invites still waiting on a response or already declined --
             kept visible (not folded into the roster list above, which is
@@ -1785,5 +1796,6 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
         <div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmRemovePlayer(null)}>Cancel</button><button className="btn danger bmd" onClick={doRemovePlayer}>Remove</button></div>
       </div>
     </div>}
+    {permissionsCoach&&<PermissionsModal team={team} coach={permissionsCoach} coachId={coachId} canManage={canManage} refreshTeams={refreshTeams} onClose={()=>setPermissionsCoach(null)}/>}
   </div>);
 }
