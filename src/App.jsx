@@ -17,6 +17,7 @@ import ScheduleScreen from "./components/ScheduleScreen.jsx";
 import AbsencePicker from "./components/AbsencePicker.jsx";
 import LandingPage from "./components/LandingPage.jsx";
 import { TermsPage, PrivacyPage, FAQPage } from "./components/LegalPages.jsx";
+import PricingPage from "./components/PricingPage.jsx";
 // Lazy: recharts + its d3-* subpackages are the single largest dependency
 // in this app (~9MB unminified) and this is the only screen that uses
 // them, gated to founder-admins only -- everyone else was downloading that
@@ -477,6 +478,11 @@ export default function App(){
       <Route path="/terms" element={<TermsPage/>}/>
       <Route path="/privacy" element={<PrivacyPage/>}/>
       <Route path="/faq" element={<FAQPage/>}/>
+      {/* Not linked from anywhere yet (landing page, footer, nav) -- Jax
+          wants the URL to exist for direct review before it's promoted.
+          Same top-level-sibling pattern as /terms|/privacy|/faq: renders
+          regardless of auth/loading state. */}
+      <Route path="/pricing" element={<PricingPage/>}/>
       <Route path="/*" element={<AuthedShell/>}>
         <Route path="admin/metrics" element={<FounderAdminRoute/>}/>
         <Route element={<LayoutRoute/>}>
