@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { uid, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, groupByAttribute } from "../constants.js";
-import { createAsset } from "../supabase.js";
+import { createAsset, findMissingEquipment, resolveDrillEquipmentForCoach } from "../supabase.js";
 import { Ic } from "../icons.jsx";
+import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -272,17 +273,38 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   const filteredLibrary=(libraryDrills||[]).filter(a=>!a.sourceCatalogId).filter(a=>(a.sport||"General")===sport||(a.sport||"General")==="General");
   const skillTagsById=Object.fromEntries((skillTags||[]).map(t=>[t.id,t]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
-  const chooseFromLibrary=(si,lib)=>{
+  const applyLibraryChoice=(si,lib,equipmentOverride)=>{
     const st=act.stations[si];
     onSt(st.id,{
       activityName:lib.name,name:lib.name,
       description:lib.description||st.description||"",
       coachingPoints:lib.coachingPoints||st.coachingPoints||"",
-      equipment:Array.isArray(lib.equipment)?lib.equipment:[],
+      equipment:equipmentOverride!==undefined?equipmentOverride:(Array.isArray(lib.equipment)?lib.equipment:[]),
       libraryId:lib.id,
       grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,
     });
     setLibraryPickerIdx(null);
+  };
+  // Same equipment-mismatch check as Builder's own drill-add (2026-08-01) --
+  // a station's drill can come from Explore (org-shared, peer-shared) and
+  // reference equipment ids the coach doesn't own, which
+  // practice_activity_equipment's RLS would otherwise silently reject at
+  // save time. Always resolves against the coach's own personal pool, same
+  // reasoning as Builder's: no Coach/Org mode awareness needed here either.
+  const assetsById=Object.fromEntries((assets||[]).map(a=>[a.id,a]));
+  const ownAssetPool=(assets||[]).filter(a=>a.ownerUserId===coachId);
+  const [equipDialog,setEquipDialog]=useState(null); // {si, lib}
+  const chooseFromLibrary=(si,lib)=>{
+    const missing=findMissingEquipment(lib.equipment,assetsById,ownAssetPool);
+    if(missing.length===0){applyLibraryChoice(si,lib);return;}
+    setEquipDialog({si,lib});
+  };
+  const resolveAndChoose=async(createMissingEquipment)=>{
+    const {si,lib}=equipDialog;
+    const resolvedIds=await resolveDrillEquipmentForCoach(coachId,lib.equipment,assetsById,ownAssetPool,createMissingEquipment);
+    applyLibraryChoice(si,lib,resolvedIds);
+    setEquipDialog(null);
+    if(createMissingEquipment)await refreshLibrary();
   };
 
   const genRandom=()=>{
@@ -472,5 +494,6 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
     })}
     <button type="button" className="btn outline bsm bfull mb8" onClick={addStation}>+ Add Station</button>
     <button className="btn ghost bsm bfull mt4" onClick={onDone}>Done</button>
+    {equipDialog&&<EquipmentMismatchDialog drillName={equipDialog.lib.name} missing={findMissingEquipment(equipDialog.lib.equipment,assetsById,ownAssetPool)} context="practice" onAddWithEquipment={()=>resolveAndChoose(true)} onAddAnyway={()=>resolveAndChoose(false)} onCancel={()=>setEquipDialog(null)}/>}
   </div>);
 }

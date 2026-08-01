@@ -697,7 +697,58 @@ export async function setDrillOrgShares(drillId, organizationIds) {
 // decision this session (Roster/Goals/Schedule via canManageTeamInMode,
 // equipment creation via createOrgAsset). Coach mode (or no mode passed,
 // for callers that predate this) keeps the original personal-library behavior.
-export async function copyDrillToMyLibrary(ownerUserId, sourceDrill, sourceAssetsById, sourceSkillTagsById, mode) {
+// Pure, synchronous, no DB call -- given a drill's raw equipment (asset ids
+// from wherever it's currently owned) and the caller's own already-loaded
+// pool, which items have no name+type match. Used by both equipment-
+// mismatch dialogs (library-copy and add-to-practice) to decide whether to
+// show the dialog at all, and what to list in it, before anything is
+// written.
+export function findMissingEquipment(equipmentIds, sourceAssetsById, ownPool) {
+  const missing = []
+  for (const assetId of equipmentIds || []) {
+    const source = sourceAssetsById && sourceAssetsById[assetId]
+    if (!source) continue
+    const hasMatch = ownPool.some(a => a.name.toLowerCase() === source.name.toLowerCase() && a.type === source.type)
+    if (!hasMatch) missing.push(source)
+  }
+  return missing
+}
+// Shared by copyDrillToMyLibrary and the Builder's add-to-practice
+// equipment resolution (2026-08-01) -- given a drill's raw equipment ids
+// and the caller's own pool, matches by name+type, mutating `pool` as it
+// creates so repeated calls in the same pass see what was just added.
+// createMissing=false is what makes "add anyway" possible -- unmatched
+// items are just dropped from the resolved list rather than created.
+async function resolveEquipmentAgainstPool(equipmentIds, sourceAssetsById, pool, { ownerUserId, mode, createMissing }) {
+  const isOrgMode = mode && mode.type === 'org'
+  const resolvedIds = []
+  for (const assetId of equipmentIds || []) {
+    const source = sourceAssetsById && sourceAssetsById[assetId]
+    if (!source) continue
+    const match = pool.find(a => a.name.toLowerCase() === source.name.toLowerCase() && a.type === source.type)
+    if (match) { resolvedIds.push(match.id); continue }
+    if (!createMissing) continue
+    const { data: newAsset } = isOrgMode
+      ? await createOrgAsset(mode.orgId, { name: source.name, sport: source.sport, type: source.type })
+      : await createAsset(ownerUserId, { name: source.name, sport: source.sport, type: source.type })
+    if (newAsset) { resolvedIds.push(newAsset.id); pool.push(newAsset) }
+  }
+  return resolvedIds
+}
+// Builder's add-to-practice equipment-mismatch dialog: resolves a drill's
+// equipment against the coach's own pool, matching what's already there and
+// (if createMissingEquipment) creating the rest -- always into the coach's
+// own personal pool, never org-scoped, since BuilderScreen doesn't track
+// Coach/Org mode at all today (a coach's own equipment already satisfies
+// can_link_asset_to_practice_activity's RLS for any team they can build
+// for, so this doesn't need mode-awareness to be correct). Returns asset
+// ids that belong to the coach (or were already theirs) -- never a foreign
+// id that RLS would silently reject linking, which is what addAct used to
+// copy verbatim before this existed.
+export async function resolveDrillEquipmentForCoach(coachId, equipmentIds, sourceAssetsById, ownPool, createMissingEquipment) {
+  return resolveEquipmentAgainstPool(equipmentIds, sourceAssetsById, ownPool, { ownerUserId: coachId, mode: null, createMissing: createMissingEquipment })
+}
+export async function copyDrillToMyLibrary(ownerUserId, sourceDrill, sourceAssetsById, sourceSkillTagsById, mode, { createMissingEquipment = true } = {}) {
   const isOrgMode = mode && mode.type === 'org'
   const { data: created, error } = await supabase.from('activity_library').insert({
     owner_user_id: isOrgMode ? null : ownerUserId, organization_id: isOrgMode ? mode.orgId : null,
@@ -718,17 +769,7 @@ export async function copyDrillToMyLibrary(ownerUserId, sourceDrill, sourceAsset
       : supabase.from('assets').select('*').eq('owner_user_id', ownerUserId).is('archived_at', null)
     const { data: poolAssets } = await poolQuery
     const pool = (poolAssets || []).map(mapAssetRow)
-    const resolvedIds = []
-    for (const assetId of equipmentIds) {
-      const source = sourceAssetsById[assetId]
-      if (!source) continue
-      const match = pool.find(a => a.name.toLowerCase() === source.name.toLowerCase() && a.type === source.type)
-      if (match) { resolvedIds.push(match.id); continue }
-      const { data: newAsset } = isOrgMode
-        ? await createOrgAsset(mode.orgId, { name: source.name, sport: source.sport, type: source.type })
-        : await createAsset(ownerUserId, { name: source.name, sport: source.sport, type: source.type })
-      if (newAsset) { resolvedIds.push(newAsset.id); pool.push(newAsset) }
-    }
+    const resolvedIds = await resolveEquipmentAgainstPool(equipmentIds, sourceAssetsById, pool, { ownerUserId, mode, createMissing: createMissingEquipment })
     if (resolvedIds.length) await syncDrillEquipment(created.id, resolvedIds)
   }
   // Coach/org-scoped tags deliberately not copied -- they'd never transfer

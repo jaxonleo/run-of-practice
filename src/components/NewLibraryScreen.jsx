@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { uid, sumMins, localDateStr, planningState } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
-import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation } from "../supabase.js";
+import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation } from "../supabase.js";
+import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -995,7 +996,27 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   // thing, "Make Private" above means "remove all org shares") --
   // "hide/show from my coaches" avoids the collision.
   const toggleDrillPrivate=async(drillId,isPrivate)=>{setDrillMenu(null);await setDrillPrivate(drillId,isPrivate);await refreshLibrary();};
-  const doCopy=async(drill)=>{setCopyingId(drill.id);await copyDrillToMyLibrary(coachId,drill,assetsById,skillTagsById,mode);await refreshLibrary();setCopyingId(null);};
+  // Equipment-mismatch check before copying (2026-08-01): a drill copied
+  // from Public Library/an org/a peer may need equipment the destination
+  // pool (the coach's own, or the org's in Org mode) doesn't have yet --
+  // copyDrillToMyLibrary used to always silently create the missing pieces
+  // with no choice offered. Pure client-side check against already-loaded
+  // data.assets, no extra query -- only opens the dialog when there's
+  // actually a gap.
+  const ownPoolForCopy=isOrgMode?(data.assets||[]).filter(a=>a.organizationId===mode.orgId):(data.assets||[]).filter(a=>a.ownerUserId===coachId);
+  const [copyDialogDrill,setCopyDialogDrill]=useState(null);
+  const runCopy=async(drill,createMissingEquipment)=>{
+    setCopyingId(drill.id);
+    await copyDrillToMyLibrary(coachId,drill,assetsById,skillTagsById,mode,{createMissingEquipment});
+    await refreshLibrary();
+    setCopyingId(null);
+    setCopyDialogDrill(null);
+  };
+  const doCopy=async(drill)=>{
+    const missing=findMissingEquipment(drill.equipment,assetsById,ownPoolForCopy);
+    if(missing.length===0){await runCopy(drill,true);return;}
+    setCopyDialogDrill(drill);
+  };
   // Coach mode: templates I own. Org mode: the org's own templates. (Coach
   // mode's own-only filter is new here -- this list previously showed every
   // RLS-visible template unfiltered, which happened to work when org
@@ -1211,5 +1232,6 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       </div>
     </div>}
     {showSchedulePicker&&<SchedulePracticePicker data={data} onClose={()=>setShowSchedulePicker(false)} onPick={p=>{setShowSchedulePicker(false);goToBuilder(p.id);}}/>}
+    {copyDialogDrill&&<EquipmentMismatchDialog drillName={copyDialogDrill.name} missing={findMissingEquipment(copyDialogDrill.equipment,assetsById,ownPoolForCopy)} context="library" onAddWithEquipment={()=>runCopy(copyDialogDrill,true)} onAddAnyway={()=>runCopy(copyDialogDrill,false)} onCancel={()=>setCopyDialogDrill(null)}/>}
   </div>);
 }

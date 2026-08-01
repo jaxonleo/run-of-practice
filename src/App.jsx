@@ -6,7 +6,7 @@ import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
-import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, inviteTeamStaff, cancelTeamInvite } from "./supabase.js";
+import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes } from "./constants.js";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
@@ -16,6 +16,7 @@ import HomeScreen from "./components/HomeScreen.jsx";
 import ScheduleScreen from "./components/ScheduleScreen.jsx";
 import AbsencePicker from "./components/AbsencePicker.jsx";
 import PermissionsModal from "./components/PermissionsModal.jsx";
+import EquipmentMismatchDialog from "./components/EquipmentMismatchDialog.jsx";
 import LandingPage from "./components/LandingPage.jsx";
 import { TermsPage, PrivacyPage, FAQPage } from "./components/LegalPages.jsx";
 import PricingPage from "./components/PricingPage.jsx";
@@ -1068,12 +1069,38 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // drill with no visual confirmation it landed, since the activities list
   // it was appended to has long since scrolled out of view above.
   const [lastAddedId,setLastAddedId]=useState(null);
-  const addAct=lib=>{
+  // equipmentOverride lets the mismatch-dialog flow below substitute
+  // resolved (coach-owned) asset ids in place of lib.equipment's raw ones
+  // -- see addActChecked.
+  const addAct=(lib,equipmentOverride)=>{
     const id=uid();
-    setActs(p=>[...p,{id,type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:defaultAssignIds,coachId:headCoachId,sublocationId:"",notes:"",description:lib.description||"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);
+    setActs(p=>[...p,{id,type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:defaultAssignIds,coachId:headCoachId,sublocationId:"",notes:"",description:lib.description||"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:equipmentOverride!==undefined?equipmentOverride:(Array.isArray(lib.equipment)?lib.equipment:[])}]);
     setExpandedId(id);
     setLastAddedId(id);
     setHandRotation(r=>r+360);
+  };
+  // Equipment-mismatch check before adding a drill straight into a practice
+  // (2026-08-01): a drill from Explore (org-shared, peer-shared) may
+  // reference equipment ids the coach doesn't own -- addAct used to copy
+  // those raw ids verbatim, which practice_activity_equipment's RLS then
+  // silently rejected at save time (the insert's own error was never even
+  // checked). Always resolves against the coach's own personal pool only
+  // -- BuilderScreen has no Coach/Org mode awareness today, and a coach's
+  // own equipment already satisfies the RLS for any team they can build
+  // for, so this doesn't need mode-awareness to be correct.
+  const assetsById=Object.fromEntries((data.assets||[]).map(a=>[a.id,a]));
+  const ownAssetPool=(data.assets||[]).filter(a=>a.ownerUserId===coachId);
+  const [equipmentDialogLib,setEquipmentDialogLib]=useState(null);
+  const addActChecked=lib=>{
+    const missing=findMissingEquipment(lib.equipment,assetsById,ownAssetPool);
+    if(missing.length===0){addAct(lib);return;}
+    setEquipmentDialogLib(lib);
+  };
+  const resolveAndAdd=async(lib,createMissingEquipment)=>{
+    const resolvedIds=await resolveDrillEquipmentForCoach(coachId,lib.equipment,assetsById,ownAssetPool,createMissingEquipment);
+    addAct(lib,resolvedIds);
+    setEquipmentDialogLib(null);
+    if(createMissingEquipment)await refreshLibrary();
   };
   const addBlock=()=>{
     const n=2;const groups=mkGroups(defaultAssignIds,n);
@@ -1454,7 +1481,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       {myDrillsOpen&&(<>
       {team&&<div className="clbl" style={{marginBottom:8}}>{teamSport} + General</div>}
       {filteredLib.map(lib=>(
-        <div key={lib.id} className="li tap" onClick={()=>addAct(lib)}>
+        <div key={lib.id} className="li tap" onClick={()=>addActChecked(lib)}>
           <div className="lim">
             <div className="lin">{lib.name}</div>
             <div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div>
@@ -1469,7 +1496,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       </>)}
       </div>
 
-
+      {equipmentDialogLib&&<EquipmentMismatchDialog drillName={equipmentDialogLib.name} missing={findMissingEquipment(equipmentDialogLib.equipment,assetsById,ownAssetPool)} context="practice" onAddWithEquipment={()=>resolveAndAdd(equipmentDialogLib,true)} onAddAnyway={()=>resolveAndAdd(equipmentDialogLib,false)} onCancel={()=>setEquipmentDialogLib(null)}/>}
     </div>
   );
 }
