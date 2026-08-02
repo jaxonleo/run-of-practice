@@ -91,14 +91,20 @@ const PP_CSS = `
 .pp-cmp{width:100%;border-collapse:collapse;min-width:620px;font-size:13.5px;table-layout:fixed;}
 .pp-cmp col.pp-feat-col{width:36%;}
 .pp-cmp col.pp-plan-col{width:16%;}
-.pp-cmp thead th{text-align:center;padding:16px 10px;font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.03em;font-size:13px;border-bottom:2px solid var(--black);background:#fff;}
-.pp-cmp thead th:first-child{text-align:left;}
-.pp-cmp thead th.pp-featured-col{color:var(--green2);}
+.pp-cmp thead th{text-align:center;padding:14px 8px;border-bottom:2px solid var(--black);background:#fff;}
+.pp-cmp thead th:first-child{text-align:left;font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.03em;font-size:13px;}
+.pp-plan-pill{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:5px 15px;border-radius:20px;}
+.pp-plan-pill.free{background:var(--s2);color:var(--black2);}
+.pp-plan-pill.pro{background:var(--green);color:#fff;}
+.pp-plan-pill.proplus{background:var(--black);color:#fff;}
+.pp-plan-pill.org{background:#fff;color:var(--black);border:1.5px solid var(--b);}
 .pp-cmp .pp-group-row th,.pp-cmp .pp-group-row td{text-align:left;background:var(--gbg);color:var(--green2);font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.06em;font-size:11.5px;padding:8px 12px;}
 .pp-cmp .pp-group-row th{position:sticky;left:0;}
 .pp-cmp tbody th{text-align:left;font-weight:600;padding:12px;border-bottom:1px solid var(--b);position:sticky;left:0;background:#fff;color:var(--black2);font-size:13px;}
 .pp-cmp tbody td{text-align:center;padding:12px 10px;border-bottom:1px solid var(--b);color:var(--tm);}
+.pp-cmp tbody tr.pp-row-alt th,.pp-cmp tbody tr.pp-row-alt td{background:var(--s2);}
 .pp-cmp tbody td.pp-featured-col{background:var(--gbg);}
+.pp-cmp tbody tr.pp-row-alt td.pp-featured-col{background:var(--gbg);}
 .pp-cb{width:22px;height:22px;border-radius:50%;border:2px solid var(--b);display:inline-flex;align-items:center;justify-content:center;background:transparent;}
 .pp-cb.on{border-color:var(--green);background:var(--green);}
 .pp-value{font-weight:700;color:var(--black2);line-height:1.3;}
@@ -160,27 +166,18 @@ const ORG_FEATURES = [
   "Retain organization teams and history when coaches change",
 ];
 
-// Redesigned (2026-08-02) for fast scanning over completeness, closer to
-// how GameChanger's own plan-comparison table reads: most rows are a plain
-// included/not-included checkmark, not a wall of text repeating "Included"
-// or explaining an edge case -- a coach should be able to tell the story
-// (basics are never gated, the gaps grow as you scroll down) at a glance.
-// "Future capability" rows from the old version (cross-team development
-// reporting, advanced adoption reporting) were dropped outright rather
-// than shown as an org checkmark -- neither is built yet, and a comparison
-// table is not the place to market something that doesn't exist, same
-// principle as the rest of this page.
+// Redesigned again (2026-08-02, second pass) after checking GameChanger's
+// live comparison table directly: their table opens with only a couple of
+// shared rows before differentiating, not a whole section of identical
+// checkmarks. Our old "Core coaching tools" group repeated 5 rows that were
+// true across all four columns -- exactly the redundancy that reads as
+// noise. That group is gone; the shared foundation is now one line of prose
+// above the table (see pp-table-sub below) and every remaining row is a
+// genuine differentiator. "Future capability" rows from the original
+// version (cross-team development reporting, advanced adoption reporting)
+// stay dropped -- neither is built, and a comparison table shouldn't market
+// something that doesn't exist.
 const COMPARISON_GROUPS = [
-  {
-    title: "Core coaching tools",
-    rows: [
-      { feature: "Practice builder, scheduling, and attendance", type: "check", free: true, pro: true, proplus: true, org: true },
-      { feature: "Live practice mode with timers and rotations", type: "check", free: true, pro: true, proplus: true, org: true },
-      { feature: "Personal equipment and locations", type: "check", free: true, pro: true, proplus: true, org: true },
-      { feature: "Player focus areas", type: "check", free: true, pro: true, proplus: true, org: true },
-      { feature: "Unlimited parent-helper links", type: "check", free: true, pro: true, proplus: true, org: true },
-    ],
-  },
   {
     title: "Teams and staff",
     rows: [
@@ -386,8 +383,8 @@ export default function PricingPage() {
     </div>
 
     <div className="pp-table-wrap">
-      <div className="pp-table-title">Compare plans at a glance</div>
-      <div className="pp-table-sub">The basics are the same on every plan. Scroll down to see where the room to grow comes in.</div>
+      <div className="pp-table-title">Where the room to grow comes in</div>
+      <div className="pp-table-sub">Every plan starts with the same foundation: practice building, live practice mode with timers and rotations, personal equipment and locations, player focus areas, and unlimited parent-helper links. From here, here's what each plan adds.</div>
       <div className="pp-scroll">
         <table className="pp-cmp">
           <caption style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }}>Feature comparison across Free, Pro, Pro+, and Organizations plans</caption>
@@ -401,16 +398,16 @@ export default function PricingPage() {
           <thead>
             <tr>
               <th scope="col">Feature</th>
-              <th scope="col">Free</th>
-              <th scope="col" className="pp-featured-col">Pro</th>
-              <th scope="col">Pro+</th>
-              <th scope="col">Organizations</th>
+              <th scope="col"><span className="pp-plan-pill free">Free</span></th>
+              <th scope="col" className="pp-featured-col"><span className="pp-plan-pill pro">Pro</span></th>
+              <th scope="col"><span className="pp-plan-pill proplus">Pro+</span></th>
+              <th scope="col"><span className="pp-plan-pill org">Org</span></th>
             </tr>
           </thead>
           <tbody>
             {COMPARISON_GROUPS.map((g) => (<React.Fragment key={g.title}>
               <tr className="pp-group-row"><th scope="colgroup">{g.title}</th><td colSpan={4} aria-hidden="true"></td></tr>
-              {g.rows.map((r, i) => (<tr key={i}>
+              {g.rows.map((r, i) => (<tr key={i} className={i % 2 === 1 ? "pp-row-alt" : undefined}>
                 <th scope="row">{r.feature}</th>
                 <Cell row={r} plan="free" />
                 <Cell row={r} plan="pro" featured />
