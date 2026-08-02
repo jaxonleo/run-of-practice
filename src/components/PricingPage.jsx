@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { FEATURE_FLAGS } from "../entitlements.js";
+import { Ic } from "../icons.jsx";
 
 const CONTACT_EMAIL = "contact@runofpractice.com";
 
@@ -83,16 +84,25 @@ const PP_CSS = `
 .pp-org-feat li{display:flex;gap:8px;font-size:13.5px;line-height:1.5;color:#e6e9e7;}
 .pp-org-feat .mk{flex-shrink:0;width:16px;font-weight:700;color:var(--green3,var(--green));}
 
-.pp-table-wrap{max-width:1180px;margin:56px auto 0;padding:0 24px;}
-.pp-table-title{font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:900;text-align:center;margin-bottom:24px;}
+.pp-table-wrap{max-width:980px;margin:56px auto 0;padding:0 24px;}
+.pp-table-title{font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:900;text-align:center;margin-bottom:6px;}
+.pp-table-sub{font-size:14px;color:var(--tm);text-align:center;max-width:480px;margin:0 auto 24px;line-height:1.5;}
 .pp-scroll{overflow-x:auto;border:1px solid var(--b);border-radius:14px;}
-.pp-cmp{width:100%;border-collapse:collapse;min-width:760px;font-size:13.5px;}
-.pp-cmp thead th{text-align:center;padding:14px 12px;font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.04em;font-size:12.5px;border-bottom:1.5px solid var(--b);}
+.pp-cmp{width:100%;border-collapse:collapse;min-width:620px;font-size:13.5px;table-layout:fixed;}
+.pp-cmp col.pp-feat-col{width:36%;}
+.pp-cmp col.pp-plan-col{width:16%;}
+.pp-cmp thead th{text-align:center;padding:16px 10px;font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.03em;font-size:13px;border-bottom:2px solid var(--black);background:#fff;}
 .pp-cmp thead th:first-child{text-align:left;}
-.pp-cmp .pp-group-row th,.pp-cmp .pp-group-row td{text-align:left;background:var(--s2);color:var(--tm);font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.06em;font-size:11.5px;padding:9px 12px;}
+.pp-cmp thead th.pp-featured-col{color:var(--green2);}
+.pp-cmp .pp-group-row th,.pp-cmp .pp-group-row td{text-align:left;background:var(--gbg);color:var(--green2);font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.06em;font-size:11.5px;padding:8px 12px;}
 .pp-cmp .pp-group-row th{position:sticky;left:0;}
-.pp-cmp tbody th{text-align:left;font-weight:600;padding:11px 12px;border-bottom:1px solid var(--b);position:sticky;left:0;background:#fff;color:var(--black2);}
-.pp-cmp tbody td{text-align:center;padding:11px 12px;border-bottom:1px solid var(--b);color:var(--tm);}
+.pp-cmp tbody th{text-align:left;font-weight:600;padding:12px;border-bottom:1px solid var(--b);position:sticky;left:0;background:#fff;color:var(--black2);font-size:13px;}
+.pp-cmp tbody td{text-align:center;padding:12px 10px;border-bottom:1px solid var(--b);color:var(--tm);}
+.pp-cmp tbody td.pp-featured-col{background:var(--gbg);}
+.pp-cb{width:22px;height:22px;border-radius:50%;border:2px solid var(--b);display:inline-flex;align-items:center;justify-content:center;background:transparent;}
+.pp-cb.on{border-color:var(--green);background:var(--green);}
+.pp-value{font-weight:700;color:var(--black2);line-height:1.3;}
+.pp-value.pp-dash{color:var(--td);font-weight:400;}
 
 .pp-faq{max-width:720px;margin:56px auto 0;padding:0 24px;}
 .pp-faq-title{font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:900;text-align:center;margin-bottom:16px;}
@@ -150,64 +160,60 @@ const ORG_FEATURES = [
   "Retain organization teams and history when coaches change",
 ];
 
+// Redesigned (2026-08-02) for fast scanning over completeness, closer to
+// how GameChanger's own plan-comparison table reads: most rows are a plain
+// included/not-included checkmark, not a wall of text repeating "Included"
+// or explaining an edge case -- a coach should be able to tell the story
+// (basics are never gated, the gaps grow as you scroll down) at a glance.
+// "Future capability" rows from the old version (cross-team development
+// reporting, advanced adoption reporting) were dropped outright rather
+// than shown as an org checkmark -- neither is built yet, and a comparison
+// table is not the place to market something that doesn't exist, same
+// principle as the rest of this page.
 const COMPARISON_GROUPS = [
   {
-    title: "Teams",
+    title: "Core coaching tools",
     rows: [
-      { feature: "Active personal teams", free: "1", pro: "3", proplus: "3", org: "Personal plan still applies" },
-      { feature: "Archived personal teams", free: "Unlimited", pro: "Unlimited", proplus: "Unlimited", org: "Personal plan still applies" },
-      { feature: "Organization teams", free: "No", pro: "No", proplus: "No", org: "Based on agreement" },
-      { feature: "Personal and organization teams in one account", free: "No organization context", pro: "No organization context", proplus: "No organization context", org: "Included" },
+      { feature: "Practice builder, scheduling, and attendance", type: "check", free: true, pro: true, proplus: true, org: true },
+      { feature: "Live practice mode with timers and rotations", type: "check", free: true, pro: true, proplus: true, org: true },
+      { feature: "Personal equipment and locations", type: "check", free: true, pro: true, proplus: true, org: true },
+      { feature: "Player focus areas", type: "check", free: true, pro: true, proplus: true, org: true },
+      { feature: "Unlimited parent-helper links", type: "check", free: true, pro: true, proplus: true, org: true },
     ],
   },
   {
-    title: "Plan and run",
+    title: "Teams and staff",
     rows: [
-      { feature: "Practice builder", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
-      { feature: "Scheduling and attendance", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
-      { feature: "Live practice mode", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
-      { feature: "Concurrent live practices", free: "1", pro: "1", proplus: "2", org: "Unlimited" },
-      { feature: "Timers, transitions, and live adjustments", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
-      { feature: "Personal equipment and locations", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
-      { feature: "Organization equipment and locations", free: "No", pro: "No", proplus: "No", org: "Included" },
+      { feature: "Active personal teams", type: "value", free: "1", pro: "3", proplus: "3", org: "Org-managed" },
+      { feature: "Assistant coaches", type: "value", free: "2", pro: "Unlimited", proplus: "Unlimited", org: "Org-managed" },
+      { feature: "Delegate practice planning to an assistant", type: "value", free: "—", pro: "—", proplus: "1 per team", org: "Org-managed" },
+      { feature: "Concurrent live practices", type: "value", free: "1", pro: "1", proplus: "2", org: "Unlimited" },
     ],
   },
   {
-    title: "Coaches and helpers",
+    title: "Drill library and templates",
     rows: [
-      { feature: "Assistant coaches", free: "Up to 2", pro: "No plan-based cap", proplus: "No plan-based cap", org: "Based on role" },
-      { feature: "Delegate practice planning to an assistant", free: "No", pro: "No", proplus: "One assistant per team", org: "Based on role" },
-      { feature: "Assistant future absence updates", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
-      { feature: "Assistant live takeover", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
-      { feature: "Parent-helper links", free: "Unlimited", pro: "Unlimited", proplus: "Unlimited", org: "Unlimited" },
-      { feature: "Central coach assignment", free: "No", pro: "No", proplus: "No", org: "Included" },
+      { feature: "Personal drill library", type: "value", free: "20 drills", pro: "Unlimited", proplus: "Unlimited", org: "Org-managed" },
+      { feature: "Full Run of Practice drill library", type: "check", free: false, pro: true, proplus: true, org: true },
+      { feature: "Personal templates", type: "value", free: "3", pro: "Unlimited", proplus: "Unlimited", org: "Org-managed" },
+      { feature: "Organization drill library", type: "check", free: false, pro: false, proplus: false, org: true },
     ],
   },
   {
     title: "Player development",
     rows: [
-      { feature: "Player focus areas", free: "Included", pro: "Included", proplus: "Included", org: "Included" },
-      { feature: "Season goals", free: "No", pro: "Included", proplus: "Included", org: "Included" },
-      { feature: "Planned-versus-actual insights", free: "No", pro: "Included", proplus: "Included", org: "Included" },
-      { feature: "Cross-team development reporting", free: "No", pro: "No", proplus: "No", org: "Future capability" },
+      { feature: "Season goals", type: "check", free: false, pro: true, proplus: true, org: true },
+      { feature: "Planned-versus-actual insights", type: "check", free: false, pro: true, proplus: true, org: true },
+      { feature: "Practice history", type: "value", free: "10 most recent", pro: "Complete", proplus: "Complete", org: "Complete" },
     ],
   },
   {
-    title: "Libraries and templates",
+    title: "Organization oversight",
     rows: [
-      { feature: "Personal drills", free: "20 active", pro: "Unlimited", proplus: "Unlimited", org: "Personal plan still applies" },
-      { feature: "Run of Practice drill library", free: "Starter collection", pro: "Full library", proplus: "Full library", org: "Full library" },
-      { feature: "Personal templates", free: "3 active", pro: "Unlimited", proplus: "Unlimited", org: "Personal plan still applies" },
-      { feature: "Organization drill library", free: "No", pro: "No", proplus: "No", org: "Included" },
-    ],
-  },
-  {
-    title: "History and oversight",
-    rows: [
-      { feature: "Personal practice history", free: "10 most recent", pro: "Complete", proplus: "Complete", org: "Personal plan still applies" },
-      { feature: "Organization-team history", free: "No", pro: "No", proplus: "No", org: "Complete" },
-      { feature: "Weekly live-practice dashboard", free: "No", pro: "No", proplus: "No", org: "Included" },
-      { feature: "Advanced adoption reporting", free: "No", pro: "No", proplus: "No", org: "Future capability" },
+      { feature: "Organization equipment and locations", type: "check", free: false, pro: false, proplus: false, org: true },
+      { feature: "Centralized coach management", type: "check", free: false, pro: false, proplus: false, org: true },
+      { feature: "Organization-team history", type: "check", free: false, pro: false, proplus: false, org: true },
+      { feature: "Weekly live-practice dashboard", type: "check", free: false, pro: false, proplus: false, org: true },
     ],
   },
 ];
@@ -249,6 +255,20 @@ function useSeo() {
     const restoreRobots = FEATURE_FLAGS.PRICING_PAGE_PUBLIC ? () => {} : setMeta("robots", "noindex");
     return () => { document.title = prevTitle; restoreDesc(); restoreRobots(); };
   }, []);
+}
+
+// Checkbox-in-circle language reused verbatim from the app's own existing
+// attendance/checklist marks (App.jsx's role picker, CommandScreen's
+// attendance circles) -- same green-fill-plus-white-check convention,
+// not a new shape invented for this page.
+function Cell({ row, plan, featured }) {
+  const cls = featured ? "pp-featured-col" : undefined;
+  if (row.type === "check") {
+    const on = row[plan];
+    return (<td className={cls}><span className={"pp-cb" + (on ? " on" : "")} aria-label={on ? "Included" : "Not included"}>{on && <Ic.Check />}</span></td>);
+  }
+  const val = row[plan];
+  return (<td className={cls}><span className={"pp-value" + (val === "—" ? " pp-dash" : "")}>{val}</span></td>);
 }
 
 function FaqItem({ q, a, open, onToggle }) {
@@ -366,15 +386,23 @@ export default function PricingPage() {
     </div>
 
     <div className="pp-table-wrap">
-      <div className="pp-table-title">Compare plans in detail</div>
+      <div className="pp-table-title">Compare plans at a glance</div>
+      <div className="pp-table-sub">The basics are the same on every plan. Scroll down to see where the room to grow comes in.</div>
       <div className="pp-scroll">
         <table className="pp-cmp">
           <caption style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }}>Feature comparison across Free, Pro, Pro+, and Organizations plans</caption>
+          <colgroup>
+            <col className="pp-feat-col" />
+            <col className="pp-plan-col" />
+            <col className="pp-plan-col" />
+            <col className="pp-plan-col" />
+            <col className="pp-plan-col" />
+          </colgroup>
           <thead>
             <tr>
               <th scope="col">Feature</th>
               <th scope="col">Free</th>
-              <th scope="col">Pro</th>
+              <th scope="col" className="pp-featured-col">Pro</th>
               <th scope="col">Pro+</th>
               <th scope="col">Organizations</th>
             </tr>
@@ -384,10 +412,10 @@ export default function PricingPage() {
               <tr className="pp-group-row"><th scope="colgroup">{g.title}</th><td colSpan={4} aria-hidden="true"></td></tr>
               {g.rows.map((r, i) => (<tr key={i}>
                 <th scope="row">{r.feature}</th>
-                <td>{r.free}</td>
-                <td>{r.pro}</td>
-                <td>{r.proplus}</td>
-                <td>{r.org}</td>
+                <Cell row={r} plan="free" />
+                <Cell row={r} plan="pro" featured />
+                <Cell row={r} plan="proplus" />
+                <Cell row={r} plan="org" />
               </tr>))}
             </React.Fragment>))}
           </tbody>
