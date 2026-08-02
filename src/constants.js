@@ -265,3 +265,182 @@ export function getVisibleComponentTypes(){
 export function setVisibleComponentTypes(keys){
   try{localStorage.setItem(PRACTICE_COMPONENT_TYPES_KEY,JSON.stringify(keys));}catch(e){}
 }
+
+// ── Goals & Insights: shared attribution/guidance math ──────────────────────
+// These mirror the exact rules the live get_team_goal_report/
+// get_team_goal_trends RPCs already use (see
+// supabase/migrations/20260802000000_goal_attribution_shared_helpers.sql):
+// a multi-tag drill's minutes split evenly across its tags, a station's full
+// stationDuration counted per-station (not divided -- stations run in
+// parallel), 'break'-type activities excluded from the denominator
+// entirely. Kept here as pure JS specifically so Builder can project an
+// *unsaved* draft locally without a round trip per keystroke.
+
+// Same >=3-point convention GoalsScreen's SkillRow already uses for "is this
+// gap real" (delta chips only show at 3+ points off).
+export const GOAL_PROXIMITY_TOLERANCE_PTS=3;
+export const TREND_FLAT_THRESHOLD_PCT=2;
+export const TREND_MIN_USABLE_WEEKS=3;
+export const TREND_EXECUTION_GAP_PTS=5;
+export const ON_PLAN_TOLERANCE_SECONDS=60;
+
+// Converts a practice's (possibly unsaved) activity tree into per-category
+// planned minutes, using the same allocation rules as
+// practice_activity_planned_minutes()+category_minutes_from_rows() server-
+// side. `activityLibraryById`/`skillTagsById` come straight from `data`
+// (data.activityLibrary keyed by id, data.skillTags keyed by id) -- no new
+// fetch, since Builder already has both loaded.
+export function categoryMinutesForPracticeActivities(activities,activityLibraryById,skillTagsById){
+  const byCategory={};
+  let totalMinutes=0;
+  (activities||[]).forEach(act=>{
+    if(act.type==="break")return; // excluded from the denominator, same as server-side
+    if(act.type==="station_block"){
+      const dur=act.stationDuration||0;
+      (act.stations||[]).forEach(st=>{
+        totalMinutes+=dur;
+        addTaggedMinutes(st.libraryId,dur,byCategory,activityLibraryById,skillTagsById);
+      });
+      return;
+    }
+    const dur=act.duration||0;
+    totalMinutes+=dur;
+    addTaggedMinutes(act.libraryId,dur,byCategory,activityLibraryById,skillTagsById);
+  });
+  const taggedTotal=Object.values(byCategory).reduce((s,v)=>s+v,0);
+  return {byCategory,totalMinutes,untaggedMinutes:Math.max(0,totalMinutes-taggedTotal)};
+}
+function addTaggedMinutes(libraryId,minutes,byCategory,activityLibraryById,skillTagsById){
+  if(!libraryId||!minutes)return;
+  const drill=activityLibraryById[libraryId];
+  const tagIds=drill&&drill.skillTagIds||[];
+  if(!tagIds.length)return; // untagged -- no category credit, same as server-side
+  const perTag=minutes/tagIds.length;
+  tagIds.forEach(tagId=>{
+    const catId=skillTagsById[tagId]&&skillTagsById[tagId].categoryId;
+    if(!catId)return;
+    byCategory[catId]=(byCategory[catId]||0)+perTag;
+  });
+}
+
+// Enhancement 2/3, Part 1 ("current priorities"). One category's worth of
+// gap math: how many minutes of the next practice would land on this
+// category if it followed the goal mix exactly (goalMixMinutes), and how
+// many minutes it would take in the next practice to fully close the
+// current rolling gap (minutesNeeded), reusing the exact
+// share-of-cumulative-total formula the spec calls out rather than
+// inventing a new one. `category` is one row of the resolved baseline:
+// {skillCategoryId,name,targetPct,currentPct,currentMinutes,
+// historicalTotalMinutes}; currentMinutes/historicalTotalMinutes may be
+// null when there's no usable history yet (goal-mix-only state).
+export function calculateGoalGapGuidance(categories,nextPracticeDurationMinutes){
+  return (categories||[]).map(cat=>{
+    const targetPct=cat.targetPct||0;
+    const currentPct=cat.currentPct||0;
+    const gapPts=Math.round((targetPct-currentPct)*10)/10;
+    const atOrAboveGoal=gapPts<=0;
+    const goalMixMinutes=nextPracticeDurationMinutes!=null?Math.round(nextPracticeDurationMinutes*targetPct/100):null;
+    let minutesNeeded=null,closable=null;
+    if(!atOrAboveGoal&&nextPracticeDurationMinutes!=null&&cat.historicalTotalMinutes!=null&&cat.currentMinutes!=null){
+      const targetShare=targetPct/100;
+      const raw=targetShare*(cat.historicalTotalMinutes+nextPracticeDurationMinutes)-cat.currentMinutes;
+      minutesNeeded=Math.max(0,Math.round(raw));
+      closable=minutesNeeded<=nextPracticeDurationMinutes;
+    }
+    return {skillCategoryId:cat.skillCategoryId,name:cat.name,targetPct,currentPct,gapPts,atOrAboveGoal,goalMixMinutes,minutesNeeded,closable};
+  });
+}
+
+// Enhancement 3, Part 3 ("projected rolling impact"). Combines a fetched
+// rolling baseline (Actual history, or Planned when no usable Actual exists
+// yet -- the fallback is decided by the caller, not here) with the
+// Builder draft's own category minutes (always Planned, since the practice
+// hasn't run) to project a post-practice percentage per category.
+export function calculateProjectedGoalImpact(baseline,draftCategoryMinutes){
+  const draftTotal=(draftCategoryMinutes&&draftCategoryMinutes.totalMinutes)||0;
+  const draftByCategory=(draftCategoryMinutes&&draftCategoryMinutes.byCategory)||{};
+  const historicalTotal=baseline.historicalTotalMinutes||0;
+  const projectedTotal=historicalTotal+draftTotal;
+  return (baseline.categories||[]).map(cat=>{
+    const historicalMinutes=cat.currentMinutes||0;
+    const draftMinutes=draftByCategory[cat.skillCategoryId]||0;
+    const currentPct=historicalTotal>0?(historicalMinutes/historicalTotal*100):0;
+    const projectedPct=projectedTotal>0?((historicalMinutes+draftMinutes)/projectedTotal*100):0;
+    const targetPct=cat.targetPct||0;
+    let result;
+    if(Math.abs(projectedPct-targetPct)<GOAL_PROXIMITY_TOLERANCE_PTS)result="At goal";
+    else if(Math.abs(projectedPct-currentPct)<TREND_FLAT_THRESHOLD_PCT)result="No change";
+    else if(Math.abs(projectedPct-targetPct)<Math.abs(currentPct-targetPct))result="Closer to goal";
+    else result="Farther from goal";
+    return {skillCategoryId:cat.skillCategoryId,name:cat.name,targetPct,currentPct:Math.round(currentPct*10)/10,projectedPct:Math.round(projectedPct*10)/10,result};
+  });
+}
+
+// Enhancement 5/6's shared on-plan tolerance (spec: "the same 60-second
+// on-plan tolerance as Practice Execution unless the project establishes a
+// shared different constant" -- ON_PLAN_TOLERANCE_SECONDS above is that
+// shared constant).
+export function classifyDurationVariance(plannedSeconds,actualSeconds,toleranceSeconds=ON_PLAN_TOLERANCE_SECONDS){
+  if(plannedSeconds==null||actualSeconds==null)return null;
+  const diff=actualSeconds-plannedSeconds;
+  if(Math.abs(diff)<=toleranceSeconds)return "on_plan";
+  return diff>0?"extended":"shortened";
+}
+
+// Enhancement 1's trend-summary rules, kept deterministic per the spec
+// ("keep v1 deterministic and easy to explain"), applied in priority order:
+// 1. Not enough usable weeks -> say so plainly, no trend claimed.
+// 2. Three consecutive usable weeks moving the same direction -> call out
+//    the streak directly (the clearest, most literal signal).
+// 3. Otherwise compare the latest usable week with the earliest: a move
+//    under TREND_FLAT_THRESHOLD_PCT reads as flat, in which case a real gap
+//    between planned and actual (rule 5) is surfaced instead if there is
+//    one; a real move is described relative to the target.
+export function summarizeCategoryTrend(weeks,targetPct){
+  const usable=(weeks||[]).filter(w=>w.has_usable_actual_time&&w.actual_pct!=null);
+  if(usable.length<TREND_MIN_USABLE_WEEKS)return "Not enough completed practice data to establish a trend.";
+
+  let streakDir=null,streakLen=1;
+  for(let i=1;i<usable.length;i++){
+    const d=usable[i].actual_pct-usable[i-1].actual_pct;
+    const dir=Math.abs(d)<TREND_FLAT_THRESHOLD_PCT?null:(d>0?"up":"down");
+    if(dir&&dir===streakDir)streakLen++;
+    else{streakDir=dir;streakLen=dir?2:1;}
+    if(streakLen>=3)return "Actual time has "+(streakDir==="down"?"declined":"increased")+" for three consecutive active weeks.";
+  }
+
+  const first=usable[0],last=usable[usable.length-1];
+  const delta=last.actual_pct-first.actual_pct;
+  if(Math.abs(delta)<TREND_FLAT_THRESHOLD_PCT){
+    if(targetPct!=null){
+      const plannedVals=usable.filter(w=>w.planned_pct!=null).map(w=>w.planned_pct);
+      if(plannedVals.length){
+        const avgPlanned=plannedVals.reduce((s,v)=>s+v,0)/plannedVals.length;
+        const avgActual=usable.reduce((s,w)=>s+w.actual_pct,0)/usable.length;
+        if(Math.abs(avgPlanned-targetPct)<GOAL_PROXIMITY_TOLERANCE_PTS&&(avgPlanned-avgActual)>=TREND_EXECUTION_GAP_PTS){
+          return "Planned time is near goal, but actual time is averaging "+Math.round(avgPlanned-avgActual)+" points lower.";
+        }
+      }
+    }
+    return "Actual time is holding steady, without a clear trend toward or away from goal.";
+  }
+  if(targetPct==null)return delta>0?"Actual time has been increasing.":"Actual time has been decreasing.";
+  const movingToward=Math.abs(last.actual_pct-targetPct)<Math.abs(first.actual_pct-targetPct);
+  return movingToward?("Actual time is moving closer to the "+targetPct+"% goal."):("Actual time is moving away from the "+targetPct+"% goal.");
+}
+
+// Enhancement 6's fixed heat tiers (trailing-12-month completed uses).
+// Thresholds kept in one place, per the spec, so they can be tuned later
+// without touching UI logic in multiple files.
+export const DRILL_HEAT_TIERS=[
+  {min:21,id:"very_hot",label:"Very frequently used",color:"var(--red)"},
+  {min:11,id:"hot",label:"Frequently used",color:"#EA580C"},
+  {min:6,id:"active",label:"Actively used",color:"#D97706"},
+  {min:3,id:"warming",label:"Occasionally used",color:"#0891B2"},
+  {min:1,id:"cold",label:"Rarely used",color:"#2563EB"},
+];
+export function drillUsageHeatTier(completedUsesTrailing12Months){
+  const n=completedUsesTrailing12Months||0;
+  if(n<=0)return null;
+  return DRILL_HEAT_TIERS.find(t=>n>=t.min)||null;
+}

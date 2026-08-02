@@ -17,6 +17,7 @@ import ScheduleScreen from "./components/ScheduleScreen.jsx";
 import AbsencePicker from "./components/AbsencePicker.jsx";
 import PermissionsModal from "./components/PermissionsModal.jsx";
 import EquipmentMismatchDialog from "./components/EquipmentMismatchDialog.jsx";
+import BuilderGoalGuidance from "./components/BuilderGoalGuidance.jsx";
 import LandingPage from "./components/LandingPage.jsx";
 import { TermsPage, PrivacyPage, FAQPage } from "./components/LegalPages.jsx";
 import PricingPage from "./components/PricingPage.jsx";
@@ -1343,6 +1344,11 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           </div>
         </div>}
       </div>
+      {/* Goal Guidance (Enhancement 3): its own sibling section, never
+          inside Practice Details' own body, so the coach can keep Practice
+          Details collapsed while selectively opening this. Starts
+          collapsed on every Builder entry path. */}
+      <BuilderGoalGuidance team={team} teamId={teamId} data={data} coachId={coachId} acts={acts} schedDuration={schedDuration} />
       {/* The Run of Practice: solid dark-green backdrop behind the header
           and whatever's inside it (empty message or the real list) -- this
           is the app's own brand color and this is its moment, per direct

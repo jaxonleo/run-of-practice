@@ -1606,6 +1606,18 @@ export async function fetchTeamGoalReport(teamId) {
   if (error) { console.error('fetchTeamGoalReport:', error); return {} }
   return data
 }
+// Enhancement 1, Skill-Development Trends. One batch RPC for every
+// configured goal category's weekly Planned/Actual/Target -- see
+// get_team_goal_trends in
+// supabase/migrations/20260802010000_get_team_goal_trends.sql for the
+// server-side attribution rules (team-timezone Monday-Sunday buckets,
+// Planned computed from each completed session's own saved plan rather
+// than get_team_goal_report's forward-looking "planned" bucket).
+export async function fetchTeamGoalTrends(teamId, windowWeeks) {
+  const { data, error } = await supabase.rpc('get_team_goal_trends', { p_team_id: teamId, p_window_weeks: windowWeeks || null })
+  if (error) { console.error('fetchTeamGoalTrends:', error); return null }
+  return data
+}
 export async function fetchTeamSessionHistory(teamId) {
   const { data, error } = await supabase.rpc('get_team_session_history', { p_team_id: teamId })
   if (error) { console.error('fetchTeamSessionHistory:', error); return [] }
@@ -1644,6 +1656,14 @@ export async function addSessionActivityRow(sessionId, { practiceActivityId, sta
   if (error) { console.error('addSessionActivityRow:', error); return { error } }
   return { data: { id: data } }
 }
+// Enhancement 5, Practice Execution Scorecard. Structured measures for one
+// completed session -- see get_session_execution_scorecard in
+// supabase/migrations/20260802030000_get_session_execution_scorecard.sql.
+export async function fetchSessionExecutionScorecard(sessionId) {
+  const { data, error } = await supabase.rpc('get_session_execution_scorecard', { p_session_id: sessionId })
+  if (error) { console.error('fetchSessionExecutionScorecard:', error); return null }
+  return data
+}
 // Real elapsed timing for one completed session's activities, for the
 // planned-vs-actual History detail (handoff §5.3) -- this is the first
 // frontend read path for session_activity_log's timing columns.
@@ -1655,6 +1675,22 @@ export async function fetchSessionActivityLog(sessionId) {
     startedAt: r.started_at, endedAt: r.ended_at, presentPlayerIds: r.present_player_ids || [],
     adjustedAt: r.adjusted_at,
   }))
+}
+
+// Enhancement 6, Drill Performance Insights. Batch card summaries (one call
+// per owned-drill shelf, never per card) and on-demand full detail -- see
+// get_drill_insight_summaries/get_drill_insights in
+// supabase/migrations/20260802040000_drill_insight_rpcs.sql.
+export async function fetchDrillInsightSummaries(libraryActivityIds) {
+  if (!libraryActivityIds || !libraryActivityIds.length) return []
+  const { data, error } = await supabase.rpc('get_drill_insight_summaries', { p_library_activity_ids: libraryActivityIds })
+  if (error) { console.error('fetchDrillInsightSummaries:', error); return [] }
+  return data || []
+}
+export async function fetchDrillInsights(libraryActivityId) {
+  const { data, error } = await supabase.rpc('get_drill_insights', { p_library_activity_id: libraryActivityId })
+  if (error) { console.error('fetchDrillInsights:', error); return null }
+  return data
 }
 
 // Founder metrics dashboard (/admin/metrics). checkIsAdmin() is the real

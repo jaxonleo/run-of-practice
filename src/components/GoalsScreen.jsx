@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useBlocker } from "react-router-dom";
-import { canManageTeamInMode } from "../constants.js";
+import { canManageTeamInMode, localDateStr, summarizeCategoryTrend, calculateGoalGapGuidance, TREND_FLAT_THRESHOLD_PCT, classifyDurationVariance } from "../constants.js";
 import {
   fetchTeamGoals, setTeamGoals, updateGoalsWindowWeeks,
-  fetchTeamGoalReport, fetchTeamSessionHistory, fetchSessionActivityLog, fetchNotesForPractice, archiveNote,
+  fetchTeamGoalReport, fetchTeamGoalTrends, fetchTeamSessionHistory, fetchSessionActivityLog, fetchSessionExecutionScorecard, fetchNotesForPractice, archiveNote,
   setSessionExclusion, adjustSessionActivity, addSessionActivityRow, logGoalViewed,
   markPracticeNotesViewed, markNotesViewedForPractices,
 } from "../supabase.js";
@@ -228,6 +228,80 @@ const toLocalInputValue = iso => {
   return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
 };
 
+const fmtSec = s => s == null ? null : Math.round(s / 60 * 10) / 10;
+
+function ScoreTile({ label, value }) {
+  return (<div>
+    <div style={{ fontSize: 10, color: "var(--td)", textTransform: "uppercase", letterSpacing: ".04em", fontWeight: 700 }}>{label}</div>
+    <div style={{ fontSize: 15, fontWeight: 700 }}>{value}</div>
+  </div>);
+}
+
+const EXECUTION_GROUP_LABELS = {
+  extended: "Extended", shortened: "Shortened", on_plan: "On Plan",
+  skipped: "Skipped / Not Logged", manual: "Logged but Not Originally Captured",
+};
+function ExecutionGroup({ groupKey, items }) {
+  if (!items.length) return null;
+  return (<div style={{ marginBottom: 10 }}>
+    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--green2)", marginBottom: 4 }}>{EXECUTION_GROUP_LABELS[groupKey]} ({items.length})</div>
+    {items.map(a => (<div key={a.unit_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0" }}>
+      <span>{a.name}{a.category_names.length > 0 && <span style={{ color: "var(--td)" }}> · {a.category_names.join(", ")}</span>}</span>
+      <span style={{ color: "var(--tm)", fontFamily: "DM Mono,monospace", flexShrink: 0, marginLeft: 8 }}>
+        {fmtSec(a.planned_seconds)}m planned{a.actual_seconds != null ? " · " + fmtSec(a.actual_seconds) + "m actual" : " · not logged"}
+      </span>
+    </div>))}
+  </div>);
+}
+
+// Enhancement 5. Structured measures, deliberately no single overall score
+// (spec: "the scorecard is a structured set of measures, not a judgment of
+// coaching quality"). Classification reuses the exact same
+// classifyDurationVariance/ON_PLAN_TOLERANCE_SECONDS Drill Insights also
+// uses, so "extended"/"shortened" means the same thing in both places.
+function PracticeExecutionScorecard({ scorecard }) {
+  if (!scorecard) return (<div style={{ fontSize: 12, color: "var(--td)", padding: "8px 0" }}>Loading execution scorecard...</div>);
+
+  const groups = { extended: [], shortened: [], on_plan: [], skipped: [], manual: [] };
+  (scorecard.activities || []).forEach(a => {
+    if (a.actual_seconds == null) { groups.skipped.push(a); return; }
+    if (a.logged_but_not_captured) { groups.manual.push(a); return; }
+    const c = classifyDurationVariance(a.planned_seconds, a.actual_seconds);
+    groups[c].push(a);
+  });
+  const pctCaptured = scorecard.planned_activity_minutes > 0 ? Math.round(scorecard.logged_activity_minutes / scorecard.planned_activity_minutes * 100) : null;
+  const noLogsAtAll = (scorecard.activities || []).every(a => a.actual_seconds == null);
+
+  return (<div className="card mb10">
+    <div className="clbl mb8">Practice Execution</div>
+    {scorecard.excluded && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>This session is excluded from rolling Goals &amp; Insights, but the scorecard below still reflects what actually happened.</div>}
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+      <ScoreTile label="Planned Duration" value={scorecard.planned_duration_minutes != null ? scorecard.planned_duration_minutes + "m" : "Not set"} />
+      <ScoreTile label="Actual Duration" value={scorecard.actual_wall_minutes + "m"} />
+      <ScoreTile label="Planned Activity Time" value={scorecard.planned_activity_minutes + "m"} />
+      <ScoreTile label="Logged Activity Time" value={scorecard.logged_activity_minutes + "m"} />
+      <ScoreTile label="Plan Completion" value={scorecard.plan_completion_count + " of " + scorecard.plan_total_count + " logged"} />
+      <ScoreTile label="Attendance" value={scorecard.attendance_present_count + " of " + scorecard.roster_count} />
+    </div>
+    {pctCaptured != null && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 12 }}>{pctCaptured}% of planned activity minutes captured · ~{scorecard.other_transition_minutes}m other/transition time</div>}
+
+    {noLogsAtAll ? (
+      <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>No actual activity timing was captured for this practice.</div>
+    ) : (<>
+      <ExecutionGroup groupKey="extended" items={groups.extended} />
+      <ExecutionGroup groupKey="shortened" items={groups.shortened} />
+      <ExecutionGroup groupKey="on_plan" items={groups.on_plan} />
+      <ExecutionGroup groupKey="skipped" items={groups.skipped} />
+      <ExecutionGroup groupKey="manual" items={groups.manual} />
+    </>)}
+
+    {scorecard.category_comparison.length > 0 && <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--b)" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--td)", marginBottom: 4 }}>Planned vs. Actual, This Practice</div>
+      {scorecard.category_comparison.slice(0, 3).map(c => (<div key={c.skill_category_id} style={{ fontSize: 12, marginBottom: 2 }}>{c.name}: planned {c.planned_pct}%, actual {c.actual_pct}%</div>))}
+    </div>}
+  </div>);
+}
+
 function TimeRangeForm({ start, end, setStart, setEnd, onSave, onCancel, busy, saveLabel }) {
   return (<div style={{ background: "var(--s2)", borderRadius: "var(--rs)", padding: 10, marginTop: 6 }}>
     <div className="g2 mb6">
@@ -256,11 +330,29 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
   // always registers with Layout's colored bar instead of its own inline
   // Back button -- the !setSubViewBack fallback below is just defensive
   // consistency with PracticeDetail/HistoryViewer, not expected to trigger.
+  //
+  // Real infinite-loop bug found live (Execution Scorecard verification,
+  // 2026-08-02), same class as PlayerProfile's useBlocker gotcha already
+  // documented below: `onBack` is a fresh closure every time GoalsScreen
+  // renders (`onBack={() => setOpenSessionId(null)}`), so depending on it
+  // directly re-ran this effect on every render, which called
+  // setSubViewBack({onBack}) -- a *new* object every time, which lives in
+  // Layout's own state and re-renders Layout (and everything Layout wraps,
+  // including this route) on every call, which recreates `onBack` again,
+  // forever. The extra state-driven re-renders this session's new
+  // scorecard fetch introduced were apparently just enough to tip an
+  // already-fragile pattern into a full runaway (reproduced: render count
+  // climbing unbounded within a second of opening a session). Fixed the
+  // same way PlayerProfile's version was: register once via a ref that
+  // always holds the latest onBack, instead of re-registering every time
+  // the closure identity changes.
+  const onBackRef = useRef(onBack);
+  useEffect(() => { onBackRef.current = onBack; });
   useEffect(() => {
     if (!setSubViewBack) return;
-    setSubViewBack({ onBack });
+    setSubViewBack({ onBack: () => onBackRef.current() });
     return () => setSubViewBack(null);
-  }, [setSubViewBack, onBack]);
+  }, [setSubViewBack]);
   const [logs, setLogs] = useState(null);
   const [notes, setNotes] = useState([]);
   const [editingLogId, setEditingLogId] = useState(null);
@@ -271,10 +363,16 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
   const [addEnd, setAddEnd] = useState("");
   const [busy, setBusy] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
+  const [scorecard, setScorecard] = useState(null);
   const loc = (practice && data) ? data.locations.find(l => l.id === practice.locationId) : null;
 
   const refresh = useCallback(() => { fetchSessionActivityLog(session.session_id).then(setLogs); }, [session.session_id]);
   useEffect(() => { refresh(); }, [refresh]);
+  // Refreshed alongside the raw log (same triggers: initial mount, an
+  // adjust/add/exclude edit) so it never displays stale values after a
+  // manager edits history, per the spec's explicit requirement.
+  const refreshScorecard = useCallback(() => { setScorecard(null); fetchSessionExecutionScorecard(session.session_id).then(setScorecard); }, [session.session_id]);
+  useEffect(() => { refreshScorecard(); }, [refreshScorecard]);
   const refreshNotes = useCallback(() => { if (practice) fetchNotesForPractice(practice.id).then(setNotes); }, [practice && practice.id]);
   useEffect(() => { refreshNotes(); }, [refreshNotes]);
   const doArchiveNote = async id => { await archiveNote(id); refreshNotes(); };
@@ -304,7 +402,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
     setBusy(true);
     await adjustSessionActivity(editingLogId, new Date(editStart).toISOString(), new Date(editEnd).toISOString());
     setBusy(false); setEditingLogId(null);
-    refresh(); if (onChanged) onChanged();
+    refresh(); refreshScorecard(); if (onChanged) onChanged();
   };
   const startAddRow = (practiceActivityId, stationId) => { setAddingFor({ practiceActivityId, stationId }); setAddStart(""); setAddEnd(""); };
   const saveAddRow = async () => {
@@ -312,12 +410,13 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
     setBusy(true);
     await addSessionActivityRow(session.session_id, { practiceActivityId: addingFor.practiceActivityId, stationId: addingFor.stationId, startedAt: new Date(addStart).toISOString(), endedAt: new Date(addEnd).toISOString() });
     setBusy(false); setAddingFor(null);
-    refresh(); if (onChanged) onChanged();
+    refresh(); refreshScorecard(); if (onChanged) onChanged();
   };
   const toggleExclude = async () => {
     setBusy(true);
     await setSessionExclusion(session.session_id, !session.excluded);
     setBusy(false);
+    refreshScorecard();
     if (onChanged) onChanged();
   };
 
@@ -332,6 +431,8 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
       {session.excluded && <span className="bdg bs" style={{ marginLeft: 6 }}>Excluded from goals</span>}
       {session.adjusted && <span className="bdg bp" style={{ marginLeft: 6 }}>Adjusted</span>}
     </div>
+
+    <PracticeExecutionScorecard scorecard={scorecard} />
 
     {(session.top_skills || []).length > 0 && <div className="card mb10">
       <div className="clbl mb8">Skill Minutes</div>
@@ -452,6 +553,187 @@ function HistoryList({ history, data, canManage, onOpen }) {
   </div>);
 }
 
+// Overview/Trends/History internal view selector (Goals & Insights
+// enhancements spec, "Recommended internal navigation"). Same rounded-pill
+// sub-toggle visual already used for Coach/Org mode (HomeScreen.jsx) and My
+// Drills/Team Libraries (NewLibraryScreen.jsx) -- generalizes cleanly to a
+// third option rather than inventing a new tab style.
+function GoalsSubnav({ view, setView }) {
+  return (<div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3, marginBottom: 14 }}>
+    {[{ k: "overview", label: "Overview" }, { k: "trends", label: "Trends" }, { k: "history", label: "History" }].map(t => (
+      <button key={t.k} onClick={() => setView(t.k)} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: view === t.k ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: view === t.k ? "var(--black)" : "var(--td)" }}>{t.label}</button>
+    ))}
+  </div>);
+}
+
+// Compact inline-SVG weekly line chart -- Actual (solid, heavier) vs.
+// Planned (dashed, lighter) vs. current Target (dotted flat reference),
+// distinguishable by line style as well as color per the acceptance
+// criteria ("not relying only on color"). Null weeks break the line rather
+// than connecting across them (spec: "empty weeks do not produce misleading
+// connected data"), by splitting into contiguous runs of usable points.
+function WeeklyTrendChart({ weeks, targetPct }) {
+  const W = 280, H = 64, PAD = 6;
+  const n = weeks.length;
+  const xStep = n > 1 ? (W - PAD * 2) / (n - 1) : 0;
+  const x = i => PAD + i * xStep;
+  const y = pct => H - PAD - (Math.max(0, Math.min(100, pct)) / 100) * (H - PAD * 2);
+
+  const runsFor = key => {
+    const runs = [];
+    let cur = [];
+    weeks.forEach((w, i) => {
+      if (w[key] == null) { if (cur.length) runs.push(cur); cur = []; return; }
+      cur.push([x(i), y(w[key])]);
+    });
+    if (cur.length) runs.push(cur);
+    return runs;
+  };
+  const actualRuns = runsFor("actual_pct");
+  const plannedRuns = runsFor("planned_pct");
+  const toPoints = run => run.map(p => p.join(",")).join(" ");
+
+  return (<svg viewBox={"0 0 " + W + " " + H} style={{ width: "100%", height: H, display: "block" }} role="img" aria-label={"Weekly actual and planned trend" + (targetPct != null ? ", target " + targetPct + "%" : "")}>
+    {targetPct != null && <line x1={PAD} x2={W - PAD} y1={y(targetPct)} y2={y(targetPct)} stroke="var(--black)" strokeWidth="1.5" strokeDasharray="1,3" />}
+    {plannedRuns.map((run, i) => (<polyline key={"p" + i} points={toPoints(run)} fill="none" stroke="var(--gb)" strokeWidth="2" strokeDasharray="4,3" />))}
+    {actualRuns.map((run, i) => (<g key={"a" + i}>
+      <polyline points={toPoints(run)} fill="none" stroke="var(--green)" strokeWidth="2.5" />
+      {run.map((p, j) => (<circle key={j} cx={p[0]} cy={p[1]} r="2.5" fill="var(--green)" />))}
+    </g>))}
+  </svg>);
+}
+
+// Enhancement 1's per-category card: name, current target/rolling planned/
+// rolling actual, pt variance, weekly chart, plain-language trend summary.
+// Tapping expands a weekly table so the report reads correctly without
+// relying only on chart geometry (acceptance criteria).
+// Simple unweighted average of a week field across weeks that have it --
+// deliberately not reusing get_team_goal_report's own "rolling" percentages
+// here, even though both are labeled "current rolling": that report's
+// planned bucket is forward-looking (what's currently scheduled), while
+// this card's chart is the backward-looking, completed-session-cohort
+// figure get_team_goal_trends returns -- mixing the two produced a real,
+// confusing mismatch caught in live verification (a card reading "Planned
+// 0%" directly beside a chart visibly showing ~55% planned). Averaging the
+// same weekly values the chart already plots keeps the summary line and
+// the chart telling the same story.
+const avgWeekField = (weeks, key) => {
+  const vals = weeks.filter(w => w[key] != null).map(w => w[key]);
+  return vals.length ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10 : null;
+};
+function GoalTrendCard({ cat }) {
+  const [expanded, setExpanded] = useState(false);
+  const weeks = cat.weeks || [];
+  const currentActualPct = avgWeekField(weeks, "actual_pct");
+  const currentPlannedPct = avgWeekField(weeks, "planned_pct");
+  const variance = (currentActualPct != null && cat.target_pct != null) ? Math.round((currentActualPct - cat.target_pct) * 10) / 10 : null;
+  const summary = summarizeCategoryTrend(weeks, cat.target_pct);
+
+  return (<div className="card mb10">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", cursor: "pointer" }} onClick={() => setExpanded(e => !e)}>
+      <span style={{ fontSize: 15, fontWeight: 700 }}>{cat.skill_category_name}</span>
+      <span style={{ color: "var(--td)", fontSize: 16 }}>{expanded ? "▾" : "▸"}</span>
+    </div>
+    <div style={{ display: "flex", gap: 10, fontSize: 11, color: "var(--td)", marginTop: 2, marginBottom: 8, flexWrap: "wrap" }}>
+      <span>Target {cat.target_pct}%</span>
+      <span>Planned {currentPlannedPct != null ? currentPlannedPct + "%" : "–"}</span>
+      <span>Actual {currentActualPct != null ? currentActualPct + "%" : "–"}</span>
+      {variance != null && <span style={{ fontWeight: 700, color: Math.abs(variance) < TREND_FLAT_THRESHOLD_PCT ? "var(--td)" : (variance < 0 ? "var(--red)" : "var(--green2)") }}>{variance > 0 ? "+" : ""}{variance} pts vs target</span>}
+    </div>
+    <WeeklyTrendChart weeks={weeks} targetPct={cat.target_pct} />
+    <div style={{ fontSize: 12, color: "var(--td)", marginTop: 8 }}>{summary}</div>
+    {expanded && <div style={{ marginTop: 10, borderTop: "1px solid var(--b)", paddingTop: 8 }}>
+      {weeks.map(w => (<div key={w.week_start_local} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0", borderBottom: "1px solid var(--s2)" }}>
+        <span style={{ color: "var(--td)" }}>{new Date(w.week_start_local + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}–{new Date(w.week_end_local + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+        <span>Planned {w.planned_pct != null ? w.planned_pct + "%" : "–"}</span>
+        <span>Actual {w.actual_pct != null ? w.actual_pct + "%" : "–"}</span>
+        <span style={{ color: "var(--td)" }}>Target {cat.target_pct}%</span>
+      </div>))}
+    </div>}
+  </div>);
+}
+
+// Enhancement 1's Trends view. Fetches get_team_goal_trends once per team +
+// window -- every number a card shows (including its rolling Planned/
+// Actual summary) comes from that one payload, never mixed with
+// get_team_goal_report's forward-looking Planned bucket (see
+// GoalTrendCard's own comment for why that mix produced a real, confusing
+// mismatch in live verification).
+function TrendsView({ teamId, team, canManage }) {
+  const [trends, setTrends] = useState(null);
+  useEffect(() => { setTrends(null); fetchTeamGoalTrends(teamId).then(setTrends); }, [teamId]);
+
+  if (trends === null) return (<div style={{ padding: "40px 0", textAlign: "center", color: "var(--td)" }}>Loading...</div>);
+  const categories = trends.categories || [];
+  if (categories.length === 0) return (<div className="empty">
+    <div className="emtx">Set team goals to see development trends.</div>
+    {canManage && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 6 }}>Switch to Overview to set targets for this team's skill categories.</div>}
+  </div>);
+  if (!trends.has_any_completed_sessions) return (<div className="empty"><div className="emtx">Run a practice live to begin building actual-time trends.</div></div>);
+
+  return (<div>
+    <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 12 }}>Compared with the team's current goals.</div>
+    {categories.map(cat => (<GoalTrendCard key={cat.skill_category_id} cat={cat} />))}
+  </div>);
+}
+
+// Enhancement 2, Next Practice Guidance. Overview-only, sits under the
+// existing Target vs. Planned vs. Actual report. Uses Actual history first
+// when usable, falls back to Planned (labeled), and only shows minute
+// recommendations once a real next-practice (or team-derived) duration is
+// known -- never a silently-assumed 60 minutes, per the spec.
+function NextPracticeGuidance({ team, teamId, data, report, canManage }) {
+  const [showAll, setShowAll] = useState(false);
+  if (!report || !(report.skills || []).length) return null;
+
+  const todayStr = localDateStr();
+  const teamPractices = (data.practices || []).filter(p => p.teamId === teamId && p.status !== "cancelled");
+  const nextPractice = teamPractices.filter(p => p.date >= todayStr).sort((a, b) => a.date === b.date ? (a.startTime || "").localeCompare(b.startTime || "") : a.date.localeCompare(b.date))[0] || null;
+  // Fallback: the team's own most recent scheduled duration, when no
+  // upcoming practice exists yet -- never an arbitrary assumed default.
+  const mostRecentDuration = (() => {
+    const withDur = teamPractices.filter(p => p.scheduledDurationMinutes).sort((a, b) => b.date.localeCompare(a.date));
+    return withDur.length ? withDur[0].scheduledDurationMinutes : null;
+  })();
+  const practiceDuration = (nextPractice && nextPractice.scheduledDurationMinutes) || mostRecentDuration || null;
+
+  const hasUsableActual = (report.denominators || {}).actual_minutes_total > 0;
+  const hasUsablePlanned = (report.denominators || {}).planned_minutes_total > 0;
+  const source = hasUsableActual ? "actual" : (hasUsablePlanned ? "planned" : "goal_only");
+
+  const categories = (report.skills || []).filter(s => s.target_pct != null).map(s => ({
+    skillCategoryId: s.skill_category_id, name: s.name, targetPct: s.target_pct,
+    currentPct: source === "planned" ? s.planned_pct : s.actual_pct,
+    currentMinutes: source === "actual" ? s.actual_minutes : (source === "planned" ? s.planned_minutes : null),
+    historicalTotalMinutes: source === "actual" ? report.denominators.actual_minutes_total : (source === "planned" ? report.denominators.planned_minutes_total : null),
+  }));
+  if (!categories.length) return null;
+
+  const guidance = calculateGoalGapGuidance(categories, practiceDuration);
+  const below = guidance.filter(g => !g.atOrAboveGoal).sort((a, b) => b.gapPts - a.gapPts);
+  const shown = showAll ? below : below.slice(0, 3);
+  const anyUnclosable = below.some(g => g.closable === false);
+
+  return (<div className="card mb10">
+    <div className="clbl mb8">Next Practice Guidance</div>
+    {source === "planned" && <div style={{ fontSize: 12, color: "var(--amber)", marginBottom: 8 }}>Based on planned practice time until actual timing is available.</div>}
+    {source === "goal_only" && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>No practice history yet -- showing your goal mix as a starting point.</div>}
+    {!practiceDuration && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>Schedule a practice to see minute recommendations -- percentages only for now.</div>}
+
+    {below.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>Every category is at or above its goal right now.</div>}
+    {shown.map(g => (<div key={g.skillCategoryId} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid var(--b)" }}>
+      <div style={{ fontSize: 13, fontWeight: 700 }}>{g.name} is {g.gapPts} point{g.gapPts === 1 ? "" : "s"} below goal.</div>
+      <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>
+        {g.goalMixMinutes != null && <>A goal-balanced {practiceDuration}-minute practice would include {g.goalMixMinutes} minute{g.goalMixMinutes === 1 ? "" : "s"}. </>}
+        {g.minutesNeeded != null && g.closable && <>Approximately {g.minutesNeeded} minute{g.minutesNeeded === 1 ? "" : "s"} would be needed to fully close the current rolling gap in one practice.</>}
+        {g.minutesNeeded != null && g.closable === false && <>This gap cannot be fully closed in one practice.</>}
+      </div>
+    </div>))}
+    {below.length > 3 && !showAll && <button className="btn ghost bxs" onClick={() => setShowAll(true)}>Show all categories</button>}
+    {anyUnclosable && below.length > 1 && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 4 }}>The current gaps cannot all be closed in one practice. Prioritize the areas that matter most for this team right now.</div>}
+  </div>);
+}
+
 // Goals + Insights tab (handoff §5). Ties together the editor, glance view,
 // and promoted History list/detail for one team.
 export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mode }) {
@@ -460,6 +742,11 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
   // org team should be able to set goals/exclude sessions/archive notes
   // without needing a personal team_staff row on that specific team.
   const canManage = team ? canManageTeamInMode(team, coachId, mode) : false;
+  // Overview/Trends/History (spec's internal-navigation addition). Plain
+  // component state, not persisted -- it naturally survives opening/closing
+  // a SessionHistoryDetail within the same mount (view isn't reset by that),
+  // which is all the spec asks for ("during the same mounted session").
+  const [view, setView] = useState("overview");
   const [goals, setGoals] = useState(null);
   const [report, setReport] = useState(null);
   const [history, setHistory] = useState(null);
@@ -506,12 +793,19 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
   // the 2026-07-2x flattened top-tabs redesign gave this its own direct
   // route (/team/:teamId/goals).
   return (<div style={{ paddingBottom: "calc(var(--tab) + 20px)" }}>
-    {canManage && <GoalsEditor teamId={teamId} team={team} data={data} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
-    <GlanceView report={report} />
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4, marginBottom: 8 }}>
-      <div className="clbl" style={{ marginBottom: 0 }}>History</div>
-      {canManage && anyUnviewed && <button className="btn ghost bxs" onClick={markAllViewed}>Mark all as viewed</button>}
-    </div>
-    <HistoryList history={history} data={data} canManage={canManage} onOpen={s => setOpenSessionId(s.session_id)} />
+    <GoalsSubnav view={view} setView={setView} />
+    {view === "overview" && (<>
+      {canManage && <GoalsEditor teamId={teamId} team={team} data={data} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
+      <GlanceView report={report} />
+      <NextPracticeGuidance team={team} teamId={teamId} data={data} report={report} canManage={canManage} />
+    </>)}
+    {view === "trends" && <TrendsView teamId={teamId} team={team} canManage={canManage} />}
+    {view === "history" && (<>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+        <div className="clbl" style={{ marginBottom: 0 }}>History</div>
+        {canManage && anyUnviewed && <button className="btn ghost bxs" onClick={markAllViewed}>Mark all as viewed</button>}
+      </div>
+      <HistoryList history={history} data={data} canManage={canManage} onOpen={s => setOpenSessionId(s.session_id)} />
+    </>)}
   </div>);
 }

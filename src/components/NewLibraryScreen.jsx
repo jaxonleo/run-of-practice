@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { uid, sumMins, localDateStr, planningState } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
-import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation } from "../supabase.js";
+import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, fetchDrillInsightSummaries } from "../supabase.js";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
+import DrillInsightsView, { DrillInsightHeatIcon } from "./DrillInsightsView.jsx";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
@@ -849,6 +850,8 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const [confirmDel,setConfirmDel]=useState(null);
   const [collapsed,setCollapsed]=useState({});
   const [drillMenu,setDrillMenu]=useState(null);
+  const [insightSummaries,setInsightSummaries]=useState({});
+  const [openInsightsId,setOpenInsightsId]=useState(null);
   const [shelf,setShelf]=useState("mine");
   const [shareMenuId,setShareMenuId]=useState(null);
   const [copyingId,setCopyingId]=useState(null);
@@ -948,6 +951,17 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
     if(shelf.startsWith("sharedBy:")){const [,orgId,ownerId]=shelf.split(":");return (data.activityLibrary||[]).filter(a=>a.ownerUserId===ownerId&&(a.sharedWithOrganizationIds||[]).includes(orgId));}
     return [];
   })();
+  // Enhancement 6: one batch call for the whole owned-drill shelf (My
+  // Drills/Org Drills only -- isMine below gates where this even renders),
+  // never per card. Re-fetched when the visible id set changes, not on
+  // every render.
+  const mineShelfIdsKey=shelf==="mine"?shelfDrillsAll.map(a=>a.id).join(","):"";
+  useEffect(()=>{
+    if(!mineShelfIdsKey){setInsightSummaries({});return;}
+    fetchDrillInsightSummaries(mineShelfIdsKey.split(",")).then(rows=>{
+      setInsightSummaries(Object.fromEntries((rows||[]).map(r=>[r.library_activity_id,r])));
+    });
+  },[mineShelfIdsKey]);
   const isMine=shelf==="mine";
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
@@ -1155,18 +1169,22 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
               {!isMine&&<div style={{fontSize:11,color:"var(--green2)",marginTop:4}}>Shared by {(data.profilesById&&data.profilesById[act.ownerUserId]&&data.profilesById[act.ownerUserId].name)||"a coach"}</div>}
               {!isMine&&shelf.startsWith("sharedBy:")&&<button className="btn outline bxs" style={{marginTop:6}} onClick={()=>doCopy(act)} disabled={copyingId===act.id}>{copyingId===act.id?"Copying...":isOrgMode?"Copy to Org Library":"Copy to My Library"}</button>}
             </div>
-            {isMine&&<div style={{position:"relative",flexShrink:0}}>
+            {isMine&&<div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+              <DrillInsightHeatIcon summary={insightSummaries[act.id]} onClick={()=>setOpenInsightsId(act.id)} />
+              <div style={{position:"relative",flexShrink:0}}>
               <button className="ell-btn" onClick={e=>{e.stopPropagation();setDrillMenu(drillMenu===act.id?null:act.id);setShareMenuId(null);}}><span/><span/><span/></button>
               {drillMenu===act.id&&<div className="mini-menu" style={{right:0,minWidth:140}}>
                 <button className="mm-item" onClick={()=>{setDrillMenu(null);openModal("editActivity",{activity:act});}}>Edit</button>
                 {myOrgs.length>0&&<button className="mm-item" onClick={e=>{e.stopPropagation();setDrillMenu(null);setShareMenuId(shareMenuId===act.id?null:act.id);}}>{(act.sharedWithOrganizationIds||[]).length>0?"Change Sharing":"Share..."}</button>}
                 {(act.sharedWithOrganizationIds||[]).length>0&&<button className="mm-item" onClick={()=>makePrivate(act.id)}>Make Private</button>}
                 <button className="mm-item" onClick={()=>toggleDrillPrivate(act.id,!act.isPrivate)}>{act.isPrivate?"Share with My Coaches":"Hide from My Coaches"}</button>
+                <button className="mm-item" onClick={()=>{setDrillMenu(null);setOpenInsightsId(act.id);}}>View Drill Insights</button>
                 <button className="mm-item mm-danger" onClick={async()=>{setDrillMenu(null);await archiveDrill(act.id);await refreshLibrary();}}>Delete</button>
               </div>}
               {shareMenuId===act.id&&<div className="mini-menu" style={{right:0,top:"100%",minWidth:160}} onClick={e=>e.stopPropagation()}>
                 {myOrgs.map(org=>(<button key={org.id} className="mm-item" onClick={()=>toggleShare(act.id,org.id)}>{(act.sharedWithOrganizationIds||[]).includes(org.id)?"✓ ":""}{org.name}</button>))}
               </div>}
+              </div>
             </div>}
           </div>);
           if(!isMine)return sportDrills.map(act=>(<Row key={act.id} act={act} dragHandle={null}/>));
@@ -1233,5 +1251,6 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
     </div>}
     {showSchedulePicker&&<SchedulePracticePicker data={data} onClose={()=>setShowSchedulePicker(false)} onPick={p=>{setShowSchedulePicker(false);goToBuilder(p.id);}}/>}
     {copyDialogDrill&&<EquipmentMismatchDialog drillName={copyDialogDrill.name} missing={findMissingEquipment(copyDialogDrill.equipment,assetsById,ownPoolForCopy)} context="library" onAddWithEquipment={()=>runCopy(copyDialogDrill,true)} onAddAnyway={()=>runCopy(copyDialogDrill,false)} onCancel={()=>setCopyDialogDrill(null)}/>}
+    {openInsightsId&&<DrillInsightsView libraryActivityId={openInsightsId} drillName={(data.activityLibrary||[]).find(a=>a.id===openInsightsId)?.name||"Drill"} onClose={()=>setOpenInsightsId(null)}/>}
   </div>);
 }
