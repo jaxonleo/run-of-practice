@@ -307,6 +307,20 @@ export async function acknowledgeTeamDeparture(id) {
   if (error) console.error('acknowledgeTeamDeparture:', error)
   return { error }
 }
+// Mirrors fetchPendingTeamDepartures exactly, other direction: a head
+// coach finding out an invite was accepted, directed to set up Permissions
+// for the new coach (direct feedback -- this used to be silent beyond the
+// roster growing, same original gap team_departures already closed once).
+export async function fetchPendingTeamJoinNotices() {
+  const { data, error } = await supabase.from('team_join_notices').select('id, team_id, joined_user_id, joined_name, role, joined_at, teams(name)').is('acknowledged_at', null).order('joined_at', { ascending: false })
+  if (error) { console.error('fetchPendingTeamJoinNotices:', error); return [] }
+  return (data || []).map(n => ({ id: n.id, teamId: n.team_id, teamName: n.teams ? n.teams.name : '', joinedUserId: n.joined_user_id, joinedName: n.joined_name, role: ROLE_LABELS[n.role] || n.role, joinedAt: n.joined_at }))
+}
+export async function acknowledgeTeamJoinNotice(id) {
+  const { error } = await supabase.rpc('acknowledge_team_join_notice', { p_notice_id: id })
+  if (error) console.error('acknowledgeTeamJoinNotice:', error)
+  return { error }
+}
 // Personal Home-agenda visibility only -- narrow, self-row-only RPC (see
 // migration comment), not an access-control change.
 export async function setTeamStaffShowOnHome(teamStaffId, show) {
@@ -431,6 +445,9 @@ export async function fetchLibraryData() {
   // Same reasoning again for team_invites -- the invitee's own pending
   // invites, surfaced as a real accept/decline card on Home.
   const pendingTeamInvites = await fetchPendingTeamInvites()
+  // Same reasoning again for join notices -- the head coach's own
+  // notification that an invite was accepted, directing them to Permissions.
+  const pendingTeamJoinNotices = await fetchPendingTeamJoinNotices()
   if (drillsRes.error) console.error('fetchLibraryData drills:', drillsRes.error)
   if (assetsRes.error) console.error('fetchLibraryData assets:', assetsRes.error)
 
@@ -454,6 +471,7 @@ export async function fetchLibraryData() {
     pendingOrgInvites,
     pendingTeamDepartures,
     pendingTeamInvites,
+    pendingTeamJoinNotices,
     profilesById,
     catalogs: (catalogsRes.data || []).map(mapCatalogRow),
   }

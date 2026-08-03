@@ -2,13 +2,17 @@ import React, { useState, useEffect, useRef } from "react";
 import { uid, sumMins, localDateStr, planningState } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
-import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, fetchDrillInsightSummaries } from "../supabase.js";
+import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport } from "../supabase.js";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
-import DrillInsightsView, { DrillInsightHeatIcon } from "./DrillInsightsView.jsx";
+import DrillInsightsView from "./DrillInsightsView.jsx";
 
 // ── Local icon subset needed by this screen ───────────────────────────────────
 const Ic_Dots=()=><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="4" cy="3.5" r="1.4"/><circle cx="10" cy="3.5" r="1.4"/><circle cx="4" cy="7" r="1.4"/><circle cx="10" cy="7" r="1.4"/><circle cx="4" cy="10.5" r="1.4"/><circle cx="10" cy="10.5" r="1.4"/></svg>;
 const Ic_Chev=({up})=><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points={up?"4 10 8 6 12 10":"4 6 8 10 12 6"}/></svg>;
+// At-a-glance private-drill indicator (direct feedback, twenty-sixth
+// session continued) -- small enough to sit inline next to the drill name
+// without competing with it.
+const Ic_Lock=()=><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="2.5" y="5.2" width="7" height="5.3" rx="1"/><path d="M4 5.2V3.6a2 2 0 0 1 4 0v1.6"/></svg>;
 
 // ── ActConfig, ChecklistConfig, StationConfig ─────────────────────────────────
 // (kept here since they are only used inside Library/Builder/TemplateWorkspace)
@@ -852,6 +856,48 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const [drillMenu,setDrillMenu]=useState(null);
   const [insightSummaries,setInsightSummaries]=useState({});
   const [openInsightsId,setOpenInsightsId]=useState(null);
+  // Confirm-before-Make-Public (direct feedback): a real prompt, not an
+  // instant toggle, since going public changes who can see a drill.
+  const [confirmMakePublicId,setConfirmMakePublicId]=useState(null);
+  // Direct feedback: Custom (drag-and-drop) stays the default, but a coach
+  // can switch to three other orderings. "Suggested" needs a specific
+  // team's goal deficits to rank against -- the library itself isn't
+  // team-scoped, so a small team picker appears only when that mode is
+  // selected, defaulting to the coach's first team.
+  const [drillSort,setDrillSort]=useState("custom");
+  const myTeamsForSort=(data.teams||[]).filter(t=>!t.archivedAt);
+  const [suggestedTeamId,setSuggestedTeamId]=useState("");
+  useEffect(()=>{
+    if(!suggestedTeamId&&myTeamsForSort.length)setSuggestedTeamId(myTeamsForSort[0].id);
+  },[myTeamsForSort.length]);
+  const [suggestedReport,setSuggestedReport]=useState(null);
+  useEffect(()=>{
+    if(drillSort!=="suggested"||!suggestedTeamId){setSuggestedReport(null);return;}
+    fetchTeamGoalReport(suggestedTeamId).then(setSuggestedReport);
+  },[drillSort,suggestedTeamId]);
+  // Deficit per category (target - actual, or planned when no actual
+  // history yet -- same fallback rule the rest of Goals & Insights already
+  // uses), 0 for categories at/above target. A drill's priority is the
+  // largest deficit among the categories any of its tags roll up to, so a
+  // drill tagged to the single most-needed category always sorts highest.
+  const categoryDeficits=(()=>{
+    if(!suggestedReport)return{};
+    const hasActual=(suggestedReport.denominators||{}).actual_minutes_total>0;
+    const out={};
+    (suggestedReport.skills||[]).forEach(s=>{
+      if(s.target_pct==null)return;
+      const current=hasActual?s.actual_pct:s.planned_pct;
+      out[s.skill_category_id]=Math.max(0,s.target_pct-(current||0));
+    });
+    return out;
+  })();
+  const drillPriority=act=>{
+    const tagIds=act.skillTagIds||[];
+    if(!tagIds.length)return 0;
+    const cats=tagIds.map(tid=>skillTagsById[tid]&&skillTagsById[tid].categoryId).filter(Boolean);
+    if(!cats.length)return 0;
+    return Math.max(0,...cats.map(cid=>categoryDeficits[cid]||0));
+  };
   const [shelf,setShelf]=useState("mine");
   const [shareMenuId,setShareMenuId]=useState(null);
   const [copyingId,setCopyingId]=useState(null);
@@ -1102,6 +1148,21 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       {shelf==="public"?(
         <div onClick={e=>e.stopPropagation()}><PublicLibraryScreen data={data} isAdmin={isAdmin} refreshLibrary={refreshLibrary} openModal={openModal} doCopy={doCopy} copyingId={copyingId} mode={mode}/></div>
       ):(<>
+      {isMine&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <label style={{fontSize:12,color:"var(--td)"}}>Sort</label>
+          <select value={drillSort} onChange={e=>setDrillSort(e.target.value)} style={{fontSize:12,padding:"4px 6px",borderRadius:6,border:"1px solid var(--b)"}}>
+            <option value="custom">Custom (drag to reorder)</option>
+            <option value="frequency">Most Frequently Used</option>
+            <option value="alpha">Alphabetical</option>
+            <option value="suggested">Suggested (by goals)</option>
+          </select>
+        </div>
+        {drillSort==="suggested"&&myTeamsForSort.length>1&&<select value={suggestedTeamId} onChange={e=>setSuggestedTeamId(e.target.value)} style={{fontSize:12,padding:"4px 6px",borderRadius:6,border:"1px solid var(--b)"}}>
+          {myTeamsForSort.map(t=>(<option key={t.id} value={t.id}>{t.name}</option>))}
+        </select>}
+      </div>}
+      {drillSort==="suggested"&&isMine&&!suggestedReport&&<div style={{fontSize:12,color:"var(--td)",marginBottom:10}}>Loading goal priorities...</div>}
       <div style={{display:"flex",justifyContent:"flex-end",gap:6,marginBottom:12}}>
         {(availableTags.length>0||(isMine&&availablePublishers.length>1))&&<button className="btn ghost bsm" onClick={e=>{e.stopPropagation();setShowFilter(true);}}>Filter{(tagFilter.length+publisherFilter.length)>0?" ("+(tagFilter.length+publisherFilter.length)+")":""}</button>}
         {isMine&&<button className="btn primary bsm" onClick={()=>openModal("addActivity")}>+ Add Drill</button>}
@@ -1147,15 +1208,35 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           <span style={{fontSize:12,color:"var(--td)"}}>{shelfDrills.filter(a=>(a.sport||"General")===sport).length} drills {collapsed[sport]?"▶":"▼"}</span>
         </button>
         {!collapsed[sport]&&(()=>{
-          const naturalOrder=shelfDrills.filter(a=>(a.sport||"General")===sport).slice().sort((a,b)=>isMine?a.position-b.position:a.name.localeCompare(b.name));
-          const sportDrills=(isMine&&drillOrderOverride[sport])
-            ?drillOrderOverride[sport].map(id=>naturalOrder.find(a=>a.id===id)).filter(Boolean)
-            :naturalOrder;
+          const bySport=shelfDrills.filter(a=>(a.sport||"General")===sport);
+          const naturalOrder=bySport.slice().sort((a,b)=>isMine?a.position-b.position:a.name.localeCompare(b.name));
+          // Custom (default) keeps the existing drag-reorder path untouched.
+          // The other three modes are plain derived sorts -- no persisted
+          // order, no drag affordance while active (dragging while sorted
+          // by frequency/alphabetical/suggested wouldn't mean anything
+          // stable to drop back into).
+          let sportDrills;
+          if(isMine&&drillSort==="alpha"){
+            sportDrills=bySport.slice().sort((a,b)=>a.name.localeCompare(b.name));
+          }else if(isMine&&drillSort==="frequency"){
+            sportDrills=bySport.slice().sort((a,b)=>{
+              const na=(insightSummaries[a.id]&&insightSummaries[a.id].completed_uses_trailing_12_months)||0;
+              const nb=(insightSummaries[b.id]&&insightSummaries[b.id].completed_uses_trailing_12_months)||0;
+              return nb-na||a.name.localeCompare(b.name);
+            });
+          }else if(isMine&&drillSort==="suggested"){
+            sportDrills=bySport.slice().sort((a,b)=>drillPriority(b)-drillPriority(a)||a.name.localeCompare(b.name));
+          }else{
+            sportDrills=(isMine&&drillOrderOverride[sport])
+              ?drillOrderOverride[sport].map(id=>naturalOrder.find(a=>a.id===id)).filter(Boolean)
+              :naturalOrder;
+          }
           const Row=({act,dragHandle})=>(<div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderBottom:"1px solid var(--b)",background:"#fff"}}>
             {dragHandle}
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
                 <span style={{fontWeight:700,fontSize:14}}>{act.name}</span>
+                {isMine&&act.isPrivate&&<span title="Private -- not visible to coaches you share your library with" aria-label="Private drill" style={{color:"var(--td)",display:"flex",flexShrink:0}}><Ic_Lock/></span>}
                 {isMine&&(act.sharedWithOrganizationIds||[]).length>0&&<span className="bdg bp" style={{fontSize:10}}>Shared</span>}
               </div>
               {isMine&&publisherKeyOf(act)!=="self"&&<div style={{fontSize:11,color:"#7c3aed",marginBottom:2}}>From {publisherLabelOf(publisherKeyOf(act))}</div>}
@@ -1170,14 +1251,20 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
               {!isMine&&shelf.startsWith("sharedBy:")&&<button className="btn outline bxs" style={{marginTop:6}} onClick={()=>doCopy(act)} disabled={copyingId===act.id}>{copyingId===act.id?"Copying...":isOrgMode?"Copy to Org Library":"Copy to My Library"}</button>}
             </div>
             {isMine&&<div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
-              <DrillInsightHeatIcon summary={insightSummaries[act.id]} onClick={()=>setOpenInsightsId(act.id)} />
               <div style={{position:"relative",flexShrink:0}}>
               <button className="ell-btn" onClick={e=>{e.stopPropagation();setDrillMenu(drillMenu===act.id?null:act.id);setShareMenuId(null);}}><span/><span/><span/></button>
               {drillMenu===act.id&&<div className="mini-menu" style={{right:0,minWidth:140}}>
                 <button className="mm-item" onClick={()=>{setDrillMenu(null);openModal("editActivity",{activity:act});}}>Edit</button>
                 {myOrgs.length>0&&<button className="mm-item" onClick={e=>{e.stopPropagation();setDrillMenu(null);setShareMenuId(shareMenuId===act.id?null:act.id);}}>{(act.sharedWithOrganizationIds||[]).length>0?"Change Sharing":"Share..."}</button>}
                 {(act.sharedWithOrganizationIds||[]).length>0&&<button className="mm-item" onClick={()=>makePrivate(act.id)}>Make Private</button>}
-                <button className="mm-item" onClick={()=>toggleDrillPrivate(act.id,!act.isPrivate)}>{act.isPrivate?"Share with My Coaches":"Hide from My Coaches"}</button>
+                {/* "Keep Private"/"Make Public" (direct feedback, twenty-
+                    sixth session continued) -- deliberately not "Make
+                    Private" for the private->shared-with-coaches toggle,
+                    since that label is already taken above for the
+                    unrelated org-share-clearing action in this same menu.
+                    Going public gets a real confirm step; going private is
+                    a safe, instant, one-way-reversible action. */}
+                <button className="mm-item" onClick={()=>{setDrillMenu(null);act.isPrivate?setConfirmMakePublicId(act.id):toggleDrillPrivate(act.id,true);}}>{act.isPrivate?"Make Public":"Keep Private"}</button>
                 <button className="mm-item" onClick={()=>{setDrillMenu(null);setOpenInsightsId(act.id);}}>View Drill Insights</button>
                 <button className="mm-item mm-danger" onClick={async()=>{setDrillMenu(null);await archiveDrill(act.id);await refreshLibrary();}}>Delete</button>
               </div>}
@@ -1187,9 +1274,9 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
               </div>
             </div>}
           </div>);
-          if(!isMine)return sportDrills.map(act=>(<Row key={act.id} act={act} dragHandle={null}/>));
+          if(!isMine||drillSort!=="custom")return sportDrills.map(act=>(<Row key={act.id} act={act} dragHandle={null}/>));
           return (<ActivityDndContext sensors={drillDndSensors} onDragEnd={onDrillDragEnd(sport)} items={sportDrills.map(a=>a.id)}>
-            {sportDrills.map(act=>(<SortableActivityRow key={act.id} id={act.id}>{dragHandle=><Row act={act} dragHandle={dragHandle}/>}</SortableActivityRow>))}
+            {sportDrills.map(act=>(<SortableActivityRow key={act.id} id={act.id} raised={drillMenu===act.id||shareMenuId===act.id}>{dragHandle=><Row act={act} dragHandle={dragHandle}/>}</SortableActivityRow>))}
           </ActivityDndContext>);
         })()}
       </div>))}
@@ -1252,5 +1339,13 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
     {showSchedulePicker&&<SchedulePracticePicker data={data} onClose={()=>setShowSchedulePicker(false)} onPick={p=>{setShowSchedulePicker(false);goToBuilder(p.id);}}/>}
     {copyDialogDrill&&<EquipmentMismatchDialog drillName={copyDialogDrill.name} missing={findMissingEquipment(copyDialogDrill.equipment,assetsById,ownPoolForCopy)} context="library" onAddWithEquipment={()=>runCopy(copyDialogDrill,true)} onAddAnyway={()=>runCopy(copyDialogDrill,false)} onCancel={()=>setCopyDialogDrill(null)}/>}
     {openInsightsId&&<DrillInsightsView libraryActivityId={openInsightsId} drillName={(data.activityLibrary||[]).find(a=>a.id===openInsightsId)?.name||"Drill"} onClose={()=>setOpenInsightsId(null)}/>}
+    {confirmMakePublicId&&<div className="movly" onClick={()=>setConfirmMakePublicId(null)}><div className="modal" onClick={e=>e.stopPropagation()}>
+      <div className="mtitle">Make this drill public?</div>
+      <div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This drill will be visible to coaches you share your library with.</div>
+      <div className="brow">
+        <button className="btn ghost bmd" onClick={()=>setConfirmMakePublicId(null)}>Cancel</button>
+        <button className="btn primary bmd" onClick={()=>{const id=confirmMakePublicId;setConfirmMakePublicId(null);toggleDrillPrivate(id,false);}}>Make Public</button>
+      </div>
+    </div></div>}
   </div>);
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { drillUsageHeatTier, classifyDurationVariance } from "../constants.js";
-import { fetchDrillInsights } from "../supabase.js";
+import { fetchDrillInsights, archiveNote } from "../supabase.js";
 
 // Enhancement 6. Deliberately not hover-only (spec: "the main experience is
 // mobile") and deliberately not animated -- a static color swap on load,
@@ -98,9 +98,23 @@ export default function DrillInsightsView({ libraryActivityId, drillName, onClos
 
         {insights.recent_notes.length > 0 && <div className="card mb10">
           <div className="clbl mb8">Recent Notes</div>
-          {insights.recent_notes.map(n => (<div key={n.note_id} style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 11, color: "var(--td)" }}>{n.author_kind === "anonymous" ? (n.author_label || "A helper") + " · Helper" : (n.author_name || "A coach")} · {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
-            <div style={{ fontSize: 13 }}>{n.text}</div>
+          {/* Direct feedback: a note-level hide, not a bulk/all-notes
+              action -- reuses the same archiveNote RPC SessionHistoryDetail
+              already relies on (notes_update_archive's RLS is
+              can_access_practice, which every note reaching this list
+              already satisfies, since get_drill_insights only ever
+              returns notes from teams the caller can currently access).
+              Removed optimistically from local state rather than
+              refetching the whole detail payload for one row. */}
+          {insights.recent_notes.map(n => (<div key={n.note_id} style={{ marginBottom: 8, display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: "var(--td)" }}>{n.author_kind === "anonymous" ? (n.author_label || "A helper") + " · Helper" : (n.author_name || "A coach")} · {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
+              <div style={{ fontSize: 13 }}>{n.text}</div>
+            </div>
+            <button className="btn ghost bxs" title="Hide this note" onClick={async () => {
+              await archiveNote(n.note_id);
+              setInsights(prev => prev && { ...prev, recent_notes: prev.recent_notes.filter(x => x.note_id !== n.note_id) });
+            }}>&times;</button>
           </div>))}
         </div>}
       </>)}

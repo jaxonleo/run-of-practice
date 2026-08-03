@@ -110,7 +110,7 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
           // Padding widened on all sides; the row's gap shrank to
           // compensate so five tabs still fit without more horizontal
           // scrolling than before.
-          return (<button key={id} onClick={() => navigate(path)} style={{ flexShrink: 0, whiteSpace: "nowrap", padding: "8px 6px", border: "none", background: "none", cursor: "pointer", fontFamily: "Barlow Condensed,sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: ".02em", color: active ? "var(--green)" : "var(--td)", borderBottom: "2px solid " + (active ? "var(--green)" : "transparent") }}>
+          return (<button key={id} onClick={() => navigate(path)} style={{ flexShrink: 0, whiteSpace: "nowrap", padding: "8px 6px", border: "none", background: "none", cursor: "pointer", fontFamily: "Barlow Condensed,sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: ".02em", color: active ? "var(--green)" : "var(--td)", borderBottom: "3px solid " + (active ? "var(--green)" : "transparent") }}>
             {label}
           </button>);
         })}
@@ -126,7 +126,12 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
           // and the new back button above always returns there), so it's
           // the one that should stay lit up rather than leaving all three
           // dark the whole time you're inside a team.
-          const active = path === "/" ? location.pathname === "/"
+          // Direct feedback: the global /schedule route ("My Schedule",
+          // reached from Home's own "My Schedule" button) left every tab
+          // dark, same class of gap as the team-workspace case Teams
+          // already covers below -- counts as Home, the tab it's actually
+          // reached from.
+          const active = path === "/" ? (location.pathname === "/" || location.pathname.startsWith("/schedule"))
             : id === "teams" ? (location.pathname.startsWith(path) || location.pathname.startsWith("/team/"))
             : location.pathname.startsWith(path);
           return (<button key={id} className={"ti " + (active ? "on" : "")} onClick={() => navigate(path)}>

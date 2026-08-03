@@ -59,14 +59,28 @@ const Ic_Grip=()=><svg width="16" height="16" viewBox="0 0 16 16" fill="currentC
 // its own sticky header above this list (e.g. Builder's Save/Run Now bar),
 // since two siblings can't both actually occupy top:0 -- the later one just
 // renders hidden underneath the first.
-export function SortableActivityRow({id,children,sticky,stickyTop}){
+export function SortableActivityRow({id,children,sticky,stickyTop,raised}){
   const {attributes,listeners,setNodeRef,transform,transition,isDragging}=useSortable({id});
   // zIndex always at least 1 (not just when dragging/sticky) -- Builder's
   // Run of Practice paints its green background as an absolutely
   // positioned backdrop behind these rows (position:absolute, zIndex:0),
   // not a real wrapping box, so every row needs to reliably stack above it
   // regardless of its own sticky/dragging state.
-  const style={transform:CSS.Transform.toString(transform),transition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?(stickyTop||0):undefined,zIndex:isDragging?1:(sticky?5:1)};
+  //
+  // Real bug found live (Library drill list, direct feedback): every row
+  // here already gets its own stacking context (position:relative + an
+  // explicit zIndex, together always create one), all at the same zIndex
+  // level -- so a row's own interior popover (a mini-menu with its own
+  // higher zIndex) can never visually escape above the *next* row, since
+  // z-index only resolves within a shared stacking context and the next
+  // row is a sibling context painted after it in DOM order regardless of
+  // any zIndex set deep inside the first row. `raised` lets a caller lift
+  // one specific row above its siblings while something inside it (like an
+  // open dropdown) needs to render over what comes after it -- the last
+  // row in a list needs this exactly as much as a middle one, since
+  // without it the row's own trailing padding/the list's own edge clips
+  // the popover the same way a sibling row's background would.
+  const style={transform:CSS.Transform.toString(transform),transition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?(stickyTop||0):undefined,zIndex:isDragging?1:(raised?10:(sticky?5:1))};
   // touchAction:"none" alone stops the page from scrolling under a drag,
   // but iOS Safari still fires its own long-press text-selection callout
   // (the magnifying-glass loupe) independently of that -- WebkitTouchCallout

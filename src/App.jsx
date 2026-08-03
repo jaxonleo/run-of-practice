@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext, Suspense } from "react";
-import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider, Navigate, Outlet, useNavigate, useParams, useBlocker, useSearchParams } from "react-router-dom";
+import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider, Navigate, Outlet, useNavigate, useParams, useBlocker, useSearchParams, useLocation } from "react-router-dom";
 import { Analytics } from '@vercel/analytics/react';
 import Layout from "./Layout.jsx";
 import GoalsScreen from "./components/GoalsScreen.jsx";
@@ -60,7 +60,7 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
    clear enough per direct feedback -- this makes it unambiguous which of
    the three sections you're actually in, same idea as the team-workspace
    top row's own active underline just below the color strip. */
-.ti.on::after{content:"";position:absolute;bottom:0;left:10%;right:10%;height:2px;background:var(--green);border-radius:1px;}
+.ti.on::after{content:"";position:absolute;bottom:0;left:10%;right:10%;height:3px;background:var(--green);border-radius:1px;}
 /* Org mode (per-device Coach/Organization toggle): same three tabs, solid
    green bar as the persistent visual cue -- color alone isn't enough for
    accessibility, so Layout.jsx also shows the org name near the top in
@@ -130,6 +130,7 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .sectitle{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tm);}
 .pill{background:var(--gbg);border:1px solid var(--gb);border-radius:20px;padding:4px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--green);}
 .pill.over{background:var(--rbg);border-color:var(--rb);color:var(--red);}
+.pill.exceeds{background:var(--ambg);border-color:var(--ambb);color:var(--amber);}
 .confirm-box{background:var(--rbg);border:1.5px solid var(--rb);border-radius:var(--r);padding:14px;margin-top:8px;}
 .confirm-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--red);margin-bottom:4px;}
 .confirm-body{font-size:13px;color:var(--black2);margin-bottom:12px;line-height:1.5;}
@@ -1021,6 +1022,40 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // and org-shared drills alongside the coach's own; this list was
   // showing all of them mixed together with no way to tell them apart.
   const filteredLib=data.activityLibrary.filter(a=>!a.sourceCatalogId).filter(a=>(a.sport||"General")===teamSport||(a.sport||"General")==="General");
+  // Direct feedback: this used to show every accessible drill merged
+  // together (own + org + any peer sharing with the coach) with no way to
+  // tell them apart, which read as "I can see my assistant's whole
+  // library" even though nothing was actually copied in. Defaults to just
+  // the coach's own library now, with a switcher for the other libraries
+  // this specific team can actually reach -- the team's own org (if any)
+  // and each peer currently sharing with the coach on this team (both
+  // already correctly RLS-scoped in data.activityLibrary; this just groups
+  // what's already there, same technique NewLibraryScreen's own
+  // exploreShelves uses).
+  const librarySources=useMemo(()=>{
+    const sources=[{key:"mine",label:"My Library"}];
+    if(team&&team.organizationId){
+      const org=(data.myOrgs||[]).find(o=>o.id===team.organizationId);
+      sources.push({key:"org",label:(org?org.name:"Org")+" Library"});
+    }
+    const peerIds=[...new Set(data.activityLibrary.filter(a=>a.ownerUserId&&a.ownerUserId!==coachId&&!a.organizationId).map(a=>a.ownerUserId))];
+    peerIds.forEach(pid=>{
+      const c=team&&(team.coaches||[]).find(c=>c.userId===pid);
+      sources.push({key:"peer:"+pid,label:(c?c.name:"A coach")+"'s Library"});
+    });
+    return sources;
+  },[team,data.activityLibrary,data.myOrgs,coachId]);
+  const [libSource,setLibSource]=useState("mine");
+  // Reset back to "mine" on a team switch -- the other team's org/peers
+  // rarely apply to the new one, and silently browsing a stale source
+  // would be confusing.
+  useEffect(()=>{setLibSource("mine");},[teamId]);
+  const sourceFilteredLib=filteredLib.filter(a=>{
+    if(libSource==="mine")return a.ownerUserId===coachId;
+    if(libSource==="org")return a.organizationId===(team&&team.organizationId);
+    if(libSource.startsWith("peer:"))return a.ownerUserId===libSource.slice(5);
+    return true;
+  });
   const teamTemplates=(data.templates||[]).filter(t=>(t.sport||"General")===teamSport||(t.sport||"General")==="General");
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
@@ -1376,13 +1411,19 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           // the pill updates immediately as the coach edits Duration in
           // Practice Details rather than only after a save/reload.
           const over=editP&&schedDuration&&totalMins<schedDuration*0.9;
+          // Direct feedback: a practice whose drills add up to *more* than
+          // the scheduled duration deserves its own warning too, distinct
+          // from the under-planned case -- amber, not red, since running
+          // long isn't the same problem as not having enough planned yet.
+          const exceeds=editP&&schedDuration&&totalMins>schedDuration;
+          const warn=over?" over":exceeds?" exceeds":"";
           // White-on-green for the normal case -- the pill's own default
           // (light green bg, green text) would nearly disappear against
-          // this section's solid green. The under-planned "over" state
-          // already reads fine here (red/pink against green), so it
-          // keeps its own .pill.over styling untouched rather than being
+          // this section's solid green. Either warning state already reads
+          // fine here (red/amber against green), so it keeps its own
+          // .pill.over/.pill.exceeds styling untouched rather than being
           // forced white too, which would hide the warning entirely.
-          return (acts.length>0||(editP&&schedDuration))&&<span className={"pill"+(over?" over":"")} style={over?{flexShrink:0}:{background:"#fff",borderColor:"#fff",flexShrink:0}}>{editP&&schedDuration?totalMins+"/"+schedDuration+" min":totalMins+"m"}</span>;
+          return (acts.length>0||(editP&&schedDuration))&&<span className={"pill"+warn} style={warn?{flexShrink:0}:{background:"#fff",borderColor:"#fff",flexShrink:0}}>{editP&&schedDuration?totalMins+"/"+schedDuration+" min":totalMins+"m"}</span>;
         })()}
       </div>
       {acts.length===0&&(<div style={{position:"relative",zIndex:1,textAlign:"center",padding:"8px 22px 18px"}}>
@@ -1480,13 +1521,20 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           Practice Components above, with its own collapse caret too
           (defaults open). */}
       <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--black)",color:"#fff",padding:"9px 12px",borderRadius:"var(--r)",marginBottom:8,minHeight:40}}>
-        <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flex:1}}>My Drill Library</span>
-        <button className="btn bxs" style={{background:"rgba(255,255,255,.16)",color:"#fff"}} onClick={()=>openModal("addActivity")}>+ New Activity</button>
+        {librarySources.length>1?(
+          <select value={libSource} onChange={e=>setLibSource(e.target.value)} onClick={e=>e.stopPropagation()} style={{flex:1,background:"rgba(255,255,255,.12)",color:"#fff",border:"1px solid rgba(255,255,255,.3)",borderRadius:6,padding:"5px 6px",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".04em",textTransform:"uppercase"}}>
+            {librarySources.map(s=>(<option key={s.key} value={s.key} style={{color:"#000"}}>{s.label}</option>))}
+          </select>
+        ):(
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flex:1}}>My Library</span>
+        )}
+        {libSource==="mine"&&<button className="btn bxs" style={{background:"rgba(255,255,255,.16)",color:"#fff"}} onClick={()=>openModal("addActivity")}>+ New Activity</button>}
         <button type="button" onClick={()=>setMyDrillsOpen(o=>!o)} aria-label={myDrillsOpen?"Collapse My Drill Library":"Expand My Drill Library"} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",padding:6,display:"flex",alignItems:"center"}}><Ic.Chev up={myDrillsOpen}/></button>
       </div>
       {myDrillsOpen&&(<>
       {team&&<div className="clbl" style={{marginBottom:8}}>{teamSport} + General</div>}
-      {filteredLib.map(lib=>(
+      {sourceFilteredLib.length===0&&<div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>No drills here yet.</div>}
+      {sourceFilteredLib.map(lib=>(
         <div key={lib.id} className="li tap" onClick={()=>addActChecked(lib)}>
           <div className="lim">
             <div className="lin">{lib.name}</div>
@@ -1713,13 +1761,26 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
     if(fixedTeamId){if(teamId!==fixedTeamId)setTeamId(fixedTeamId);return;}
     if(!data.teams.some(t=>t.id===teamId))setTeamId(data.teams[0]?data.teams[0].id:"");
   },[data.teams,fixedTeamId]);
-  const [tab,setTab]=useState("players");
+  // Deep-link from Home's "a coach accepted your invite" notification
+  // (direct feedback) -- same location.state convention Settings' Terms/
+  // Privacy back button already established. Read once on mount; cleared
+  // after use (via the pending-id going null) so switching teams or
+  // re-rendering doesn't keep reopening it.
+  const location=useLocation();
+  const [pendingPermissionsUserId,setPendingPermissionsUserId]=useState(()=>(location.state&&location.state.openPermissionsForUserId)||null);
+  const [tab,setTab]=useState(pendingPermissionsUserId?"coaches":"players");
   const [openMenu,setOpenMenu]=useState(null);
   const [sort,setSort]=useState({by:"firstName",dir:"asc"});
   const [viewPlayer,setViewPlayer]=useState(null);
   const [confirmRemovePlayer,setConfirmRemovePlayer]=useState(null);
   const [permissionsCoach,setPermissionsCoach]=useState(null);
   const team=data.teams.find(t=>t.id===teamId)||null;
+  useEffect(()=>{
+    if(!pendingPermissionsUserId||!team)return;
+    const c=(team.coaches||[]).find(c=>c.userId===pendingPermissionsUserId);
+    if(c)setPermissionsCoach(c);
+    setPendingPermissionsUserId(null);
+  },[pendingPermissionsUserId,team]);
   // canManageTeamInMode, not bare isHeadCoach -- a director managing an org
   // team should be able to add/edit players and staff without needing a
   // personal team_staff row on that specific team (org_create_team no

@@ -165,7 +165,11 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
     })}
 
     {error && <div style={{ fontSize: 12, color: "var(--red)", marginBottom: 10 }}>{error}</div>}
-    <button className="btn primary bmd bfull" onClick={save} disabled={!canSave || saving}>{saving ? "Saving..." : "Save Goals"}</button>
+    {/* Direct feedback: once a save succeeds, Save should gray out again
+        until something actually changes -- canSave alone (totals=100)
+        stayed true after a successful save, so the button looked exactly
+        as clickable as before even though there was nothing left to save. */}
+    <button className="btn primary bmd bfull" onClick={save} disabled={!canSave || saving || !dirty}>{saving ? "Saving..." : "Save Goals"}</button>
     {savedAt && <div style={{ fontSize: 11, color: "var(--td)", textAlign: "center", marginTop: 6 }}>Last saved {fmtSavedAt(savedAt)}</div>}
 
     <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--b)" }}>
@@ -559,7 +563,10 @@ function HistoryList({ history, data, canManage, onOpen }) {
 // Drills/Team Libraries (NewLibraryScreen.jsx) -- generalizes cleanly to a
 // third option rather than inventing a new tab style.
 function GoalsSubnav({ view, setView }) {
-  return (<div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3, marginBottom: 14 }}>
+  // Direct feedback: sat flush against the team workspace's own top tab
+  // row (Schedule/Roster/Equipment/Goals & Insights) with no breathing
+  // room -- marginTop gives it real separation from that row.
+  return (<div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3, marginTop: 14, marginBottom: 14 }}>
     {[{ k: "overview", label: "Overview" }, { k: "trends", label: "Trends" }, { k: "history", label: "History" }].map(t => (
       <button key={t.k} onClick={() => setView(t.k)} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: view === t.k ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: view === t.k ? "var(--black)" : "var(--td)" }}>{t.label}</button>
     ))}
@@ -682,7 +689,42 @@ function TrendsView({ teamId, team, canManage }) {
 // when usable, falls back to Planned (labeled), and only shows minute
 // recommendations once a real next-practice (or team-derived) duration is
 // known -- never a silently-assumed 60 minutes, per the spec.
-function NextPracticeGuidance({ team, teamId, data, report, canManage }) {
+// Direct feedback: which of the coach's own drills actually help close a
+// given category's gap -- tags resolved the same way the rest of this
+// screen's math already does (drill.skillTagIds -> skillTag.categoryId),
+// scoped to the coach's own library only (not org/peer-shared), matching
+// "what's already in my toolkit" rather than pulling in drills that would
+// need copying in first.
+function drillsForCategory(categoryId, data, coachId) {
+  const skillTagsById = Object.fromEntries((data.skillTags || []).map(t => [t.id, t]));
+  return (data.activityLibrary || []).filter(a => a.ownerUserId === coachId
+    && (a.skillTagIds || []).some(tid => skillTagsById[tid] && skillTagsById[tid].categoryId === categoryId));
+}
+
+function CategoryGapRow({ g, practiceDuration, data, coachId }) {
+  const [expanded, setExpanded] = useState(false);
+  const drills = expanded ? drillsForCategory(g.skillCategoryId, data, coachId) : [];
+  return (<div style={{ marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid var(--b)" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", cursor: "pointer" }} onClick={() => setExpanded(e => !e)}>
+      <div style={{ fontSize: 13, fontWeight: 700 }}>{g.name} is {g.gapPts} point{g.gapPts === 1 ? "" : "s"} below goal.</div>
+      <span style={{ color: "var(--td)", fontSize: 14, flexShrink: 0, marginLeft: 8 }}>{expanded ? "▾" : "▸"}</span>
+    </div>
+    <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>
+      {g.goalMixMinutes != null && <>A goal-balanced {practiceDuration}-minute practice would include {g.goalMixMinutes} minute{g.goalMixMinutes === 1 ? "" : "s"}. </>}
+      {g.minutesNeeded != null && g.closable && <>Approximately {g.minutesNeeded} minute{g.minutesNeeded === 1 ? "" : "s"} would be needed to fully close the current rolling gap in one practice.</>}
+      {g.minutesNeeded != null && g.closable === false && <>This gap cannot be fully closed in one practice.</>}
+    </div>
+    {expanded && (<div style={{ marginTop: 8 }}>
+      {drills.length === 0 && <div style={{ fontSize: 12, color: "var(--td)" }}>No drills in your library are tagged to {g.name} yet. Tag a drill with this category from your Library to see it here.</div>}
+      {drills.map(d => (<div key={d.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0" }}>
+        <span>{d.name}</span>
+        <span style={{ color: "var(--tm)", fontFamily: "DM Mono,monospace", flexShrink: 0, marginLeft: 8 }}>{d.duration}m</span>
+      </div>))}
+    </div>)}
+  </div>);
+}
+
+function NextPracticeGuidance({ team, teamId, data, report, canManage, coachId }) {
   const [showAll, setShowAll] = useState(false);
   if (!report || !(report.skills || []).length) return null;
 
@@ -721,14 +763,7 @@ function NextPracticeGuidance({ team, teamId, data, report, canManage }) {
     {!practiceDuration && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>Schedule a practice to see minute recommendations -- percentages only for now.</div>}
 
     {below.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>Every category is at or above its goal right now.</div>}
-    {shown.map(g => (<div key={g.skillCategoryId} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid var(--b)" }}>
-      <div style={{ fontSize: 13, fontWeight: 700 }}>{g.name} is {g.gapPts} point{g.gapPts === 1 ? "" : "s"} below goal.</div>
-      <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>
-        {g.goalMixMinutes != null && <>A goal-balanced {practiceDuration}-minute practice would include {g.goalMixMinutes} minute{g.goalMixMinutes === 1 ? "" : "s"}. </>}
-        {g.minutesNeeded != null && g.closable && <>Approximately {g.minutesNeeded} minute{g.minutesNeeded === 1 ? "" : "s"} would be needed to fully close the current rolling gap in one practice.</>}
-        {g.minutesNeeded != null && g.closable === false && <>This gap cannot be fully closed in one practice.</>}
-      </div>
-    </div>))}
+    {shown.map(g => (<CategoryGapRow key={g.skillCategoryId} g={g} practiceDuration={practiceDuration} data={data} coachId={coachId} />))}
     {below.length > 3 && !showAll && <button className="btn ghost bxs" onClick={() => setShowAll(true)}>Show all categories</button>}
     {anyUnclosable && below.length > 1 && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 4 }}>The current gaps cannot all be closed in one practice. Prioritize the areas that matter most for this team right now.</div>}
   </div>);
@@ -797,7 +832,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
     {view === "overview" && (<>
       {canManage && <GoalsEditor teamId={teamId} team={team} data={data} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
       <GlanceView report={report} />
-      <NextPracticeGuidance team={team} teamId={teamId} data={data} report={report} canManage={canManage} />
+      <NextPracticeGuidance team={team} teamId={teamId} data={data} report={report} canManage={canManage} coachId={coachId} />
     </>)}
     {view === "trends" && <TrendsView teamId={teamId} team={team} canManage={canManage} />}
     {view === "history" && (<>

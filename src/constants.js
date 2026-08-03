@@ -25,11 +25,17 @@ export const sumMins=(acts)=>Math.round(acts.reduce((s,a)=>s+actSecs(a),0)/60);
 // derived only, never stored. Shows for any practice with a scheduled
 // duration, planned or not (0/60 min is exactly the signal an unplanned
 // practice should show). Anything under 90% planned reads as under-planned
-// so it stands out; there's no separate "overplanned" state.
+// so it stands out.
+// Direct feedback (twenty-sixth session continued): a third state --
+// "exceeds", when the planned drills actually add up to *more* than the
+// scheduled duration -- catches a coach's eye separately from the
+// under-planned case, since running long is a different, equally real
+// problem worth flagging before the practice starts, not after.
 export function planningState(practice){
   const target=practice.scheduledDurationMinutes;
   if(!target)return null;
   const total=sumMins(practice.activities||[]);
+  if(total>target)return "exceeds";
   return total<target*0.9?"under":"onTrack";
 }
 // §3: assistants/helpers view + run live but don't edit. Falls back to

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, fetchOrgWeeklyPracticeRollup, findOrCreatePreviewToken, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
+import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, fetchOrgWeeklyPracticeRollup, findOrCreatePreviewToken, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
@@ -14,9 +14,10 @@ function PlanPill({ practice }) {
   if (!st) return null;
   const total = sumMins(practice.activities || []);
   const onTrack = st === "onTrack";
+  const exceeds = st === "exceeds";
   // whiteSpace:nowrap -- otherwise a tight card can wrap mid-phrase (e.g.
   // "0/60" on one line, "min" starting the next), which reads as broken.
-  return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600, whiteSpace: "nowrap" }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
+  return <span style={{ color: onTrack ? "var(--green)" : exceeds ? "var(--amber)" : "var(--red)", fontWeight: 600, whiteSpace: "nowrap" }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
 }
 
 // §6: getting-started checklist, completion fully derived from existing
@@ -274,6 +275,24 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
     setAckingDepartureId(null);
   };
 
+  // The reverse of the departure card above (direct feedback): the head
+  // coach used to find out an invite was accepted only by noticing the
+  // roster grew, with no nudge to actually go set up sharing/delegation for
+  // the new coach. "Set Up Permissions" deep-links into the roster's
+  // Coaches tab and auto-opens PermissionsModal for that specific person
+  // (RostersTab reads location.state.openPermissionsForUserId), same
+  // location.state deep-link convention Settings' Terms/Privacy back
+  // button already established.
+  const [ackingJoinId, setAckingJoinId] = useState(null);
+  const pendingJoinNotice = (data.pendingTeamJoinNotices || [])[0] || null;
+  const acknowledgeJoinNotice = async () => {
+    if (!pendingJoinNotice) return;
+    setAckingJoinId(pendingJoinNotice.id);
+    await acknowledgeTeamJoinNotice(pendingJoinNotice.id);
+    if (refreshLibrary) await refreshLibrary();
+    setAckingJoinId(null);
+  };
+
   // Org Experience handoff Sec 5: unlike the team_staff welcome card above
   // (already-added, just an FYI), an org invite is a real consent gate --
   // nothing is granted until accept/decline runs. Surfaced here since Home
@@ -392,6 +411,13 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn primary bxs" style={{ flex: 1 }} disabled={ackingDepartureId === pendingDeparture.id} onClick={acknowledgeDeparture}>Acknowledge</button>
         <button className="btn ghost bxs" style={{ flex: 1 }} onClick={() => navigate("/team/" + pendingDeparture.teamId + "/roster")}>View Coaches</button>
+      </div>
+    </div></div>}
+    {pendingJoinNotice && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
+      <div style={{ fontSize: 14, marginBottom: 10 }}><strong>{pendingJoinNotice.joinedName}</strong> accepted your invite to <strong>{pendingJoinNotice.teamName}</strong> as {articleFor(pendingJoinNotice.role)} {pendingJoinNotice.role}. Set up what you share and delegate with them.</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button className="btn primary bxs" style={{ flex: 1 }} onClick={() => navigate("/team/" + pendingJoinNotice.teamId + "/roster", { state: { openPermissionsForUserId: pendingJoinNotice.joinedUserId } })}>Set Up Permissions</button>
+        <button className="btn ghost bxs" style={{ flex: 1 }} disabled={ackingJoinId === pendingJoinNotice.id} onClick={acknowledgeJoinNotice}>Dismiss</button>
       </div>
     </div></div>}
 
