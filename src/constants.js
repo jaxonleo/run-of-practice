@@ -450,3 +450,148 @@ export function drillUsageHeatTier(completedUsesTrailing12Months){
   if(n<=0)return null;
   return DRILL_HEAT_TIERS.find(t=>n>=t.min)||null;
 }
+
+// ── Development Pulse (Home widget) ──────────────────────────────────────────
+// Named thresholds per the spec, tunable in one place. Confirmed against
+// real production data during live verification rather than picked blind.
+export const DEVELOPMENT_PULSE_MIN_COMPLETED_SESSIONS=2;
+export const DEVELOPMENT_PULSE_MATERIAL_GAP_PTS=3;
+export const DEVELOPMENT_PULSE_BALANCED_TOLERANCE_PTS=3;
+export const DEVELOPMENT_PULSE_MATERIAL_IMPROVEMENT_PTS=2;
+export const DEVELOPMENT_PULSE_MAX_UNTAGGED_PCT=25;
+export const DEVELOPMENT_PULSE_MIN_ACTION_MINUTES=3;
+
+// Focus-team priority order (spec): the next-practice hero's own team when
+// one exists; otherwise the visible Coach-mode team with the most recently
+// completed session; otherwise the first visible team; otherwise none.
+// `recentSessionByTeamId` may be null/undefined before that batch fetch
+// resolves -- this stays pure and synchronous either way, since falling
+// back to homeTeams[0] first and correcting once real data arrives is
+// preferable to the caller blocking Home on this lookup.
+export function resolveDevelopmentPulseFocusTeamId({nextPractice,homeTeams,recentSessionByTeamId}){
+  if(nextPractice)return nextPractice.teamId;
+  if(!homeTeams||!homeTeams.length)return null;
+  if(recentSessionByTeamId){
+    let bestId=null,bestDate=null;
+    homeTeams.forEach(t=>{
+      const d=recentSessionByTeamId[t.id];
+      if(d&&(!bestDate||d>bestDate)){bestDate=d;bestId=t.id;}
+    });
+    if(bestId)return bestId;
+  }
+  return homeTeams[0].id;
+}
+
+// The dynamic-state engine. Presentation-neutral: returns facts, not copy
+// -- DevelopmentPulseCard.jsx owns headline/CTA-label text per state (spec:
+// "The UI component should translate this result into copy and
+// rendering"). Deliberately reuses calculateGoalGapGuidance/
+// calculateProjectedGoalImpact/categoryMinutesForPracticeActivities as-is
+// rather than a sixth reimplementation of the same math.
+//
+// `report` is the raw get_team_goal_report(teamId) response (already
+// carries usable_actual_session_count as of 20260804000000). `nextPractice`
+// is the same practice object Home's own hero already resolved (or null),
+// with `.activities` loaded; pass null here (not the practice) when a
+// session for it is currently live -- projecting a stale plan against a
+// run already in progress is explicitly out of scope, so the caller simply
+// withholds it and the resolver falls through to the no-plan-impact path,
+// same as an unplanned practice would.
+export function resolveDevelopmentPulseState({team,report,nextPractice,activityLibraryById,skillTagsById,hasSportCategories}){
+  if(!hasSportCategories)return {state:"no_categories_for_sport",teamId:team.id,teamName:team.name};
+
+  const configured=(report.skills||[]).filter(s=>s.target_pct!=null);
+  if(!configured.length)return {state:"goals_not_configured",teamId:team.id,teamName:team.name};
+
+  const usableSessionCount=(report.practices||{}).usable_actual_session_count||0;
+  if(usableSessionCount<DEVELOPMENT_PULSE_MIN_COMPLETED_SESSIONS){
+    const hasPlannedFallback=(report.denominators||{}).planned_minutes_total>0;
+    const nextPracticePlanned=!!(nextPractice&&(nextPractice.activities||[]).length);
+    return {
+      state:"insufficient_history",teamId:team.id,teamName:team.name,
+      usableSessionCount,remaining:DEVELOPMENT_PULSE_MIN_COMPLETED_SESSIONS-usableSessionCount,
+      hasPlannedFallback,nextPracticePlanned,
+      practiceId:nextPractice?nextPractice.id:null,
+    };
+  }
+
+  const untaggedPct=(report.untagged||{}).actual_pct||0;
+  if(untaggedPct>=DEVELOPMENT_PULSE_MAX_UNTAGGED_PCT){
+    return {state:"data_quality",teamId:team.id,teamName:team.name,untaggedPct};
+  }
+
+  const categories=configured.map(s=>({
+    skillCategoryId:s.skill_category_id,name:s.name,targetPct:s.target_pct,
+    currentPct:s.actual_pct,currentMinutes:s.actual_minutes,
+    historicalTotalMinutes:(report.denominators||{}).actual_minutes_total,
+  }));
+
+  // Draft mix for the next practice, when one exists with real content --
+  // same pure helper Builder Goal Guidance already uses against unsaved
+  // state, here against whatever's already saved for that practice.
+  const hasDraft=!!(nextPractice&&(nextPractice.activities||[]).length);
+  const draft=hasDraft?categoryMinutesForPracticeActivities(nextPractice.activities,activityLibraryById,skillTagsById):null;
+  const draftHasMinutes=!!(draft&&draft.totalMinutes>0);
+
+  const guidance=calculateGoalGapGuidance(categories,nextPractice?nextPractice.scheduledDurationMinutes:null);
+  const below=guidance.filter(g=>!g.atOrAboveGoal&&g.gapPts>=DEVELOPMENT_PULSE_MATERIAL_GAP_PTS)
+    .sort((a,b)=>b.gapPts-a.gapPts); // stable sort -- ties keep the configured category order
+
+  const aligned=categories.every(c=>Math.abs((c.currentPct||0)-c.targetPct)<DEVELOPMENT_PULSE_BALANCED_TOLERANCE_PTS);
+
+  // State 7's own override: even when every category is currently aligned,
+  // don't hide a next-plan draft that would materially move one away from
+  // goal -- surface that as a gap forming instead of a false all-clear.
+  let movingAwayCategory=null;
+  if(aligned&&draftHasMinutes){
+    const baseline={historicalTotalMinutes:(report.denominators||{}).actual_minutes_total,categories};
+    const impact=calculateProjectedGoalImpact(baseline,draft);
+    movingAwayCategory=impact.find(i=>i.result==="Farther from goal"&&Math.abs(i.projectedPct-i.currentPct)>=DEVELOPMENT_PULSE_MATERIAL_IMPROVEMENT_PTS)||null;
+  }
+
+  if(aligned&&!movingAwayCategory){
+    const largestVariance=categories.slice().sort((a,b)=>Math.abs((b.currentPct||0)-b.targetPct)-Math.abs((a.currentPct||0)-a.targetPct))[0];
+    return {state:"aligned",teamId:team.id,teamName:team.name,categories,largestVarianceCategory:largestVariance||null};
+  }
+
+  if(!below.length&&!movingAwayCategory){
+    // Shouldn't really happen (aligned would have caught it), but resolve
+    // to aligned defensively rather than render nothing.
+    return {state:"aligned",teamId:team.id,teamName:team.name,categories,largestVarianceCategory:null};
+  }
+
+  const top=below.length?below[0]:null;
+  const topCategoryId=top?top.skillCategoryId:(movingAwayCategory?movingAwayCategory.skillCategoryId:null);
+  const topCategoryName=top?top.name:(movingAwayCategory?movingAwayCategory.name:null);
+  const topPlannedMinutes=draft?(draft.byCategory[topCategoryId]||0):0;
+
+  const base={
+    teamId:team.id,teamName:team.name,categoryId:topCategoryId,categoryName:topCategoryName,
+    currentPct:top?top.currentPct:null,targetPct:top?top.targetPct:null,gapPct:top?top.gapPts:null,
+    goalMixMinutes:top?top.goalMixMinutes:null,suggestedMinutes:top?top.minutesNeeded:null,
+    closable:top?top.closable:null,basis:"actual",
+    practiceId:nextPractice?nextPractice.id:null,
+    practiceDurationMinutes:nextPractice?nextPractice.scheduledDurationMinutes:null,
+  };
+
+  if(top&&nextPractice&&draftHasMinutes&&topPlannedMinutes===0){
+    return {...base,state:"missing_from_next_plan"};
+  }
+
+  if(top&&nextPractice&&draftHasMinutes){
+    const baseline={historicalTotalMinutes:(report.denominators||{}).actual_minutes_total,categories};
+    const impact=calculateProjectedGoalImpact(baseline,draft);
+    const topImpact=impact.find(i=>i.skillCategoryId===topCategoryId);
+    if(topImpact&&topImpact.result==="Closer to goal"&&Math.abs(topImpact.projectedPct-topImpact.currentPct)>=DEVELOPMENT_PULSE_MATERIAL_IMPROVEMENT_PTS){
+      return {...base,state:"plan_improves_gap",projectedPct:topImpact.projectedPct};
+    }
+  }
+
+  if(movingAwayCategory&&!top){
+    return {...base,categoryId:movingAwayCategory.skillCategoryId,categoryName:movingAwayCategory.name,
+      currentPct:movingAwayCategory.currentPct,targetPct:movingAwayCategory.targetPct,
+      state:"meaningful_gap",projectedPct:movingAwayCategory.projectedPct};
+  }
+
+  return {...base,state:"meaningful_gap"};
+}

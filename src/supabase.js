@@ -1631,6 +1631,17 @@ export async function fetchTeamGoalReport(teamId) {
 // server-side attribution rules (team-timezone Monday-Sunday buckets,
 // Planned computed from each completed session's own saved plan rather
 // than get_team_goal_report's forward-looking "planned" bucket).
+// Development Pulse focus-team selection, priority 2 (no upcoming
+// practice -> most recently active visible team). One batch call across
+// every candidate team id -- see get_teams_recent_completed_session in
+// supabase/migrations/20260804010000_teams_recent_completed_session.sql --
+// never a per-team query from Home.
+export async function fetchTeamsRecentCompletedSession(teamIds) {
+  if (!teamIds || !teamIds.length) return []
+  const { data, error } = await supabase.rpc('get_teams_recent_completed_session', { p_team_ids: teamIds })
+  if (error) { console.error('fetchTeamsRecentCompletedSession:', error); return [] }
+  return (data || []).map(r => ({ teamId: r.team_id, lastCompletedAt: r.last_completed_at }))
+}
 export async function fetchTeamGoalTrends(teamId, windowWeeks) {
   const { data, error } = await supabase.rpc('get_team_goal_trends', { p_team_id: teamId, p_window_weeks: windowWeeks || null })
   if (error) { console.error('fetchTeamGoalTrends:', error); return null }

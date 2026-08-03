@@ -583,11 +583,19 @@ function AuthedShell(){
   // data.teams[0], which is wrong the moment a coach has more than one team
   // and starts from a team's own Plan tab instead of the old flat Manage
   // team-picker.
-  const goToBuilder=useCallback((practiceId,templateId,teamId)=>{
+  // navState (Development Pulse's deep link into an already-expanded Goal
+  // Guidance section) is forwarded to navigate()'s own location.state --
+  // separate from setEditPracticeId/etc. above, which prime BuilderScreen's
+  // own state synchronously before it ever mounts, per this function's
+  // whole reason for existing (see BuilderRoute's comment: routing straight
+  // through react-router's navigate() with only URL params, skipping this,
+  // is what left BuilderScreen's useState initializers seeing a stale null
+  // editPracticeId on first render).
+  const goToBuilder=useCallback((practiceId,templateId,teamId,navState)=>{
     setEditPracticeId(practiceId||null);
     setStartTemplateId(templateId||null);
     setPresetTeamId(practiceId?null:(teamId||null));
-    navigate("/builder/"+(practiceId||"new"));
+    navigate("/builder/"+(practiceId||"new"),navState?{state:navState}:undefined);
   },[navigate]);
   const goToRun=useCallback(practiceId=>{
     setLiveId(practiceId||null);
@@ -825,6 +833,16 @@ function RunOfPracticeMark({rotation}){
 
 function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,coachId,refreshPlanning,refreshLibrary}){
   const navigate=useNavigate();
+  // Development Pulse deep-link (Home widget spec): arriving here via its
+  // "Plan N minutes"/"Review Practice Impact" CTA carries
+  // location.state.openGoalGuidance -- read once on mount, same one-time
+  // location.state convention already used for Settings' Terms/Privacy
+  // back button and the join-notice-to-Permissions deep link. Consumed
+  // immediately into local state so it doesn't linger and re-trigger the
+  // one-time highlight if the coach navigates within Builder afterward.
+  const location=useLocation();
+  const [goalGuidanceStartOpen]=useState(()=>!!(location.state&&location.state.openGoalGuidance));
+  const [highlightedSkillCategoryId,setHighlightedSkillCategoryId]=useState(()=>(location.state&&location.state.highlightedSkillCategoryId)||null);
   const editP=editPracticeId?data.practices.find(p=>p.id===editPracticeId):null;
   // "Start from Template" seeds a brand-new (not editP) practice from a
   // saved template's contents -- distinct from editing an already-scheduled
@@ -1383,7 +1401,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           inside Practice Details' own body, so the coach can keep Practice
           Details collapsed while selectively opening this. Starts
           collapsed on every Builder entry path. */}
-      <BuilderGoalGuidance team={team} teamId={teamId} data={data} coachId={coachId} acts={acts} schedDuration={schedDuration} />
+      <BuilderGoalGuidance team={team} teamId={teamId} data={data} coachId={coachId} acts={acts} schedDuration={schedDuration} startOpen={goalGuidanceStartOpen} highlightedSkillCategoryId={highlightedSkillCategoryId} onHighlightConsumed={()=>setHighlightedSkillCategoryId(null)} />
       {/* The Run of Practice: solid dark-green backdrop behind the header
           and whatever's inside it (empty message or the real list) -- this
           is the app's own brand color and this is its moment, per direct

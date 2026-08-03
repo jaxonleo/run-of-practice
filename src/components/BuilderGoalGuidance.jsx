@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { isHeadCoach, categoryMinutesForPracticeActivities, calculateGoalGapGuidance, calculateProjectedGoalImpact } from "../constants.js";
 import { fetchTeamGoalReport } from "../supabase.js";
 
@@ -13,13 +13,41 @@ import { fetchTeamGoalReport } from "../supabase.js";
 // in state, not refetched per keystroke), then every recalculation as the
 // draft changes runs locally via the same pure helpers Next Practice
 // Guidance/Trends use -- no RPC call scales with how much the coach edits.
-export default function BuilderGoalGuidance({ team, teamId, data, coachId, acts, schedDuration }) {
-  const [open, setOpen] = useState(false);
+// One-time pulse for the category Development Pulse pointed at -- plays
+// once on mount (CSS animations don't replay on their own without a key/
+// remount), fading back to the row's normal background so no state has to
+// track "highlight is over." Respects prefers-reduced-motion like the
+// Development Pulse card's own entrance animation.
+const GOAL_GUIDANCE_HIGHLIGHT_CSS = `
+@keyframes goalGuidanceRowPulse { 0% { background: var(--amber2, #fff3cd); } 100% { background: transparent; } }
+.goal-guidance-row-highlighted { animation: goalGuidanceRowPulse 2.4s ease-out 1; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { .goal-guidance-row-highlighted { animation: none; } }
+`;
+
+export default function BuilderGoalGuidance({ team, teamId, data, coachId, acts, schedDuration, startOpen, highlightedSkillCategoryId, onHighlightConsumed }) {
+  // Development Pulse's Builder CTA arrives with startOpen=true so the
+  // coach lands with this section already expanded -- a one-time initial
+  // value only, never re-forced afterward, so the coach's own
+  // open/collapse toggling still works normally for the rest of the visit.
+  const [open, setOpen] = useState(() => !!startOpen);
   const [report, setReport] = useState(null);
   useEffect(() => {
     setReport(null);
     if (teamId) fetchTeamGoalReport(teamId).then(setReport);
   }, [teamId]);
+
+  // One-time visual emphasis for the category Development Pulse pointed at,
+  // per the spec ("do not permanently change Builder state"). The CSS pulse
+  // animation on the matching row plays once on mount; this timeout just
+  // clears the highlight prop back up so a later team switch or re-render
+  // of this same mounted component doesn't replay it.
+  const onHighlightConsumedRef = useRef(onHighlightConsumed);
+  onHighlightConsumedRef.current = onHighlightConsumed;
+  useEffect(() => {
+    if (!highlightedSkillCategoryId || !onHighlightConsumedRef.current) return;
+    const t = setTimeout(() => onHighlightConsumedRef.current(), 2600);
+    return () => clearTimeout(t);
+  }, [highlightedSkillCategoryId]);
 
   const activityLibraryById = useMemo(() => Object.fromEntries((data.activityLibrary || []).map(a => [a.id, a])), [data.activityLibrary]);
   const skillTagsById = useMemo(() => Object.fromEntries((data.skillTags || []).map(t => [t.id, t])), [data.skillTags]);
@@ -72,6 +100,7 @@ export default function BuilderGoalGuidance({ team, teamId, data, coachId, acts,
   const zeroCategories = baselineCategories.filter(c => !(draft.byCategory[c.skillCategoryId] > 0));
 
   return (<div className="mb10" style={{ border: "1px solid var(--b)", borderRadius: "var(--r)", overflow: "hidden" }}>
+    {highlightedSkillCategoryId && <style>{GOAL_GUIDANCE_HIGHLIGHT_CSS}</style>}
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", cursor: "pointer", background: "var(--s1)" }} onClick={() => setOpen(o => !o)}>
       <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 13, fontWeight: 900, letterSpacing: ".06em", textTransform: "uppercase", flexShrink: 0 }}>Goal Guidance</span>
       <span style={{ fontSize: 12, color: "var(--td)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{collapsedSummary}</span>
@@ -93,7 +122,7 @@ export default function BuilderGoalGuidance({ team, teamId, data, coachId, acts,
 
         <div className="clbl mb8" style={{ fontSize: 11 }}>What to Consider Planning</div>
         {below.length === 0 && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 12 }}>Every category is at or above its goal right now.</div>}
-        {below.map(g => (<div key={g.skillCategoryId} style={{ marginBottom: 8, fontSize: 12 }}>
+        {below.map(g => (<div key={g.skillCategoryId} className={g.skillCategoryId === highlightedSkillCategoryId ? "goal-guidance-row-highlighted" : undefined} style={{ marginBottom: 8, fontSize: 12, padding: "2px 4px" }}>
           <span style={{ fontWeight: 700 }}>{g.name}</span> <span style={{ color: "var(--td)" }}>{g.gapPts} pt{g.gapPts === 1 ? "" : "s"} below goal</span>
           {g.goalMixMinutes != null && <span style={{ color: "var(--td)" }}> · goal mix {g.goalMixMinutes}m</span>}
           {g.minutesNeeded != null && g.closable && <span style={{ color: "var(--td)" }}> · ~{g.minutesNeeded}m to fully close the gap</span>}

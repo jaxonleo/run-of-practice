@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useBlocker } from "react-router-dom";
+import { useBlocker, useLocation } from "react-router-dom";
 import { canManageTeamInMode, localDateStr, summarizeCategoryTrend, calculateGoalGapGuidance, TREND_FLAT_THRESHOLD_PCT, classifyDurationVariance } from "../constants.js";
 import {
   fetchTeamGoals, setTeamGoals, updateGoalsWindowWeeks,
@@ -187,7 +187,13 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
 // come straight from get_team_goal_report, already computed against the
 // denominator (attributed minutes excluding breaks) so tagged% + untagged%
 // reconciles to ~100 on both sides.
-function GlanceView({ report }) {
+const UNTAGGED_ROW_HIGHLIGHT_CSS = `
+@keyframes untaggedRowPulse { 0% { background: var(--amber2, #fff3cd); } 100% { background: transparent; } }
+.untagged-row-highlighted { animation: untaggedRowPulse 2.4s ease-out 1; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { .untagged-row-highlighted { animation: none; } }
+`;
+
+function GlanceView({ report, emphasizeUntagged }) {
   if (!report) return null;
   const skills = report.skills || [];
   const untagged = report.untagged || { planned_pct: 0, actual_pct: 0 };
@@ -197,11 +203,12 @@ function GlanceView({ report }) {
   const untaggedHigh = untagged.planned_pct > 25 || untagged.actual_pct > 25;
 
   return (<div className="card mb10">
+    {emphasizeUntagged && <style>{UNTAGGED_ROW_HIGHLIGHT_CSS}</style>}
     <div className="clbl mb8">Target vs. Planned vs. Actual <span style={{ textTransform: "none", fontWeight: 400 }}>· last {report.window_weeks} week{report.window_weeks === 1 ? "" : "s"}</span></div>
     {skills.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>No goals set and nothing tagged yet this window.</div>}
     {skills.map(s => (<SkillRow key={s.skill_category_id} skill={s} />))}
 
-    <div style={{ borderTop: "1px solid var(--b)", paddingTop: 10, marginTop: skills.length ? 4 : 0 }}>
+    <div className={emphasizeUntagged ? "untagged-row-highlighted" : undefined} style={{ borderTop: "1px solid var(--b)", paddingTop: 10, marginTop: skills.length ? 4 : 0 }}>
       <SkillRow skill={{ name: "Untagged", target_pct: null, planned_pct: untagged.planned_pct, actual_pct: untagged.actual_pct }} />
       <div style={{ fontSize: 12, color: "var(--td)", marginTop: -6, marginBottom: 10 }}>
         Other / transitions: ~{otherPerPractice} min/practice between drills
@@ -781,7 +788,22 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
   // component state, not persisted -- it naturally survives opening/closing
   // a SessionHistoryDetail within the same mount (view isn't reset by that),
   // which is all the spec asks for ("during the same mounted session").
-  const [view, setView] = useState("overview");
+  // Development Pulse's "View Trends" CTA lands here via
+  // location.state.openGoalsView -- one-time initializer only, same
+  // convention as Builder's openGoalGuidance, so the coach's own tab
+  // clicking afterward isn't overridden.
+  const location = useLocation();
+  const [view, setView] = useState(() => (location.state && location.state.openGoalsView) || "overview");
+  // Development Pulse's "Review Untagged Time" CTA has no precise in-page
+  // anchor (per spec), so it lands on Overview and gets a one-time visual
+  // emphasis on the Untagged row instead -- same one-time-then-fade pattern
+  // as Builder's highlighted category.
+  const [emphasizeUntagged, setEmphasizeUntagged] = useState(() => !!(location.state && location.state.emphasizeUntagged));
+  useEffect(() => {
+    if (!emphasizeUntagged) return;
+    const t = setTimeout(() => setEmphasizeUntagged(false), 2600);
+    return () => clearTimeout(t);
+  }, [emphasizeUntagged]);
   const [goals, setGoals] = useState(null);
   const [report, setReport] = useState(null);
   const [history, setHistory] = useState(null);
@@ -831,7 +853,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
     <GoalsSubnav view={view} setView={setView} />
     {view === "overview" && (<>
       {canManage && <GoalsEditor teamId={teamId} team={team} data={data} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
-      <GlanceView report={report} />
+      <GlanceView report={report} emphasizeUntagged={emphasizeUntagged} />
       <NextPracticeGuidance team={team} teamId={teamId} data={data} report={report} canManage={canManage} coachId={coachId} />
     </>)}
     {view === "trends" && <TrendsView teamId={teamId} team={team} canManage={canManage} />}

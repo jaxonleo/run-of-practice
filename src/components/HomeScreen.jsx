@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, fetchOrgWeeklyPracticeRollup, findOrCreatePreviewToken, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
+import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId } from "../constants.js";
+import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, fetchOrgWeeklyPracticeRollup, findOrCreatePreviewToken, fetchTeamsRecentCompletedSession, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
+import DevelopmentPulseCard from "./DevelopmentPulseCard.jsx";
 
 // §1: "35/60 min" pill. Shows for any practice with a scheduled duration,
 // planned or not -- an unplanned practice reads "0/60 min" so the gap is
@@ -228,6 +229,45 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   // global assistant/head-coach flag, since roles can differ by team).
   const needsPlanning = windowCandidates.filter(p => !ran(p) && !isPlanned(p) && canManageTeamInMode(teamById(p.teamId), coachId, mode));
   const canManageAnyTeam = data.teams.some(t => canManageTeamInMode(t, coachId, mode));
+
+  // Development Pulse focus-team resolution (Coach mode only -- data.teams
+  // here is already homeTeamsForMode-scoped by HomeRoute, so no re-filter
+  // needed for "visible Coach Mode team" / show_on_home). Priority 1
+  // (nextPractice's own team) needs no fetch at all; priority 2 (most
+  // recently active team) needs one batch call across every visible team,
+  // fetched lazily only when there's no nextPractice to short-circuit it --
+  // never a query per team.
+  const [recentSessionByTeamId, setRecentSessionByTeamId] = useState(null);
+  const homeTeamIdsKey = data.teams.map(t => t.id).join(",");
+  useEffect(() => {
+    if (isOrgMode || nextPractice || !homeTeamIdsKey) { setRecentSessionByTeamId(null); return; }
+    fetchTeamsRecentCompletedSession(homeTeamIdsKey.split(",")).then(rows => {
+      setRecentSessionByTeamId(Object.fromEntries(rows.map(r => [r.teamId, r.lastCompletedAt])));
+    });
+  }, [isOrgMode, !!nextPractice, homeTeamIdsKey]);
+  const focusTeamId = isOrgMode ? null : resolveDevelopmentPulseFocusTeamId({ nextPractice, homeTeams: data.teams, recentSessionByTeamId });
+  const focusTeam = focusTeamId ? teamById(focusTeamId) : null;
+  const focusTeamCanManage = focusTeam ? canManageTeamInMode(focusTeam, coachId, mode) : false;
+  const focusTeamHasCategories = focusTeam ? (data.skillCategories || []).some(c => c.sport === focusTeam.sport && !c.archived_at) : false;
+  // A live-in-progress (or abandoned-but-not-completed) session for the
+  // next practice withholds it from projection -- fetchPracticeRunStatus's
+  // 'started' bucket already covers both, matching the spec's "do not
+  // project the actively running practice from its stale planned state."
+  const focusTeamIsLiveNow = !!(nextPractice && focusTeamId === nextPractice.teamId && runStatus[nextPractice.id] === "started");
+  const developmentPulseNavigate = cta => {
+    if (!cta) return;
+    if (cta.kind === "goals_overview") navigate("/team/" + focusTeamId + "/goals");
+    else if (cta.kind === "goals_untagged") navigate("/team/" + focusTeamId + "/goals", { state: { openGoalsView: "overview", emphasizeUntagged: true } });
+    else if (cta.kind === "goals_trends") navigate("/team/" + focusTeamId + "/goals", { state: { openGoalsView: "trends" } });
+    // goToBuilder (not a raw navigate()) -- it primes editPracticeId in
+    // context synchronously before the route change, which BuilderScreen's
+    // useState initializers need on their very first render; a bare
+    // navigate("/builder/"+id) leaves them seeing a stale null
+    // editPracticeId until BuilderRoute's own effect catches up a tick
+    // later, by which point those useState calls already locked in a blank
+    // "new practice" default and never re-derive from the real one.
+    else if (cta.kind === "builder_goal_guidance" && cta.practiceId) goToBuilder(cta.practiceId, null, null, { openGoalGuidance: true, highlightedSkillCategoryId: cta.categoryId || null, source: "development_pulse" });
+  };
   const delPractice = async id => { await archivePractice(id); await refreshPlanning(); if (viewPractice && viewPractice.id === id) setViewPractice(null); };
 
   // §2(f): one-time welcome card for a staff row someone else added (addedBy
@@ -517,6 +557,12 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
           </div>}
         </div></>);
       })()}
+
+      {/* Development Pulse: Coach mode only, directly beneath the hero and
+          above everything else, per the spec. Not rendered in Org mode --
+          a director-facing cross-team version is explicitly a future,
+          separate widget, never this card reused with a random team. */}
+      {!isOrgMode && focusTeam && <DevelopmentPulseCard team={focusTeam} nextPractice={nextPractice} canManage={focusTeamCanManage} data={data} coachId={coachId} hasSportCategories={focusTeamHasCategories} isLiveNow={focusTeamIsLiveNow} onNavigate={developmentPulseNavigate} />}
 
       {needsPlanning.length > 0 && <div className="li" style={{ marginBottom: 16, cursor: "pointer" }} onClick={goToSchedule}>
         <div className="lim"><div className="lin">{needsPlanning.length} practice{needsPlanning.length > 1 ? "s" : ""} in the next 14 days need{needsPlanning.length === 1 ? "s" : ""} a plan</div></div>
