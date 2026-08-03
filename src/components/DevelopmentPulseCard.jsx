@@ -16,6 +16,15 @@ const PULSE_CSS = `
 
 function fmtPts(n) { return Math.round(Math.abs(n)); }
 
+// Collapse caret -- points down when collapsed (tap to expand), up when
+// expanded (tap to collapse), same convention as every disclosure control
+// elsewhere in the app.
+function Ic_Caret({ up }) {
+  return (<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points={up ? "3 9 7 5 11 9" : "3 5 7 9 11 5"} />
+  </svg>);
+}
+
 // Bullet-bar graphic: current fill (solid), projected extension (hatched
 // pattern, not just lower opacity, so it reads apart from Actual without
 // relying on color/contrast alone), goal tick (a distinct vertical mark,
@@ -212,40 +221,84 @@ export default function DevelopmentPulseCard({ team, nextPractice, canManage, da
     });
   }, [team, report, nextPractice, isLiveNow, activityLibraryById, skillTagsById, hasSportCategories]);
 
+  // Collapse/expand persists per-coach across sessions (direct feedback) --
+  // this is one physical widget on Home, not a per-team preference, so a
+  // coach who collapses it stays collapsed regardless of which team ends up
+  // as the focus team on a later visit. Keyed by coachId, not team.id.
+  const collapsedKey = coachId ? "devPulseCollapsed:" + coachId : null;
+  const seenKey = coachId ? "devPulseSeenFingerprint:" + coachId : null;
+  const [collapsed, setCollapsed] = useState(() => !!(collapsedKey && localStorage.getItem(collapsedKey) === "1"));
+  const [lastSeenFingerprint, setLastSeenFingerprint] = useState(() => seenKey ? localStorage.getItem(seenKey) : null);
+  // A cheap fingerprint of "what the coach would see if they expanded this
+  // right now" -- team + resolved state + which category (when one is
+  // named), deliberately not including percentages/minute counts so small
+  // week-to-week wobble in the same underlying situation doesn't re-trigger
+  // the dot. Null while the report is still loading.
+  const fingerprint = (team && result) ? team.id + "|" + result.state + "|" + (result.categoryId || "") : null;
+  const hasNewInsight = collapsed && fingerprint != null && fingerprint !== lastSeenFingerprint;
+  // Whenever this is actually visible and showing a concrete state, that
+  // counts as "seen" -- covers both the coach expanding it (their explicit
+  // dismissal of the dot) and it simply being expanded already when a new
+  // state resolves (no dot to dismiss in the first place).
+  useEffect(() => {
+    if (collapsed || !fingerprint || !seenKey) return;
+    setLastSeenFingerprint(fingerprint);
+    localStorage.setItem(seenKey, fingerprint);
+  }, [collapsed, fingerprint, seenKey]);
+  const toggleCollapsed = () => setCollapsed(c => {
+    const next = !c;
+    if (collapsedKey) localStorage.setItem(collapsedKey, next ? "1" : "0");
+    return next;
+  });
+
   if (!team) return null;
+
+  const header = (<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)" }}>Development Pulse</span>
+      {hasNewInsight && <span aria-label="New insight available" title="New insight available" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--red)", display: "inline-block", flexShrink: 0 }} />}
+    </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--black)" }}>{team.name}</span>
+      <button type="button" onClick={toggleCollapsed} aria-expanded={!collapsed} aria-label={collapsed ? "Expand Development Pulse" : "Collapse Development Pulse"} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--td)", padding: 4, display: "flex", alignItems: "center" }}>
+        <Ic_Caret up={!collapsed} />
+      </button>
+    </div>
+  </div>);
+
   if (!report || !result) return (<div className="card mb10" style={{ padding: "14px 16px" }}>
-    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)" }}>Development Pulse</div>
-    <div style={{ height: 60 }} />
+    {header}
+    {!collapsed && <div style={{ height: 60 }} />}
   </div>);
 
   const presented = presentState(result, canManage);
   const teamColor = (team.colorPrimary) || "var(--green)";
 
-  return (<div className="dev-pulse-card card mb10" style={{ padding: 0, overflow: "hidden", position: "relative" }} key={result.state}>
+  return (<div className="dev-pulse-card card mb10" style={{ padding: 0, overflow: "hidden", position: "relative" }} key={collapsed ? "collapsed" : result.state}>
     <style>{PULSE_CSS}</style>
     <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 4, background: teamColor }} />
     <div style={{ padding: "14px 16px 14px 20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)" }}>Development Pulse</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--black)" }}>{team.name}</span>
-      </div>
-      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, marginBottom: 4, color: presented.lowEmphasis ? "var(--td)" : "var(--black)" }}>{presented.headline}</div>
-      {presented.body && <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 10, lineHeight: 1.4 }}>{presented.body}</div>}
-      {presented.basisNote && <div style={{ fontSize: 11, color: "var(--amber)", marginBottom: 8 }}>{presented.basisNote}</div>}
+      <div style={{ marginBottom: collapsed ? 0 : 8 }}>{header}</div>
 
-      {presented.graphic === "placeholder" && <PlaceholderStrip />}
-      {presented.graphic === "goal_mix" && <GoalMixStrip categories={(report.skills || []).filter(s => s.target_pct != null)} />}
-      {presented.graphic === "completeness" && <CompletenessBar attributedPct={100 - result.untaggedPct} untaggedPct={result.untaggedPct} />}
-      {(presented.graphic === "bullet" || presented.graphic === "bullet_variance") && (() => {
-        const cat = presented.graphic === "bullet_variance" ? result.largestVarianceCategory : result;
-        const currentPct = presented.graphic === "bullet_variance" ? cat.currentPct : result.currentPct;
-        const targetPct = presented.graphic === "bullet_variance" ? cat.targetPct : result.targetPct;
-        return <BulletBar label={result.categoryName || (cat && cat.name)} currentPct={currentPct} targetPct={targetPct} projectedPct={presented.noProjection ? null : result.projectedPct} color={teamColor} />;
-      })()}
+      {!collapsed && (<>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, marginBottom: 4, color: presented.lowEmphasis ? "var(--td)" : "var(--black)" }}>{presented.headline}</div>
+        {presented.body && <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 10, lineHeight: 1.4 }}>{presented.body}</div>}
+        {presented.basisNote && <div style={{ fontSize: 11, color: "var(--amber)", marginBottom: 8 }}>{presented.basisNote}</div>}
 
-      {isLiveNow && <div style={{ fontSize: 11, color: "var(--td)", marginTop: 8 }}>Insights will update after the practice is completed.</div>}
+        {presented.graphic === "placeholder" && <PlaceholderStrip />}
+        {presented.graphic === "goal_mix" && <GoalMixStrip categories={(report.skills || []).filter(s => s.target_pct != null).map(s => ({ skillCategoryId: s.skill_category_id, name: s.name, targetPct: s.target_pct }))} />}
+        {presented.graphic === "completeness" && <CompletenessBar attributedPct={100 - result.untaggedPct} untaggedPct={result.untaggedPct} />}
+        {(presented.graphic === "bullet" || presented.graphic === "bullet_variance") && (() => {
+          const cat = presented.graphic === "bullet_variance" ? result.largestVarianceCategory : result;
+          const currentPct = presented.graphic === "bullet_variance" ? cat.currentPct : result.currentPct;
+          const targetPct = presented.graphic === "bullet_variance" ? cat.targetPct : result.targetPct;
+          return <BulletBar label={result.categoryName || (cat && cat.name)} currentPct={currentPct} targetPct={targetPct} projectedPct={presented.noProjection ? null : result.projectedPct} color={teamColor} />;
+        })()}
 
-      {presented.cta && <button className="btn primary bsm bfull" style={{ marginTop: 12 }} onClick={() => onNavigate(presented.cta)}>{presented.cta.label}</button>}
+        {isLiveNow && <div style={{ fontSize: 11, color: "var(--td)", marginTop: 8 }}>Insights will update after the practice is completed.</div>}
+
+        {presented.cta && <button className="btn primary bsm bfull" style={{ marginTop: 12 }} onClick={() => onNavigate(presented.cta)}>{presented.cta.label}</button>}
+      </>)}
     </div>
   </div>);
 }

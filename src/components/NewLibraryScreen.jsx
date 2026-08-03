@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { uid, sumMins, localDateStr, planningState } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
@@ -847,8 +848,20 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   // org's own color, so Club Library reads as this specific club's space
   // rather than a generic screen that happens to say "Club" on it.
   const activeOrg = isOrgMode ? (data.myOrgs||[]).find(o=>o.id===mode.orgId) : null;
-  const [section,setSection]=useState("mine"); // "mine" | "explore"
+  // Goals & Insights' "Review Untagged Drills" CTA lands here via
+  // location.state.untaggedForSport -- one-time initializer, same
+  // convention as every other cross-screen deep link in this app, so the
+  // coach's own navigation afterward (switching sports/shelves) isn't
+  // fought by a re-forced state on every render.
+  const location=useLocation();
+  const navigate=useNavigate();
+  const untaggedDeepLink=location.state&&location.state.untaggedForSport?location.state:null;
+  const [section,setSection]=useState("mine"); // "mine" | "explore" -- the untagged deep link only ever means My Drills, already the default
   const [mineTab,setMineTab]=useState("drills"); // sub-toggle within My Library
+  // Only-untagged filter: forced on when arriving via the deep link, but a
+  // plain toggle afterward so the coach can drop back to the full list
+  // without losing the "Back to Goals & Insights" exit or leaving the page.
+  const [untaggedOnly,setUntaggedOnly]=useState(!!untaggedDeepLink);
   const [openMenu,setOpenMenu]=useState(null);
   const [editingTpl,setEditingTpl]=useState(null);
   const [confirmDel,setConfirmDel]=useState(null);
@@ -1041,7 +1054,13 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const availablePublishers=Object.keys(publisherCounts).map(key=>({key,label:publisherLabelOf(key),count:publisherCounts[key]})).sort((a,b)=>a.key==="self"?-1:b.key==="self"?1:a.label.localeCompare(b.label));
   const togglePublisherFilter=key=>setPublisherFilter(p=>p.includes(key)?p.filter(x=>x!==key):[...p,key]);
   const shelfDrillsTagged=tagFilter.length===0?shelfDrillsAll:shelfDrillsAll.filter(a=>(a.skillTagIds||[]).some(id=>tagFilter.includes(id)));
-  const shelfDrills=publisherFilter.length===0?shelfDrillsTagged:shelfDrillsTagged.filter(a=>publisherFilter.includes(publisherKeyOf(a)));
+  const shelfDrillsPublisher=publisherFilter.length===0?shelfDrillsTagged:shelfDrillsTagged.filter(a=>publisherFilter.includes(publisherKeyOf(a)));
+  // Goals & Insights' untagged-drills deep link: scoped to the team's sport
+  // regardless of the untaggedOnly toggle (that's inherent to "why you're
+  // here"), with the no-tag filter itself independently toggleable so the
+  // coach can peek at the sport's already-tagged drills without leaving.
+  const shelfDrillsSportScoped=untaggedDeepLink?shelfDrillsPublisher.filter(a=>(a.sport||"General")===untaggedDeepLink.untaggedForSport):shelfDrillsPublisher;
+  const shelfDrills=untaggedOnly?shelfDrillsSportScoped.filter(a=>!(a.skillTagIds&&a.skillTagIds.length)):shelfDrillsSportScoped;
   const sports=[...new Set(shelfDrills.map(a=>a.sport||"General").filter(Boolean))].sort();
   const assetsById=Object.fromEntries((data.assets||[]).map(a=>[a.id,a]));
   const equipNames=ids=>(ids||[]).map(id=>assetsById[id]?assetsById[id].name:null).filter(Boolean);
@@ -1142,6 +1161,15 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
     {mineTab==="equipment"&&<div style={{padding:"0 16px"}}><EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode={mode}/></div>}
     {mineTab==="skills"&&<div style={{padding:"0 16px"}}><SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} isAdmin={isAdmin} mode={mode}/></div>}
     {showDrillList&&<div style={{padding:"0 16px"}} onClick={()=>{setDrillMenu(null);setShareMenuId(null);}}>
+      {untaggedDeepLink&&<div className="card" style={{marginBottom:12,background:"var(--ambg)",border:"1px solid var(--ambb)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <div style={{fontSize:13}}>
+            {untaggedOnly?"Showing "+untaggedDeepLink.untaggedForSport+" drills with no skill tag yet.":"Showing all "+untaggedDeepLink.untaggedForSport+" drills."} Tag one and it'll {untaggedOnly?"drop off this list":"update below"} automatically.
+          </div>
+          <button type="button" className="btn ghost bxs" onClick={()=>setUntaggedOnly(u=>!u)}>{untaggedOnly?"Show All Drills":"Show Untagged Only"}</button>
+        </div>
+        <button type="button" className="btn outline bsm" style={{marginTop:8}} onClick={()=>navigate(untaggedDeepLink.returnTo||"/team/"+untaggedDeepLink.teamId+"/goals")}>&larr; Back to Goals &amp; Insights</button>
+      </div>}
       {section==="explore"&&exploreShelves.length>1&&<div style={{display:"flex",gap:6,overflowX:"auto",marginBottom:12,paddingBottom:2}}>
         {exploreShelves.map(s=>(<button key={s.key} onClick={()=>{setShelf(s.key);setTagFilter([]);setTagSearch("");}} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:shelf===s.key?"var(--green)":"var(--s1)",color:shelf===s.key?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{s.label}</button>))}
       </div>}
@@ -1201,7 +1229,8 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
         </div>
       </div>}
       {shelfDrillsAll.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>{isMine?"No drills yet. Tap + Add Drill.":shelf.startsWith("orgLib:")?"No drills shared to this org yet -- share one from My Library.":"No drills shared by other coaches yet."}</div>}
-      {shelfDrillsAll.length>0&&shelfDrills.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No drills match the selected filters.</div>}
+      {shelfDrillsAll.length>0&&shelfDrills.length===0&&untaggedDeepLink&&untaggedOnly&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>All caught up -- every {untaggedDeepLink.untaggedForSport} drill has a skill tag.</div>}
+      {shelfDrillsAll.length>0&&shelfDrills.length===0&&!(untaggedDeepLink&&untaggedOnly)&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No drills match the selected filters.</div>}
       {sports.map(sport=>(<div key={sport} style={{marginBottom:8}}>
         <button onClick={()=>toggle(sport)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
           <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700}}>{sport}</span>

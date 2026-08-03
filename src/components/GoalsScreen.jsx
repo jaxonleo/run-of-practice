@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useBlocker, useLocation } from "react-router-dom";
+import { useBlocker, useLocation, useNavigate } from "react-router-dom";
 import { canManageTeamInMode, localDateStr, summarizeCategoryTrend, calculateGoalGapGuidance, TREND_FLAT_THRESHOLD_PCT, classifyDurationVariance } from "../constants.js";
 import {
   fetchTeamGoals, setTeamGoals, updateGoalsWindowWeeks,
@@ -193,7 +193,7 @@ const UNTAGGED_ROW_HIGHLIGHT_CSS = `
 @media (prefers-reduced-motion: reduce) { .untagged-row-highlighted { animation: none; } }
 `;
 
-function GlanceView({ report, emphasizeUntagged }) {
+function GlanceView({ report, emphasizeUntagged, team, teamId, canManage, onReviewUntaggedDrills }) {
   if (!report) return null;
   const skills = report.skills || [];
   const untagged = report.untagged || { planned_pct: 0, actual_pct: 0 };
@@ -213,9 +213,15 @@ function GlanceView({ report, emphasizeUntagged }) {
       <div style={{ fontSize: 12, color: "var(--td)", marginTop: -6, marginBottom: 10 }}>
         Other / transitions: ~{otherPerPractice} min/practice between drills
       </div>
-      {untaggedHigh && <div style={{ fontSize: 12, color: "var(--amber)", background: "var(--ambg)", border: "1px solid var(--ambb)", borderRadius: "var(--rs)", padding: "8px 10px" }}>
+      {untaggedHigh && <div style={{ fontSize: 12, color: "var(--amber)", background: "var(--ambg)", border: "1px solid var(--ambb)", borderRadius: "var(--rs)", padding: "8px 10px", marginBottom: canManage ? 8 : 0 }}>
         A lot of practice time isn't tagged to a skill. Linking drills to the library when you build a practice will make this report more useful.
       </div>}
+      {/* Only a manager can actually go tag drills for this team's library
+          (read-only coaches have nowhere useful to land -- My Drills is
+          personal, not this team's). Not gated on untaggedHigh: a coach
+          proactively cleaning up a small amount of untagged time shouldn't
+          have to wait for it to become a problem first. */}
+      {canManage && team && <button type="button" className="btn outline bsm" onClick={() => onReviewUntaggedDrills && onReviewUntaggedDrills()}>Tag Untagged Drills</button>}
     </div>
     {denomActual === 0 && completedCount === 0 && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 8 }}>No completed practices in this window yet.</div>}
   </div>);
@@ -793,7 +799,11 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
   // convention as Builder's openGoalGuidance, so the coach's own tab
   // clicking afterward isn't overridden.
   const location = useLocation();
+  const navigate = useNavigate();
   const [view, setView] = useState(() => (location.state && location.state.openGoalsView) || "overview");
+  const goToUntaggedDrills = () => navigate("/library", {
+    state: { untaggedForSport: (team && team.sport) || "General", teamId, returnTo: "/team/" + teamId + "/goals" },
+  });
   // Development Pulse's "Review Untagged Time" CTA has no precise in-page
   // anchor (per spec), so it lands on Overview and gets a one-time visual
   // emphasis on the Untagged row instead -- same one-time-then-fade pattern
@@ -849,11 +859,11 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
   // Was embedded under PlanScreen.jsx's Build/Goals & Insights toggle before
   // the 2026-07-2x flattened top-tabs redesign gave this its own direct
   // route (/team/:teamId/goals).
-  return (<div style={{ paddingBottom: "calc(var(--tab) + 20px)" }}>
+  return (<div>
     <GoalsSubnav view={view} setView={setView} />
     {view === "overview" && (<>
       {canManage && <GoalsEditor teamId={teamId} team={team} data={data} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
-      <GlanceView report={report} emphasizeUntagged={emphasizeUntagged} />
+      <GlanceView report={report} emphasizeUntagged={emphasizeUntagged} team={team} teamId={teamId} canManage={canManage} onReviewUntaggedDrills={goToUntaggedDrills} />
       <NextPracticeGuidance team={team} teamId={teamId} data={data} report={report} canManage={canManage} coachId={coachId} />
     </>)}
     {view === "trends" && <TrendsView teamId={teamId} team={team} canManage={canManage} />}

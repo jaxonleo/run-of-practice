@@ -776,7 +776,9 @@ function TeamGoalsRoute(){
   const team=data.teams.find(t=>t.id===teamId);
   useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
   if(!team)return null;
-  return <GoalsScreen data={data} teamId={teamId} coachId={coachId} setSubViewBack={setSubViewBack} mode={mode}/>;
+  return (<div style={{padding:"16px 16px calc(var(--tab) + 20px)"}}>
+    <GoalsScreen data={data} teamId={teamId} coachId={coachId} setSubViewBack={setSubViewBack} mode={mode}/>
+  </div>);
 }
 
 function BuilderRoute(){
