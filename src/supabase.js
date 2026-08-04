@@ -398,7 +398,7 @@ const OLD_TO_EQUIP_TYPE = { team: 'team_equipment', player: 'player_gear' }
 // locationIds empty = travels everywhere (no location restriction); one or
 // more = only available at those locations.
 function mapAssetRow(a, locationsByAsset) {
-  return { id: a.id, name: a.name, type: EQUIP_TYPE_TO_OLD[a.type] || a.type, sport: a.sport, organizationId: a.organization_id, ownerUserId: a.owner_user_id, sourceCatalogId: a.source_catalog_id, locationIds: (locationsByAsset && locationsByAsset[a.id]) || [] }
+  return { id: a.id, name: a.name, type: EQUIP_TYPE_TO_OLD[a.type] || a.type, sport: a.sport, organizationId: a.organization_id, ownerUserId: a.owner_user_id, sourceCatalogId: a.source_catalog_id, locationIds: (locationsByAsset && locationsByAsset[a.id]) || [], acquired: a.acquired !== false }
 }
 function mapSkillTagRow(t) {
   return { id: t.id, categoryId: t.category_id, scope: t.scope, organizationId: t.organization_id, ownerUserId: t.owner_user_id, name: t.name }
@@ -477,8 +477,11 @@ export async function fetchLibraryData() {
   }
 }
 
-export async function createAsset(ownerUserId, { name, sport, type }) {
-  const { data, error } = await supabase.from('assets').insert({ name, sport: sport || 'General', type: OLD_TO_EQUIP_TYPE[type] || type || 'team_equipment', owner_user_id: ownerUserId }).select().single()
+// acquired defaults true (a coach adding equipment by hand genuinely has
+// it); the equipment-mismatch "Add Anyway" path is the one caller that
+// passes acquired:false, for a real placeholder the coach hasn't gotten yet.
+export async function createAsset(ownerUserId, { name, sport, type, acquired }) {
+  const { data, error } = await supabase.from('assets').insert({ name, sport: sport || 'General', type: OLD_TO_EQUIP_TYPE[type] || type || 'team_equipment', owner_user_id: ownerUserId, acquired: acquired !== false }).select().single()
   if (error) console.error('createAsset:', error)
   return { data: data ? mapAssetRow(data) : null, error }
 }
@@ -494,13 +497,15 @@ export async function createCatalogAsset(catalogId, { name, sport, type }) {
 // Org-owned counterpart -- assets_insert_manage's RLS
 // (can_manage_asset_owned) already permits a director inserting with
 // organization_id set directly, no RPC needed.
-export async function createOrgAsset(organizationId, { name, sport, type }) {
-  const { data, error } = await supabase.from('assets').insert({ name, sport: sport || 'General', type: OLD_TO_EQUIP_TYPE[type] || type || 'team_equipment', organization_id: organizationId }).select().single()
+export async function createOrgAsset(organizationId, { name, sport, type, acquired }) {
+  const { data, error } = await supabase.from('assets').insert({ name, sport: sport || 'General', type: OLD_TO_EQUIP_TYPE[type] || type || 'team_equipment', organization_id: organizationId, acquired: acquired !== false }).select().single()
   if (error) console.error('createOrgAsset:', error)
   return { data: data ? mapAssetRow(data) : null, error }
 }
-export async function updateAsset(id, { name, sport }) {
-  const { error } = await supabase.from('assets').update({ name, sport }).eq('id', id)
+export async function updateAsset(id, { name, sport, acquired }) {
+  const row = { name, sport }
+  if (acquired !== undefined) row.acquired = acquired
+  const { error } = await supabase.from('assets').update(row).eq('id', id)
   if (error) console.error('updateAsset:', error)
   return { error }
 }
@@ -721,12 +726,16 @@ export async function setDrillOrgShares(drillId, organizationIds) {
 // mismatch dialogs (library-copy and add-to-practice) to decide whether to
 // show the dialog at all, and what to list in it, before anything is
 // written.
+// An acquired:false match doesn't count as "you have this" -- a coach who
+// chose "Add Anyway" on a previous copy/add still needs to see the mismatch
+// dialog again for that same drill until they actually mark it acquired,
+// not just once, silently, forever.
 export function findMissingEquipment(equipmentIds, sourceAssetsById, ownPool) {
   const missing = []
   for (const assetId of equipmentIds || []) {
     const source = sourceAssetsById && sourceAssetsById[assetId]
     if (!source) continue
-    const hasMatch = ownPool.some(a => a.name.toLowerCase() === source.name.toLowerCase() && a.type === source.type)
+    const hasMatch = ownPool.some(a => a.name.toLowerCase() === source.name.toLowerCase() && a.type === source.type && a.acquired !== false)
     if (!hasMatch) missing.push(source)
   }
   return missing
@@ -735,20 +744,35 @@ export function findMissingEquipment(equipmentIds, sourceAssetsById, ownPool) {
 // equipment resolution (2026-08-01) -- given a drill's raw equipment ids
 // and the caller's own pool, matches by name+type, mutating `pool` as it
 // creates so repeated calls in the same pass see what was just added.
-// createMissing=false is what makes "add anyway" possible -- unmatched
-// items are just dropped from the resolved list rather than created.
+// Direct feedback: "Add Anyway" used to just drop an unmatched item from
+// the resolved list entirely, silently losing the fact the drill ever
+// called for it -- createMissing now only controls whether the created
+// asset is immediately marked acquired, never whether it gets created at
+// all, so the reference (and the "you still need this" signal) survives
+// either choice.
 async function resolveEquipmentAgainstPool(equipmentIds, sourceAssetsById, pool, { ownerUserId, mode, createMissing }) {
   const isOrgMode = mode && mode.type === 'org'
   const resolvedIds = []
   for (const assetId of equipmentIds || []) {
     const source = sourceAssetsById && sourceAssetsById[assetId]
     if (!source) continue
-    const match = pool.find(a => a.name.toLowerCase() === source.name.toLowerCase() && a.type === source.type)
+    // Already the caller's own asset, just not yet marked acquired -- this
+    // is the Builder add-to-practice case, where the drill (already copied
+    // into this coach's own library) references their own placeholder
+    // asset directly. Update it in place instead of creating a duplicate
+    // row with the same name; "Add Equipment" marks it acquired, "Add
+    // Anyway" leaves it exactly as it was.
+    const isOwnAsset = isOrgMode ? source.organizationId === mode.orgId : source.ownerUserId === ownerUserId
+    if (isOwnAsset) {
+      if (createMissing && source.acquired === false) await updateAsset(source.id, { acquired: true })
+      resolvedIds.push(source.id)
+      continue
+    }
+    const match = pool.find(a => a.name.toLowerCase() === source.name.toLowerCase() && a.type === source.type && a.acquired !== false)
     if (match) { resolvedIds.push(match.id); continue }
-    if (!createMissing) continue
     const { data: newAsset } = isOrgMode
-      ? await createOrgAsset(mode.orgId, { name: source.name, sport: source.sport, type: source.type })
-      : await createAsset(ownerUserId, { name: source.name, sport: source.sport, type: source.type })
+      ? await createOrgAsset(mode.orgId, { name: source.name, sport: source.sport, type: source.type, acquired: createMissing })
+      : await createAsset(ownerUserId, { name: source.name, sport: source.sport, type: source.type, acquired: createMissing })
     if (newAsset) { resolvedIds.push(newAsset.id); pool.push(newAsset) }
   }
   return resolvedIds

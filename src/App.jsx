@@ -871,6 +871,12 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // through as real state (rather than reading editP directly) fixes that
   // and lets the pill react live as the coach edits it.
   const [schedDuration,setSchedDuration]=useState(editP?(editP.scheduledDurationMinutes||""):"");
+  // Direct feedback: the Run of Practice pill only ever showed "35/60 min" --
+  // tapping it now toggles to a plainer "needs N more minutes" readout
+  // (or "N min over"/"Fully planned" once there's nothing left to close),
+  // tapping again switches back. Purely a display preference, not
+  // persisted -- resets to the default X/Y view on a fresh Builder mount.
+  const [pillShowRemaining,setPillShowRemaining]=useState(false);
   const [tplName,setTplName]=useState("");
   const [showScheduleModal,setShowScheduleModal]=useState(false);
   const [schedSuccess,setSchedSuccess]=useState(false);
@@ -950,9 +956,20 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   },[]);
   const collapseAndScroll=id=>{
     setExpandedId(null);
+    // Direct feedback: Done on a long station block sometimes left the
+    // coach scrolled somewhere past the collapsed row instead of back at
+    // it. Root cause: collapsing a very tall block changes this section's
+    // total height, which the ResizeObserver above (runOfPracticeH, for the
+    // green backdrop) reacts to with its own layout pass -- scrolling on
+    // the very next frame could still be racing that reflow, so the smooth
+    // scroll's target position was computed against a not-yet-settled
+    // layout and could overshoot well past the actual row. A second rAF
+    // lets that follow-up layout pass finish first.
     requestAnimationFrame(()=>{
-      const el=rowRefs.current[id];
-      if(el)el.scrollIntoView({behavior:"smooth",block:"start"});
+      requestAnimationFrame(()=>{
+        const el=rowRefs.current[id];
+        if(el)el.scrollIntoView({behavior:"smooth",block:"start"});
+      });
     });
   };
   // Clicking away from the expanded row collapses it (no forced scroll --
@@ -971,11 +988,25 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   useEffect(()=>{
     if(!expandedId)return;
     const idAtAttach=expandedId;
+    // Real bug found live (direct feedback: picking "Group by...Dominant
+    // Hand," and separately picking a drill from a station's library
+    // picker, both booted the coach straight out of the expanded station
+    // block). Root cause: those options live inside their own inline
+    // dropdown (groupByOpen / libraryPickerIdx), and selecting one calls
+    // setGroupByOpen(false)/setLibraryPickerIdx(null) in the same click --
+    // React removes that dropdown (and the very button just clicked) from
+    // the DOM before this native document-level listener runs later in the
+    // same click's bubble phase. `target.closest()`/`el.contains(target)`
+    // both walk the *current* (already-mutated) tree, so a now-detached
+    // target always reads as "outside," collapsing the row it was clicked
+    // inside of. `composedPath()` is captured at dispatch time, before any
+    // handler runs, so it still lists every ancestor the target actually
+    // had at the moment of the click, mutation or not.
     const handler=e=>{
-      const target=e.target;
-      if(target.closest&&target.closest(".movly"))return;
+      const path=typeof e.composedPath==="function"?e.composedPath():[e.target];
+      if(path.some(n=>n.classList&&n.classList.contains("movly")))return;
       const el=rowRefs.current[idAtAttach];
-      if(el&&el.contains(target))return;
+      if(el&&path.includes(el))return;
       setExpandedId(prev=>prev===idAtAttach?null:prev);
       setLastAddedId(prev=>prev===idAtAttach?null:prev);
     };
@@ -1216,6 +1247,15 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     await refreshPlanning();
     if(saved)launchRun(saved.id);
   };
+  // Direct feedback: Run Now shouldn't be available when a scheduled
+  // practice is still far off -- it's for "happening now or very soon,"
+  // not a way to skip straight past the plan into a live session hours
+  // early. Only gates an already-scheduled practice (editP); a brand-new
+  // unscheduled build's date/time fields are just today's placeholder
+  // defaults, not a real commitment, so Run Now stays available there
+  // regardless of what they happen to show.
+  const scheduledMoment=editP&&schedDate&&schedTime?new Date(schedDate+"T"+schedTime+":00"):null;
+  const runTooFarAway=!!(scheduledMoment&&scheduledMoment.getTime()-Date.now()>3600000);
   return (<div style={{paddingBottom:80}}>
       <div ref={stickyHeaderRef} style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
       {/* Back-button audit (2026-07-15): was a hardcoded navigate("/") --
@@ -1235,7 +1275,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
             row below). An already-scheduled practice's Save still saves
             directly, unchanged. */}
         {(!bottomMode||bottomMode==="")&&<><button className="btn outline bsm" onClick={editP?handleSave:()=>setBottomMode("savechoice")}>Save</button>
-        <button className="btn primary bsm" onClick={handleRun}>Run Now</button></>}
+        <button className="btn primary bsm" onClick={handleRun} disabled={runTooFarAway} title={runTooFarAway?"Run Now unlocks within 1 hour of the scheduled time":""}>Run Now</button></>}
       </div>
       {editP&&<div style={{padding:"0 14px 8px",display:"flex",alignItems:"baseline",gap:8}}>
         <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",flexShrink:0}}>Editing</span>
@@ -1443,7 +1483,19 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           // fine here (red/amber against green), so it keeps its own
           // .pill.over/.pill.exceeds styling untouched rather than being
           // forced white too, which would hide the warning entirely.
-          return (acts.length>0||(editP&&schedDuration))&&<span className={"pill"+warn} style={warn?{flexShrink:0}:{background:"#fff",borderColor:"#fff",flexShrink:0}}>{editP&&schedDuration?totalMins+"/"+schedDuration+" min":totalMins+"m"}</span>;
+          const hasTarget=!!(editP&&schedDuration);
+          const remaining=hasTarget?schedDuration-totalMins:0;
+          const remainingLabel=remaining>0?"Needs "+remaining+" more min":remaining<0?(-remaining)+" min over":"Fully planned";
+          const label=hasTarget?(totalMins+"/"+schedDuration+" min"):(totalMins+"m");
+          const display=hasTarget&&pillShowRemaining?remainingLabel:label;
+          const pillStyle=warn?{flexShrink:0}:{background:"#fff",borderColor:"#fff",flexShrink:0};
+          if(!(acts.length>0||hasTarget))return null;
+          // Only meaningful to toggle when there's a real target to measure
+          // "more needed" against -- an unscheduled build's plain totalMins
+          // pill stays a static span, same as before.
+          return hasTarget
+            ?<button type="button" className={"pill"+warn} style={Object.assign({cursor:"pointer"},pillStyle)} onClick={()=>setPillShowRemaining(v=>!v)}>{display}</button>
+            :<span className={"pill"+warn} style={pillStyle}>{display}</span>;
         })()}
       </div>
       {acts.length===0&&(<div style={{position:"relative",zIndex:1,textAlign:"center",padding:"8px 22px 18px"}}>
@@ -1500,7 +1552,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               {expandedId===act.id&&(<div className="abbody">
                   {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} sport={teamSport} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
                   {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)}/>}
-                  {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
+                  {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} libraryDrills={data.activityLibrary} skillTags={data.skillTags} absentPlayerIds={absentPlayerIds}/>}
                 </div>
               )}
             </div>
@@ -1535,6 +1587,15 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               <span style={{color:"var(--green)",fontSize:18,fontWeight:700,flexShrink:0}}>+</span>
             </div>
           ))}
+          {/* Direct feedback: an odd number of tiles always leaves one grid
+              cell blank in this 2-column layout -- fill it with a real
+              pointer to the ellipsis menu instead of leaving dead space.
+              Reactive off visibleTypeKeys itself, so this comes back on its
+              own any time editing the picker leaves an odd count again,
+              never something that has to be dismissed once and remembered. */}
+          {visibleTypeKeys.length%2===1&&<div className="li tap" style={{marginBottom:0,background:"var(--gbg)",border:"1px dashed var(--gb)"}} onClick={()=>setShowComponentsPicker(true)}>
+            <div className="lim"><div className="limt" style={{color:"var(--green2)",lineHeight:1.4}}>Tap ⋯ above to add or remove your default practice components.</div></div>
+          </div>}
         </div>}
       </>)}
       {/* My Drill Library -- same black bar treatment/thickness as

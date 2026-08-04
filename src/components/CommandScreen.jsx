@@ -378,10 +378,13 @@ export function PreviewView({token}){
     return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
   };
 
-  const allEquip=[...new Set(activities.flatMap(act=>{
+  // get_preview_view (20260805030000) sends equipment as {name,acquired}
+  // objects so "Add Drill Anyway" gear a coach doesn't own yet can still be
+  // called out here, not just inside the app.
+  const allEquip=[...new Map(activities.flatMap(act=>{
     if(act.type==="station_block")return (act.station_block&&act.station_block.stations||[]).flatMap(st=>st.equipment||[]);
     return act.equipment||[];
-  }))];
+  }).map(e=>[e.name,e])).values()];
 
   const totalMins=activities.reduce((s,a)=>{
     if(a.type==="station_block"&&a.station_block){
@@ -432,7 +435,7 @@ export function PreviewView({token}){
     {allEquip.length>0&&<div style={{padding:"16px 20px",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#ca8a04",marginBottom:10}}>Equipment Needed</div>
       <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-        {allEquip.map((n,i)=>(<span key={i} style={{background:"rgba(202,138,4,.15)",border:"1px solid rgba(202,138,4,.4)",borderRadius:20,padding:"4px 12px",fontSize:13,color:"#fde047",fontWeight:600}}>{n}</span>))}
+        {allEquip.map((e,i)=>(<span key={i} style={e.acquired===false?{background:"rgba(220,38,38,.18)",border:"1px solid rgba(248,113,113,.6)",borderRadius:20,padding:"4px 12px",fontSize:13,color:"#fca5a5",fontWeight:700}:{background:"rgba(202,138,4,.15)",border:"1px solid rgba(202,138,4,.4)",borderRadius:20,padding:"4px 12px",fontSize:13,color:"#fde047",fontWeight:600}}>{e.name}{e.acquired===false&&" · not acquired"}</span>))}
       </div>
     </div>}
 
@@ -468,7 +471,7 @@ export function PreviewView({token}){
               </div>
               {st.coaching_points&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8,marginBottom:6}}>{st.coaching_points}</div>}
               {(st.equipment&&st.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                {st.equipment.map((n,j)=>(<span key={j} style={{background:"rgba(202,138,4,.12)",border:"1px solid rgba(202,138,4,.3)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fde047"}}>{n}</span>))}
+                {st.equipment.map((e,j)=>(<span key={j} style={e.acquired===false?{background:"rgba(220,38,38,.18)",border:"1px solid rgba(248,113,113,.6)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fca5a5",fontWeight:700}:{background:"rgba(202,138,4,.12)",border:"1px solid rgba(202,138,4,.3)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fde047"}}>{e.name}{e.acquired===false&&" · not acquired"}</span>))}
               </div>}
             </div>))}
           </div>);
@@ -488,7 +491,7 @@ export function PreviewView({token}){
           </div>
           {act.coaching_points&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8,marginBottom:6}}>{act.coaching_points}</div>}
           {equip.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-            {equip.map((n,j)=>(<span key={j} style={{background:"rgba(202,138,4,.12)",border:"1px solid rgba(202,138,4,.3)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fde047"}}>{n}</span>))}
+            {equip.map((e,j)=>(<span key={j} style={e.acquired===false?{background:"rgba(220,38,38,.18)",border:"1px solid rgba(248,113,113,.6)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fca5a5",fontWeight:700}:{background:"rgba(202,138,4,.12)",border:"1px solid rgba(202,138,4,.3)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fde047"}}>{e.name}{e.acquired===false&&" · not acquired"}</span>))}
           </div>}
         </div>);
       })}

@@ -132,13 +132,6 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   const now = new Date();
   const todayStr = localDateStr(now);
   const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
-  // "This Week" (handoff §4.3): was a 14-day window, now 7. The needs-a-plan
-  // nudge below is separate and stays 14 -- its own copy always said "next
-  // 14 days" even though the filter behind it was quietly reusing this same
-  // 7-day cutoff (a real bug, not a design choice: a practice 8-13 days out
-  // needing a plan was invisible to the nudge that claims to cover it).
-  const in7Str = localDateStr(new Date(Date.now() + 7 * 864e5));
-  const in14Str = localDateStr(new Date(Date.now() + 14 * 864e5));
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
@@ -168,20 +161,23 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   const ran = p => runStatus[p.id] === "completed";
 
   const active = data.practices.filter(p => !isCancelled(p));
-  // Raw date-window candidates, before the ran() filter -- runStatus/absence
-  // counts are fetched for this set first (ran() reads runStatus, so the
-  // filtered-out set can't be known until that fetch resolves). Widened to
-  // 14 days so the needs-a-plan nudge (below) has real run-status data for
-  // its full claimed window; "This Week" narrows this same set back to 7.
-  const windowCandidates = active.filter(p => p.date >= todayStr && p.date <= in14Str).sort((a, b) => a.date === b.date ? (a.startTime || "").localeCompare(b.startTime || "") : a.date.localeCompare(b.date));
+  // Direct feedback: "Upcoming Practices" should always show the coach's
+  // next 4 practices -- planned or not, no matter how far out they are --
+  // rather than being capped to a rolling day window that could show
+  // nothing at all during an off-season gap. Candidates are still capped at
+  // a generous count (not literally every future practice) purely so the
+  // batch run-status/absence-count fetch below stays bounded -- a genuinely
+  // future-dated practice can't yet be "ran" anyway, so this only matters
+  // for today's own practice(s), which always sort first regardless.
+  const upcomingCandidates = active.filter(p => p.date >= todayStr).sort((a, b) => a.date === b.date ? (a.startTime || "").localeCompare(b.startTime || "") : a.date.localeCompare(b.date)).slice(0, 20);
   // Completed practices leave the list entirely (handoff §4.3) -- Home used
   // to only badge them "· Completed" inline; Schedule already excludes them
   // from its "upcoming" bucket the same way.
-  const agendaWindow = windowCandidates.filter(p => !ran(p) && p.date <= in7Str);
+  const agendaWindow = upcomingCandidates.filter(p => !ran(p)).slice(0, 4);
 
-  const agendaIdsKey = JSON.stringify(windowCandidates.map(p => p.id));
+  const agendaIdsKey = JSON.stringify(upcomingCandidates.map(p => p.id));
   const refreshAbsenceCounts = () => {
-    const ids = windowCandidates.map(p => p.id);
+    const ids = upcomingCandidates.map(p => p.id);
     if (!ids.length) { setAbsenceCounts({}); return; }
     fetchPlannedAbsences(ids).then(rows => {
       const counts = {};
@@ -191,7 +187,7 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   };
   useEffect(refreshAbsenceCounts, [agendaIdsKey]);
   useEffect(() => {
-    const ids = windowCandidates.map(p => p.id);
+    const ids = upcomingCandidates.map(p => p.id);
     if (!ids.length) { setRunStatus({}); return; }
     fetchPracticeRunStatus(ids).then(setRunStatus);
   }, [agendaIdsKey]);
@@ -224,10 +220,6 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
     const pm = h * 60 + m, nm = now.getHours() * 60 + now.getMinutes();
     return pm - nm <= 120 && pm - nm >= -180;
   };
-  // §3: the nudge strip is a to-do list for whoever can act on it -- filter
-  // to practices on teams this user actually head-coaches, per-team (not a
-  // global assistant/head-coach flag, since roles can differ by team).
-  const needsPlanning = windowCandidates.filter(p => !ran(p) && !isPlanned(p) && canManageTeamInMode(teamById(p.teamId), coachId, mode));
   const canManageAnyTeam = data.teams.some(t => canManageTeamInMode(t, coachId, mode));
 
   // Development Pulse focus-team resolution (Coach mode only -- data.teams
@@ -564,11 +556,11 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
           separate widget, never this card reused with a random team. */}
       {!isOrgMode && focusTeam && <DevelopmentPulseCard team={focusTeam} nextPractice={nextPractice} canManage={focusTeamCanManage} data={data} coachId={coachId} hasSportCategories={focusTeamHasCategories} isLiveNow={focusTeamIsLiveNow} onNavigate={developmentPulseNavigate} />}
 
-      {needsPlanning.length > 0 && <div className="li" style={{ marginBottom: 16, cursor: "pointer" }} onClick={goToSchedule}>
-        <div className="lim"><div className="lin">{needsPlanning.length} practice{needsPlanning.length > 1 ? "s" : ""} in the next 14 days need{needsPlanning.length === 1 ? "s" : ""} a plan</div></div>
-        <span style={{ color: "var(--green)", fontSize: 18 }}>&#8250;</span>
-      </div>}
-
+      {/* Direct feedback: the "N practices in the next 14 days need a plan"
+          nudge is gone -- Upcoming Practices already shows the coach's next
+          4 practices (planned or not, "Needs plan" called out inline per
+          row below) and My Schedule covers the rest; a second surface
+          saying the same thing was redundant. */}
       <div className="sechdr" style={{ marginBottom: 8 }}><span className="sectitle">Upcoming Practices</span><button className="btn ghost bxs" onClick={goToSchedule}>My Schedule</button></div>
       {agendaWindow.length === 0 && <div style={{ padding: "16px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>Nothing scheduled.</div>}
       {agendaWindow.map(p => {

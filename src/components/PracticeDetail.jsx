@@ -46,8 +46,14 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
   const timeLbl=p=>{if(!p.startTime)return "";const pts=p.startTime.split(":");const h=parseInt(pts[0]);const m=parseInt(pts[1]);return (h%12||12)+":"+(m<10?"0"+m:m)+(h>=12?" PM":" AM");};
   const actMins=a=>{if(a.type==="station_block")return a.stations.length*(a.stationDuration||0)+Math.max(0,a.stations.length-1)*(a.transitionDuration||0);return a.duration||0;};
   const totalMins=(practice.activities||[]).reduce((s,a)=>s+actMins(a),0);
-  const resolveEquip=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
-  const allEquipNames=[...new Set([...(practice.activities||[]).flatMap(a=>{if(a.type==="station_block")return(a.stations||[]).flatMap(st=>resolveEquip(st.equipment));return resolveEquip(a.equipment);})])];
+  // resolveEquip returns {id,name,acquired} objects, not bare names --
+  // "Add Drill Anyway" on the equipment-mismatch dialog keeps a missing
+  // item on the drill flagged acquired:false instead of dropping it, and
+  // that flag needs to survive here so the coach sees it called out
+  // rather than looking like equipment they already have.
+  const resolveEquip=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?{id:a.id,name:a.name,acquired:a.acquired!==false}:null;}).filter(Boolean);
+  const EquipList=({items,sep})=>items.map((e,i)=>(<span key={e.id} style={{color:e.acquired?"inherit":"var(--red)",fontWeight:e.acquired?"inherit":700}}>{e.name}{!e.acquired&&" (not acquired)"}{i<items.length-1?(sep||", "):""}</span>));
+  const allEquip=[...new Map((practice.activities||[]).flatMap(a=>{if(a.type==="station_block")return(a.stations||[]).flatMap(st=>resolveEquip(st.equipment));return resolveEquip(a.equipment);}).map(e=>[e.id,e])).values()];
   const subName=id=>{const l=loc&&loc.sublocations.find(s=>s.id===id);return l?l.name:null;};
   const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
   const refreshAbsences=()=>{
@@ -106,13 +112,19 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
           the way the app's own view can. */}
       {!isCancelled&&isPlanned&&<button className="btn outline bmd bfull" style={{marginBottom:12}} onClick={()=>setShowPrint(true)}>Print / Export PDF</button>}
       {!isCancelled&&!confirmCancel&&canManage&&<button className="btn ghost bsm bfull" style={{marginBottom:12,color:"var(--red)"}} onClick={()=>setConfirmCancel(true)}>Cancel Practice</button>}
+      {/* Direct feedback: the body copy's "--" and the old "This Only"/
+          "This & Future" pairing read as an em dash plus unclear action
+          verbs. The plan itself is never touched by cancelling (only the
+          scheduled slot's status changes), so the body says that plainly
+          without a dash; buttons are always a real verb, never a bare
+          scope label. */}
       {confirmCancel&&<div className="confirm-box" style={{marginBottom:12}}>
         <div className="confirm-title">Cancel this practice?</div>
-        <div className="confirm-body">The plan stays saved -- this just marks the slot as cancelled.</div>
+        <div className="confirm-body">This marks the slot as cancelled. The plan stays saved.</div>
         <div className="brow" style={{flexWrap:"wrap"}}>
           <button className="btn ghost bsm" onClick={()=>setConfirmCancel(false)}>Never Mind</button>
-          <button className="btn danger bsm" onClick={()=>doCancel("this")}>This Only</button>
-          {practice.seriesId&&<button className="btn danger bsm" onClick={()=>doCancel("future")}>This &amp; Future</button>}
+          <button className="btn danger bsm" onClick={()=>doCancel("this")}>{practice.seriesId?"Cancel This Practice":"Cancel Practice"}</button>
+          {practice.seriesId&&<button className="btn danger bsm" onClick={()=>doCancel("future")}>Cancel This &amp; Future</button>}
         </div>
       </div>}
       {!previewUrl&&!isCancelled&&<button className="btn outline bmd bfull" style={{marginBottom:12}} onClick={shareSetup} disabled={sharing}>{sharing?"Creating link...":"Share Setup Link"}</button>}
@@ -123,9 +135,9 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
         </div>
         <button className="btn primary bxs" onClick={copyUrl}>Share</button>
       </div>}
-      {allEquipNames.length>0&&<div className="card" style={{marginBottom:12,background:"var(--ambg)",border:"1.5px solid var(--ambb)"}}>
+      {allEquip.length>0&&<div className="card" style={{marginBottom:12,background:"var(--ambg)",border:"1.5px solid var(--ambb)"}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--amber)",marginBottom:6}}>Equipment Needed</div>
-        {allEquipNames.map((n,i)=>(<div key={i} style={{fontSize:14,color:"var(--black)",marginBottom:2}}>· {n}</div>))}
+        {allEquip.map(e=>(<div key={e.id} style={{fontSize:14,color:e.acquired?"var(--black)":"var(--red)",fontWeight:e.acquired?400:700,marginBottom:2}}>· {e.name}{!e.acquired&&<span style={{fontSize:11,marginLeft:6}}>NOT ACQUIRED</span>}</div>))}
       </div>}
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Run Order</div>
       {(practice.activities||[]).map((a,i)=>{
@@ -156,7 +168,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
                 <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
                 <div style={{fontSize:13,lineHeight:1.5}}>{a.coachingPoints}</div>
               </div>}
-              {resolveEquip(a.equipment).length>0&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Equipment: </span>{resolveEquip(a.equipment).join(", ")}</div>}
+              {resolveEquip(a.equipment).length>0&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Equipment: </span><EquipList items={resolveEquip(a.equipment)}/></div>}
               {a.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Player Gear: </span>{a.playerGear}</div>}
               {a.grouping&&a.grouping!=="whole"&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Grouping: </span>{a.grouping==="partners"?"Partners":a.numGroups+" Groups"}</div>}
             </div>}
@@ -178,7 +190,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
                     <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
                     <div style={{fontSize:12,lineHeight:1.4}}>{st.coachingPoints}</div>
                   </div>}
-                  {stEquip.length>0&&<div style={{fontSize:12,color:"var(--td)"}}>Equipment: {stEquip.join(", ")}</div>}
+                  {stEquip.length>0&&<div style={{fontSize:12,color:"var(--td)"}}>Equipment: <EquipList items={stEquip}/></div>}
                   {st.playerGear&&<div style={{fontSize:12,color:"var(--td)"}}>Player Gear: {st.playerGear}</div>}
                 </div>);
               })}

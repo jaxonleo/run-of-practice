@@ -254,7 +254,7 @@ export function ChecklistConfig({act,onChange,onDone}){
   </div>);
 }
 
-export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,refreshLibrary,teamSport,libraryDrills,skillTags}){
+export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,refreshLibrary,teamSport,libraryDrills,skillTags,absentPlayerIds}){
   const rotate=act.rotate!==false;
   const [newEquipIdx,setNewEquipIdx]=useState(null);
   const [newGearIdx,setNewGearIdx]=useState(null);
@@ -274,6 +274,27 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   const toggleStationCollapsed=id=>setCollapsedStations(prev=>{const next=new Set(prev);if(next.has(id))next.delete(id);else next.add(id);return next;});
   const sport=teamSport||"General";
   const players=team?team.players:[];
+  // Direct feedback: a player marked out for this specific practice (Who's
+  // Out?, planned_absences) still showed up here as plainly assignable, no
+  // different from anyone else -- easy to auto-shuffle or hand-pick them
+  // into a station. Still shown (a coach should be able to see who's out,
+  // not just guess why someone's missing), but excluded from both bulk
+  // auto-assignment and manual per-station picking.
+  const outIds=absentPlayerIds||new Set();
+  const assignablePlayers=players.filter(p=>!outIds.has(p.id));
+  // A player already assigned to a station before being marked out (or
+  // whose absence is only just loading in) is actually removed from every
+  // station's assignments, not just visually greyed out -- otherwise the
+  // saved plan could still list them at a station even though the UI no
+  // longer shows them as "here."
+  const outIdsKey=[...outIds].sort().join(",");
+  useEffect(()=>{
+    if(!outIds.size)return;
+    const anyOut=act.stations.some(st=>(st.assignments||[]).some(id=>outIds.has(id)));
+    if(!anyOut)return;
+    onChange({stations:act.stations.map(st=>Object.assign({},st,{assignments:(st.assignments||[]).filter(id=>!outIds.has(id))}))});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[outIdsKey]);
   // Same catalog-equipment/sport/location scoping as ActConfig -- see its
   // comment.
   const atLoc=a=>!loc||!Array.isArray(a.locationIds)||a.locationIds.length===0||a.locationIds.includes(loc.id);
@@ -323,7 +344,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
 
   const genRandom=()=>{
     const n=act.stations.length;
-    const shuffled=[...players].sort(()=>Math.random()-.5);
+    const shuffled=[...assignablePlayers].sort(()=>Math.random()-.5);
     const groups=Array.from({length:n},()=>[]);
     shuffled.forEach((p,i)=>groups[i%n].push(p.id));
     onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:groups[i]||[],groupLabel:""}))});
@@ -339,13 +360,13 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   // recheck the roster.
   const HAND_GROUP_LABELS={L:"Lefties",R:"Righties",S:"Switch"};
   const groupByPosition=()=>{
-    const groups=groupByAttribute(players,act.stations.length,p=>(p.positions&&p.positions[0])||"",v=>v);
+    const groups=groupByAttribute(assignablePlayers,act.stations.length,p=>(p.positions&&p.positions[0])||"",v=>v);
     onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:(groups[i]&&groups[i].ids)||[],groupLabel:(groups[i]&&groups[i].label)||""}))});
     setGroupByLabel("Position");
     setGroupByOpen(false);
   };
   const groupByHand=(key,label)=>{
-    const groups=groupByAttribute(players,act.stations.length,p=>p[key]||"",v=>HAND_GROUP_LABELS[v]||v);
+    const groups=groupByAttribute(assignablePlayers,act.stations.length,p=>p[key]||"",v=>HAND_GROUP_LABELS[v]||v);
     onChange({stations:act.stations.map((st,i)=>Object.assign({},st,{assignments:(groups[i]&&groups[i].ids)||[],groupLabel:(groups[i]&&groups[i].label)||""}))});
     setGroupByLabel(label);
     setGroupByOpen(false);
@@ -487,11 +508,13 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
           {st.groupLabel&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
             {players.map(p=>{
-              const here=(st.assignments||[]).includes(p.id);
-              const otherIdx=!here?act.stations.findIndex((s2,i2)=>i2!==si&&(s2.assignments||[]).includes(p.id)):-1;
+              const out=outIds.has(p.id);
+              const here=!out&&(st.assignments||[]).includes(p.id);
+              const otherIdx=!out&&!here?act.stations.findIndex((s2,i2)=>i2!==si&&(s2.assignments||[]).includes(p.id)):-1;
               const elsewhere=otherIdx>=0;
-              return(<button key={p.id} type="button" onClick={()=>handleChip(si,p)} style={{padding:"7px 12px",borderRadius:8,border:"1.5px solid",borderColor:here?"var(--green)":elsewhere?"#d97706":"var(--b)",background:here?"var(--green)":elsewhere?"#fef3c7":"var(--s1)",color:here?"#fff":elsewhere?"#92400e":"var(--black)",fontSize:13,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:1,minWidth:72}}>
-                <span style={{fontWeight:700}}>{p.jersey?<span style={{fontFamily:"DM Mono,monospace",fontSize:11,marginRight:3}}>#{p.jersey}</span>:null}{p.firstName}</span>
+              return(<button key={p.id} type="button" onClick={()=>{if(!out)handleChip(si,p);}} disabled={out} title={out?p.firstName+" is marked out for this practice":undefined} style={{padding:"7px 12px",borderRadius:8,border:"1.5px solid",borderColor:out?"var(--b)":here?"var(--green)":elsewhere?"#d97706":"var(--b)",background:out?"var(--s2)":here?"var(--green)":elsewhere?"#fef3c7":"var(--s1)",color:out?"var(--td)":here?"#fff":elsewhere?"#92400e":"var(--black)",fontSize:13,cursor:out?"not-allowed":"pointer",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:1,minWidth:72,opacity:out?0.7:1}}>
+                <span style={{fontWeight:700,textDecoration:out?"line-through":"none"}}>{p.jersey?<span style={{fontFamily:"DM Mono,monospace",fontSize:11,marginRight:3}}>#{p.jersey}</span>:null}{p.firstName}</span>
+                {out&&<span style={{fontSize:10,fontWeight:700,color:"var(--red)"}}>Out</span>}
                 {elsewhere&&<span style={{fontSize:10,opacity:.85}}>→ St {otherIdx+1}</span>}
                 {here&&<span style={{fontSize:10,opacity:.8}}>✓ here</span>}
               </button>);
@@ -500,7 +523,8 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
           <div style={{fontSize:11,color:"var(--td)",marginTop:4}}>
             <span style={{color:"var(--green)",fontWeight:700}}>Green</span> = here &nbsp;
             <span style={{color:"#d97706",fontWeight:700}}>Yellow</span> = other station &nbsp;
-            <span style={{color:"var(--td)"}}>Gray</span> = unassigned
+            <span style={{color:"var(--td)"}}>Gray</span> = unassigned &nbsp;
+            <span style={{color:"var(--red)",fontWeight:700}}>Out</span> = marked out for this practice
           </div>
         </div>}
         </>}
