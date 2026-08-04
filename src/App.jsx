@@ -772,12 +772,12 @@ function TeamEquipmentRoute(){
 function TeamGoalsRoute(){
   const {teamId}=useParams();
   const navigate=useNavigate();
-  const {data,coachId,setSubViewBack,mode}=useAppCtx();
+  const {data,coachId,setSubViewBack,mode,refreshTeams}=useAppCtx();
   const team=data.teams.find(t=>t.id===teamId);
   useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
   if(!team)return null;
   return (<div style={{padding:"16px 16px calc(var(--tab) + 20px)"}}>
-    <GoalsScreen data={data} teamId={teamId} coachId={coachId} setSubViewBack={setSubViewBack} mode={mode}/>
+    <GoalsScreen data={data} teamId={teamId} coachId={coachId} setSubViewBack={setSubViewBack} mode={mode} refreshTeams={refreshTeams}/>
   </div>);
 }
 

@@ -5,7 +5,7 @@ import {
   fetchTeamGoals, setTeamGoals, updateGoalsWindowWeeks,
   fetchTeamGoalReport, fetchTeamGoalTrends, fetchTeamSessionHistory, fetchSessionActivityLog, fetchSessionExecutionScorecard, fetchNotesForPractice, archiveNote,
   setSessionExclusion, adjustSessionActivity, addSessionActivityRow, logGoalViewed,
-  markPracticeNotesViewed, markNotesViewedForPractices,
+  markPracticeNotesViewed, markNotesViewedForPractices, archivePractice,
 } from "../supabase.js";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
 
@@ -69,9 +69,6 @@ function SkillRow({ skill }) {
 // Save is enabled. Saving is one atomic RPC (set_team_goals) rather than N
 // separate row writes.
 function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
-  const [windowWeeks, setWindowWeeks] = useState(team.goalsWindowWeeks || 4);
-  useEffect(() => setWindowWeeks(team.goalsWindowWeeks || 4), [team.goalsWindowWeeks]);
-  const [savingWindow, setSavingWindow] = useState(false);
   const [values, setValues] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -115,11 +112,6 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
   const total = Object.values(values).reduce((s, v) => s + (v || 0), 0);
   const canSave = total === 100 || total === 0;
 
-  const saveWindow = async () => {
-    setSavingWindow(true);
-    await updateGoalsWindowWeeks(teamId, windowWeeks);
-    setSavingWindow(false);
-  };
   const setValue = (categoryId, pct) => setValues(p => ({ ...p, [categoryId]: Math.max(0, Math.min(100, pct)) }));
   const save = async () => {
     if (!canSave) return;
@@ -171,15 +163,6 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
         as clickable as before even though there was nothing left to save. */}
     <button className="btn primary bmd bfull" onClick={save} disabled={!canSave || saving || !dirty}>{saving ? "Saving..." : "Save Goals"}</button>
     {savedAt && <div style={{ fontSize: 11, color: "var(--td)", textAlign: "center", marginTop: 6 }}>Last saved {fmtSavedAt(savedAt)}</div>}
-
-    <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--b)" }}>
-      <label className="lbl">Measure over the last</label>
-      <div className="row">
-        <input className="inp" type="number" min="1" max="12" style={{ width: 64, padding: "6px 8px" }} value={windowWeeks} onChange={e => setWindowWeeks(Math.max(1, Math.min(12, Number(e.target.value) || 1)))} onBlur={saveWindow} />
-        <span style={{ fontSize: 13, color: "var(--td)" }}>week{windowWeeks === 1 ? "" : "s"}</span>
-        {savingWindow && <span style={{ fontSize: 11, color: "var(--td)" }}>Saving...</span>}
-      </div>
-    </div>
   </div>);
 }
 
@@ -193,7 +176,31 @@ const UNTAGGED_ROW_HIGHLIGHT_CSS = `
 @media (prefers-reduced-motion: reduce) { .untagged-row-highlighted { animation: none; } }
 `;
 
-function GlanceView({ report, emphasizeUntagged, team, teamId, canManage, onReviewUntaggedDrills }) {
+function GlanceView({ report, emphasizeUntagged, team, teamId, canManage, onReviewUntaggedDrills, allDrillsTagged, refreshReport, refreshTeams }) {
+  // Direct feedback: "Measure over the last N weeks" used to live in the
+  // Goals card above (which sets targets, a different concern), even though
+  // it's actually this report's own control. Moved into this card's own
+  // header instead. Refetches both the report (percentages) and the team
+  // record itself after saving -- a real, pre-existing bug found live while
+  // making this move: updateGoalsWindowWeeks writes straight to `teams`
+  // with no client-side refresh call at all, so the app's top-level
+  // data.teams cache kept the stale window count. The report refetch alone
+  // masked this (report.window_weeks did update, so the number briefly
+  // looked right), but this control re-derives its own initial value from
+  // team.goalsWindowWeeks, so navigating away and back (a fresh mount) or a
+  // hard reload silently "reverted" the edit even though it was saved fine
+  // server-side the whole time -- confirmed live by querying the database
+  // directly while the on-screen control showed the old value.
+  const [windowWeeks, setWindowWeeks] = useState(team ? (team.goalsWindowWeeks || 4) : 4);
+  useEffect(() => setWindowWeeks(team ? (team.goalsWindowWeeks || 4) : 4), [team && team.goalsWindowWeeks]);
+  const [savingWindow, setSavingWindow] = useState(false);
+  const saveWindow = async () => {
+    setSavingWindow(true);
+    await updateGoalsWindowWeeks(teamId, windowWeeks);
+    setSavingWindow(false);
+    if (refreshReport) refreshReport();
+    if (refreshTeams) refreshTeams();
+  };
   if (!report) return null;
   const skills = report.skills || [];
   const untagged = report.untagged || { planned_pct: 0, actual_pct: 0 };
@@ -201,10 +208,23 @@ function GlanceView({ report, emphasizeUntagged, team, teamId, canManage, onRevi
   const completedCount = (report.practices || {}).completed_session_count || 0;
   const otherPerPractice = completedCount > 0 ? fmtMin(report.other_transition_minutes / completedCount) : 0;
   const untaggedHigh = untagged.planned_pct > 25 || untagged.actual_pct > 25;
+  const hasUntaggedTime = untagged.planned_pct > 0 || untagged.actual_pct > 0;
 
   return (<div className="card mb10">
     {emphasizeUntagged && <style>{UNTAGGED_ROW_HIGHLIGHT_CSS}</style>}
-    <div className="clbl mb8">Target vs. Planned vs. Actual <span style={{ textTransform: "none", fontWeight: 400 }}>· last {report.window_weeks} week{report.window_weeks === 1 ? "" : "s"}</span></div>
+    <div className="clbl mb8" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
+      <span>Target vs. Planned vs. Actual</span>
+      {canManage ? (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, textTransform: "none", fontWeight: 400 }}>
+          · last
+          <input type="number" min="1" max="12" className="inp" style={{ width: 40, padding: "2px 4px", fontSize: 12, textAlign: "center" }} value={windowWeeks} onChange={e => setWindowWeeks(Math.max(1, Math.min(12, Number(e.target.value) || 1)))} onBlur={saveWindow} />
+          week{windowWeeks === 1 ? "" : "s"}
+          {savingWindow && <span style={{ fontSize: 10, color: "var(--td)" }}>Saving...</span>}
+        </span>
+      ) : (
+        <span style={{ textTransform: "none", fontWeight: 400 }}>· last {report.window_weeks} week{report.window_weeks === 1 ? "" : "s"}</span>
+      )}
+    </div>
     {skills.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>No goals set and nothing tagged yet this window.</div>}
     {skills.map(s => (<SkillRow key={s.skill_category_id} skill={s} />))}
 
@@ -213,15 +233,26 @@ function GlanceView({ report, emphasizeUntagged, team, teamId, canManage, onRevi
       <div style={{ fontSize: 12, color: "var(--td)", marginTop: -6, marginBottom: 10 }}>
         Other / transitions: ~{otherPerPractice} min/practice between drills
       </div>
-      {untaggedHigh && <div style={{ fontSize: 12, color: "var(--amber)", background: "var(--ambg)", border: "1px solid var(--ambb)", borderRadius: "var(--rs)", padding: "8px 10px", marginBottom: canManage ? 8 : 0 }}>
+      {/* Direct feedback: once every drill in the library is already
+          tagged, "link drills to the library" stops being something the
+          coach can actually do -- whatever's left here came from activities
+          that were never added from the library at all (typed straight into
+          a practice), which this screen has no way to retroactively fix.
+          Say so instead of repeating advice that's already been followed,
+          and drop the CTA since there's nothing left to tag. */}
+      {untaggedHigh && !allDrillsTagged && <div style={{ fontSize: 12, color: "var(--amber)", background: "var(--ambg)", border: "1px solid var(--ambb)", borderRadius: "var(--rs)", padding: "8px 10px", marginBottom: canManage ? 8 : 0 }}>
         A lot of practice time isn't tagged to a skill. Linking drills to the library when you build a practice will make this report more useful.
+      </div>}
+      {hasUntaggedTime && allDrillsTagged && <div style={{ fontSize: 12, color: "var(--td)", background: "var(--s1)", border: "1px solid var(--b)", borderRadius: "var(--rs)", padding: "8px 10px" }}>
+        Every drill in your library is already tagged. This remaining untagged time is from activities that weren't added from your library -- as you build future practices with tagged drills, this report will keep getting more accurate.
       </div>}
       {/* Only a manager can actually go tag drills for this team's library
           (read-only coaches have nowhere useful to land -- My Drills is
           personal, not this team's). Not gated on untaggedHigh: a coach
           proactively cleaning up a small amount of untagged time shouldn't
-          have to wait for it to become a problem first. */}
-      {canManage && team && <button type="button" className="btn outline bsm" onClick={() => onReviewUntaggedDrills && onReviewUntaggedDrills()}>Tag Untagged Drills</button>}
+          have to wait for it to become a problem first. Hidden once
+          allDrillsTagged -- the CTA has nothing left to send them to. */}
+      {canManage && team && !allDrillsTagged && <button type="button" className="btn outline bsm" onClick={() => onReviewUntaggedDrills && onReviewUntaggedDrills()}>Tag Untagged Drills</button>}
     </div>
     {denomActual === 0 && completedCount === 0 && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 8 }}>No completed practices in this window yet.</div>}
   </div>);
@@ -319,15 +350,52 @@ function PracticeExecutionScorecard({ scorecard }) {
   </div>);
 }
 
-function TimeRangeForm({ start, end, setStart, setEnd, onSave, onCancel, busy, saveLabel }) {
+// Direct feedback: editing a logged drill's duration popped a native date
+// picker nobody needs -- the date is always the practice's own, never
+// something a coach would change here. `start`/`end` stay full
+// "YYYY-MM-DDTHH:MM" datetime-local strings under the hood (same shape
+// SessionHistoryDetail already tracks and hands to adjustSessionActivity/
+// addSessionActivityRow, both of which need real timestamps) -- only the
+// UI changed, to a time-only Start/End pair plus a Duration (min) field
+// that's kept consistent with whichever of the three was just edited:
+// changing Start shifts End by the same amount (a move, not a resize);
+// changing End or Duration recomputes the other, holding Start fixed.
+// `fallbackDate` (the session's own end date) seeds the date the first
+// time a coach types into a brand-new "Log actual time" row, before
+// start/end have any value of their own yet to derive it from.
+function TimeRangeForm({ start, end, setStart, setEnd, onSave, onCancel, busy, saveLabel, fallbackDate }) {
+  const date = (start || end || fallbackDate || "").slice(0, 10);
+  const toHM = s => (s || "").slice(11, 16);
+  const toMin = hm => { if (!hm) return null; const [h, m] = hm.split(":").map(Number); return h * 60 + m; };
+  const fromMin = mins => { const h = Math.floor(mins / 60), m = mins % 60; return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0"); };
+  const startTime = toHM(start);
+  const endTime = toHM(end);
+  const startMin = toMin(startTime);
+  const endMin = toMin(endTime);
+  const durationMin = (startMin != null && endMin != null) ? endMin - startMin : null;
+
+  const onStartTimeChange = t => {
+    if (!date) return;
+    setStart(date + "T" + t);
+    if (durationMin != null) setEnd(date + "T" + fromMin(toMin(t) + durationMin));
+  };
+  const onEndTimeChange = t => { if (date) setEnd(date + "T" + t); };
+  const onDurationChange = mins => { if (date && startMin != null) setEnd(date + "T" + fromMin(startMin + mins)); };
+  const invalid = durationMin != null && durationMin <= 0;
+
   return (<div style={{ background: "var(--s2)", borderRadius: "var(--rs)", padding: 10, marginTop: 6 }}>
     <div className="g2 mb6">
-      <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">Start</label><input className="inp" type="datetime-local" value={start} onChange={e => setStart(e.target.value)} /></div>
-      <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">End</label><input className="inp" type="datetime-local" value={end} onChange={e => setEnd(e.target.value)} /></div>
+      <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">Start</label><input className="inp" type="time" value={startTime} onChange={e => onStartTimeChange(e.target.value)} /></div>
+      <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">End</label><input className="inp" type="time" value={endTime} onChange={e => onEndTimeChange(e.target.value)} /></div>
     </div>
+    <div className="fld mb6">
+      <label className="lbl">Duration (min)</label>
+      <input className="inp" type="number" min="1" style={{ maxWidth: 100 }} value={durationMin != null && durationMin > 0 ? durationMin : ""} onChange={e => { const v = Number(e.target.value); if (v > 0) onDurationChange(v); }} disabled={startMin == null} />
+    </div>
+    {invalid && <div style={{ fontSize: 12, color: "var(--red)", marginBottom: 6 }}>End must be after start.</div>}
     <div className="brow">
       <button className="btn ghost bxs" onClick={onCancel}>Cancel</button>
-      <button className="btn primary bxs" onClick={onSave} disabled={busy || !start || !end}>{saveLabel || "Save"}</button>
+      <button className="btn primary bxs" onClick={onSave} disabled={busy || !start || !end || invalid}>{saveLabel || "Save"}</button>
     </div>
   </div>);
 }
@@ -379,6 +447,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
   const [addStart, setAddStart] = useState("");
   const [addEnd, setAddEnd] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
   const [scorecard, setScorecard] = useState(null);
   const loc = (practice && data) ? data.locations.find(l => l.id === practice.locationId) : null;
@@ -436,11 +505,30 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
     refreshScorecard();
     if (onChanged) onChanged();
   };
+  // Direct feedback: History had no way to delete a practice at all -- same
+  // soft-delete archivePractice() every other "Delete" in the app already
+  // uses (practices.archived_at). get_team_session_history now excludes
+  // archived practices (see the migration comment), so this actually drops
+  // out of the list, not just visually here. Deliberately not a plain
+  // .onClick like Home's own Delete -- this one throws away real logged
+  // history/notes/attendance the coach can see right in front of them, not
+  // just an empty upcoming slot, so it gets a real confirm first.
+  const doDeletePractice = async () => {
+    if (!window.confirm("Delete this practice? It will be removed from Practice History and Goals & Insights reporting. This can't be undone from here.")) return;
+    setDeleting(true);
+    await archivePractice(practice.id);
+    setDeleting(false);
+    if (onChanged) onChanged();
+    onBack();
+  };
 
   return (<div style={{ paddingBottom: 80 }}>
     {!setSubViewBack && <div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>&#8249; History</button></div>}
-    <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>
-      {session.ended_at ? new Date(session.ended_at).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }) : "In progress"}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
+      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900 }}>
+        {session.ended_at ? new Date(session.ended_at).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }) : "In progress"}
+      </div>
+      {canManage && <button className="btn ghost bxs" style={{ color: "var(--red)", flexShrink: 0 }} onClick={doDeletePractice} disabled={deleting}>{deleting ? "Deleting..." : "Delete Practice"}</button>}
     </div>
     <button className="btn outline bsm bfull" style={{ marginBottom: 12 }} onClick={() => setShowPrint(true)}>Print / Export PDF</button>
     <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>
@@ -477,8 +565,8 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
               {l.adjustedAt && <span className="bdg bp">adjusted</span>}
               {canManage && <button className="btn ghost bxs" onClick={() => startAdjust(l)}>Edit</button>}
             </div>))}
-            {addingFor && addingFor.stationId === st.id && <TimeRangeForm start={addStart} end={addEnd} setStart={setAddStart} setEnd={setAddEnd} onSave={saveAddRow} onCancel={() => setAddingFor(null)} busy={busy} saveLabel="Log time" />}
-            {stLogs.some(l => l.id === editingLogId) && <TimeRangeForm start={editStart} end={editEnd} setStart={setEditStart} setEnd={setEditEnd} onSave={saveAdjust} onCancel={() => setEditingLogId(null)} busy={busy} />}
+            {addingFor && addingFor.stationId === st.id && <TimeRangeForm start={addStart} end={addEnd} setStart={setAddStart} setEnd={setAddEnd} onSave={saveAddRow} onCancel={() => setAddingFor(null)} busy={busy} saveLabel="Log time" fallbackDate={session.ended_at} />}
+            {stLogs.some(l => l.id === editingLogId) && <TimeRangeForm start={editStart} end={editEnd} setStart={setEditStart} setEnd={setEditEnd} onSave={saveAdjust} onCancel={() => setEditingLogId(null)} busy={busy} fallbackDate={session.ended_at} />}
           </div>);
         })}
       </div>);
@@ -500,8 +588,8 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
           {canManage && <button className="btn ghost bxs" onClick={() => startAdjust(l)}>Edit</button>}
         </div>))}
         {actLogs.length > 1 && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--black2)", marginTop: 4 }}>Total actual: {actTotalMin}m</div>}
-        {addingFor && addingFor.practiceActivityId === act.id && <TimeRangeForm start={addStart} end={addEnd} setStart={setAddStart} setEnd={setAddEnd} onSave={saveAddRow} onCancel={() => setAddingFor(null)} busy={busy} saveLabel="Log time" />}
-        {actLogs.some(l => l.id === editingLogId) && <TimeRangeForm start={editStart} end={editEnd} setStart={setEditStart} setEnd={setEditEnd} onSave={saveAdjust} onCancel={() => setEditingLogId(null)} busy={busy} />}
+        {addingFor && addingFor.practiceActivityId === act.id && <TimeRangeForm start={addStart} end={addEnd} setStart={setAddStart} setEnd={setAddEnd} onSave={saveAddRow} onCancel={() => setAddingFor(null)} busy={busy} saveLabel="Log time" fallbackDate={session.ended_at} />}
+        {actLogs.some(l => l.id === editingLogId) && <TimeRangeForm start={editStart} end={editEnd} setStart={setEditStart} setEnd={setEditEnd} onSave={saveAdjust} onCancel={() => setEditingLogId(null)} busy={busy} fallbackDate={session.ended_at} />}
       </div>);
     })}
 
@@ -784,7 +872,7 @@ function NextPracticeGuidance({ team, teamId, data, report, canManage, coachId }
 
 // Goals + Insights tab (handoff §5). Ties together the editor, glance view,
 // and promoted History list/detail for one team.
-export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mode }) {
+export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mode, refreshTeams }) {
   const team = data.teams.find(t => t.id === teamId);
   // canManageTeamInMode, not bare isHeadCoach -- a director overseeing an
   // org team should be able to set goals/exclude sessions/archive notes
@@ -804,6 +892,17 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
   const goToUntaggedDrills = () => navigate("/library", {
     state: { untaggedForSport: (team && team.sport) || "General", teamId, returnTo: "/team/" + teamId + "/goals" },
   });
+  // Direct feedback: once a coach has actually tagged every drill in their
+  // library, the Overview's "link drills to the library" nudge stops being
+  // actionable advice -- there's nothing left to tag. Same source set the
+  // untagged-drills deep link itself uses (My Drills/Org Drills, scoped to
+  // this team's sport), so "all tagged" here means the same thing it means
+  // in Library's own empty state ("All caught up").
+  const isOrgMode = mode && mode.type === "org";
+  const untaggedLibraryDrillCount = (data.activityLibrary || []).filter(a => isOrgMode ? a.organizationId === (mode && mode.orgId) : a.ownerUserId === coachId)
+    .filter(a => (a.sport || "General") === ((team && team.sport) || "General"))
+    .filter(a => !(a.skillTagIds && a.skillTagIds.length)).length;
+  const allDrillsTagged = untaggedLibraryDrillCount === 0;
   // Development Pulse's "Review Untagged Time" CTA has no precise in-page
   // anchor (per spec), so it lands on Overview and gets a one-time visual
   // emphasis on the Untagged row instead -- same one-time-then-fade pattern
@@ -863,7 +962,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
     <GoalsSubnav view={view} setView={setView} />
     {view === "overview" && (<>
       {canManage && <GoalsEditor teamId={teamId} team={team} data={data} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
-      <GlanceView report={report} emphasizeUntagged={emphasizeUntagged} team={team} teamId={teamId} canManage={canManage} onReviewUntaggedDrills={goToUntaggedDrills} />
+      <GlanceView report={report} emphasizeUntagged={emphasizeUntagged} team={team} teamId={teamId} canManage={canManage} onReviewUntaggedDrills={goToUntaggedDrills} allDrillsTagged={allDrillsTagged} refreshReport={refreshReport} refreshTeams={refreshTeams} />
       <NextPracticeGuidance team={team} teamId={teamId} data={data} report={report} canManage={canManage} coachId={coachId} />
     </>)}
     {view === "trends" && <TrendsView teamId={teamId} team={team} canManage={canManage} />}
