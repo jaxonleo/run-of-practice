@@ -1793,12 +1793,21 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
   const [sort,setSort]=useState({by:"firstName",dir:"asc"});
   const [viewPlayer,setViewPlayer]=useState(null);
   const [confirmRemovePlayer,setConfirmRemovePlayer]=useState(null);
-  const [permissionsCoach,setPermissionsCoach]=useState(null);
+  // Direct feedback: PermissionsModal's toggles weren't visually reflecting
+  // a tap until the coach closed and reopened it. Root cause -- this used to
+  // hold the whole coach *object*, snapshotted at the moment the row was
+  // clicked; refreshTeams() after a toggle updates data.teams with a brand
+  // new coach object, but this state var kept pointing at the stale one
+  // since nothing ever reassigned it. Holding just the id and re-deriving
+  // the live object from `team.coaches` below means every render (including
+  // the one right after refreshTeams() resolves) reflects the real value.
+  const [permissionsCoachId,setPermissionsCoachId]=useState(null);
   const team=data.teams.find(t=>t.id===teamId)||null;
+  const permissionsCoach=permissionsCoachId?(team&&team.coaches||[]).find(c=>c.id===permissionsCoachId)||null:null;
   useEffect(()=>{
     if(!pendingPermissionsUserId||!team)return;
     const c=(team.coaches||[]).find(c=>c.userId===pendingPermissionsUserId);
-    if(c)setPermissionsCoach(c);
+    if(c)setPermissionsCoachId(c.id);
     setPendingPermissionsUserId(null);
   },[pendingPermissionsUserId,team]);
   // canManageTeamInMode, not bare isHeadCoach -- a director managing an org
@@ -1877,10 +1886,10 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
               own row without manage rights -- there's no ellipsis menu for
               a non-manager otherwise, so this is a plain text button
               instead of hiding the same action inside one. */}
-          {!canManage&&c.userId===coachId&&c.role!=="Head Coach"&&<button className="btn ghost bxs" onClick={e=>{e.stopPropagation();setPermissionsCoach(c);}}>Permissions</button>}
+          {!canManage&&c.userId===coachId&&c.role!=="Head Coach"&&<button className="btn ghost bxs" onClick={e=>{e.stopPropagation();setPermissionsCoachId(c.id);}}>Permissions</button>}
           {canManage&&<button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="coach_"+c.id?null:"coach_"+c.id);}}><span/><span/><span/></button>}
           {canManage&&openMenu==="coach_"+c.id&&<div className="mini-menu">
-            {c.role!=="Head Coach"&&<button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setPermissionsCoach(c);}}>Permissions</button>}
+            {c.role!=="Head Coach"&&<button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setPermissionsCoachId(c.id);}}>Permissions</button>}
             <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editCoach",{teamId,coach:c});}}>Edit</button>
             <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delC(c.id);}}>Remove</button>
           </div>}
@@ -1910,6 +1919,6 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
         <div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmRemovePlayer(null)}>Cancel</button><button className="btn danger bmd" onClick={doRemovePlayer}>Remove</button></div>
       </div>
     </div>}
-    {permissionsCoach&&<PermissionsModal team={team} coach={permissionsCoach} coachId={coachId} canManage={canManage} refreshTeams={refreshTeams} onClose={()=>setPermissionsCoach(null)}/>}
+    {permissionsCoach&&<PermissionsModal team={team} coach={permissionsCoach} coachId={coachId} canManage={canManage} refreshTeams={refreshTeams} onClose={()=>setPermissionsCoachId(null)}/>}
   </div>);
 }
