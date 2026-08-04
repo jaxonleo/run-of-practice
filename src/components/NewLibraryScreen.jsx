@@ -444,6 +444,12 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
   const [showNewTpl,setShowNewTpl]=useState(false);
   const [confirmLeave,setConfirmLeave]=useState(null); // null | "startFromTemplate"
   const [runBusy,setRunBusy]=useState(false);
+  // Direct feedback: this screen's Location field had no way to add a new
+  // location inline -- a coach whose actual location wasn't in the list yet
+  // had to abandon the template, go add it elsewhere, then come back. Same
+  // "+ Add New Location..." option (and zero-locations fallback button)
+  // Builder already offers.
+  const [showAddLocation,setShowAddLocation]=useState(false);
   // A freshly-created template placeholder (from "+ New Template") has a
   // locally-generated uid(), not a real UUID -- checked live off existingId
   // (not frozen at mount) so Save as New/Start from Template appear the
@@ -599,12 +605,18 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
         </div>
       </div>
       <div className="fld"><label className="lbl">Default Location</label>
-        <select className="sel" value={locId} onChange={e=>setLocId(e.target.value)}>
-          <option value="">None</option>
-          {teamLocations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
-        </select>
+        {teamLocations.length>0?(
+          <select className="sel" value={locId} onChange={e=>{const v=e.target.value;if(v==="__add_new__"){setShowAddLocation(true);return;}setLocId(v);}}>
+            <option value="">None</option>
+            {teamLocations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
+            <option value="__add_new__">+ Add New Location...</option>
+          </select>
+        ):(
+          <button type="button" className="btn outline bsm bfull" onClick={()=>setShowAddLocation(true)}>+ Add a Location</button>
+        )}
       </div>
     </div>
+    {showAddLocation&&<AddLocationDialog coachId={coachId} orgId={defaultTeam&&defaultTeam.organizationId} onClose={()=>setShowAddLocation(false)} onCreated={async(loc)=>{await refreshPlanning();setLocId(loc.id);}}/>}
 
     <div className="sechdr mb8"><span className="sectitle">{acts.length} Activities</span><span className="pill">{sumMins(acts)}m</span></div>
 
@@ -1124,7 +1136,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
     setEditingTpl({id:uid(),name:newTplNameDraft.trim(),activities:[],durMin:0});
     setNewTplPrompt(false);
   };
-  if(editingTpl)return (<div style={{paddingBottom:80}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>goToBuilder(null,tplId)} onRunNow={goToRun}/></div>);
+  if(editingTpl)return (<div style={{padding:"0 16px 80px"}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>goToBuilder(null,tplId)} onRunNow={goToRun}/></div>);
   return (<div style={{paddingBottom:80}}>
     <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div>

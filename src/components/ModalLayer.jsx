@@ -71,7 +71,6 @@ function useVisualViewportHeight(){
 function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshLibrary,catalogId}){
   const [open,setOpen]=useState(false);
   const [search,setSearch]=useState("");
-  const [newTagName,setNewTagName]=useState("");
   const [newTagCategoryId,setNewTagCategoryId]=useState("");
   const vpHeight=useVisualViewportHeight();
   const cats=(data.skillCategories||[]).filter(c=>c.sport===sport&&!c.archived_at);
@@ -79,18 +78,37 @@ function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshLibrary,
   const allTags=(data.skillTags||[]).filter(t=>!catalogId||t.scope==="global");
   const selectedTags=selectedIds.map(id=>allTags.find(t=>t.id===id)).filter(Boolean);
   const toggleTag=id=>{const has=selectedIds.includes(id);onChange(has?selectedIds.filter(x=>x!==id):[...selectedIds,id]);};
+  const q=search.trim().toLowerCase();
+  // Direct feedback: search and "add a new tag" used to be two separate
+  // fields, with Add sitting in its own row below every category's chip
+  // list -- easy to lose track of on a long tag set, and easy to tap the
+  // sheet's own Done button (right at the top) instead of Add by mistake,
+  // silently discarding whatever was typed. One field now does both: if
+  // nothing existing matches exactly, an "+ Add" affordance appears right
+  // underneath the search box itself, always visible without scrolling
+  // past the results (also fixes the on-screen-keyboard visibility
+  // complaint -- there's no longer a text field buried at the bottom of a
+  // long scrollable list for the keyboard to cover).
+  const exactMatch=q?allTags.find(t=>t.name.toLowerCase()===q):null;
+  const canAddNew=q.length>0&&!exactMatch;
   const addTag=async()=>{
-    if(!newTagName.trim())return;
+    if(!canAddNew)return;
     const catId=newTagCategoryId||(cats[0]&&cats[0].id);
     if(!catId)return;
     const{data:newTag}=catalogId
-      ?await createGlobalSkillTag({categoryId:catId,name:newTagName.trim()})
-      :await createSkillTag(coachId,{categoryId:catId,name:newTagName.trim()});
+      ?await createGlobalSkillTag({categoryId:catId,name:search.trim()})
+      :await createSkillTag(coachId,{categoryId:catId,name:search.trim()});
     if(newTag)onChange([...selectedIds,newTag.id]);
-    setNewTagName("");
+    setSearch("");
     await refreshLibrary();
   };
-  const q=search.trim().toLowerCase();
+  // Direct feedback: a typed-but-never-added tag ("Done" tapped before
+  // "Add") used to vanish silently with no warning. Route every way out of
+  // this sheet through one confirm check instead.
+  const tryClose=()=>{
+    if(canAddNew&&!window.confirm("You typed \""+search.trim()+"\" but haven't added it as a skill tag yet. Leave without adding it?"))return;
+    setOpen(false);
+  };
   return(<div className="fld"><label className="lbl">Skill Tags</label>
     <div style={{fontSize:11,color:"var(--td)",marginBottom:6,lineHeight:1.4}}>Tagging skills helps power Goals &amp; Insights and reporting on what your team actually practices.</div>
     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -105,13 +123,19 @@ function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshLibrary,
         height -- with the on-screen keyboard open for the search input,
         that's the area above the keyboard, not the full layout viewport,
         so results no longer end up hidden underneath it. */}
-    {open&&(<div className="movly" style={{zIndex:300,height:vpHeight?vpHeight+"px":undefined,bottom:"auto"}} onClick={e=>{if(e.target===e.currentTarget)setOpen(false);}}>
+    {open&&(<div className="movly" style={{zIndex:300,height:vpHeight?vpHeight+"px":undefined,bottom:"auto"}} onClick={e=>{if(e.target===e.currentTarget)tryClose();}}>
       <div className="modal" style={{maxHeight:vpHeight?Math.round(vpHeight*0.92)+"px":undefined}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900}}>Skill Tags</div>
-          <button type="button" className="btn ghost bxs" onClick={()=>setOpen(false)}>Done</button>
+          <button type="button" className="btn ghost bxs" onClick={tryClose}>Done</button>
         </div>
-        <input className="inp" placeholder="Search skills..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:14}}/>
+        <input className="inp" autoFocus placeholder={catalogId?"Search or add a global tag...":"Search or add a skill..."} value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&canAddNew)addTag();}} style={{marginBottom:canAddNew?8:14}}/>
+        {canAddNew&&<div style={{display:"flex",gap:6,marginBottom:14}}>
+          <select className="sel" style={{maxWidth:130,flexShrink:0}} value={newTagCategoryId||cats[0].id} onChange={e=>setNewTagCategoryId(e.target.value)}>
+            {cats.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <button type="button" className="btn primary bxs" style={{flex:1}} onClick={addTag}>+ Add "{search.trim()}"</button>
+        </div>}
         {cats.map(cat=>{
           const tags=allTags.filter(t=>t.categoryId===cat.id&&(!q||t.name.toLowerCase().includes(q)));
           if(tags.length===0)return null;
@@ -122,15 +146,7 @@ function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshLibrary,
             </div>
           </div>);
         })}
-        {q&&cats.every(cat=>allTags.filter(t=>t.categoryId===cat.id&&t.name.toLowerCase().includes(q)).length===0)&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>No skills match "{search}"</div>}
-        <div style={{display:"flex",gap:6,marginTop:4}}>
-          <select className="sel" style={{maxWidth:140}} value={newTagCategoryId||cats[0].id} onChange={e=>setNewTagCategoryId(e.target.value)}>
-            {cats.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <input className="inp" placeholder={catalogId?"Add a global tag...":"Add my own tag..."} style={{flex:1}} value={newTagName} onChange={e=>setNewTagName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTag()}/>
-          <button type="button" className="btn ghost bxs" onClick={addTag}>Add</button>
-        </div>
-        <button type="button" className="btn primary bmd bfull" style={{marginTop:14}} onClick={()=>setOpen(false)}>Done</button>
+        <button type="button" className="btn primary bmd bfull" style={{marginTop:14}} onClick={tryClose}>Done</button>
       </div>
     </div>)}
   </div>);
