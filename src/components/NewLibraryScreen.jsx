@@ -1188,22 +1188,21 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       {shelf==="public"?(
         <div onClick={e=>e.stopPropagation()}><PublicLibraryScreen data={data} isAdmin={isAdmin} refreshLibrary={refreshLibrary} openModal={openModal} doCopy={doCopy} copyingId={copyingId} mode={mode}/></div>
       ):(<>
-      {isMine&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:"flex",alignItems:"center",gap:6}}>
-          <label style={{fontSize:12,color:"var(--td)"}}>Sort</label>
-          <select value={drillSort} onChange={e=>setDrillSort(e.target.value)} style={{fontSize:12,padding:"4px 6px",borderRadius:6,border:"1px solid var(--b)"}}>
-            <option value="custom">Custom (drag to reorder)</option>
-            <option value="frequency">Most Frequently Used</option>
-            <option value="alpha">Alphabetical</option>
-            <option value="suggested">Suggested (by goals)</option>
-          </select>
-        </div>
-        {drillSort==="suggested"&&myTeamsForSort.length>1&&<select value={suggestedTeamId} onChange={e=>setSuggestedTeamId(e.target.value)} style={{fontSize:12,padding:"4px 6px",borderRadius:6,border:"1px solid var(--b)"}}>
+      {drillSort==="suggested"&&isMine&&!suggestedReport&&<div style={{fontSize:12,color:"var(--td)",marginBottom:10}}>Loading goal priorities...</div>}
+      {/* Direct feedback: Sort used to be its own plain label+select row,
+          styled nothing like Filter/+Add Drill right below it -- now a
+          real .btn ghost bsm select sharing the same row, so the whole
+          row reads as one consistent set of controls. */}
+      <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:6,marginBottom:12,flexWrap:"wrap"}} onClick={e=>e.stopPropagation()}>
+        {isMine&&<select className="btn ghost bsm" value={drillSort} onChange={e=>setDrillSort(e.target.value)} style={{flexShrink:0}}>
+          <option value="custom">Sort: Custom</option>
+          <option value="frequency">Sort: Most Used</option>
+          <option value="alpha">Sort: Alphabetical</option>
+          <option value="suggested">Sort: Suggested</option>
+        </select>}
+        {isMine&&drillSort==="suggested"&&myTeamsForSort.length>1&&<select className="btn ghost bsm" value={suggestedTeamId} onChange={e=>setSuggestedTeamId(e.target.value)} style={{flexShrink:0}}>
           {myTeamsForSort.map(t=>(<option key={t.id} value={t.id}>{t.name}</option>))}
         </select>}
-      </div>}
-      {drillSort==="suggested"&&isMine&&!suggestedReport&&<div style={{fontSize:12,color:"var(--td)",marginBottom:10}}>Loading goal priorities...</div>}
-      <div style={{display:"flex",justifyContent:"flex-end",gap:6,marginBottom:12}}>
         {(availableTags.length>0||(isMine&&availablePublishers.length>1))&&<button className="btn ghost bsm" onClick={e=>{e.stopPropagation();setShowFilter(true);}}>Filter{(tagFilter.length+publisherFilter.length)>0?" ("+(tagFilter.length+publisherFilter.length)+")":""}</button>}
         {isMine&&<button className="btn primary bsm" onClick={()=>openModal("addActivity")}>+ Add Drill</button>}
       </div>

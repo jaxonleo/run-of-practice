@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI } from "../constants.js";
-import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, createLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, createNote, updateStationLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence } from "../supabase.js";
+import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchPracticeActualStart, createNote, updateStationLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
 
@@ -12,6 +12,11 @@ const Ic={
   Pause:()=><svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" stroke="none"><rect x="5" y="3" width="4" height="18" rx="1"/><rect x="15" y="3" width="4" height="18" rx="1"/></svg>,
   Restart:()=><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>,
   Chev:({up})=><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points={up?"4 10 8 6 12 10":"4 6 8 10 12 6"}/></svg>,
+  // Direct feedback: the x/y pill at the top of the live view read as
+  // ambiguous ("x/y" of what?) -- a hand-raise makes "player attendance"
+  // legible at a glance without adding a text label that wouldn't fit
+  // the pill's compact width.
+  Hand:()=><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M9 2a1.5 1.5 0 0 1 1.5 1.5V11h1V1.5a1.5 1.5 0 0 1 3 0V11h1V3.5a1.5 1.5 0 0 1 3 0V13h1a1.5 1.5 0 0 1 1.5 1.5V17a7 7 0 0 1-7 7H11a7 7 0 0 1-6.32-4L2.3 15.2a1.5 1.5 0 0 1 2.62-1.46L7.5 17V3.5A1.5 1.5 0 0 1 9 2Z"/></svg>,
 };
 
 // "Who has this practice open" -- shared by PreviewView, the staff
@@ -85,6 +90,37 @@ function PlayerChipLive({pid,team,note,onMove,onProfile}){
   </button>);
 }
 
+// Direct feedback: "Up Next" items only ever showed a name and a duration
+// -- any viewer (coach or anonymous helper) should be able to peek at
+// what's coming (equipment, location, who's rotating where) without
+// advancing the practice. Shared between CommandScreen's own queue and
+// HelperView's Overview list -- each builds this same normalized shape
+// from its own data source (local plan objects vs. get_live_session_view's
+// upcoming_activities) rather than duplicating the modal itself.
+function UpcomingPreview({item,onClose}){
+  return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div className="modal" style={{background:"#0d1512",color:"#fff"}}>
+      <div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b",marginBottom:4}}>Coming Up · Preview Only</div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,marginBottom:2}}>{item.name}</div>
+      <div style={{fontSize:12,color:"#8fa89b",marginBottom:12}}>{item.durationMins}min{item.locationName?" · "+item.locationName:""}</div>
+      {item.equipmentNames.length>0&&<div style={{marginBottom:10}}>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b",marginBottom:4}}>Equipment</div>
+        <div style={{fontSize:13,color:"#fff"}}>{item.equipmentNames.join(", ")}</div>
+      </div>}
+      {item.stations.length>0&&<div>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b",marginBottom:6}}>Stations</div>
+        {item.stations.map((st,i)=>(<div key={i} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--r)",padding:"10px 12px",marginBottom:6}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#fff",marginBottom:2}}>{st.name}{st.locationName?" · "+st.locationName:""}</div>
+          {st.equipmentNames.length>0&&<div style={{fontSize:12,color:"#8fa89b",marginBottom:2}}>Equipment: {st.equipmentNames.join(", ")}</div>}
+          {st.playerNames.length>0&&<div style={{fontSize:12,color:"#fff"}}>{st.playerNames.join(", ")}</div>}
+        </div>))}
+      </div>}
+      <button className="btn ghost bmd bfull mt10" style={{borderColor:"rgba(255,255,255,.25)",color:"#fff",background:"transparent"}} onClick={onClose}>Close</button>
+    </div>
+  </div>);
+}
+
 function ShareSheet({token,scope,onClose}){
   const url=window.location.origin+"/live/"+token;
   const isAttendance=scope==="helper_attendance";
@@ -94,7 +130,7 @@ function ShareSheet({token,scope,onClose}){
   return (<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:200,display:"flex",alignItems:"flex-end"}}><div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"24px 20px 40px"}}><div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 20px"}}/><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>{isAttendance?"Share for Attendance":"Share Live View"}</div><div style={{fontSize:13,color:"var(--td)",marginBottom:20}}>{isAttendance?"Anyone with this link can follow along AND mark players present/absent.":"Anyone with this link can follow along in real time."}</div><div style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:12,wordBreak:"break-all",fontSize:13,color:"var(--black2)",fontFamily:"DM Mono,monospace"}}>{url}</div><div className="brow"><button className="btn outline bmd" style={{flex:1}} onClick={copy}>{copied?"Copied!":"Copy Link"}</button><button className="btn primary bmd" style={{flex:1}} onClick={share}>Share</button></div><button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={onClose}>Done</button></div></div>);
 }
 
-function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPresent,onConfirm,onBack}){
+function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPresent,onConfirm,onBack,extra}){
   const allIds=team?team.players.map(p=>p.id):[];
   const [present,setPresent]=useState(()=>{
     if(initialPresent!==null&&initialPresent!==undefined)return new Set(initialPresent);
@@ -114,7 +150,7 @@ function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPre
     return [...present].some(id=>!assigned.has(id));
   });
   return (<div style={{padding:"14px",paddingBottom:"calc(var(--tab) + 100px)"}}>
-    <div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>Back</button><div className="ptitle" style={{fontSize:22}}>Attendance</div></div>
+    <div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>Back</button><div className="ptitle" style={{fontSize:22}}>{isUpdate?"Attendance":"Practice Setup"}</div></div>
     <div style={{background:"var(--green)",borderRadius:10,padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{color:"#fff",fontFamily:"DM Mono,monospace",fontSize:32,fontWeight:700}}>{pCount}/{total}</div>
       <div style={{color:"rgba(255,255,255,.8)",fontSize:13}}>players present</div>
@@ -133,6 +169,7 @@ function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPre
         <div><div style={{fontSize:14,fontWeight:600,color:coachPresent.has(c.id)?"var(--black)":"var(--td)"}}>{c.name}</div><div style={{fontSize:11,color:"var(--td)"}}>{c.role}</div></div>
       </button>))}
     </div>)}
+    {extra}
     <div style={{position:"fixed",bottom:"calc(var(--tab))",left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#fff",borderTop:"1px solid var(--b)",padding:"12px 16px",zIndex:50}}>
       {needsBalance&&<div>
         <div style={{fontSize:12,color:"var(--td)",marginBottom:8,textAlign:"center"}}>Groups need rebalancing for {pCount} players</div>
@@ -143,6 +180,58 @@ function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPre
       </div>}
       {!needsBalance&&<button className="btn primary bfull bmd" onClick={()=>onConfirm({presentIds:present,coachPresentIds:coachPresent,balanceMode:"keep"})}>{isUpdate?"Update Attendance":"Start Practice"}</button>}
     </div>
+  </div>);
+}
+
+// Practice Setup's Stations section (direct feedback: setup should also
+// handle "should we move so-and-so over here" before Start Practice is
+// clicked, not just attendance) -- one card per station block in the whole
+// practice, not just whichever one happens to be first, so a coach can get
+// every block sorted out up front. Leader assignment reuses doSetLead
+// (permanent, same as everywhere else); player moves are session-scoped
+// (see moveSetupPlayer in CommandScreen) and edit-gated on isController,
+// matching every other live-session control.
+function StationSetupSection({stationBlockActs,setupGroups,team,isController,onReassignLead,onMovePlayer}){
+  const [movePicker,setMovePicker]=useState(null); // {activityId,playerId,stationCount}
+  if(!stationBlockActs.length)return null;
+  const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
+  const leadName=st=>coachName(st.coachId)||st.helperName||null;
+  return (<div style={{marginTop:20}}>
+    <div className="clbl mb8">Stations</div>
+    {stationBlockActs.map(act=>{
+      const groups=setupGroups[act.id]||(act.stations||[]).map(st=>st.assignments||[]);
+      return (<div key={act.id} style={{marginBottom:14}}>
+        {stationBlockActs.length>1&&<div style={{fontSize:12,fontWeight:700,color:"var(--td)",marginBottom:6,textTransform:"uppercase",letterSpacing:".05em"}}>{act.stations.map(s=>s.activityName||s.name).join(" / ")}</div>}
+        {act.stations.map((st,si)=>(<div key={st.id} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700}}>{st.name||"Station "+(si+1)}{st.activityName?" · "+st.activityName:""}</div>
+            {isController&&<button className="btn ghost bxs" onClick={()=>onReassignLead(st.id)} style={{color:leadName(st)?"var(--black)":"#f59e0b"}}>{leadName(st)||"Assign leader"}</button>}
+            {!isController&&leadName(st)&&<span style={{fontSize:12,color:"var(--td)"}}>{leadName(st)}</span>}
+          </div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {(groups[si]||[]).map(pid=>{
+              const pl=team&&team.players.find(p=>p.id===pid);
+              if(!pl)return null;
+              return (<button key={pid} type="button" disabled={!isController} onClick={()=>setMovePicker({activityId:act.id,playerId:pid,stationCount:act.stations.length})} style={{padding:"6px 10px",borderRadius:20,border:"1.5px solid var(--gb)",background:"var(--gbg)",fontSize:13,fontWeight:600,color:"var(--black)",cursor:isController?"pointer":"default"}}>
+                {pl.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--green)",marginRight:3}}>#{pl.jersey}</span>}{pl.firstName}
+              </button>);
+            })}
+            {(groups[si]||[]).length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No players here yet</span>}
+          </div>
+        </div>))}
+      </div>);
+    })}
+    {movePicker&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setMovePicker(null);}}>
+      <div className="modal"><div className="mhandle"/>
+        <div className="mtitle">Move to which station?</div>
+        {Array.from({length:movePicker.stationCount}).map((_,i)=>{
+          const act=stationBlockActs.find(a=>a.id===movePicker.activityId);
+          const st=act&&act.stations[i];
+          return (<button key={i} className="btn outline bmd bfull" style={{marginBottom:8}} onClick={()=>{onMovePlayer(movePicker.activityId,movePicker.playerId,i);setMovePicker(null);}}>{st?(st.name||"Station "+(i+1)):"Station "+(i+1)}</button>);
+        })}
+        <button className="btn ghost bmd bfull" onClick={()=>setMovePicker(null)}>Cancel</button>
+      </div>
+    </div>}
   </div>);
 }
 
@@ -175,6 +264,10 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
   // not the old blob's fragile context-name match.
   const [practiceNotes,setPracticeNotes]=useState([]);
   useEffect(()=>{fetchNotesForPractice(practice.id).then(setPracticeNotes);},[practice.id]);
+  // Direct feedback: show when this actually happened, not the originally
+  // scheduled time, for a practice run early/late relative to its plan.
+  const [actualStart,setActualStart]=useState(null);
+  useEffect(()=>{fetchPracticeActualStart(practice.id).then(setActualStart);},[practice.id]);
   const notesForActivity=activityId=>practiceNotes.filter(n=>n.practiceActivityId===activityId&&!n.stationId);
   const notesForStation=stationId=>practiceNotes.filter(n=>n.stationId===stationId);
   const generalNotes=practiceNotes.filter(n=>!n.practiceActivityId);
@@ -215,7 +308,7 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
       {!setSubViewBack&&<button className="btn ghost bxs" onClick={onBack}>Back</button>}
       <div>
         <div className="ptitle" style={{fontSize:20}}>{team?team.name:"Practice"}</div>
-        <div className="limt">{fmtDate(practice.date)}{practice.startTime?" at "+practice.startTime:""}{loc?" · "+loc.name:""}</div>
+        <div className="limt">{actualStart?new Date(actualStart).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"})+" at "+new Date(actualStart).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}):fmtDate(practice.date)+(practice.startTime?" at "+practice.startTime:"")}{loc?" · "+loc.name:""}</div>
       </div>
     </div>
     {/* Print/PDF export used to only exist on PracticeDetail, which a
@@ -331,11 +424,26 @@ export function PreviewView({token}){
 
   useEffect(()=>{const iv=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(iv);},[]);
 
+  // A coach reaching this token screen (their own "Practice Setup" link, or
+  // a shared link they happen to also be a rostered coach on) gets routed
+  // into the real live session the moment one exists, setup-confirmed or
+  // not -- that's the actual coach experience (attendance, station
+  // assignment, full controls) this token-based screen was never able to
+  // provide. An anonymous viewer only redirects once the practice is
+  // truly running (is_live requires setup_confirmed_at server-side, see
+  // 20260805050000), never mid-setup, since there's no "current drill"
+  // for HelperView to show yet at that point.
+  const redirectIfLive=useCallback(data=>{
+    if(!data)return;
+    if(data.can_manage&&data.has_live_session){navigate("/run/"+data.practice_id);return;}
+    if(data.is_live&&data.live_token)window.location.href="/live/"+data.live_token;
+  },[navigate]);
+
   const refetch=useCallback(async()=>{
     const data=await getPreviewByToken(token);
     setPreview(data);setLoading(false);
-    if(data&&data.is_live&&data.live_token){window.location.href="/live/"+data.live_token;}
-  },[token]);
+    redirectIfLive(data);
+  },[token,redirectIfLive]);
 
   useEffect(()=>{
     let cancelled=false;
@@ -343,12 +451,12 @@ export function PreviewView({token}){
       const data=await getPreviewByToken(token);
       if(cancelled)return;
       setPreview(data);setLoading(false);
-      if(data&&data.is_live&&data.live_token){window.location.href="/live/"+data.live_token;}
+      redirectIfLive(data);
     };
     poll();
     const iv=setInterval(poll,5000);
     return()=>{cancelled=true;clearInterval(iv);};
-  },[token]);
+  },[token,redirectIfLive]);
 
   const doSetLead=async(stationId,{coachId,helperName})=>{
     setBusy(true);
@@ -630,6 +738,7 @@ function HelperView({token}){
   const [showNotes,setShowNotes]=useState(false);
   const [markingId,setMarkingId]=useState(null);
   const [showAudioPrompt,setShowAudioPrompt]=useState(true);
+  const [previewUpcoming,setPreviewUpcoming]=useState(null);
   const spokenRef=useRef({});
   const buzzedRef=useRef(false);
 
@@ -705,6 +814,14 @@ function HelperView({token}){
   const pTotal=roster.length;
   const canMark=!!session.can_mark_attendance;
   const upcomingMins=a=>a.type==="station_block"?(a.station_count||0)*Math.round((a.station_duration_seconds||0)/60)+Math.max(0,(a.station_count||0)-1)*(a.rotate!==false?Math.round((a.transition_duration_seconds||0)/60):0):(a.duration_minutes||0);
+  const playerName=pid=>{const p=roster.find(p=>p.id===pid);return p?(p.jersey_number?"#"+p.jersey_number+" ":"")+p.first_name:null;};
+  const toPreviewItem=a=>({
+    name:a.type==="station_block"?"Station Block":a.name,
+    durationMins:upcomingMins(a),
+    locationName:a.sublocation_name||"",
+    equipmentNames:a.equipment||[],
+    stations:(a.stations||[]).map(st=>({name:st.name,locationName:st.sublocation_name||"",equipmentNames:st.equipment||[],playerNames:(st.player_ids||[]).map(playerName).filter(Boolean)})),
+  });
 
   return(<div className="ccs">
     {showAudioPrompt&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowAudioPrompt(false);}}>
@@ -722,16 +839,17 @@ function HelperView({token}){
     <div className="cc-header">
       <div>
         <div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span><span style={{marginLeft:8,fontSize:11,color:"var(--td)"}}>Helper View</span></div>
-        {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>{stations.length} Stations</div>}
-        <div className="cc-act-name">{phaseLabel}</div>
         <PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount}/>
+        <div className="cc-act-name">{phaseLabel}</div>
+        {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>{stations.length} Stations</div>}
       </div>
       <div className="row" style={{gap:6}}>
-        {pTotal>0&&<button onClick={()=>setShowAtt(s=>!s)} style={{background:pCount<pTotal?"var(--ambg)":"var(--gbg)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--ambb)":"var(--gb)",borderRadius:20,padding:"4px 10px",cursor:"pointer"}}>
+        {pTotal>0&&<button onClick={()=>setShowAtt(s=>!s)} style={{display:"flex",alignItems:"center",gap:5,background:pCount<pTotal?"var(--ambg)":"var(--gbg)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--ambb)":"var(--gb)",borderRadius:20,padding:"4px 10px",cursor:"pointer"}}>
+          <span style={{color:pCount<pTotal?"var(--amber)":"var(--green)",display:"flex"}}><Ic.Hand/></span>
           <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
         </button>}
         <button className="btn ghost bxs" onClick={()=>setShowNotes(s=>!s)}>{showNotes?"Close":"Notes"}</button>
-        <button className="btn ghost bxs" onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}</button>
+        <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}<Ic.Chev up={showROS}/></button>
         <button onClick={()=>{if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}spokenRef.current={};buzzedRef.current=false;setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊":"🔇"}</button>
       </div>
     </div>
@@ -757,12 +875,13 @@ function HelperView({token}){
     </div>}
     {showROS&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",maxHeight:200,overflowY:"auto",flexShrink:0}}>
       {!upcoming.length&&<div style={{padding:"12px 14px",fontSize:13,color:"var(--td)"}}>Nothing left after this.</div>}
-      {upcoming.map((a,i)=>(<div key={i} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--b)"}}>
-        <div style={{flex:1,fontSize:14,color:"var(--black)"}}>{a.type==="station_block"?"Station Block":a.name}</div>
+      {upcoming.map((a,i)=>(<button key={i} type="button" onClick={()=>setPreviewUpcoming(toPreviewItem(a))} style={{display:"flex",alignItems:"center",width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left",padding:"8px 14px",borderBottom:"1px solid var(--b)"}}>
+        <div style={{flex:1,fontSize:14,color:"var(--td)"}}>{a.type==="station_block"?"Station Block":a.name}</div>
         <span className="bdg bs">{upcomingMins(a)}m</span>
-      </div>))}
+      </button>))}
       <div style={{padding:"8px 14px"}}><button className="btn ghost bxs" onClick={()=>setShowROS(false)}>Close</button></div>
     </div>}
+    {previewUpcoming&&<UpcomingPreview item={previewUpcoming} onClose={()=>setPreviewUpcoming(null)}/>}
     <div className="cc-timer-row"><div className={"cc-timer"+(urg?" urg":(elapsed>phaseSecs?" over":""))}>{fmt(rem)}</div></div>
     <div className="cc-prog"><div className={"cc-prog-bar"+(elapsed>phaseSecs?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div>
     <div className="cc-body">
@@ -1056,6 +1175,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     setTimeout(()=>{if(noteTaRef.current)noteTaRef.current.focus();},0);
   };
   const [showROS,setShowROS]=useState(false);
+  const [previewUpcoming,setPreviewUpcoming]=useState(null);
   const [clState,setClState]=useState({});
   const [movePlayer,setMovePlayer]=useState(null);
   const [reassignStationId,setReassignStationId]=useState(null);
@@ -1161,6 +1281,27 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   // stays gated on role, not on control -- an assistant who takes control
   // still can't open LiveEditBuilder, unlike every other controller action.
   const amHeadCoach=isHeadCoach(team,coachId);
+  // Direct feedback: a rostered coach assigned to lead a station spent the
+  // first moments of every rotation on the zoomed-out "All Stations"
+  // overview, having to tap their own station every single time before
+  // they could actually see their own drill's details. A station's leader
+  // is fixed to that physical station for the whole block (players rotate
+  // through, the coach doesn't), so this only needs to fire once, right
+  // as the block-intro screen hands off to the real first rotation --
+  // introJustEndedRef tracks "was I just in block-intro" so a later
+  // rotation change (or a coach who deliberately backs out to the
+  // overview themselves) never gets silently overridden again. Anonymous/
+  // shared-link viewers (HelperView, a separate component) already
+  // default to the overview with no such override -- unaffected by this.
+  const introJustEndedRef=useRef(false);
+  useEffect(()=>{
+    if(isBlock&&inBlockIntro){introJustEndedRef.current=true;return;}
+    if(isBlock&&!inBlockIntro&&introJustEndedRef.current){
+      introJustEndedRef.current=false;
+      const myStationIdx=myCoachRecord&&cur.stations?cur.stations.findIndex(st=>st.coachId===myCoachRecord.id):-1;
+      if(myStationIdx>=0)setFocusSt(myStationIdx);
+    }
+  },[isBlock,inBlockIntro]);
   // Station-leader safety net (spec: "warn a coach if they have a station
   // without an assigned coach" right after attendance). Computed off
   // practice.activities, same source AttendanceScreen already reads for
@@ -1264,6 +1405,13 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
 
   const warnedRef=useRef(false);
   useEffect(()=>{
+    // Direct feedback: a ~2-minute segment (a short transition, a quick
+    // water break) landed inside the [118,122]s warning window almost the
+    // instant it started, so "Two minutes remaining" played right at the
+    // top of the phase instead of near its end -- skip the cue entirely
+    // for any phase that's 2 minutes or shorter; there's no meaningful
+    // "still 2 minutes left" moment to warn about on a phase that short.
+    if(phaseSecs<=120)return;
     const rem2=phaseSecs-elapsed;
     if(rem2<=122&&rem2>=118&&!warnedRef.current&&running){
       warnedRef.current=true;
@@ -1273,26 +1421,49 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(rem2>130){warnedRef.current=false;}
   },[elapsed,phaseSecs,running]);
 
-  // ── Mount / resume: find an existing active session before defaulting to attendance ──
+  // ── Mount / resume: atomically create-or-join, then branch on whether ──
+  // Practice Setup has already been confirmed (real "live" running practice)
+  // or is still in progress (attendance/station assignment, shared by
+  // whoever else has this practice open -- see start_or_join_live_session,
+  // 20260805040000). This is what actually fixes "assistant clicks Run
+  // Practice while head coach is mid-setup and displaces them": both land
+  // on the exact same session row instead of the assistant silently
+  // spinning up a second one.
   useEffect(()=>{
     if(!liveId){setStage("pick");setSession(null);return;}
     let cancelled=false;
     (async()=>{
-      const existing=await findActiveLiveSession(liveId);
-      if(cancelled)return;
-      if(existing){
-        setSession(existing);
+      const result=await startOrJoinLiveSession(liveId);
+      if(cancelled||!result||!result.session)return;
+      const {session:sessionRow,created}=result;
+      setSession(sessionRow);
+      if(sessionRow.setup_confirmed_at){
         setStage("live");
-        const latest=await fetchLatestAttendance(existing.id);
+        const latest=await fetchLatestAttendance(sessionRow.id);
         if(cancelled)return;
         setPresentIds(new Set(Object.keys(latest).filter(pid=>latest[pid]==="present")));
-        activityLogIdRef.current=await findOpenActivityLogId(existing.id);
+        activityLogIdRef.current=await findOpenActivityLogId(sessionRow.id);
         // Reconstructed after a reload -- the real open time is unknown, so
         // treat it as already past MIN_LOG_MS rather than risk deleting a
         // genuine in-progress segment on the next transition.
         activityLogOpenedAtRef.current=activityLogIdRef.current?0:null;
       }else{
         setStage("attend");
+        if(created){
+          // First coach to reach Practice Setup for this practice -- link
+          // any already-shared preview token and seed every station block
+          // from the plan's own defaults (everyone assumed present) so the
+          // Setup screen's Stations section has something to show/edit
+          // immediately, before attendance is even taken.
+          await linkPreviewToLiveSession(liveId,sessionRow.id);
+          const allPlayerIds=team?team.players.map(p=>p.id):[];
+          await seedAllStationGroups(sessionRow.id,liveActs,new Set(allPlayerIds),"keep",coachId,team?team.players:[]);
+        }
+        // Joining a setup already in progress -- pick up whatever
+        // attendance another coach has already marked, if any.
+        const latest=await fetchLatestAttendance(sessionRow.id);
+        if(cancelled)return;
+        if(Object.keys(latest).length)setPresentIds(new Set(Object.keys(latest).filter(pid=>latest[pid]==="present")));
       }
     })();
     return()=>{cancelled=true;};
@@ -1495,26 +1666,67 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     await saveSessionGroups(session.id,cur.id,coachId,groups,station.id,stIdx);
   },[session,cur,team,coachId,stIdx]);
 
+  // ── Practice Setup's Stations section: every station block in the whole
+  // practice (not just whichever one is "current" -- there is no current
+  // one yet, nothing's live), fetched/edited independently of the
+  // rotation machinery above. A move here writes straight to
+  // session_groups (today-only, same table/pattern as mid-live
+  // reassignment -- never touches the saved plan), so it's naturally
+  // already there once Start Practice hands off to the real live view. ──
+  const stationBlockActs=liveActs.filter(a=>a.type==="station_block");
+  const stationBlockActsKey=stationBlockActs.map(a=>a.id).join(",");
+  const [setupGroups,setSetupGroups]=useState({});
+  useEffect(()=>{
+    if(!session||stage!=="attend"||showAtt||!stationBlockActsKey){setSetupGroups({});return;}
+    let cancelled=false;
+    (async()=>{
+      const results={};
+      for(const act of stationBlockActs){
+        const existing=await fetchLatestGroups(session.id,act.id);
+        results[act.id]=(existing&&existing.length)?existing:(act.stations||[]).map(st=>st.assignments||[]);
+      }
+      if(!cancelled)setSetupGroups(results);
+    })();
+    return()=>{cancelled=true;};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[session?.id,stage,showAtt,stationBlockActsKey]);
+  const moveSetupPlayer=useCallback(async(activityId,playerId,toIdx)=>{
+    if(!session)return;
+    const groups=setupGroups[activityId];
+    if(!groups)return;
+    const fromIdx=groups.findIndex(g=>g.includes(playerId));
+    if(fromIdx===-1||fromIdx===toIdx)return;
+    const newGroups=groups.map((g,i)=>{
+      if(i===fromIdx)return g.filter(id=>id!==playerId);
+      if(i===toIdx)return [...g,playerId];
+      return g;
+    });
+    setSetupGroups(p=>Object.assign({},p,{[activityId]:newGroups}));
+    await saveSessionGroups(session.id,activityId,coachId,newGroups);
+  },[session,setupGroups,coachId]);
+
   const handleAttConfirm=useCallback(async({presentIds:pIds,coachPresentIds:cIds,balanceMode})=>{
     setPresentIds(pIds);setCoachPresentIds(cIds);
     setStage("live");setShowAtt(false);
     spoken.current={};buzzedRef.current=false;warnedRef.current=false;
     const firstAct=liveActs[0]||null;
     const firstIsBlock=firstAct&&firstAct.type==="station_block";
-    let sessionRow=session&&session.practice_id===practice.id?session:null;
-    if(sessionRow){
-      sessionRow=await writeSession({current_practice_activity_id:firstAct?firstAct.id:null,current_rotation_number:0,in_transition:false,in_block_intro:!!firstIsBlock,current_phase_started_at:new Date().toISOString(),paused_at:null,total_paused_seconds:0,status:"active"});
-    }else{
-      sessionRow=await createLiveSession(practice.id,coachId,{practiceActivityId:firstAct?firstAct.id:null,inBlockIntro:!!firstIsBlock});
-      if(sessionRow){setSession(sessionRow);await linkPreviewToLiveSession(practice.id,sessionRow.id);}
-    }
+    // The session already exists by the time Practice Setup's confirm
+    // button is reachable (created the moment anyone landed here -- see
+    // the mount effect above), so this is always an update, never a create.
+    const sessionRow=await writeSession({current_practice_activity_id:firstAct?firstAct.id:null,current_rotation_number:0,in_transition:false,in_block_intro:!!firstIsBlock,current_phase_started_at:new Date().toISOString(),paused_at:null,total_paused_seconds:0,status:"active",setup_confirmed_at:new Date().toISOString()});
     if(!sessionRow)return;
     await submitOperation(sessionRow.id,coachId,"start_practice");
     const allPlayerIds=team?team.players.map(p=>p.id):[];
     await submitAttendanceSnapshot(sessionRow.id,coachId,pIds,allPlayerIds);
-    await seedAllStationGroups(sessionRow.id,liveActs,pIds,balanceMode,coachId,team?team.players:[]);
+    // Only reseed station groups from the plan's defaults when the coach
+    // explicitly chose to rebalance (attendance changed enough to need
+    // it) -- otherwise leave session_groups exactly as Practice Setup's
+    // Stations section left them, including any manual "move Sam here"
+    // edits made before Start Practice was clicked.
+    if(balanceMode==="rebalance")await seedAllStationGroups(sessionRow.id,liveActs,pIds,balanceMode,coachId,team?team.players:[]);
     if(firstAct&&!firstIsBlock)await openLogFor(sessionRow.id,{practiceActivityId:firstAct.id},[...pIds]);
-  },[practice,liveActs,coachId,team,session,writeSession,openLogFor]);
+  },[liveActs,coachId,team,writeSession,openLogFor]);
 
   const handleAttUpdate=useCallback(async({presentIds:pIds,coachPresentIds:cIds,balanceMode})=>{
     if(!session)return;
@@ -1613,17 +1825,6 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     setEndReason("abandoned");
     setStage("end");
   },[session,coachId,writeSession,closeCurrentLog]);
-
-  const restartPractice=useCallback(async()=>{
-    setShowEllipsis(false);
-    if(!session)return;
-    await submitOperation(session.id,coachId,"restart_practice");
-    await closeCurrentLog();
-    const firstAct=liveActs[0]||null;const firstIsBlock=firstAct&&firstAct.type==="station_block";
-    await writeSession({current_practice_activity_id:firstAct?firstAct.id:null,current_rotation_number:0,in_transition:false,in_block_intro:!!firstIsBlock,current_phase_started_at:new Date().toISOString(),paused_at:new Date().toISOString(),total_paused_seconds:0});
-    spoken.current={};buzzedRef.current=false;warnedRef.current=false;
-    setStage("attend");
-  },[session,liveActs,coachId,writeSession,closeCurrentLog]);
 
   const takeControlNow=useCallback(async()=>{
     if(!session)return;
@@ -1780,7 +1981,22 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     // the normal submitAttendanceSnapshot call then records them correctly,
     // no separate seed step.
     const freshPresent=team?team.players.map(p=>p.id).filter(id=>!plannedAbsentIds.has(id)):[];
-    return (<AttendanceScreen key={showAtt?"upd":"init"} practice={practice} team={team} isUpdate={showAtt} initialPresent={showAtt?[...presentIds]:freshPresent} initialCoachPresent={showAtt?[...coachPresentIds]:null} onConfirm={showAtt?handleAttUpdate:handleAttConfirm} onBack={attBack}/>);}
+    return (<>
+      <AttendanceScreen key={showAtt?"upd":"init"} practice={practice} team={team} isUpdate={showAtt} initialPresent={showAtt?[...presentIds]:freshPresent} initialCoachPresent={showAtt?[...coachPresentIds]:null} onConfirm={showAtt?handleAttUpdate:handleAttConfirm} onBack={attBack}
+        extra={!showAtt&&<div style={{padding:"0 14px"}}><StationSetupSection stationBlockActs={stationBlockActs} setupGroups={setupGroups} team={team} isController={isController} onReassignLead={setReassignStationId} onMovePlayer={moveSetupPlayer}/></div>}/>
+      {!showAtt&&reassignStationId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setReassignStationId(null);setHelperDraft("");}}}>
+        <div className="modal"><div className="mhandle"/>
+          <div className="mtitle">Assign Station Leader</div>
+          <button className="btn ghost bmd bfull" style={{marginBottom:8}} disabled={reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:"",helperName:""})}>Unassign</button>
+          {team&&team.coaches.map(c=>(<button key={c.id} className="btn outline bmd bfull" style={{marginBottom:8}} disabled={reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:c.id,helperName:""})}>{c.name}</button>))}
+          <div style={{display:"flex",gap:6,marginTop:4}}>
+            <input className="inp" style={{flex:1}} placeholder="Helper's name" autoFocus value={helperDraft} onChange={e=>setHelperDraft(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&helperDraft.trim())doSetLead(reassignStationId,{coachId:"",helperName:helperDraft.trim()});}}/>
+            <button className="btn primary bxs" disabled={!helperDraft.trim()||reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:"",helperName:helperDraft.trim()})}>Set</button>
+          </div>
+          <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>{setReassignStationId(null);setHelperDraft("");}}>Cancel</button>
+        </div>
+      </div>}
+    </>);}
   const saveEndNote=async()=>{
     if(!noteText.trim()||savingNote)return;
     setSavingNote(true);setNoteError("");
@@ -1818,17 +2034,18 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     <div className="cc-header">
       <div>
         <div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span>{schedBadge}</div>
+        <PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount}/>
+        <div className="cc-act-name">{phaseLabel}</div>
         {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>
           {(()=>{const totalBlocks=liveActs.filter(a=>a.type==="station_block").length;const n2=cur.stations?cur.stations.length:0;const totalMins=n2*(cur.stationDuration||0)+Math.max(0,n2-1)*(blockRotate?(cur.transitionDuration||0):0);return(totalBlocks>1?"Block "+(blockCount+1)+" of "+totalBlocks+" · ":"")+n2+" Stations · "+totalMins+"min total";})()}
         </div>}
-        <div className="cc-act-name">{phaseLabel}</div>
-        <PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount}/>
       </div>
       <div className="row">
         <button onClick={()=>setShowAtt(true)} style={{background:pCount<pTotal?"var(--ambg)":"var(--gbg)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--ambb)":"var(--gb)",borderRadius:20,padding:"4px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+          <span style={{color:pCount<pTotal?"var(--amber)":"var(--green)",display:"flex"}}><Ic.Hand/></span>
           <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
         </button>
-        <button className="btn ghost bxs" onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}</button>
+        <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}<Ic.Chev up={showROS}/></button>
         <button onClick={()=>{
           if(!audioOn){
             try{
@@ -1848,11 +2065,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
             <button className="mm-item" onClick={()=>{setShowEllipsis(false);goHome();}}>Leave (keeps running)</button>
             {isController&&amHeadCoach&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowEditBuilder(true);}}>Edit Practice</button>}
-            <button className="mm-item" onClick={()=>{setShowEllipsis(false);if(!audioOn){try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}startBgAudioSession();}else{stopBgAudioSession();}spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);}}>{audioOn?"Mute Audio":"Enable Audio"}</button>
             {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_read");}}>Share Live View</button>}
-            {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_attendance");}}>Share for Attendance</button>}
             {isController&&<button className="mm-item" onClick={endPractice}>End Practice</button>}
-            {isController&&<button className="mm-item" onClick={restartPractice}>Restart Practice</button>}
             {isController&&<button className="mm-item mm-danger" onClick={abortPractice}>Abort Practice</button>}
           </div>}
         </div>
@@ -1893,7 +2107,12 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     </div>}
     <div className="cc-body">
       {isCl&&cur&&<div className="cc-focus">
-        <div className="cc-focus-lbl">{cur.name} - {Object.values(clState[cur.id]||{}).filter(Boolean).length}/{(cur.items||[]).length} covered</div>
+        {/* Direct feedback: a Water Break (or any checklist-type component
+            with no items -- e.g. an Intro nobody bothered to add a
+            checklist to) showed "0/0 covered", which reads as broken
+            rather than "nothing to check off here." Blank when there's
+            nothing to cover; the real x/y still shows once items exist. */}
+        <div className="cc-focus-lbl">{cur.name}{(cur.items||[]).length>0?" - "+Object.values(clState[cur.id]||{}).filter(Boolean).length+"/"+(cur.items||[]).length+" covered":""}</div>
         {(cur.items||[]).map(it=>(<div key={it.id} className="cl-item" onClick={()=>toggleCl(cur.id,it.id)}>
           <div className={"cl-check "+((clState[cur.id]||{})[it.id]?"done":"")}>{(clState[cur.id]||{})[it.id]&&<Ic.Check/>}</div>
           <div className={"cl-text "+((clState[cur.id]||{})[it.id]?"done":"")}>{it.text}</div>
@@ -1944,20 +2163,31 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           </div>
         </div>}
       </div>}
-      {isBlock&&inBlockIntro&&cur.stations&&<div>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--td)",marginBottom:12}}>Get everyone to their station</div>
+      {/* Direct feedback: "Introducing Stations" looked identical to the
+          actual coaching view (same white/grey cards), which made it easy
+          to mistake for a station already underway. Same dark #0d1512 /
+          #52b788 palette PreviewView's own pre-live "Practice Setup" screen
+          already uses -- a coach glancing at the screen should be able to
+          tell "I'm getting organized" from "I'm coaching" at a glance.
+          "Start Block" removed here too: it duplicated the same generic
+          advance control that already moves the session out of block-intro
+          (see advance()'s own inBlockIntro branch) -- a coach could always
+          reach the same result via the normal next control, just with a
+          same-purpose button hidden further down the screen. */}
+      {isBlock&&inBlockIntro&&cur.stations&&<div style={{background:"#0d1512",borderRadius:"var(--r)",padding:"14px 12px",marginBottom:4}}>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b",marginBottom:12}}>Get everyone to their station</div>
         {cur.stations.map((st,i)=>{
           const stEquip=(Array.isArray(st.equipment)?st.equipment:[]).map(id=>{const a=(data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
           const assignments=liveGroups?(liveGroups[i]||[]):[];
           const groupLabel=(liveGroupLabels&&liveGroupLabels[i])||st.groupLabel||"";
-          return(<div key={st.id} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
+          return(<div key={st.id} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Station {i+1}</div>
-              {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600}}>{subName(st.sublocationId)}</div>}
-              {isController?<button type="button" onClick={()=>setReassignStationId(st.id)} style={{background:"none",border:"none",padding:0,fontSize:11,color:"var(--td)",cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{leadName(st)||"Assign a coach"}</button>
-                :leadName(st)&&<div style={{fontSize:11,color:"var(--td)"}}>{leadName(st)}</div>}
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#52b788"}}>Station {i+1}</div>
+              {subName(st.sublocationId)&&<div style={{fontSize:11,color:"#52b788",fontWeight:600}}>{subName(st.sublocationId)}</div>}
+              {isController?<button type="button" onClick={()=>setReassignStationId(st.id)} style={{background:"none",border:"none",padding:0,fontSize:11,color:"#8fa89b",cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{leadName(st)||"Assign a coach"}</button>
+                :leadName(st)&&<div style={{fontSize:11,color:"#8fa89b"}}>{leadName(st)}</div>}
             </div>
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",marginBottom:6}}>{st.activityName||st.name||"Station "+(i+1)}</div>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",marginBottom:6}}>{st.activityName||st.name||"Station "+(i+1)}</div>
             {groupLabel&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {groupLabel}</span></div>}
             {(stEquip.length>0||st.playerGear)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
               {stEquip.length>0&&<span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {stEquip.join(", ")}</span>}
@@ -1968,10 +2198,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             </div>
           </div>);
         })}
-        {isController&&<div className="brow mt10">
-          <button className="btn outline bmd" style={{flex:1}} onClick={reshuffleBlockIntro}>Reshuffle</button>
-          <button className="btn primary bmd" style={{flex:1}} onClick={startBlock}>Start Block ▶</button>
-        </div>}
+        {isController&&<button className="btn outline bmd bfull mt10" style={{borderColor:"rgba(255,255,255,.3)",color:"#fff",background:"transparent"}} onClick={reshuffleBlockIntro}>Reshuffle</button>}
       </div>}
       {isBlock&&!inBlockIntro&&!inTrans&&rotatedStations&&<div>
         {focusSt!==null&&<div>
@@ -2036,8 +2263,17 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
                 {equipNames.length>0&&<span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600}}>Equipment: {equipNames.join(", ")}</span>}
                 {st.playerGear&&<span style={{background:"#fff7ed",border:"1px solid #fdba74",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#9a3412",fontWeight:600}}>Player Gear: {st.playerGear}</span>}
               </div>}
-              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                {(st.assignments||[]).map(pid=>(<StationPlayerChip key={pid} pid={pid} team={team}/>))}
+              {/* Direct feedback: reassigning a player used to require
+                  drilling into a single station's own focus view first --
+                  now a tap here moves them directly, same as inside focus
+                  (movePlayerToStation already resolves the right rotation
+                  offset from the visual station index either way). Stopped
+                  from bubbling into the card's own onClick so tapping a
+                  player doesn't also jump into that station's focus view. */}
+              <div style={{display:"flex",flexWrap:"wrap",gap:5}} onClick={e=>e.stopPropagation()}>
+                {(st.assignments||[]).map(pid=>isController
+                  ?<PlayerChipLive key={pid} pid={pid} team={team} note={noteForPlayerAtDrill(pid,st.libraryId)} onMove={()=>setMovePlayer(pid)} onProfile={pl=>setLivePlayerProfile(pl)}/>
+                  :<StationPlayerChip key={pid} pid={pid} team={team}/>)}
               </div>
               <div style={{fontSize:10,color:"var(--td)",marginTop:6}}>Tap to focus</div>
             </div>);
@@ -2087,19 +2323,22 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           </div>
         </div>}
       </div>}
-      {isBlock&&inTrans&&rotatedStations&&<div>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"var(--red)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Rotate Now</div>
+      {/* Same dark practice-setup palette as the block-intro screen above --
+          a rotation transition is another "getting organized, not
+          coaching" moment. */}
+      {isBlock&&inTrans&&rotatedStations&&<div style={{background:"#0d1512",borderRadius:"var(--r)",padding:"14px 12px",marginBottom:4}}>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"#f87171",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Rotate Now</div>
         {rotatedStations.map((st,i)=>{
           const nextSt=cur.stations[(i+1)%cur.stations.length];
           const fromLoc=subName(st.sublocationId);
           const toLoc=subName(nextSt.sublocationId);
           const fromLabel="Station "+(i+1)+(fromLoc?": "+fromLoc:"")+(leadName(st)?" · "+leadName(st):"")+(st.activityName?" · "+st.activityName:"");
           const toLabel="Station "+((i+1)%cur.stations.length+1)+(toLoc?": "+toLoc:"")+(leadName(nextSt)?" · "+leadName(nextSt):"")+(nextSt.activityName?" · "+nextSt.activityName:"");
-          return (<div key={st.id} className="cc-trans-card">
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",lineHeight:1.2,marginBottom:6}}>{pnames(st.assignments)||"--"}</div>
+          return (<div key={st.id} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--r)",padding:"14px",marginBottom:8}}>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",lineHeight:1.2,marginBottom:6}}>{pnames(st.assignments)||"--"}</div>
             {st.groupLabel&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}
-            <div style={{fontSize:12,color:"var(--td)",marginBottom:3}}>from {fromLabel}</div>
-            <div style={{fontSize:13,fontWeight:700,color:"var(--black)"}}>→ {toLabel}</div>
+            <div style={{fontSize:12,color:"#8fa89b",marginBottom:3}}>from {fromLabel}</div>
+            <div style={{fontSize:13,fontWeight:700,color:"#52b788"}}>→ {toLabel}</div>
           </div>);
         })}
       </div>}
@@ -2118,11 +2357,32 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         </div>
       ):(liveActs.slice(idx+1,idx+4).length>0&&<div className="cc-queue">
         <div style={{padding:"6px 12px",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>Up Next</div>
-        {liveActs.slice(idx+1,idx+4).map(a=>(<div key={a.id} className="cc-queue-item">
-          <span style={{fontSize:14,color:"var(--black2)"}}>{a.type==="station_block"?"Station Block":a.name}</span>
+        {/* Direct feedback: any viewer should be able to peek at what's
+            coming (equipment/location/rotations) without advancing --
+            everything needed is already in liveActs (the local plan),
+            resolved the same way the rest of this screen already resolves
+            equipment/location/player ids. Player rotations specifically
+            check session_groups first (fetchLatestGroups) -- a station
+            block reassigned during Practice Setup or mid-live should
+            preview the real current rotation, not the plan's original
+            default, which fetchLatestGroups' own "latest batch wins"
+            resolution already gives us for free. */}
+        {liveActs.slice(idx+1,idx+4).map(a=>(<button key={a.id} type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={async()=>{
+          let liveStationGroups=null;
+          if(a.type==="station_block"&&session)liveStationGroups=await fetchLatestGroups(session.id,a.id);
+          setPreviewUpcoming({
+            name:a.type==="station_block"?"Station Block":a.name,
+            durationMins:a.type==="station_block"?(a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*a.transitionDuration):a.duration,
+            locationName:subName(a.sublocationId)||"",
+            equipmentNames:(Array.isArray(a.equipment)?a.equipment:[]).map(id=>{const x=(data.assets||[]).find(x=>x.id===id);return x?x.name:null;}).filter(Boolean),
+            stations:a.type==="station_block"?a.stations.map((st,si)=>({name:st.name||"",locationName:subName(st.sublocationId)||"",equipmentNames:(Array.isArray(st.equipment)?st.equipment:[]).map(id=>{const x=(data.assets||[]).find(x=>x.id===id);return x?x.name:null;}).filter(Boolean),playerNames:((liveStationGroups&&liveStationGroups.length)?(liveStationGroups[si]||[]):(st.assignments||[])).map(pid=>{const p=team&&team.players.find(p=>p.id===pid);return p?(p.jersey?"#"+p.jersey+" ":"")+p.firstName:null;}).filter(Boolean)})):[],
+          });
+        }}>
+          <span style={{fontSize:14,color:"var(--td)"}}>{a.type==="station_block"?"Station Block":a.name}</span>
           <span className="bdg bs">{a.type==="station_block"?(a.stations.length*a.stationDuration+(a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
-        </div>))}
+        </button>))}
       </div>)}
+      {previewUpcoming&&<UpcomingPreview item={previewUpcoming} onClose={()=>setPreviewUpcoming(null)}/>}
       {previewTrans&&rotatedStations&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setPreviewTrans(false);}}>
         <div className="modal">
           <div className="mhandle"/>

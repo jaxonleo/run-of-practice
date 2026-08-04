@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { findOrCreatePreviewToken, cancelPractice, restorePractice, fetchPlannedAbsences } from "../supabase.js";
+import { findOrCreatePreviewToken, cancelPractice, restorePractice, fetchPlannedAbsences, findActiveLiveSession } from "../supabase.js";
 import { canManageTeamInMode, planningState, localDateStr } from "../constants.js";
 import AbsencePicker from "./AbsencePicker.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
@@ -63,6 +63,18 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
     });
   };
   useEffect(()=>{refreshAbsences();},[practice.id]);
+  // Direct feedback: an assistant coach who tapped "Run Now" on a practice
+  // the head coach had already started live had no way to know that --
+  // the button just looked like it was about to start a fresh run. Relabel
+  // to "Join Practice" the moment any active session already exists;
+  // goToRun's own /run/:practiceId join-not-recreate logic already handles
+  // routing them into the same session correctly either way.
+  const [isSessionLive,setIsSessionLive]=useState(false);
+  useEffect(()=>{
+    let cancelled=false;
+    findActiveLiveSession(practice.id).then(s=>{if(!cancelled)setIsSessionLive(!!s);});
+    return()=>{cancelled=true;};
+  },[practice.id]);
   const shareSetup=async()=>{
     setSharing(true);
     try{
@@ -99,7 +111,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
         <button className="btn primary bmd bfull" onClick={()=>goToBuilder(practice.id)}>Plan Practice</button>
       </div>}
       {!isCancelled&&isPlanned&&<div className="brow" style={{marginBottom:8}}>
-        <button className="btn primary bmd bfull" onClick={()=>goToRun(practice.id)}>{practice.date>=todayStr?"Run Now":"Run Again"}</button>
+        <button className="btn primary bmd bfull" onClick={()=>goToRun(practice.id)}>{isSessionLive?"Join Practice":practice.date>=todayStr?"Run Now":"Run Again"}</button>
       </div>}
       {!isCancelled&&<div style={{display:"flex",gap:8,marginBottom:12}}>
         <button className="btn outline bmd" style={{flex:1}} onClick={()=>setShowAbsencePicker(true)}>Who's Out?</button>

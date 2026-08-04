@@ -6,7 +6,7 @@ import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
-import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach } from "./supabase.js";
+import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes } from "./constants.js";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
@@ -173,7 +173,7 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .att-circle.on{background:var(--green);}
 .ccs{display:flex;flex-direction:column;height:100%;overflow:hidden;padding-bottom:0;}
 .cc-header{padding:8px 14px;background:var(--s1);border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-.cc-act-name{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;line-height:1;}
+.cc-act-name{font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:900;line-height:1;margin:4px 0 2px;}
 .cc-timer-row{padding:4px 14px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
 .cc-timer{font-family:'DM Mono',monospace;font-size:64px;font-weight:500;line-height:1;color:var(--green);}
 .cc-timer.urg{color:var(--red);}.cc-timer.over{color:var(--red);animation:pulse .8s infinite;}
@@ -772,12 +772,12 @@ function TeamEquipmentRoute(){
 function TeamGoalsRoute(){
   const {teamId}=useParams();
   const navigate=useNavigate();
-  const {data,coachId,setSubViewBack,mode,refreshTeams}=useAppCtx();
+  const {data,coachId,setSubViewBack,mode,refreshTeams,goToRun,refreshPlanning}=useAppCtx();
   const team=data.teams.find(t=>t.id===teamId);
   useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
   if(!team)return null;
   return (<div style={{padding:"16px 16px calc(var(--tab) + 20px)"}}>
-    <GoalsScreen data={data} teamId={teamId} coachId={coachId} setSubViewBack={setSubViewBack} mode={mode} refreshTeams={refreshTeams}/>
+    <GoalsScreen data={data} teamId={teamId} coachId={coachId} setSubViewBack={setSubViewBack} mode={mode} refreshTeams={refreshTeams} goToRun={goToRun} refreshPlanning={refreshPlanning}/>
   </div>);
 }
 
@@ -1256,6 +1256,17 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // regardless of what they happen to show.
   const scheduledMoment=editP&&schedDate&&schedTime?new Date(schedDate+"T"+schedTime+":00"):null;
   const runTooFarAway=!!(scheduledMoment&&scheduledMoment.getTime()-Date.now()>3600000);
+  // Direct feedback: relabel to "Join Practice" the moment this practice
+  // already has an active session -- and skip the >1hr-away gate in that
+  // case, since joining an already-started practice should never be
+  // blocked by how far off its original scheduled time was.
+  const [isSessionLive,setIsSessionLive]=useState(false);
+  useEffect(()=>{
+    if(!editP){setIsSessionLive(false);return;}
+    let cancelled=false;
+    findActiveLiveSession(editP.id).then(s=>{if(!cancelled)setIsSessionLive(!!s);});
+    return()=>{cancelled=true;};
+  },[editP&&editP.id]);
   return (<div style={{paddingBottom:80}}>
       <div ref={stickyHeaderRef} style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
       {/* Back-button audit (2026-07-15): was a hardcoded navigate("/") --
@@ -1275,7 +1286,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
             row below). An already-scheduled practice's Save still saves
             directly, unchanged. */}
         {(!bottomMode||bottomMode==="")&&<><button className="btn outline bsm" onClick={editP?handleSave:()=>setBottomMode("savechoice")}>Save</button>
-        <button className="btn primary bsm" onClick={handleRun} disabled={runTooFarAway} title={runTooFarAway?"Run Now unlocks within 1 hour of the scheduled time":""}>Run Now</button></>}
+        <button className="btn primary bsm" onClick={handleRun} disabled={!isSessionLive&&runTooFarAway} title={!isSessionLive&&runTooFarAway?"Run Now unlocks within 1 hour of the scheduled time":""}>{isSessionLive?"Join Practice":"Run Now"}</button></>}
       </div>
       {editP&&<div style={{padding:"0 14px 8px",display:"flex",alignItems:"baseline",gap:8}}>
         <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",flexShrink:0}}>Editing</span>

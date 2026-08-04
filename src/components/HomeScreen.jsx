@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, fetchOrgWeeklyPracticeRollup, findOrCreatePreviewToken, fetchTeamsRecentCompletedSession, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
+import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
@@ -112,21 +112,6 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
 
 export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, goToTeam, goToSettings, coachId, coachName, coachEmail, refreshPlanning, refreshTeams, refreshLibrary, mode, setMode }) {
   const navigate = useNavigate();
-  const [openingPreview, setOpeningPreview] = useState(false);
-  // Assistant-coach handoff §1.2: same equipment-by-location view as the
-  // anonymous /preview/:token helper flow, reused as-is rather than building
-  // a second component/query -- a signed-in coach just gets their own token
-  // via the existing findOrCreatePreviewToken (already used by PracticeDetail's
-  // share flow) and lands on the identical page. Always visible once a plan
-  // exists, deliberately not time-gated the way the anonymous link is --
-  // that gating exists only because that link has no auth, which doesn't
-  // apply to a signed-in staff member looking at their own team's practice.
-  const openPracticeSetup = async (practiceId) => {
-    setOpeningPreview(true);
-    const token = await findOrCreatePreviewToken(practiceId, coachId);
-    setOpeningPreview(false);
-    if (token) navigate("/preview/" + token);
-  };
   const isOrgMode = mode && mode.type === "org";
   const activeOrg = isOrgMode ? (data.myOrgs || []).find(o => o.id === mode.orgId) : null;
   const now = new Date();
@@ -143,14 +128,22 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   const [runStatus, setRunStatus] = useState({});
   const [showHelpMenu, setShowHelpMenu] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [hasCompleted, setHasCompleted] = useState(false);
+  // Direct feedback: a coach who'd already finished the checklist still
+  // saw it flash in on every Home load, then vanish a moment later. Root
+  // cause: hasCompleted defaulted to false (an explicit "not done yet")
+  // until hasCompletedSession's own async query resolved, so
+  // checklistDone was briefly false -- and the card rendered -- on every
+  // fresh mount regardless of the real answer. null now means "still
+  // finding out," distinct from a real false, so the card waits for that
+  // one query to settle before it's allowed to render at all.
+  const [hasCompleted, setHasCompleted] = useState(null);
   const practiceIdsKey = JSON.stringify(data.practices.map(p => p.id));
   useEffect(() => { hasCompletedSession(data.practices.map(p => p.id)).then(setHasCompleted); }, [practiceIdsKey]);
   // Mirrors ChecklistModal's own mode-aware library check (data.activityLibrary
   // is never mode-scoped upstream) -- otherwise the "?" dot and the modal's
   // own step could disagree with each other.
   const libraryBuiltOut = (data.activityLibrary || []).some(a => (mode && mode.type === "org") ? a.organizationId === mode.orgId : a.ownerUserId === coachId);
-  const checklistDone = data.teams.length > 0 && data.teams.some(t => t.players.length > 0) && libraryBuiltOut && data.practices.length > 0 && data.practices.some(p => (p.activities || []).length > 0) && hasCompleted;
+  const checklistDone = hasCompleted === null || (data.teams.length > 0 && data.teams.some(t => t.players.length > 0) && libraryBuiltOut && data.practices.length > 0 && data.practices.some(p => (p.activities || []).length > 0) && hasCompleted);
 
   const teamById = id => data.teams.find(t => t.id === id);
   const locById = id => data.locations.find(l => l.id === id);
@@ -214,6 +207,32 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   // agendaWindow already excludes ran(p) practices (above), so no need to
   // recheck it here.
   const nextPractice = agendaWindow.find(p => p.date === todayStr) || agendaWindow.find(p => p.date > todayStr) || null;
+  // Direct feedback: the hero said "Nothing on the schedule" while
+  // Schedule still showed something -- `active` (feeding agendaWindow)
+  // deliberately excludes cancelled practices, so a coach whose only
+  // upcoming slot was cancelled saw a flatly empty hero even though
+  // Schedule still lists it. Fall back to the soonest upcoming cancelled
+  // practice so the hero always reflects anything Schedule would.
+  const nextCancelledPractice = !nextPractice ? (data.practices.filter(p => isCancelled(p) && p.date >= todayStr).sort((a, b) => a.date === b.date ? (a.startTime || "").localeCompare(b.startTime || "") : a.date.localeCompare(b.date))[0] || null) : null;
+  // Direct feedback: "Practice Setup" used to route a coach through the
+  // anonymous /preview/:token flow (the same page an anonymous parent/
+  // helper gets), which had no real attendance/station-assignment
+  // controls and could bounce a coach into the read-only helper view the
+  // moment anyone went live. Practice Setup is now the real live
+  // session's own first stage (see CommandScreen's "attend" stage) --
+  // the hero's setup/start button just goes straight to
+  // /run/:practiceId, landing on Setup if nothing's confirmed yet or
+  // straight into the live view if it already is. isSessionLive tracks
+  // whether ANY coach has already started this practice, so the label
+  // can say "Join Practice" instead of implying this coach is the one
+  // kicking it off.
+  const [isSessionLive, setIsSessionLive] = useState(false);
+  useEffect(() => {
+    if (!nextPractice) { setIsSessionLive(false); return; }
+    let cancelled = false;
+    findActiveLiveSession(nextPractice.id).then(s => { if (!cancelled) setIsSessionLive(!!s); });
+    return () => { cancelled = true; };
+  }, [nextPractice && nextPractice.id]);
   const isSoonOrLive = p => {
     if (!p || !p.startTime || p.date !== todayStr) return false;
     const [h, m] = p.startTime.split(":").map(Number);
@@ -237,6 +256,22 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
       setRecentSessionByTeamId(Object.fromEntries(rows.map(r => [r.teamId, r.lastCompletedAt])));
     });
   }, [isOrgMode, !!nextPractice, homeTeamIdsKey]);
+  // Direct feedback: a coach had no reason to ever open Goals & Insights'
+  // History tab to discover an unreviewed practice note -- Home should
+  // call their attention to it. canManage-gated since reviewing (clearing
+  // the flag) is itself gated the same way in SessionHistoryDetail; an
+  // assistant with no manage rights on any team never sees this.
+  const [unviewedNoteTeamIds, setUnviewedNoteTeamIds] = useState([]);
+  useEffect(() => {
+    if (!homeTeamIdsKey) { setUnviewedNoteTeamIds([]); return; }
+    let cancelled = false;
+    fetchTeamsWithUnviewedNotes(homeTeamIdsKey.split(",")).then(ids => { if (!cancelled) setUnviewedNoteTeamIds(ids); });
+    return () => { cancelled = true; };
+  }, [homeTeamIdsKey]);
+  const unviewedNoteTeam = (() => {
+    const id = unviewedNoteTeamIds.find(tid => canManageTeamInMode(teamById(tid), coachId, mode));
+    return id ? teamById(id) : null;
+  })();
   const focusTeamId = isOrgMode ? null : resolveDevelopmentPulseFocusTeamId({ nextPractice, homeTeams: data.teams, recentSessionByTeamId });
   const focusTeam = focusTeamId ? teamById(focusTeamId) : null;
   const focusTeamCanManage = focusTeam ? canManageTeamInMode(focusTeam, coachId, mode) : false;
@@ -452,6 +487,10 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
         <button className="btn ghost bxs" style={{ flex: 1 }} disabled={ackingJoinId === pendingJoinNotice.id} onClick={acknowledgeJoinNotice}>Dismiss</button>
       </div>
     </div></div>}
+    {unviewedNoteTeam && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
+      <div style={{ fontSize: 14, marginBottom: 10 }}>A practice note from <strong>{unviewedNoteTeam.name}</strong>'s history hasn't been reviewed yet.</div>
+      <button className="btn primary bxs bfull" onClick={() => navigate("/team/" + unviewedNoteTeam.id + "/goals", { state: { openGoalsView: "history" } })}>Review Practice History</button>
+    </div></div>}
 
     {/* Org Members management (add a member, cancel a pending invite) moved
         to the Teams tab's Organization section -- per direct feedback, Home
@@ -494,7 +533,16 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
         </div>
       </div>}
 
-      {!nextPractice && <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px" }}>
+      {!nextPractice && nextCancelledPractice && (() => {
+        const team = teamById(nextCancelledPractice.teamId);
+        return (<div className="card" style={{ marginBottom: 16, borderColor: "var(--b)" }}>
+          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)", marginBottom: 6 }}>{dayLbl(nextCancelledPractice.date, todayStr, tomorrowStr)}{nextCancelledPractice.startTime ? " · " + timeLbl(nextCancelledPractice) : ""} · Cancelled</div>
+          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1, marginBottom: 4, color: "var(--td)", textDecoration: "line-through" }}>{team ? team.name : "Practice"}</div>
+          <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>This practice was cancelled -- nothing else is coming up yet.</div>
+          <button className="btn outline blg bfull" onClick={() => setViewPractice(nextCancelledPractice)}>View Practice</button>
+        </div>);
+      })()}
+      {!nextPractice && !nextCancelledPractice && <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px" }}>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{data.teams.length === 0 ? "Set up your practice schedule" : "Nothing on the schedule"}</div>
         <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 16 }}>{!canManageAnyTeam ? "Nothing planned yet." : data.teams.length === 0 ? "Add a team, then set up a recurring schedule to get started." : "Build a practice or set up a recurring schedule."}</div>
         {canManageAnyTeam && <div style={{ display: "flex", gap: 8 }}>
@@ -543,9 +591,8 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
               min-width:auto, so flex-shrink couldn't shrink either below
               its own text width and the row overflowed the viewport. */}
           {planned && <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn outline blg" style={{ flex: 1, minWidth: 0 }} disabled={openingPreview} onClick={() => openPracticeSetup(nextPractice.id)}>{openingPreview ? "Opening..." : "Practice Setup"}</button>
-            {!soon && <button className="btn primary blg" style={{ flex: 1, minWidth: 0 }} onClick={() => setViewPractice(nextPractice)}>Review Plan</button>}
-            {soon && <button className="btn primary blg" style={{ flex: 1, minWidth: 0 }} onClick={() => goToRun(nextPractice.id)}>Start Practice &#8594;</button>}
+            <button className="btn outline blg" style={{ flex: 1, minWidth: 0 }} onClick={() => setViewPractice(nextPractice)}>Review Plan</button>
+            <button className="btn primary blg" style={{ flex: 1, minWidth: 0 }} onClick={() => goToRun(nextPractice.id)}>{isSessionLive ? "Join Practice" : soon ? "Start Practice →" : "Practice Setup"}</button>
           </div>}
         </div></>);
       })()}

@@ -70,7 +70,6 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
   const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
 
   const [mode, setMode] = useState("agenda");
-  const [showPast, setShowPast] = useState(false);
   const [teamFilter, setTeamFilter] = useState(new Set());
   const [monthCursor, setMonthCursor] = useState(new Date(now.getFullYear(), now.getMonth(), 1));
   const [daySheetDate, setDaySheetDate] = useState(null);
@@ -146,21 +145,13 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
 
   const teamById = id => data.teams.find(t => t.id === id);
 
-  // Agenda -- "past" now also catches a same-day practice that already
-  // finished (ran), and "upcoming" excludes it, so a completed morning
-  // practice moves into history immediately instead of waiting for midnight.
+  // Agenda -- "upcoming" excludes a same-day practice that already
+  // finished (ran), so a completed morning practice drops off the list
+  // immediately instead of lingering until midnight. Past practices
+  // themselves are no longer listed here at all (see Month view / Goals &
+  // Insights History for that).
   const upcoming = filtered.filter(p => p.date >= todayStr && !ran(p)).sort((a, b) => a.date === b.date ? (a.startTime || "").localeCompare(b.startTime || "") : a.date.localeCompare(b.date));
-  const past = filtered.filter(p => p.date < todayStr || ran(p)).sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || ""));
   const groupByDay = list => { const g = []; let cur = null; for (const p of list) { if (!cur || cur.date !== p.date) { cur = { date: p.date, items: [] }; g.push(cur); } cur.items.push(p); } return g; };
-  // Past-list status word: cancelled beats everything, then a completed run,
-  // then a session that was started but never finished (abandoned), then
-  // plain missed (never even started).
-  const pastStatusLbl = p => {
-    if (p.status === "cancelled") return "Cancelled";
-    if (ran(p)) return "Completed";
-    if (runStatus[p.id] === "started") return "Started, not finished";
-    return "Missed";
-  };
 
   // Month grid
   const monthStart = monthCursor;
@@ -224,16 +215,12 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
         })}
       </div>))}
       {upcoming.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>{canScheduleAny ? "Nothing scheduled. Tap + Practice or + Series above to get started." : "Nothing scheduled yet."}</div>}
-      {past.length > 0 && <div style={{ marginTop: 8 }}>
-        <button className="btn ghost bsm bfull" onClick={() => setShowPast(s => !s)}>{showPast ? "Hide" : "Show"} Completed / History</button>
-        {showPast && groupByDay(past).map(g => (<div key={g.date} style={{ marginTop: 12 }}>
-          <div className="clbl" style={{ marginBottom: 6 }}>{dayLbl(g.date, todayStr, tomorrowStr)}</div>
-          {g.items.map(p => { const team = teamById(p.teamId); return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer" }} onClick={() => openPractice(p)}>
-            <div className="lim"><div className="lin">{team ? team.name : "Practice"}</div><div className="limt">{timeLbl(p)} · {pastStatusLbl(p)}</div></div>
-            <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>
-          </div>); })}
-        </div>))}
-      </div>}
+      {/* Direct feedback: history consolidated into Goals & Insights' own
+          History tab -- the agenda's own past-practice list was a second,
+          redundant place to browse the same thing. Past practices are
+          still visible via Month view (below), which already shows a
+          filled/hollow dot and status per day without needing a whole
+          second list here. */}
     </div>}
 
     {mode === "month" && <div style={{ padding: "0 16px" }}>

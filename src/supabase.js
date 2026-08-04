@@ -1222,6 +1222,22 @@ export async function setPlannedAbsences(playerId, notedBy, selectedPracticeIds,
 // "current" at note-taking time via real ids, not the old blob's fragile
 // name-string match. Fetched on demand per practice (history view, note
 // counts) rather than bulk-loaded, unlike the old always-in-memory blob.
+// Direct feedback: a practice run early/late relative to its scheduled
+// time still showed the SCHEDULED date/time in HistoryViewer (Schedule
+// Month view / Home's past-practice click) -- the canonical Goals &
+// Insights History view already uses the real session's created_at
+// (actual start) for this, this brings HistoryViewer in line with it.
+// Self-contained (own query, own table) rather than widening
+// fetchPracticeRunStatus's shared string-status contract, which several
+// unrelated call sites depend on staying a plain "completed"/"started" map.
+export async function fetchPracticeActualStart(practiceId) {
+  if (!practiceId) return null
+  const { data, error } = await supabase.from('practice_live_sessions').select('created_at')
+    .eq('practice_id', practiceId).eq('status', 'completed')
+    .order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (error) { console.error('fetchPracticeActualStart:', error); return null }
+  return data ? data.created_at : null
+}
 export async function fetchNotesForPractice(practiceId) {
   if (!practiceId) return []
   const { data, error } = await supabase.from('notes').select('*, note_player_tags(player_id)').eq('practice_id', practiceId).is('archived_at', null).order('created_at', { ascending: true })
@@ -1341,16 +1357,17 @@ export async function findActiveLiveSession(practiceId) {
   return data
 }
 
-export async function createLiveSession(practiceId, controllerUserId, { practiceActivityId, inBlockIntro }) {
-  const row = {
-    practice_id: practiceId, status: 'active', controller_user_id: controllerUserId, version: 1,
-    current_practice_activity_id: practiceActivityId, current_rotation_number: 0,
-    in_transition: false, in_block_intro: !!inBlockIntro,
-    current_phase_started_at: new Date().toISOString(), paused_at: null, total_paused_seconds: 0,
-  }
-  const { data, error } = await supabase.from('practice_live_sessions').insert(row).select().single()
-  if (error) { console.error('createLiveSession:', error); return null }
-  return data
+// Atomic create-or-join (20260805040000_start_or_join_live_session.sql) --
+// replaces the old find-then-maybe-create pattern everywhere a coach can
+// reach a practice that might already be live for someone else (Run Now /
+// Join Practice / the mount effect below). Returns null on a real failure
+// (network/auth); { session, created } otherwise -- created tells the
+// caller whether this is a brand-new session (needs the one-time station
+// seed + preview-link) or one they're joining already in progress.
+export async function startOrJoinLiveSession(practiceId) {
+  const { data, error } = await supabase.rpc('start_or_join_live_session', { p_practice_id: practiceId })
+  if (error) { console.error('startOrJoinLiveSession:', error); return null }
+  return { session: data.session, created: data.created }
 }
 
 // A genuine network failure (offline, request never reached the server)
@@ -1466,8 +1483,13 @@ export async function saveSessionGroups(sessionId, practiceActivityId, createdBy
   if (!rows.length) return
   const { data: groupRows, error } = await supabase.from('session_groups').insert(rows).select()
   if (error) { console.error('saveSessionGroups:', error); return }
+  // group_number, not array position -- .insert(rows).select() doesn't
+  // guarantee the returned rows come back in the same order they were
+  // sent, so zipping by index risked pairing a group's row with a
+  // different group's player list whenever the response order didn't
+  // match the request order.
   const memberRows = []
-  groupRows.forEach((gr, i) => { (groups[i] || []).forEach(pid => memberRows.push({ group_id: gr.id, player_id: pid })) })
+  groupRows.forEach(gr => { (groups[gr.group_number - 1] || []).forEach(pid => memberRows.push({ group_id: gr.id, player_id: pid })) })
   if (memberRows.length) {
     const { error: mErr } = await supabase.from('session_group_members').insert(memberRows)
     if (mErr) console.error('saveSessionGroups members:', mErr)
@@ -1665,6 +1687,15 @@ export async function fetchTeamsRecentCompletedSession(teamIds) {
   const { data, error } = await supabase.rpc('get_teams_recent_completed_session', { p_team_ids: teamIds })
   if (error) { console.error('fetchTeamsRecentCompletedSession:', error); return [] }
   return (data || []).map(r => ({ teamId: r.team_id, lastCompletedAt: r.last_completed_at }))
+}
+// Home's "you have notes to review" nudge (direct feedback) -- one batch
+// call across every visible team rather than one get_team_session_history
+// per team just to check has_unviewed_notes.
+export async function fetchTeamsWithUnviewedNotes(teamIds) {
+  if (!teamIds || !teamIds.length) return []
+  const { data, error } = await supabase.rpc('get_teams_with_unviewed_notes', { p_team_ids: teamIds })
+  if (error) { console.error('fetchTeamsWithUnviewedNotes:', error); return [] }
+  return data || []
 }
 export async function fetchTeamGoalTrends(teamId, windowWeeks) {
   const { data, error } = await supabase.rpc('get_team_goal_trends', { p_team_id: teamId, p_window_weeks: windowWeeks || null })

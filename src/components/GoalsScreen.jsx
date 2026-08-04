@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useBlocker, useLocation, useNavigate } from "react-router-dom";
-import { canManageTeamInMode, localDateStr, summarizeCategoryTrend, calculateGoalGapGuidance, TREND_FLAT_THRESHOLD_PCT, classifyDurationVariance } from "../constants.js";
+import { canManageTeamInMode, localDateStr, stripIdsForCopy, summarizeCategoryTrend, calculateGoalGapGuidance, TREND_FLAT_THRESHOLD_PCT, classifyDurationVariance } from "../constants.js";
 import {
   fetchTeamGoals, setTeamGoals, updateGoalsWindowWeeks,
   fetchTeamGoalReport, fetchTeamGoalTrends, fetchTeamSessionHistory, fetchSessionActivityLog, fetchSessionExecutionScorecard, fetchNotesForPractice, archiveNote,
   setSessionExclusion, adjustSessionActivity, addSessionActivityRow, logGoalViewed,
   markPracticeNotesViewed, markNotesViewedForPractices, archivePractice,
+  savePracticeTree, saveTemplateTree,
 } from "../supabase.js";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
 
@@ -410,7 +411,7 @@ function TimeRangeForm({ start, end, setStart, setEnd, onSave, onCancel, busy, s
 // time" client-side guardrail (§5.4) -- the DB-side sane-bounds check
 // (adjust_session_activity's +/-1h/12h window, built in step 2) is the real
 // safety net; this is UI polish on top of it, not core correctness.
-function SessionHistoryDetail({ session, practice, team, data, canManage, onBack, onChanged, setSubViewBack }) {
+function SessionHistoryDetail({ session, practice, team, data, canManage, coachId, goToRun, refreshPlanning, onBack, onChanged, setSubViewBack }) {
   // Nav restructure round 3: GoalsScreen is always team-scoped, so this
   // always registers with Layout's colored bar instead of its own inline
   // Back button -- the !setSubViewBack fallback below is just defensive
@@ -450,6 +451,18 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
   const [deleting, setDeleting] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
   const [scorecard, setScorecard] = useState(null);
+  // Direct feedback: this screen had a separate "Edit" button on every
+  // single logged time segment, plus a separate delete (x) on every
+  // single note -- one real edit toggle for the whole practice instead,
+  // matching HistoryViewer's simpler feel. Off by default; the per-row
+  // adjust/add/delete affordances below only render once this is on.
+  const [editMode, setEditMode] = useState(false);
+  const [runningNow, setRunningNow] = useState(false);
+  const [tplNameInput, setTplNameInput] = useState("");
+  const [showTplInput, setShowTplInput] = useState(false);
+  const [tplSaved, setTplSaved] = useState(false);
+  const [savingTpl, setSavingTpl] = useState(false);
+  const [tplError, setTplError] = useState("");
   const loc = (practice && data) ? data.locations.find(l => l.id === practice.locationId) : null;
 
   const refresh = useCallback(() => { fetchSessionActivityLog(session.session_id).then(setLogs); }, [session.session_id]);
@@ -521,6 +534,37 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
     if (onChanged) onChanged();
     onBack();
   };
+  // Direct feedback: History had "Run Again" nowhere on it -- same
+  // fresh-copy-scheduled-now pattern already used by HistoryViewer/
+  // HomeScreen/ScheduleScreen's own runAgainFrom, just relabeled "Run Now"
+  // per spec here specifically.
+  const runNowFrom = async () => {
+    if (!goToRun || runningNow) return;
+    setRunningNow(true);
+    const runNow = new Date();
+    const { data: saved } = await savePracticeTree(null, {
+      teamId: practice.teamId, locationId: practice.locationId, sublocationId: practice.sublocationId,
+      date: localDateStr(runNow), startTime: runNow.toTimeString().slice(0, 5),
+      activities: stripIdsForCopy(practice.activities),
+    });
+    if (refreshPlanning) await refreshPlanning();
+    setRunningNow(false);
+    if (saved) goToRun(saved.id);
+  };
+  const handleSaveAsTpl = async () => {
+    if (!tplNameInput.trim() || savingTpl) return;
+    setSavingTpl(true); setTplError("");
+    const sport = (team && team.sport) || "General";
+    const { error } = await saveTemplateTree(coachId, null, {
+      name: tplNameInput, sport, teamId: practice.teamId,
+      activities: stripIdsForCopy(practice.activities),
+    });
+    setSavingTpl(false);
+    if (error) { setTplError("Something went wrong saving. Try again."); return; }
+    if (refreshPlanning) await refreshPlanning();
+    setTplSaved(true); setShowTplInput(false); setTplNameInput("");
+    setTimeout(() => setTplSaved(false), 2500);
+  };
 
   return (<div style={{ paddingBottom: 80 }}>
     {!setSubViewBack && <div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>&#8249; History</button></div>}
@@ -528,24 +572,37 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900 }}>
         {session.ended_at ? new Date(session.ended_at).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }) : "In progress"}
       </div>
-      {canManage && <button className="btn ghost bxs" style={{ color: "var(--red)", flexShrink: 0 }} onClick={doDeletePractice} disabled={deleting}>{deleting ? "Deleting..." : "Delete Practice"}</button>}
+      {canManage && <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+        {/* Direct feedback: one edit toggle for the whole practice instead
+            of a separate "Edit" button on every logged time segment and a
+            separate delete (x) on every note -- those per-row affordances
+            below only render while this is on. */}
+        <button className="btn ghost bxs" onClick={() => setEditMode(e => !e)}>{editMode ? "Done Editing" : "Edit"}</button>
+        <button className="btn ghost bxs" style={{ color: "var(--red)" }} onClick={doDeletePractice} disabled={deleting}>{deleting ? "Deleting..." : "Delete"}</button>
+      </div>}
     </div>
-    <button className="btn outline bsm bfull" style={{ marginBottom: 12 }} onClick={() => setShowPrint(true)}>Print / Export PDF</button>
     <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>
       {session.wall_minutes}min wall time · {session.attendance_count} attended
       {session.excluded && <span className="bdg bs" style={{ marginLeft: 6 }}>Excluded from goals</span>}
       {session.adjusted && <span className="bdg bp" style={{ marginLeft: 6 }}>Adjusted</span>}
     </div>
 
-    <PracticeExecutionScorecard scorecard={scorecard} />
-
-    {(session.top_skills || []).length > 0 && <div className="card mb10">
-      <div className="clbl mb8">Skill Minutes</div>
-      {session.top_skills.map(s => (<div key={s.skill_tag_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-        <span>{s.name}</span><span style={{ fontFamily: "DM Mono,monospace", color: "var(--tm)" }}>{s.minutes}m</span>
-      </div>))}
+    {/* Direct feedback: Run Now belongs at the top, alongside Save as
+        Template -- same look/actions HistoryViewer (Schedule/Home's own
+        past-practice screen) already had, brought into this, the one
+        canonical History view. */}
+    {goToRun && <button className="btn primary bmd bfull" style={{ marginBottom: 8 }} onClick={runNowFrom} disabled={runningNow}>{runningNow ? "Starting..." : "Run Now"}</button>}
+    {showTplInput && <div style={{ marginBottom: 8 }}>
+      <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder={(team ? team.name : "Practice") + " Template"} value={tplNameInput} onChange={e => { setTplNameInput(e.target.value); if (tplError) setTplError(""); }} onKeyDown={e => e.key === "Enter" && handleSaveAsTpl()} /></div>
+      {tplError && <div style={{ fontSize: 12, color: "var(--red)", marginBottom: 6 }}>{tplError}</div>}
+      <div className="brow"><button className="btn ghost bsm" onClick={() => setShowTplInput(false)}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsTpl} disabled={!tplNameInput.trim() || savingTpl}>{savingTpl ? "Saving..." : "Save"}</button></div>
     </div>}
+    {!showTplInput && <button className="btn ghost bmd bfull" style={{ marginBottom: 8 }} onClick={() => setShowTplInput(true)}>{tplSaved ? "Saved as Template" : "Save as Template"}</button>}
+    <button className="btn outline bsm bfull" style={{ marginBottom: 16 }} onClick={() => setShowPrint(true)}>Print / Export PDF</button>
 
+    {/* Direct feedback: Planned vs. Actual moved up to lead the page --
+        visually resembles the schedule history view (activities first),
+        rather than sitting after the scorecard/skill-minutes summaries. */}
     <div className="clbl mb8">Planned vs. Actual</div>
     {(practice.activities || []).map(act => {
       if (act.type === "station_block") return (<div key={act.id} className="ablk mb8">
@@ -558,12 +615,12 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
               <span style={{ fontSize: 13, fontWeight: 600 }}>{st.name}{st.activityName ? ": " + st.activityName : ""}</span>
               {stLogs.length > 1 && <span style={{ fontSize: 11, fontFamily: "DM Mono,monospace", color: "var(--tm)" }}>{stTotalMin}m total</span>}
             </div>
-            {stLogs.length === 0 && <div style={{ fontSize: 12, color: "var(--td)" }}>No actual time logged.{canManage && <button className="btn ghost bxs" style={{ marginLeft: 8 }} onClick={() => startAddRow(null, st.id)}>Log actual time</button>}</div>}
+            {stLogs.length === 0 && <div style={{ fontSize: 12, color: "var(--td)" }}>No actual time logged.{canManage && editMode && <button className="btn ghost bxs" style={{ marginLeft: 8 }} onClick={() => startAddRow(null, st.id)}>Log actual time</button>}</div>}
             {stLogs.map(l => (<div key={l.id} style={{ fontSize: 12, color: "var(--tm)", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
               Actual: {fmtClock(l.startedAt)}{l.endedAt ? " - " + fmtClock(l.endedAt) : " (ongoing)"}
               {l.endedAt && <span style={{ fontFamily: "DM Mono,monospace" }}>&middot; {logMinutes(l)}m</span>}
               {l.adjustedAt && <span className="bdg bp">adjusted</span>}
-              {canManage && <button className="btn ghost bxs" onClick={() => startAdjust(l)}>Edit</button>}
+              {canManage && editMode && <button className="btn ghost bxs" onClick={() => startAdjust(l)}>Edit</button>}
             </div>))}
             {addingFor && addingFor.stationId === st.id && <TimeRangeForm start={addStart} end={addEnd} setStart={setAddStart} setEnd={setAddEnd} onSave={saveAddRow} onCancel={() => setAddingFor(null)} busy={busy} saveLabel="Log time" fallbackDate={session.ended_at} />}
             {stLogs.some(l => l.id === editingLogId) && <TimeRangeForm start={editStart} end={editEnd} setStart={setEditStart} setEnd={setEditEnd} onSave={saveAdjust} onCancel={() => setEditingLogId(null)} busy={busy} fallbackDate={session.ended_at} />}
@@ -579,19 +636,28 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
           <span className="bdg bp">{act.duration}m planned</span>
         </div>
         {actLogs.length === 0 && <div style={{ fontSize: 12, color: "var(--td)" }}>No actual time logged{act.type === "break" ? " (break)" : ""}.
-          {canManage && act.type !== "break" && <button className="btn ghost bxs" style={{ marginLeft: 8 }} onClick={() => startAddRow(act.id, null)}>Log actual time</button>}
+          {canManage && editMode && act.type !== "break" && <button className="btn ghost bxs" style={{ marginLeft: 8 }} onClick={() => startAddRow(act.id, null)}>Log actual time</button>}
         </div>}
         {actLogs.map(l => (<div key={l.id} style={{ fontSize: 12, color: "var(--tm)", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
           Actual: {fmtClock(l.startedAt)}{l.endedAt ? " - " + fmtClock(l.endedAt) : " (ongoing)"}
           {l.endedAt && <span style={{ fontFamily: "DM Mono,monospace" }}>&middot; {logMinutes(l)}m</span>}
           {l.adjustedAt && <span className="bdg bp">adjusted</span>}
-          {canManage && <button className="btn ghost bxs" onClick={() => startAdjust(l)}>Edit</button>}
+          {canManage && editMode && <button className="btn ghost bxs" onClick={() => startAdjust(l)}>Edit</button>}
         </div>))}
         {actLogs.length > 1 && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--black2)", marginTop: 4 }}>Total actual: {actTotalMin}m</div>}
         {addingFor && addingFor.practiceActivityId === act.id && <TimeRangeForm start={addStart} end={addEnd} setStart={setAddStart} setEnd={setAddEnd} onSave={saveAddRow} onCancel={() => setAddingFor(null)} busy={busy} saveLabel="Log time" fallbackDate={session.ended_at} />}
         {actLogs.some(l => l.id === editingLogId) && <TimeRangeForm start={editStart} end={editEnd} setStart={setEditStart} setEnd={setEditEnd} onSave={saveAdjust} onCancel={() => setEditingLogId(null)} busy={busy} fallbackDate={session.ended_at} />}
       </div>);
     })}
+
+    <PracticeExecutionScorecard scorecard={scorecard} />
+
+    {(session.top_skills || []).length > 0 && <div className="card mb10">
+      <div className="clbl mb8">Skill Minutes</div>
+      {session.top_skills.map(s => (<div key={s.skill_tag_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+        <span>{s.name}</span><span style={{ fontFamily: "DM Mono,monospace", color: "var(--tm)" }}>{s.minutes}m</span>
+      </div>))}
+    </div>}
 
     {notes.length > 0 && <div className="card mb10">
       <div className="clbl mb8">Notes</div>
@@ -606,7 +672,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, onBack
             <div style={{ fontSize: 13 }}>{n.text}</div>
             {n.playerIds && n.playerIds.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>{taggedPlayerNames(n.playerIds).map(name => (<span key={name} className="bdg bs" style={{ fontSize: 10 }}>{name}</span>))}</div>}
           </div>
-          {canManage && <button className="btn ghost bxs" onClick={() => doArchiveNote(n.id)} title="Hide this note">&times;</button>}
+          {canManage && editMode && <button className="btn ghost bxs" onClick={() => doArchiveNote(n.id)} title="Delete this note">&times;</button>}
         </div>);
         return (<div>
           {Object.keys(byActivity).map(actId => (<div key={actId} style={{ marginBottom: 10 }}>
@@ -663,13 +729,20 @@ function HistoryList({ history, data, canManage, onOpen }) {
 // sub-toggle visual already used for Coach/Org mode (HomeScreen.jsx) and My
 // Drills/Team Libraries (NewLibraryScreen.jsx) -- generalizes cleanly to a
 // third option rather than inventing a new tab style.
-function GoalsSubnav({ view, setView }) {
+function GoalsSubnav({ view, setView, anyUnviewed }) {
   // Direct feedback: sat flush against the team workspace's own top tab
   // row (Schedule/Roster/Equipment/Goals & Insights) with no breathing
   // room -- marginTop gives it real separation from that row.
   return (<div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3, marginTop: 14, marginBottom: 14 }}>
     {[{ k: "overview", label: "Overview" }, { k: "trends", label: "Trends" }, { k: "history", label: "History" }].map(t => (
-      <button key={t.k} onClick={() => setView(t.k)} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: view === t.k ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: view === t.k ? "var(--black)" : "var(--td)" }}>{t.label}</button>
+      <button key={t.k} onClick={() => setView(t.k)} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: view === t.k ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: view === t.k ? "var(--black)" : "var(--td)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+        {t.label}
+        {/* Direct feedback: a coach had no way to tell a session had an
+            unreviewed note without already being on the History tab --
+            same red dot HistoryList already puts on the row itself,
+            surfaced here too so it's visible from Overview/Trends. */}
+        {t.k === "history" && anyUnviewed && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--red)", flexShrink: 0 }} />}
+      </button>
     ))}
   </div>);
 }
@@ -872,7 +945,7 @@ function NextPracticeGuidance({ team, teamId, data, report, canManage, coachId }
 
 // Goals + Insights tab (handoff §5). Ties together the editor, glance view,
 // and promoted History list/detail for one team.
-export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mode, refreshTeams }) {
+export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mode, refreshTeams, goToRun, refreshPlanning }) {
   const team = data.teams.find(t => t.id === teamId);
   // canManageTeamInMode, not bare isHeadCoach -- a director overseeing an
   // org team should be able to set goals/exclude sessions/archive notes
@@ -946,7 +1019,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
 
   if (openSession) {
     const practice = data.practices.find(p => p.id === openSession.practice_id);
-    return <SessionHistoryDetail session={openSession} practice={practice} team={team} data={data} canManage={canManage}
+    return <SessionHistoryDetail session={openSession} practice={practice} team={team} data={data} canManage={canManage} coachId={coachId} goToRun={goToRun} refreshPlanning={refreshPlanning}
       onBack={() => setOpenSessionId(null)}
       onChanged={() => { refreshAll(); }}
       setSubViewBack={setSubViewBack} />;
@@ -959,7 +1032,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
   // the 2026-07-2x flattened top-tabs redesign gave this its own direct
   // route (/team/:teamId/goals).
   return (<div>
-    <GoalsSubnav view={view} setView={setView} />
+    <GoalsSubnav view={view} setView={setView} anyUnviewed={canManage && anyUnviewed} />
     {view === "overview" && (<>
       {canManage && <GoalsEditor teamId={teamId} team={team} data={data} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
       <GlanceView report={report} emphasizeUntagged={emphasizeUntagged} team={team} teamId={teamId} canManage={canManage} onReviewUntaggedDrills={goToUntaggedDrills} allDrillsTagged={allDrillsTagged} refreshReport={refreshReport} refreshTeams={refreshTeams} />
