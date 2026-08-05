@@ -169,11 +169,14 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .att-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;}
 .att-btn{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--b);border-radius:8px;cursor:pointer;background:var(--s2);text-align:left;width:100%;}
 .att-btn.on{background:var(--gbg);border-color:var(--green);}
+.att-btn-dark{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.15);}
+.att-btn-dark.on{background:rgba(82,183,136,.18);border-color:#52b788;}
 .att-circle{width:26px;height:26px;border-radius:50%;background:var(--b2);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .att-circle.on{background:var(--green);}
 .ccs{display:flex;flex-direction:column;height:100%;overflow:hidden;padding-bottom:0;}
-.cc-header{padding:8px 14px;background:var(--s1);border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-.cc-act-name{font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:900;line-height:1;margin:4px 0 2px;}
+.cc-header{padding:8px 14px;background:var(--s1);border-bottom:1px solid var(--b);display:flex;flex-direction:column;align-items:stretch;flex-shrink:0;}
+.cc-header-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.cc-act-name{font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:900;line-height:1;margin:6px 0 2px;width:100%;}
 .cc-timer-row{padding:4px 14px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
 .cc-timer{font-family:'DM Mono',monospace;font-size:64px;font-weight:500;line-height:1;color:var(--green);}
 .cc-timer.urg{color:var(--red);}.cc-timer.over{color:var(--red);animation:pulse .8s infinite;}
@@ -1563,7 +1566,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               {expandedId===act.id&&(<div className="abbody">
                   {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} sport={teamSport} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
                   {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)}/>}
-                  {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} libraryDrills={data.activityLibrary} skillTags={data.skillTags} absentPlayerIds={absentPlayerIds}/>}
+                  {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} libraryDrills={sourceFilteredLib} librarySources={librarySources} libSource={libSource} setLibSource={setLibSource} skillTags={data.skillTags} absentPlayerIds={absentPlayerIds}/>}
                 </div>
               )}
             </div>

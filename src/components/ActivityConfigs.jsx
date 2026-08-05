@@ -254,7 +254,7 @@ export function ChecklistConfig({act,onChange,onDone}){
   </div>);
 }
 
-export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,refreshLibrary,teamSport,libraryDrills,skillTags,absentPlayerIds}){
+export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,refreshLibrary,teamSport,libraryDrills,librarySources,libSource,setLibSource,skillTags,absentPlayerIds}){
   const rotate=act.rotate!==false;
   const [newEquipIdx,setNewEquipIdx]=useState(null);
   const [newGearIdx,setNewGearIdx]=useState(null);
@@ -427,8 +427,22 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
           <label className="lbl">Name</label>
           <input className="inp" placeholder="Write your own, or choose from library below" value={st.activityName||st.name||""} onChange={e=>onSt(st.id,{activityName:e.target.value,name:e.target.value})}/>
           <button type="button" className="btn ghost bxs mt6" onClick={()=>setLibraryPickerIdx(libraryPickerIdx===si?null:si)}>{st.libraryId?"Change Library Drill":"Choose from Library"}</button>
-          {libraryPickerIdx===si&&<div style={{marginTop:6,border:"1px solid var(--b)",borderRadius:"var(--rs)",maxHeight:180,overflowY:"auto",background:"#fff"}}>
-            {filteredLibrary.length===0&&<div style={{padding:10,fontSize:12,color:"var(--td)"}}>No drills in library for {sport} yet.</div>}
+          {libraryPickerIdx===si&&<div style={{marginTop:6,border:"1px solid var(--b)",borderRadius:"var(--rs)",maxHeight:220,overflowY:"auto",background:"#fff"}}>
+            {/* Direct feedback: this picker used to silently merge every
+                accessible drill (own + org + any peer sharing with the
+                coach) with no way to tell which library a result came from
+                -- same gap the main "My Drill Library" section below
+                already closed with its own librarySources switcher.
+                Sharing that exact switcher's state (passed down from
+                BuilderScreen) rather than a second, independent one keeps
+                "which library am I browsing" answered the same way in both
+                places at once; defaults to "My Library" either way. */}
+            {librarySources&&librarySources.length>1&&<div style={{padding:8,borderBottom:"1px solid var(--b)"}}>
+              <select className="sel" value={libSource} onChange={e=>setLibSource(e.target.value)} onClick={e=>e.stopPropagation()} style={{fontSize:12}}>
+                {librarySources.map(s=>(<option key={s.key} value={s.key}>{s.label}</option>))}
+              </select>
+            </div>}
+            {filteredLibrary.length===0&&<div style={{padding:10,fontSize:12,color:"var(--td)"}}>No drills in this library for {sport} yet.</div>}
             {filteredLibrary.map(lib=>(<div key={lib.id} className="li tap" style={{marginBottom:0,borderRadius:0,borderLeft:"none",borderRight:"none",borderTop:"none"}} onClick={()=>chooseFromLibrary(si,lib)}>
               <div className="lim">
                 <div className="lin">{lib.name}</div>

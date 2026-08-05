@@ -208,6 +208,18 @@ export default function DevelopmentPulseCard({ team, nextPractice, canManage, da
 
   const activityLibraryById = useMemo(() => Object.fromEntries((data.activityLibrary || []).map(a => [a.id, a])), [data.activityLibrary]);
   const skillTagsById = useMemo(() => Object.fromEntries((data.skillTags || []).map(t => [t.id, t])), [data.skillTags]);
+  // Same "is there anything left in the library to tag" signal
+  // GoalsScreen's GlanceView already uses to swap in an accurate message
+  // instead of a stale "go tag your drills" nudge -- Development Pulse is
+  // Coach-mode-only (never Org mode), so this only ever needs the owned,
+  // this-team's-sport scoping, no org branch.
+  const allDrillsTagged = useMemo(() => {
+    if (!team) return false;
+    const sport = team.sport || "General";
+    return (data.activityLibrary || []).filter(a => a.ownerUserId === coachId)
+      .filter(a => (a.sport || "General") === sport)
+      .filter(a => !(a.skillTagIds && a.skillTagIds.length)).length === 0;
+  }, [data.activityLibrary, team, coachId]);
 
   const result = useMemo(() => {
     if (!team || !report) return null;
@@ -217,9 +229,9 @@ export default function DevelopmentPulseCard({ team, nextPractice, canManage, da
       // the resolver falls back to the same "no plan impact" path an
       // unplanned practice already takes, and the card adds a note below.
       nextPractice: isLiveNow ? null : nextPractice,
-      activityLibraryById, skillTagsById, hasSportCategories,
+      activityLibraryById, skillTagsById, hasSportCategories, allDrillsTagged,
     });
-  }, [team, report, nextPractice, isLiveNow, activityLibraryById, skillTagsById, hasSportCategories]);
+  }, [team, report, nextPractice, isLiveNow, activityLibraryById, skillTagsById, hasSportCategories, allDrillsTagged]);
 
   // Collapse/expand persists per-coach across sessions (direct feedback) --
   // this is one physical widget on Home, not a per-team preference, so a

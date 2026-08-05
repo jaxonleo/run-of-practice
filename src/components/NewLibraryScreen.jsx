@@ -227,7 +227,7 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
         const its=bySport[sport];
         return(<div key={sport} style={{marginBottom:8}}>
           <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[prefix+sport]:!c[prefix+sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:isCollapsed?"var(--r)":"var(--r) var(--r) 0 0",cursor:"pointer"}}>
-            <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--black)"}}>{sport}</span>
+            <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--green)"}}>{sport}</span>
             <span style={{fontSize:12,color:"var(--td)"}}>{its.length} item{its.length!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
           </button>
           {!isCollapsed&&<div style={{border:"1px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)"}}>
@@ -294,7 +294,7 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
           const items=bySport[sport];
           return(<div key={sport} style={{marginBottom:8}}>
             <button onClick={()=>setCollapsed(c=>Object.assign({},c,{["pg_"+sport]:!c["pg_"+sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:isCollapsed?"var(--r)":"var(--r) var(--r) 0 0",cursor:"pointer"}}>
-              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--black)"}}>{sport}</span>
+              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--green)"}}>{sport}</span>
               <span style={{fontSize:12,color:"var(--td)"}}>{items.length} item{items.length!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
             </button>
             {!isCollapsed&&<div style={{border:"1px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)"}}>
@@ -378,7 +378,7 @@ export function SkillsTab({data,coachId,refreshLibrary,isAdmin,mode}){
       const tagCount=tags.filter(t=>sportCats.some(c=>c.id===t.categoryId)).length;
       return(<div key={sport} style={{marginBottom:8}}>
         <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:isCollapsed?"var(--r)":"var(--r) var(--r) 0 0",cursor:"pointer"}}>
-          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--black)"}}>{sport}</span>
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--green)"}}>{sport}</span>
           <span style={{fontSize:12,color:"var(--td)"}}>{tagCount} tag{tagCount!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
         </button>
         {!isCollapsed&&<div style={{border:"1px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)",padding:"12px"}}>
@@ -1244,7 +1244,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       {shelfDrillsAll.length>0&&shelfDrills.length===0&&!(untaggedDeepLink&&untaggedOnly)&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No drills match the selected filters.</div>}
       {sports.map(sport=>(<div key={sport} style={{marginBottom:8}}>
         <button onClick={()=>toggle(sport)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
-          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700}}>{sport}</span>
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--green)"}}>{sport}</span>
           <span style={{fontSize:12,color:"var(--td)"}}>{shelfDrills.filter(a=>(a.sport||"General")===sport).length} drills {collapsed[sport]?"▶":"▼"}</span>
         </button>
         {!collapsed[sport]&&(()=>{

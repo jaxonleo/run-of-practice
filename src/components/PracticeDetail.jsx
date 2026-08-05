@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { findOrCreatePreviewToken, cancelPractice, restorePractice, fetchPlannedAbsences, findActiveLiveSession } from "../supabase.js";
-import { canManageTeamInMode, planningState, localDateStr } from "../constants.js";
+import { findOrCreatePreviewToken, cancelPractice, restorePractice, fetchPlannedAbsences, findActiveLiveSession, savePracticeTree } from "../supabase.js";
+import { canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, isMoreThanTwoHoursAway } from "../constants.js";
 import AbsencePicker from "./AbsencePicker.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
+import FuturePracticeGuardModal from "./FuturePracticeGuardModal.jsx";
 
 // §1: same "35/60 min" pill as HomeScreen/ScheduleScreen -- duplicated per
 // this codebase's existing convention rather than factored into a shared
@@ -95,6 +96,28 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
     if(refreshPlanning)await refreshPlanning();
     onBack();
   };
+  // Direct feedback: this screen's own "Run Now"/"Run Again" had no time
+  // gate at all -- tapping it silently ran whichever practice you were
+  // looking at, however far in the future it was scheduled, which is
+  // exactly how a practice scheduled for the next day got started a day
+  // early and its own scheduled slot silently read as already completed.
+  // Now shares the same 2-hour guard Home's hero uses: a missed (already
+  // past) or soon/live practice still runs directly, unchanged; anything
+  // genuinely more than 2 hours out opens the 3-choice guard instead of
+  // just going.
+  const [showFutureGuard,setShowFutureGuard]=useState(false);
+  const canRunDirectly=isSessionLive||isMissed||!isMoreThanTwoHoursAway(practice,team);
+  const runAsNewFromGuard=async()=>{
+    const runNow=new Date();
+    const {data:saved}=await savePracticeTree(null,{
+      teamId:practice.teamId,locationId:practice.locationId,sublocationId:practice.sublocationId,
+      date:localDateStr(runNow),startTime:runNow.toTimeString().slice(0,5),
+      activities:stripIdsForCopy(practice.activities),
+    });
+    if(refreshPlanning)await refreshPlanning();
+    setShowFutureGuard(false);
+    if(saved)goToRun(saved.id);
+  };
   return (<div style={{paddingBottom:80}}>
     {!setSubViewBack&&<div style={{padding:"12px 14px 0",display:"flex",alignItems:"center",gap:8}}><button className="btn ghost bxs" onClick={onBack}>Back</button></div>}
     <div style={{padding:"12px 16px 0"}}>
@@ -111,8 +134,12 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
         <button className="btn primary bmd bfull" onClick={()=>goToBuilder(practice.id)}>Plan Practice</button>
       </div>}
       {!isCancelled&&isPlanned&&<div className="brow" style={{marginBottom:8}}>
-        <button className="btn primary bmd bfull" onClick={()=>goToRun(practice.id)}>{isSessionLive?"Join Practice":practice.date>=todayStr?"Run Now":"Run Again"}</button>
+        <button className="btn primary bmd bfull" onClick={()=>{
+          if(canRunDirectly)goToRun(practice.id);
+          else setShowFutureGuard(true);
+        }}>{isSessionLive?"Join Practice":isMissed?"Run Again":"Run Now"}</button>
       </div>}
+      {showFutureGuard&&<FuturePracticeGuardModal practice={practice} team={team} onCancel={()=>setShowFutureGuard(false)} onRunAsNew={runAsNewFromGuard} onRunNow={()=>{setShowFutureGuard(false);goToRun(practice.id);}}/>}
       {!isCancelled&&<div style={{display:"flex",gap:8,marginBottom:12}}>
         <button className="btn outline bmd" style={{flex:1}} onClick={()=>setShowAbsencePicker(true)}>Who's Out?</button>
         {isPlanned&&canManage&&<button className="btn outline bmd" style={{flex:1}} onClick={()=>goToBuilder(practice.id)}>Edit</button>}

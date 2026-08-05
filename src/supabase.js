@@ -883,7 +883,7 @@ const browserTz = () => Intl.DateTimeFormat().resolvedOptions().timeZone
 // the viewing device's -- a coach traveling shouldn't see practice times
 // shift. teams.timezone is nullable (older rows), so both directions fall
 // back to the browser's zone when unset.
-function teamLocalToScheduledAt(date, time, timeZone) {
+export function teamLocalToScheduledAt(date, time, timeZone) {
   if (!date) return null
   const tz = timeZone || browserTz()
   const [y, mo, d] = date.split('-').map(Number)
@@ -1007,9 +1007,20 @@ async function replaceChecklistItems(table, fkCol, parentId, items) {
   if (list.length) await supabase.from(table).insert(list.map((it, i) => ({ [fkCol]: parentId, position: i, text: it.text.trim() })))
 }
 
+// Direct feedback (real bug found investigating "Save as Template produced
+// a blank station block"): every insert/update in this loop already logged
+// its own error to the console via `continue`, but the caller (savePracticeTree/
+// saveTemplateTree) had no way to know anything failed -- a station-row
+// insert that silently failed (RLS/FK/etc.) still left the surrounding
+// UI reporting "Saved"/"Saved as Template" with a station block that
+// quietly ended up with zero real station rows. Same root-cause shape
+// already documented once in this file (drill/equipment tag sync not
+// checking `.error`) -- collect every failure here and let the caller
+// surface it instead of asserting success over missing data.
 async function saveActivityTree({ parentIdCol, parentId, activities, activityTable, equipTable, itemsTable, blockTable, stationTable, stationEquipTable, teamScoped }) {
   const { data: existingActs } = await supabase.from(activityTable).select('id').eq(parentIdCol, parentId).is('archived_at', null)
   const keepActIds = new Set()
+  const errors = []
 
   for (let i = 0; i < activities.length; i++) {
     const act = activities[i]
@@ -1026,10 +1037,11 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
 
     let actId = act.id
     if (isDbId(actId)) {
-      await supabase.from(activityTable).update(row).eq('id', actId)
+      const { error } = await supabase.from(activityTable).update(row).eq('id', actId)
+      if (error) { console.error('saveActivityTree update activity:', error); errors.push(error); continue }
     } else {
       const { data: created, error } = await supabase.from(activityTable).insert(row).select().single()
-      if (error) { console.error('saveActivityTree insert activity:', error); continue }
+      if (error) { console.error('saveActivityTree insert activity:', error); errors.push(error); continue }
       actId = created.id
     }
     keepActIds.add(actId)
@@ -1049,11 +1061,12 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
       }
       let blockId = existingBlock && existingBlock.id
       if (blockId) {
-        await supabase.from(blockTable).update(blockRow).eq('id', blockId)
+        const { error } = await supabase.from(blockTable).update(blockRow).eq('id', blockId)
+        if (error) { console.error('saveActivityTree update block:', error); errors.push(error); continue }
       } else {
         blockRow[activityTable === 'practice_activities' ? 'practice_activity_id' : 'template_activity_id'] = actId
         const { data: createdBlock, error } = await supabase.from(blockTable).insert(blockRow).select().single()
-        if (error) { console.error('saveActivityTree insert block:', error); continue }
+        if (error) { console.error('saveActivityTree insert block:', error); errors.push(error); continue }
         blockId = createdBlock.id
       }
 
@@ -1079,10 +1092,11 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
         }
         let stId = st.id
         if (isDbId(stId)) {
-          await supabase.from(stationTable).update(stRow).eq('id', stId)
+          const { error } = await supabase.from(stationTable).update(stRow).eq('id', stId)
+          if (error) { console.error('saveActivityTree update station:', error); errors.push(error); continue }
         } else {
           const { data: createdSt, error } = await supabase.from(stationTable).insert(stRow).select().single()
-          if (error) { console.error('saveActivityTree insert station:', error); continue }
+          if (error) { console.error('saveActivityTree insert station:', error); errors.push(error); continue }
           stId = createdSt.id
         }
         keepStationIds.add(stId)
@@ -1097,6 +1111,7 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
   for (const ea of existingActs || []) {
     if (!keepActIds.has(ea.id)) await supabase.from(activityTable).update({ archived_at: new Date().toISOString() }).eq('id', ea.id)
   }
+  return { errors }
 }
 
 export async function savePracticeTree(existingId, { teamId, locationId, sublocationId, date, startTime, timezone, scheduledDurationMinutes, activities }) {
@@ -1113,12 +1128,13 @@ export async function savePracticeTree(existingId, { teamId, locationId, subloca
     if (error) { console.error('savePracticeTree:', error); return { error } }
     practiceId = data.id
   }
-  await saveActivityTree({
+  const { errors } = await saveActivityTree({
     parentIdCol: 'practice_id', parentId: practiceId, activities,
     activityTable: 'practice_activities', equipTable: 'practice_activity_equipment',
     itemsTable: 'practice_activity_checklist_items', blockTable: 'station_blocks',
     stationTable: 'stations', stationEquipTable: 'station_equipment', teamScoped: true,
   })
+  if (errors.length) return { data: { id: practiceId }, error: errors[0] }
   return { data: { id: practiceId } }
 }
 // Tap-to-reassign during a live run: a single-row update to the one
@@ -1325,12 +1341,13 @@ export async function saveTemplateTree(ownerUserId, existingId, { name, sport, l
     if (error) { console.error('saveTemplateTree:', error); return { error } }
     tplId = data.id
   }
-  await saveActivityTree({
+  const { errors } = await saveActivityTree({
     parentIdCol: 'template_id', parentId: tplId, activities,
     activityTable: 'template_activities', equipTable: 'template_activity_equipment',
     itemsTable: 'template_activity_checklist_items', blockTable: 'template_station_blocks',
     stationTable: 'template_stations', stationEquipTable: 'template_station_equipment', teamScoped: false,
   })
+  if (errors.length) return { data: { id: tplId }, error: errors[0] }
   return { data: { id: tplId } }
 }
 export async function archiveTemplate(id) {

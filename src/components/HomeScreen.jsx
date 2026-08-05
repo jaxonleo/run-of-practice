@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId } from "../constants.js";
+import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway } from "../constants.js";
 import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
 import DevelopmentPulseCard from "./DevelopmentPulseCard.jsx";
+import FuturePracticeGuardModal from "./FuturePracticeGuardModal.jsx";
 
 // §1: "35/60 min" pill. Shows for any practice with a scheduled duration,
 // planned or not -- an unplanned practice reads "0/60 min" so the gap is
@@ -126,6 +127,22 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   const [showAbsencePicker, setShowAbsencePicker] = useState(false);
   const [absenceCounts, setAbsenceCounts] = useState({});
   const [runStatus, setRunStatus] = useState({});
+  // Direct feedback: the hero/Upcoming-Practices list visibly "glitched" --
+  // a practice would render for a second, then disappear (or the hero would
+  // jump to a different practice a beat later). Root cause: runStatus starts
+  // empty ({}), so ran(p) reads false for *everything* until
+  // fetchPracticeRunStatus's own async round trip resolves -- meaning the
+  // very first render of every fresh Home mount computed nextPractice/
+  // agendaWindow as if nothing were ever completed, then recomputed them a
+  // moment later once the real statuses came in, visibly swapping out
+  // whichever already-completed practice had briefly been treated as still
+  // upcoming. Same shape as the hasCompleted/checklistDone fix above --
+  // wait for the one query that decides this to actually resolve before
+  // trusting its default, rather than rendering a guess that then corrects
+  // itself on screen. Set once and never reset on a later refetch (matching
+  // hasCompleted's convention) so an ordinary background refresh later in
+  // the session doesn't re-hide already-correct content.
+  const [runStatusLoaded, setRunStatusLoaded] = useState(false);
   const [showHelpMenu, setShowHelpMenu] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   // Direct feedback: a coach who'd already finished the checklist still
@@ -181,8 +198,8 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   useEffect(refreshAbsenceCounts, [agendaIdsKey]);
   useEffect(() => {
     const ids = upcomingCandidates.map(p => p.id);
-    if (!ids.length) { setRunStatus({}); return; }
-    fetchPracticeRunStatus(ids).then(setRunStatus);
+    if (!ids.length) { setRunStatus({}); setRunStatusLoaded(true); return; }
+    fetchPracticeRunStatus(ids).then(rs => { setRunStatus(rs); setRunStatusLoaded(true); });
   }, [agendaIdsKey]);
 
   const openPractice = p => {
@@ -233,11 +250,23 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
     findActiveLiveSession(nextPractice.id).then(s => { if (!cancelled) setIsSessionLive(!!s); });
     return () => { cancelled = true; };
   }, [nextPractice && nextPractice.id]);
-  const isSoonOrLive = p => {
-    if (!p || !p.startTime || p.date !== todayStr) return false;
-    const [h, m] = p.startTime.split(":").map(Number);
-    const pm = h * 60 + m, nm = now.getHours() * 60 + now.getMinutes();
-    return pm - nm <= 120 && pm - nm >= -180;
+  // Team-timezone-correct, not the old same-day-only heuristic (which broke
+  // across a midnight boundary -- e.g. an 11pm-tonight practice couldn't
+  // read as "soon" for a practice at 12:30am tomorrow). "Soon" here means
+  // the same thing the guard popup's 2-hour threshold means: not more than
+  // 2 hours out (already started/overdue counts as soon too).
+  const isSoonOrLive = (p, team) => !!p && !isMoreThanTwoHoursAway(p, team);
+  const [showFutureGuard, setShowFutureGuard] = useState(false);
+  const runAsNewFromGuard = async practice => {
+    const runNow = new Date();
+    const { data: saved } = await savePracticeTree(null, {
+      teamId: practice.teamId, locationId: practice.locationId, sublocationId: practice.sublocationId,
+      date: localDateStr(runNow), startTime: runNow.toTimeString().slice(0, 5),
+      activities: stripIdsForCopy(practice.activities),
+    });
+    await refreshPlanning();
+    setShowFutureGuard(false);
+    if (saved) goToRun(saved.id);
   };
   const canManageAnyTeam = data.teams.some(t => canManageTeamInMode(t, coachId, mode));
 
@@ -272,8 +301,20 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
     const id = unviewedNoteTeamIds.find(tid => canManageTeamInMode(teamById(tid), coachId, mode));
     return id ? teamById(id) : null;
   })();
+  // Direct feedback (same "glitchy" report as the runStatus fix above):
+  // with no nextPractice and more than one home team, resolveDevelopment-
+  // PulseFocusTeamId's own documented fallback (guess homeTeams[0], correct
+  // once recentSessionByTeamId's fetch resolves) meant Development Pulse
+  // could render one team's card for a moment, then visibly swap to a
+  // different team's once the real "most recently active" answer came
+  // back. Only wait on that fetch when it's actually going to run (no
+  // nextPractice to short-circuit it, and more than one team for the
+  // answer to possibly differ) -- a single-team coach or one with a
+  // nextPractice already gets the right team on the very first render.
+  const focusTeamNeedsAsyncData = !isOrgMode && !nextPractice && data.teams.length > 1;
+  const focusTeamDataReady = !focusTeamNeedsAsyncData || recentSessionByTeamId !== null;
   const focusTeamId = isOrgMode ? null : resolveDevelopmentPulseFocusTeamId({ nextPractice, homeTeams: data.teams, recentSessionByTeamId });
-  const focusTeam = focusTeamId ? teamById(focusTeamId) : null;
+  const focusTeam = focusTeamDataReady && focusTeamId ? teamById(focusTeamId) : null;
   const focusTeamCanManage = focusTeam ? canManageTeamInMode(focusTeam, coachId, mode) : false;
   const focusTeamHasCategories = focusTeam ? (data.skillCategories || []).some(c => c.sport === focusTeam.sport && !c.archived_at) : false;
   // A live-in-progress (or abandoned-but-not-completed) session for the
@@ -533,6 +574,9 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
         </div>
       </div>}
 
+      {(!runStatusLoaded && upcomingCandidates.length > 0) ? (
+        <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px", color: "var(--td)", fontSize: 14 }}>Loading...</div>
+      ) : (<>
       {!nextPractice && nextCancelledPractice && (() => {
         const team = teamById(nextCancelledPractice.teamId);
         return (<div className="card" style={{ marginBottom: 16, borderColor: "var(--b)" }}>
@@ -553,7 +597,7 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
 
       {nextPractice && (() => {
         const team = teamById(nextPractice.teamId), loc = locById(nextPractice.locationId);
-        const planned = isPlanned(nextPractice), soon = isSoonOrLive(nextPractice);
+        const planned = isPlanned(nextPractice), soon = isSoonOrLive(nextPractice, team);
         const canManage = canManageTeamInMode(team, coachId, mode);
         const count = absenceCounts[nextPractice.id] || 0;
         const headcount = team ? Math.max(0, team.players.length - count) : null;
@@ -578,22 +622,26 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
               taller than every other button on the screen for no reason. */}
           {!planned && canManage && <button className="btn primary blg bfull" onClick={() => goToBuilder(nextPractice.id)}>Plan Practice</button>}
           {!planned && !canManage && <div className="btn outline blg bfull" style={{ textAlign: "center", cursor: "default" }}>Not planned yet</div>}
-          {/* Practice Setup used to sit below Start Practice as a small,
-              subordinate outline link -- easy to miss, and it made "jump
-              straight into the live timer" the only obvious path even for
-              a coach who just wants to get equipment/stations together
-              first. Made a co-equal side-by-side choice instead, Setup
-              first (the "get things together" step) since Start/Review is
-              the one action a coach already knows how to find. Sized down
-              from bxl to blg and forced minWidth:0 on both -- two bxl
-              buttons (nowrap text, big padding) never actually fit side
-              by side on a phone-width screen: flex items default to
-              min-width:auto, so flex-shrink couldn't shrink either below
-              its own text width and the row overflowed the viewport. */}
+          {/* "Practice Setup" as a distinct button/label is gone (direct
+              feedback: it showed for a practice over a week away, where
+              jumping straight into pre-live setup makes no sense) --
+              always either "Join Practice" (a session already exists,
+              regardless of scheduled time) or "Start Practice →". Tapping
+              Start more than 2 hours before the real scheduled time no
+              longer silently jumps into that practice's own live session
+              (the exact bug that left a still-upcoming practice reading as
+              already completed) -- it opens the 3-choice guard below
+              instead. Sized down from bxl to blg and forced minWidth:0 on
+              both -- two bxl buttons (nowrap text, big padding) never
+              actually fit side by side on a phone-width screen: flex items
+              default to min-width:auto, so flex-shrink couldn't shrink
+              either below its own text width and the row overflowed the
+              viewport. */}
           {planned && <div style={{ display: "flex", gap: 8 }}>
             <button className="btn outline blg" style={{ flex: 1, minWidth: 0 }} onClick={() => setViewPractice(nextPractice)}>Review Plan</button>
-            <button className="btn primary blg" style={{ flex: 1, minWidth: 0 }} onClick={() => goToRun(nextPractice.id)}>{isSessionLive ? "Join Practice" : soon ? "Start Practice →" : "Practice Setup"}</button>
+            <button className="btn primary blg" style={{ flex: 1, minWidth: 0 }} onClick={() => isSessionLive ? goToRun(nextPractice.id) : (soon ? goToRun(nextPractice.id) : setShowFutureGuard(true))}>{isSessionLive ? "Join Practice" : "Start Practice →"}</button>
           </div>}
+          {showFutureGuard && <FuturePracticeGuardModal practice={nextPractice} team={team} onCancel={() => setShowFutureGuard(false)} onRunAsNew={() => runAsNewFromGuard(nextPractice)} onRunNow={() => { setShowFutureGuard(false); goToRun(nextPractice.id); }} />}
         </div></>);
       })()}
 
@@ -634,6 +682,7 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
           </div>
         </div>);
       })}
+      </>)}
 
       <div style={{ marginTop: 20, display: "flex", gap: 8 }}>
         {canManageAnyTeam && <button className="btn outline bmd" style={{ flex: 1 }} onClick={() => goToBuilder(null)}>+ Practice</button>}

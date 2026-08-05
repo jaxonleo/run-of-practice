@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI } from "../constants.js";
-import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchPracticeActualStart, createNote, updateStationLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence } from "../supabase.js";
+import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchPracticeActualStart, createNote, updateStationLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
 
@@ -17,6 +17,10 @@ const Ic={
   // legible at a glance without adding a text label that wouldn't fit
   // the pill's compact width.
   Hand:()=><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M9 2a1.5 1.5 0 0 1 1.5 1.5V11h1V1.5a1.5 1.5 0 0 1 3 0V11h1V3.5a1.5 1.5 0 0 1 3 0V13h1a1.5 1.5 0 0 1 1.5 1.5V17a7 7 0 0 1-7 7H11a7 7 0 0 1-6.32-4L2.3 15.2a1.5 1.5 0 0 1 2.62-1.46L7.5 17V3.5A1.5 1.5 0 0 1 9 2Z"/></svg>,
+  // Direct feedback: the hand-raise read as an odd icon for a plain
+  // attendance count -- a solo person silhouette reads unambiguously as
+  // "player attendance" without implying anyone is raising a hand.
+  Person:()=><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="7" r="4"/><path d="M4 21v-1.5C4 15.9 7.6 13 12 13s8 2.9 8 6.5V21H4Z"/></svg>,
 };
 
 // "Who has this practice open" -- shared by PreviewView, the staff
@@ -130,7 +134,7 @@ function ShareSheet({token,scope,onClose}){
   return (<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:200,display:"flex",alignItems:"flex-end"}}><div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"24px 20px 40px"}}><div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 20px"}}/><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>{isAttendance?"Share for Attendance":"Share Live View"}</div><div style={{fontSize:13,color:"var(--td)",marginBottom:20}}>{isAttendance?"Anyone with this link can follow along AND mark players present/absent.":"Anyone with this link can follow along in real time."}</div><div style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:12,wordBreak:"break-all",fontSize:13,color:"var(--black2)",fontFamily:"DM Mono,monospace"}}>{url}</div><div className="brow"><button className="btn outline bmd" style={{flex:1}} onClick={copy}>{copied?"Copied!":"Copy Link"}</button><button className="btn primary bmd" style={{flex:1}} onClick={share}>Share</button></div><button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={onClose}>Done</button></div></div>);
 }
 
-function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPresent,onConfirm,onBack,extra}){
+function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPresent,onConfirm,onBack}){
   const allIds=team?team.players.map(p=>p.id):[];
   const [present,setPresent]=useState(()=>{
     if(initialPresent!==null&&initialPresent!==undefined)return new Set(initialPresent);
@@ -169,7 +173,6 @@ function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPre
         <div><div style={{fontSize:14,fontWeight:600,color:coachPresent.has(c.id)?"var(--black)":"var(--td)"}}>{c.name}</div><div style={{fontSize:11,color:"var(--td)"}}>{c.role}</div></div>
       </button>))}
     </div>)}
-    {extra}
     <div style={{position:"fixed",bottom:"calc(var(--tab))",left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#fff",borderTop:"1px solid var(--b)",padding:"12px 16px",zIndex:50}}>
       {needsBalance&&<div>
         <div style={{fontSize:12,color:"var(--td)",marginBottom:8,textAlign:"center"}}>Groups need rebalancing for {pCount} players</div>
@@ -191,34 +194,50 @@ function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPre
 // (permanent, same as everywhere else); player moves are session-scoped
 // (see moveSetupPlayer in CommandScreen) and edit-gated on isController,
 // matching every other live-session control.
-function StationSetupSection({stationBlockActs,setupGroups,team,isController,onReassignLead,onMovePlayer}){
+// Direct feedback: the pre-live "Practice Setup" stage should be the same
+// dark, information-rich "Run of Practice" rundown the old public preview
+// link already gave anonymous helpers (countdown, equipment, locations,
+// per-station leads) -- see PracticeSetupScreen below -- so this now also
+// resolves and shows equipment/location per station, matching that
+// palette, instead of the plain name+leader row it used to be.
+function StationSetupSection({stationBlockActs,setupGroups,team,isController,onReassignLead,onMovePlayer,data,loc}){
   const [movePicker,setMovePicker]=useState(null); // {activityId,playerId,stationCount}
   if(!stationBlockActs.length)return null;
   const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
   const leadName=st=>coachName(st.coachId)||st.helperName||null;
+  const subName=id=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:null;};
+  const equipNames=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?{name:a.name,acquired:a.acquired!==false}:null;}).filter(Boolean);
   return (<div style={{marginTop:20}}>
-    <div className="clbl mb8">Stations</div>
+    <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b",marginBottom:8}}>Stations</div>
     {stationBlockActs.map(act=>{
       const groups=setupGroups[act.id]||(act.stations||[]).map(st=>st.assignments||[]);
       return (<div key={act.id} style={{marginBottom:14}}>
-        {stationBlockActs.length>1&&<div style={{fontSize:12,fontWeight:700,color:"var(--td)",marginBottom:6,textTransform:"uppercase",letterSpacing:".05em"}}>{act.stations.map(s=>s.activityName||s.name).join(" / ")}</div>}
-        {act.stations.map((st,si)=>(<div key={st.id} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700}}>{st.name||"Station "+(si+1)}{st.activityName?" · "+st.activityName:""}</div>
-            {isController&&<button className="btn ghost bxs" onClick={()=>onReassignLead(st.id)} style={{color:leadName(st)?"var(--black)":"#f59e0b"}}>{leadName(st)||"Assign leader"}</button>}
-            {!isController&&leadName(st)&&<span style={{fontSize:12,color:"var(--td)"}}>{leadName(st)}</span>}
+        {stationBlockActs.length>1&&<div style={{fontSize:12,fontWeight:700,color:"#8fa89b",marginBottom:6,textTransform:"uppercase",letterSpacing:".05em"}}>{act.stations.map(s=>s.activityName||s.name).join(" / ")}</div>}
+        {act.stations.map((st,si)=>{
+          const stEquip=equipNames(st.equipment);
+          const stLoc=subName(st.sublocationId);
+          return (<div key={st.id} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"12px 14px",marginBottom:8}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,color:"#fff"}}>{st.name||"Station "+(si+1)}{st.activityName?" · "+st.activityName:""}</div>
+            {isController&&<button className="btn ghost bxs" onClick={()=>onReassignLead(st.id)} style={{color:leadName(st)?"#fff":"#f59e0b",borderColor:"rgba(255,255,255,.25)"}}>{leadName(st)||"Assign leader"}</button>}
+            {!isController&&leadName(st)&&<span style={{fontSize:12,color:"#8fa89b"}}>{leadName(st)}</span>}
           </div>
+          {stLoc&&<div style={{fontSize:12,color:"#52b788",fontWeight:600,marginBottom:4}}>{stLoc}</div>}
+          {st.coachingPoints&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8,marginBottom:6}}>{st.coachingPoints}</div>}
+          {stEquip.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>
+            {stEquip.map((e,j)=>(<span key={j} style={e.acquired===false?{background:"rgba(220,38,38,.18)",border:"1px solid rgba(248,113,113,.6)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fca5a5",fontWeight:700}:{background:"rgba(202,138,4,.12)",border:"1px solid rgba(202,138,4,.3)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fde047"}}>{e.name}{e.acquired===false&&" · not acquired"}</span>))}
+          </div>}
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
             {(groups[si]||[]).map(pid=>{
               const pl=team&&team.players.find(p=>p.id===pid);
               if(!pl)return null;
-              return (<button key={pid} type="button" disabled={!isController} onClick={()=>setMovePicker({activityId:act.id,playerId:pid,stationCount:act.stations.length})} style={{padding:"6px 10px",borderRadius:20,border:"1.5px solid var(--gb)",background:"var(--gbg)",fontSize:13,fontWeight:600,color:"var(--black)",cursor:isController?"pointer":"default"}}>
-                {pl.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--green)",marginRight:3}}>#{pl.jersey}</span>}{pl.firstName}
+              return (<button key={pid} type="button" disabled={!isController} onClick={()=>setMovePicker({activityId:act.id,playerId:pid,stationCount:act.stations.length})} style={{padding:"6px 10px",borderRadius:20,border:"1.5px solid rgba(82,183,136,.5)",background:"rgba(82,183,136,.15)",fontSize:13,fontWeight:600,color:"#fff",cursor:isController?"pointer":"default"}}>
+                {pl.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"#52b788",marginRight:3}}>#{pl.jersey}</span>}{pl.firstName}
               </button>);
             })}
-            {(groups[si]||[]).length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No players here yet</span>}
+            {(groups[si]||[]).length===0&&<span style={{fontSize:12,color:"#8fa89b"}}>No players here yet</span>}
           </div>
-        </div>))}
+        </div>);})}
       </div>);
     })}
     {movePicker&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setMovePicker(null);}}>
@@ -232,6 +251,129 @@ function StationSetupSection({stationBlockActs,setupGroups,team,isController,onR
         <button className="btn ghost bmd bfull" onClick={()=>setMovePicker(null)}>Cancel</button>
       </div>
     </div>}
+  </div>);
+}
+
+// Non-station "Run of Practice" entries (Intro/Closer/Checklist/Water
+// Break/Stretch/Other) in Practice Setup -- read-only context (name,
+// duration, location, equipment, coaching points) so a coach reviewing the
+// plan beforehand sees the whole practice, not just the stations. These
+// never have live-editable assignments the way a station does.
+function SetupActivityRow({act,loc,data}){
+  const subName=id=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:null;};
+  const equip=(Array.isArray(act.equipment)?act.equipment:[]).map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?{name:a.name,acquired:a.acquired!==false}:null;}).filter(Boolean);
+  const locName=subName(act.sublocationId);
+  return (<div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"12px 14px",marginBottom:8}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:(locName||act.coachingPoints||equip.length)?6:0}}>
+      <div style={{fontSize:15,fontWeight:700,color:"#fff"}}>{act.name}</div>
+      <span style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"#555",flexShrink:0,marginLeft:8}}>{act.duration}m</span>
+    </div>
+    {locName&&<div style={{fontSize:12,color:"#52b788",fontWeight:600,marginBottom:4}}>{locName}</div>}
+    {act.coachingPoints&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8,marginBottom:6}}>{act.coachingPoints}</div>}
+    {equip.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+      {equip.map((e,j)=>(<span key={j} style={e.acquired===false?{background:"rgba(220,38,38,.18)",border:"1px solid rgba(248,113,113,.6)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fca5a5",fontWeight:700}:{background:"rgba(202,138,4,.12)",border:"1px solid rgba(202,138,4,.3)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fde047"}}>{e.name}{e.acquired===false&&" · not acquired"}</span>))}
+    </div>}
+  </div>);
+}
+
+// The fresh, pre-live "Practice Setup" stage (not the mid-practice
+// "Attendance" quick-update, which stays the plain light AttendanceScreen
+// below) -- direct feedback: this should be a black screen a coach can
+// review before practice to confirm the whole plan (equipment, locations,
+// station leads, rotations), matching the dark palette the old anonymous
+// /preview/:token link already used, not a bare attendance form. A live
+// countdown to the scheduled start replaces that same need for a coach
+// who's signed in rather than viewing an anonymous share link.
+function PracticeSetupScreen({practice,team,data,isController,stationBlockActs,setupGroups,initialPresent,onConfirm,onBack,onReassignLead,onMovePlayer}){
+  const allIds=team?team.players.map(p=>p.id):[];
+  const [present,setPresent]=useState(()=>new Set(initialPresent||allIds));
+  const [coachPresent,setCoachPresent]=useState(()=>new Set(team?team.coaches.map(c=>c.id):[]));
+  const [now,setNow]=useState(Date.now());
+  useEffect(()=>{const iv=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(iv);},[]);
+  const togP=id=>setPresent(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
+  const togC=id=>setCoachPresent(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
+  const pCount=present.size;
+  const total=allIds.length;
+  const needsBalance=stationBlockActs.some(b=>{
+    const assigned=b.stations.reduce((s,st)=>{(st.assignments||[]).forEach(id=>s.add(id));return s;},new Set());
+    return [...present].some(id=>!assigned.has(id));
+  });
+  const loc=practice?data.locations.find(l=>l.id===practice.locationId):null;
+  const scheduledMs=(()=>{
+    if(!practice||!practice.date)return null;
+    const iso=teamLocalToScheduledAt(practice.date,practice.startTime||"00:00",team&&team.timezone);
+    return iso?new Date(iso).getTime():null;
+  })();
+  const diffSecs=scheduledMs!==null?Math.floor((scheduledMs-now)/1000):null;
+  const isStarted=diffSecs!==null&&diffSecs<=0;
+  const absDiff=diffSecs!==null?Math.abs(diffSecs):null;
+  const fmtCountdown=secs=>{
+    if(secs===null)return"--:--";
+    const h=Math.floor(secs/3600);
+    const m=Math.floor((secs%3600)/60);
+    const s=secs%60;
+    if(h>0)return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+    return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+  };
+  const nonStationActs=(practice&&practice.activities||[]).filter(a=>a.type!=="station_block");
+  const totalMins=(practice&&practice.activities||[]).reduce((s,a)=>{
+    if(a.type==="station_block")return s+(a.stations.length*(a.stationDuration||0)+Math.max(0,a.stations.length-1)*(a.rotate!==false?(a.transitionDuration||0):0));
+    return s+(a.duration||0);
+  },0);
+  return (<div style={{minHeight:"100dvh",background:"#0d1512",color:"#fff",paddingBottom:140}}>
+    <div style={{padding:"14px 20px 0"}}>
+      <button className="btn ghost bxs" style={{color:"#aaa",background:"transparent"}} onClick={onBack}>&#8249; Back</button>
+    </div>
+    <div style={{padding:"16px 20px 16px",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <span style={{width:8,height:8,borderRadius:"50%",background:"#52b788",display:"inline-block",flexShrink:0}}/>
+        <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#52b788"}}>Practice Setup</span>
+        {loc&&<span style={{fontSize:11,color:"#555",marginLeft:4}}>· {loc.name}</span>}
+      </div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1}}>{team&&team.name}</div>
+    </div>
+    <div style={{padding:"24px 20px",textAlign:"center",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
+      {diffSecs!==null?<div>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:isStarted?"#f59e0b":"#52b788",marginBottom:8}}>
+          {isStarted?"Practice should have started":"Starts in"}
+        </div>
+        <div style={{fontFamily:"DM Mono,monospace",fontSize:56,fontWeight:700,color:isStarted?"#f59e0b":"#fff",lineHeight:1,marginBottom:4}}>{fmtCountdown(absDiff)}</div>
+        <div style={{fontSize:12,color:"#555"}}>{isStarted?"Tap Start Practice below when ready":"Use this time to set up stations"}</div>
+      </div>:<div style={{fontSize:14,color:"#555"}}>No start time scheduled</div>}
+    </div>
+    <div style={{padding:"20px 20px 0"}}>
+      <div style={{background:"rgba(82,183,136,.15)",border:"1px solid rgba(82,183,136,.4)",borderRadius:10,padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{color:"#fff",fontFamily:"DM Mono,monospace",fontSize:32,fontWeight:700}}>{pCount}/{total}</div>
+        <div style={{color:"#8fa89b",fontSize:13}}>players present</div>
+      </div>
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b",marginBottom:8}}>Players</div>
+      <div className="att-grid att-grid-dark">
+        {team&&team.players.map(p=>(<button key={p.id} onClick={()=>togP(p.id)} className={"att-btn att-btn-dark "+(present.has(p.id)?"on":"")}>
+          <div className={"att-circle "+(present.has(p.id)?"on":"")}>{present.has(p.id)&&<Ic.Check/>}</div>
+          <div><div style={{fontSize:14,fontWeight:600,color:present.has(p.id)?"#fff":"#8fa89b"}}>{p.firstName}</div></div>
+        </button>))}
+      </div>
+      {team&&team.coaches.length>0&&(<div>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b",marginTop:16,marginBottom:8}}>Coaches</div>
+        {team.coaches.map(c=>(<button key={c.id} onClick={()=>togC(c.id)} className={"att-btn att-btn-dark bfull "+(coachPresent.has(c.id)?"on":"")} style={{marginBottom:8}}>
+          <div className={"att-circle "+(coachPresent.has(c.id)?"on":"")}>{coachPresent.has(c.id)&&<Ic.Check/>}</div>
+          <div><div style={{fontSize:14,fontWeight:600,color:coachPresent.has(c.id)?"#fff":"#8fa89b"}}>{c.name}</div><div style={{fontSize:11,color:"#666"}}>{c.role}</div></div>
+        </button>))}
+      </div>)}
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#555",marginTop:24,marginBottom:12}}>Run of Practice · {totalMins}min</div>
+      {nonStationActs.map(act=>(<SetupActivityRow key={act.id} act={act} loc={loc} data={data}/>))}
+      <StationSetupSection stationBlockActs={stationBlockActs} setupGroups={setupGroups} team={team} isController={isController} onReassignLead={onReassignLead} onMovePlayer={onMovePlayer} data={data} loc={loc}/>
+    </div>
+    <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#0d1512",borderTop:"1px solid rgba(255,255,255,.1)",padding:"12px 20px calc(12px + env(safe-area-inset-bottom))",zIndex:50}}>
+      {needsBalance&&<div>
+        <div style={{fontSize:12,color:"#8fa89b",marginBottom:8,textAlign:"center"}}>Groups need rebalancing for {pCount} players</div>
+        <div className="brow">
+          <button className="btn ghost bmd" style={{color:"#fff",borderColor:"rgba(255,255,255,.25)"}} onClick={()=>onConfirm({presentIds:present,coachPresentIds:coachPresent,balanceMode:"keep"})}>Keep Groups</button>
+          <button className="btn primary bmd" onClick={()=>onConfirm({presentIds:present,coachPresentIds:coachPresent,balanceMode:"rebalance"})}>Rebalance Evenly</button>
+        </div>
+      </div>}
+      {!needsBalance&&<button className="btn primary bfull bmd" onClick={()=>onConfirm({presentIds:present,coachPresentIds:coachPresent,balanceMode:"keep"})}>Start Practice</button>}
+    </div>
   </div>);
 }
 
@@ -548,7 +690,7 @@ export function PreviewView({token}){
     </div>}
 
     <div style={{padding:"16px 20px"}}>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#555",marginBottom:12}}>Run Order · {totalMins}min</div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#555",marginBottom:12}}>Run of Practice · {totalMins}min</div>
       {activities.map((act,i)=>{
         if(act.type==="station_block"){
           const sb=act.station_block||{};
@@ -837,21 +979,21 @@ function HelperView({token}){
       </div>
     </div>}
     <div className="cc-header">
-      <div>
+      <div className="cc-header-top">
         <div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span><span style={{marginLeft:8,fontSize:11,color:"var(--td)"}}>Helper View</span></div>
-        <PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount}/>
-        <div className="cc-act-name">{phaseLabel}</div>
-        {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>{stations.length} Stations</div>}
+        <div className="row" style={{gap:6,flexShrink:0}}>
+          {pTotal>0&&<button onClick={()=>setShowAtt(s=>!s)} style={{display:"flex",alignItems:"center",gap:5,background:pCount<pTotal?"var(--ambg)":"var(--gbg)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--ambb)":"var(--gb)",borderRadius:20,padding:"4px 10px",cursor:"pointer"}}>
+            <span style={{color:pCount<pTotal?"var(--amber)":"var(--green)",display:"flex"}}><Ic.Person/></span>
+            <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
+          </button>}
+          <button className="btn ghost bxs" onClick={()=>setShowNotes(s=>!s)}>{showNotes?"Close":"Notes"}</button>
+          <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}<Ic.Chev up={showROS}/></button>
+          <button onClick={()=>{if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}spokenRef.current={};buzzedRef.current=false;setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 8px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:13,lineHeight:1}}>{audioOn?"🔊":"🔇"}</span><span>{audioOn?"On":"Off"}</span></button>
+        </div>
       </div>
-      <div className="row" style={{gap:6}}>
-        {pTotal>0&&<button onClick={()=>setShowAtt(s=>!s)} style={{display:"flex",alignItems:"center",gap:5,background:pCount<pTotal?"var(--ambg)":"var(--gbg)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--ambb)":"var(--gb)",borderRadius:20,padding:"4px 10px",cursor:"pointer"}}>
-          <span style={{color:pCount<pTotal?"var(--amber)":"var(--green)",display:"flex"}}><Ic.Hand/></span>
-          <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
-        </button>}
-        <button className="btn ghost bxs" onClick={()=>setShowNotes(s=>!s)}>{showNotes?"Close":"Notes"}</button>
-        <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}<Ic.Chev up={showROS}/></button>
-        <button onClick={()=>{if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}spokenRef.current={};buzzedRef.current=false;setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊":"🔇"}</button>
-      </div>
+      <PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount}/>
+      <div className="cc-act-name">{phaseLabel}</div>
+      {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>{stations.length} Stations</div>}
     </div>
     {showNotes&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",padding:"12px 14px",flexShrink:0}}>
       <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Add a Note</div>
@@ -1982,18 +2124,19 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     // no separate seed step.
     const freshPresent=team?team.players.map(p=>p.id).filter(id=>!plannedAbsentIds.has(id)):[];
     return (<>
-      <AttendanceScreen key={showAtt?"upd":"init"} practice={practice} team={team} isUpdate={showAtt} initialPresent={showAtt?[...presentIds]:freshPresent} initialCoachPresent={showAtt?[...coachPresentIds]:null} onConfirm={showAtt?handleAttUpdate:handleAttConfirm} onBack={attBack}
-        extra={!showAtt&&<div style={{padding:"0 14px"}}><StationSetupSection stationBlockActs={stationBlockActs} setupGroups={setupGroups} team={team} isController={isController} onReassignLead={setReassignStationId} onMovePlayer={moveSetupPlayer}/></div>}/>
+      {showAtt
+        ?<AttendanceScreen key="upd" practice={practice} team={team} isUpdate initialPresent={[...presentIds]} initialCoachPresent={[...coachPresentIds]} onConfirm={handleAttUpdate} onBack={attBack}/>
+        :<PracticeSetupScreen practice={practice} team={team} data={data} isController={isController} stationBlockActs={stationBlockActs} setupGroups={setupGroups} initialPresent={freshPresent} onConfirm={handleAttConfirm} onBack={attBack} onReassignLead={setReassignStationId} onMovePlayer={moveSetupPlayer}/>}
       {!showAtt&&reassignStationId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setReassignStationId(null);setHelperDraft("");}}}>
-        <div className="modal"><div className="mhandle"/>
-          <div className="mtitle">Assign Station Leader</div>
-          <button className="btn ghost bmd bfull" style={{marginBottom:8}} disabled={reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:"",helperName:""})}>Unassign</button>
-          {team&&team.coaches.map(c=>(<button key={c.id} className="btn outline bmd bfull" style={{marginBottom:8}} disabled={reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:c.id,helperName:""})}>{c.name}</button>))}
+        <div className="modal" style={{background:"#0d1512",color:"#fff"}}><div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
+          <div className="mtitle" style={{color:"#fff"}}>Assign Station Leader</div>
+          <button className="btn ghost bmd bfull" style={{marginBottom:8,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} disabled={reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:"",helperName:""})}>Unassign</button>
+          {team&&team.coaches.map(c=>(<button key={c.id} className="btn outline bmd bfull" style={{marginBottom:8,color:"#fff",borderColor:"#52b788"}} disabled={reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:c.id,helperName:""})}>{c.name}</button>))}
           <div style={{display:"flex",gap:6,marginTop:4}}>
             <input className="inp" style={{flex:1}} placeholder="Helper's name" autoFocus value={helperDraft} onChange={e=>setHelperDraft(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&helperDraft.trim())doSetLead(reassignStationId,{coachId:"",helperName:helperDraft.trim()});}}/>
             <button className="btn primary bxs" disabled={!helperDraft.trim()||reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:"",helperName:helperDraft.trim()})}>Set</button>
           </div>
-          <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>{setReassignStationId(null);setHelperDraft("");}}>Cancel</button>
+          <button className="btn ghost bmd bfull" style={{marginTop:8,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} onClick={()=>{setReassignStationId(null);setHelperDraft("");}}>Cancel</button>
         </div>
       </div>}
     </>);}
@@ -2032,45 +2175,45 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     </div>}
     {controlToast&&<div style={{position:"fixed",top:12,left:"50%",transform:"translateX(-50%)",zIndex:50,background:"var(--black2)",color:"#fff",padding:"8px 16px",borderRadius:20,fontSize:13,fontWeight:600,boxShadow:"0 4px 12px rgba(0,0,0,.3)"}}>{controlToast}</div>}
     <div className="cc-header">
-      <div>
+      <div className="cc-header-top">
         <div className="row"><span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginLeft:5}}>Live</span>{schedBadge}</div>
-        <PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount}/>
-        <div className="cc-act-name">{phaseLabel}</div>
-        {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>
-          {(()=>{const totalBlocks=liveActs.filter(a=>a.type==="station_block").length;const n2=cur.stations?cur.stations.length:0;const totalMins=n2*(cur.stationDuration||0)+Math.max(0,n2-1)*(blockRotate?(cur.transitionDuration||0):0);return(totalBlocks>1?"Block "+(blockCount+1)+" of "+totalBlocks+" · ":"")+n2+" Stations · "+totalMins+"min total";})()}
-        </div>}
-      </div>
-      <div className="row">
-        <button onClick={()=>setShowAtt(true)} style={{background:pCount<pTotal?"var(--ambg)":"var(--gbg)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--ambb)":"var(--gb)",borderRadius:20,padding:"4px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-          <span style={{color:pCount<pTotal?"var(--amber)":"var(--green)",display:"flex"}}><Ic.Hand/></span>
-          <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
-        </button>
-        <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}<Ic.Chev up={showROS}/></button>
-        <button onClick={()=>{
-          if(!audioOn){
-            try{
-              window.speechSynthesis.cancel();
-              const u=new SpeechSynthesisUtterance("Audio on");
-              u.rate=1;u.volume=1;
-              window.speechSynthesis.speak(u);
-            }catch(e){}
-            startBgAudioSession();
-          }else{
-            stopBgAudioSession();
-          }
-          spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);
-        }} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 10px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)"}}>{audioOn?"🔊 On":"🔇 Off"}</button>
-        <div style={{position:"relative"}}>
-          <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
-          {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
-            <button className="mm-item" onClick={()=>{setShowEllipsis(false);goHome();}}>Leave (keeps running)</button>
-            {isController&&amHeadCoach&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowEditBuilder(true);}}>Edit Practice</button>}
-            {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_read");}}>Share Live View</button>}
-            {isController&&<button className="mm-item" onClick={endPractice}>End Practice</button>}
-            {isController&&<button className="mm-item mm-danger" onClick={abortPractice}>Abort Practice</button>}
-          </div>}
+        <div className="row" style={{gap:6,flexShrink:0}}>
+          <button onClick={()=>setShowAtt(true)} style={{background:pCount<pTotal?"var(--ambg)":"var(--gbg)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--ambb)":"var(--gb)",borderRadius:20,padding:"4px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+            <span style={{color:pCount<pTotal?"var(--amber)":"var(--green)",display:"flex"}}><Ic.Person/></span>
+            <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
+          </button>
+          <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}<Ic.Chev up={showROS}/></button>
+          <button onClick={()=>{
+            if(!audioOn){
+              try{
+                window.speechSynthesis.cancel();
+                const u=new SpeechSynthesisUtterance("Audio on");
+                u.rate=1;u.volume=1;
+                window.speechSynthesis.speak(u);
+              }catch(e){}
+              startBgAudioSession();
+            }else{
+              stopBgAudioSession();
+            }
+            spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);
+          }} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 8px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:13,lineHeight:1}}>{audioOn?"🔊":"🔇"}</span><span>{audioOn?"On":"Off"}</span></button>
+          <div style={{position:"relative"}}>
+            <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
+            {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
+              <button className="mm-item" onClick={()=>{setShowEllipsis(false);goHome();}}>Leave (keeps running)</button>
+              {isController&&amHeadCoach&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowEditBuilder(true);}}>Edit Practice</button>}
+              {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_read");}}>Share Live View</button>}
+              {isController&&<button className="mm-item" onClick={endPractice}>End Practice</button>}
+              {isController&&<button className="mm-item mm-danger" onClick={abortPractice}>Abort Practice</button>}
+            </div>}
+          </div>
         </div>
       </div>
+      <PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount}/>
+      <div className="cc-act-name">{phaseLabel}</div>
+      {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>
+        {(()=>{const totalBlocks=liveActs.filter(a=>a.type==="station_block").length;const n2=cur.stations?cur.stations.length:0;const totalMins=n2*(cur.stationDuration||0)+Math.max(0,n2-1)*(blockRotate?(cur.transitionDuration||0):0);return(totalBlocks>1?"Block "+(blockCount+1)+" of "+totalBlocks+" · ":"")+n2+" Stations · "+totalMins+"min total";})()}
+      </div>}
     </div>
     {showROS&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",maxHeight:200,overflowY:"auto",flexShrink:0}}>
       {liveActs.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--b)",background:i===idx?"var(--gbg)":"#fff",cursor:isController?"pointer":"default",opacity:i<idx?0.5:1}} onClick={()=>{if(isController)jumpTo(i);}}>

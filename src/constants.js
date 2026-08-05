@@ -1,4 +1,5 @@
 // ── Utility helpers ──────────────────────────────────────────────────────────
+import { teamLocalToScheduledAt } from "./supabase.js";
 export const uid=()=>Math.random().toString(36).slice(2,9);
 // "Today" must be the viewer's *local calendar day*, not UTC. `toISOString()`
 // converts to UTC first, so anywhere west of Greenwich (e.g. Phoenix, UTC-7)
@@ -290,6 +291,28 @@ export const TREND_MIN_USABLE_WEEKS=3;
 export const TREND_EXECUTION_GAP_PTS=5;
 export const ON_PLAN_TOLERANCE_SECONDS=60;
 
+// A practice's real scheduled instant, team-timezone-correct -- used to
+// decide whether starting it counts as "early" (direct feedback: starting a
+// practice scheduled more than 2 hours out used to just silently run that
+// exact practice, which is what produced a real reported bug -- a practice
+// scheduled for the next day got started a day early and its own scheduled
+// slot silently read as already completed instead of staying untouched).
+// Shared by Home's hero and Practice Detail's own Run Now so both apply the
+// exact same 2-hour rule rather than each re-deriving it slightly
+// differently. Uses supabase.js's teamLocalToScheduledAt (the one canonical
+// team-local-to-instant conversion in this app) rather than a second,
+// duplicated date-math implementation here.
+export const TWO_HOURS_MS=2*60*60*1000;
+export function practiceScheduledMs(practice,team){
+  if(!practice||!practice.date)return null;
+  const iso=teamLocalToScheduledAt(practice.date,practice.startTime||"00:00",team&&team.timezone);
+  return iso?new Date(iso).getTime():null;
+}
+export function isMoreThanTwoHoursAway(practice,team){
+  const ms=practiceScheduledMs(practice,team);
+  return ms!==null&&ms-Date.now()>TWO_HOURS_MS;
+}
+
 // Converts a practice's (possibly unsaved) activity tree into per-category
 // planned minutes, using the same allocation rules as
 // practice_activity_planned_minutes()+category_minutes_from_rows() server-
@@ -300,7 +323,13 @@ export function categoryMinutesForPracticeActivities(activities,activityLibraryB
   const byCategory={};
   let totalMinutes=0;
   (activities||[]).forEach(act=>{
-    if(act.type==="break")return; // excluded from the denominator, same as server-side
+    // 'break' and 'checklist' (Intro/Closer/Water Break/Stretch/Checklist/
+    // Other -- the non-station "Practice Components", never real library
+    // drills) are both excluded from the denominator entirely, same as
+    // server-side -- these are administrative/structural time, not a
+    // category a coach could ever tag, so counting them would both inflate
+    // "untagged" and understate every real category's percentage.
+    if(act.type==="break"||act.type==="checklist")return;
     if(act.type==="station_block"){
       const dur=act.stationDuration||0;
       (act.stations||[]).forEach(st=>{
@@ -497,7 +526,7 @@ export function resolveDevelopmentPulseFocusTeamId({nextPractice,homeTeams,recen
 // run already in progress is explicitly out of scope, so the caller simply
 // withholds it and the resolver falls through to the no-plan-impact path,
 // same as an unplanned practice would.
-export function resolveDevelopmentPulseState({team,report,nextPractice,activityLibraryById,skillTagsById,hasSportCategories}){
+export function resolveDevelopmentPulseState({team,report,nextPractice,activityLibraryById,skillTagsById,hasSportCategories,allDrillsTagged}){
   if(!hasSportCategories)return {state:"no_categories_for_sport",teamId:team.id,teamName:team.name};
 
   const configured=(report.skills||[]).filter(s=>s.target_pct!=null);
@@ -515,8 +544,20 @@ export function resolveDevelopmentPulseState({team,report,nextPractice,activityL
     };
   }
 
+  // Direct feedback: this fired even when every drill in the coach's
+  // library was already tagged -- "untagged" time here also used to
+  // include non-station Practice Components (Intro/Closer/Checklist/Water
+  // Break/Stretch/Other), which are administrative and never taggable in
+  // the first place (now excluded from the denominator server-side, see
+  // the shared attribution helpers). Even with that fixed, some genuine
+  // untagged time can remain from activities typed straight into a
+  // practice rather than added from the library -- same case GlanceView's
+  // own "all tagged" message already carves out -- so this state is
+  // skipped whenever there's nothing left in the library to actually tag,
+  // falling through to a real category recommendation instead of a false
+  // data-quality complaint.
   const untaggedPct=(report.untagged||{}).actual_pct||0;
-  if(untaggedPct>=DEVELOPMENT_PULSE_MAX_UNTAGGED_PCT){
+  if(untaggedPct>=DEVELOPMENT_PULSE_MAX_UNTAGGED_PCT&&!allDrillsTagged){
     return {state:"data_quality",teamId:team.id,teamName:team.name,untaggedPct};
   }
 
