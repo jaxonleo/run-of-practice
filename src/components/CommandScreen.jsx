@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI } from "../constants.js";
-import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchPracticeActualStart, createNote, updateStationLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt } from "../supabase.js";
+import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchPracticeActualStart, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
 
@@ -186,93 +186,154 @@ function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPre
   </div>);
 }
 
-// Practice Setup's Stations section (direct feedback: setup should also
-// handle "should we move so-and-so over here" before Start Practice is
-// clicked, not just attendance) -- one card per station block in the whole
-// practice, not just whichever one happens to be first, so a coach can get
-// every block sorted out up front. Leader assignment reuses doSetLead
-// (permanent, same as everywhere else); player moves are session-scoped
-// (see moveSetupPlayer in CommandScreen) and edit-gated on isController,
-// matching every other live-session control.
-// Direct feedback: the pre-live "Practice Setup" stage should be the same
-// dark, information-rich "Run of Practice" rundown the old public preview
-// link already gave anonymous helpers (countdown, equipment, locations,
-// per-station leads) -- see PracticeSetupScreen below -- so this now also
-// resolves and shows equipment/location per station, matching that
-// palette, instead of the plain name+leader row it used to be.
-function StationSetupSection({stationBlockActs,setupGroups,team,isController,onReassignLead,onMovePlayer,data,loc}){
-  const [movePicker,setMovePicker]=useState(null); // {activityId,playerId,stationCount}
-  if(!stationBlockActs.length)return null;
-  const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
-  const leadName=st=>coachName(st.coachId)||st.helperName||null;
+// Reads as an unambiguous "who's leading this" label for both a plain
+// activity and a station -- shared so the two rows below never phrase it
+// differently.
+function leaderLabel(act,team){
+  const c=act.coachId&&team&&team.coaches.find(c=>c.id===act.coachId);
+  return (c&&c.name)||act.helperName||null;
+}
+function equipNamesFor(ids,data){
+  return (Array.isArray(ids)?ids:[]).map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?{name:a.name,acquired:a.acquired!==false}:null;}).filter(Boolean);
+}
+function EquipPill({e}){
+  return <span style={e.acquired===false?{background:"rgba(220,38,38,.22)",border:"1px solid rgba(248,113,113,.7)",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#fecaca",fontWeight:700}:{background:"rgba(202,138,4,.22)",border:"1px solid rgba(253,224,71,.5)",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#fde047",fontWeight:700}}>{e.name}{e.acquired===false&&" · not acquired"}</span>;
+}
+// Solo-person pill, readable against the dark backdrop (direct feedback:
+// the old translucent-green player chips were hard to read) -- used for
+// both the coach-leader tap target and the groupings-dialog player list.
+function LeaderTapTarget({label,onTap,disabled}){
+  return (<button type="button" disabled={disabled} onClick={onTap} style={{background:label?"rgba(82,183,136,.22)":"rgba(245,158,11,.18)",border:"1.5px solid "+(label?"#52b788":"#f59e0b"),borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:700,color:label?"#fff":"#fde68a",cursor:disabled?"default":"pointer"}}>{label||"Unassigned"}</button>);
+}
+
+// Computes a read-only preview of how players would currently split for a
+// drill's own Partners/Groups setting, or a station block's rotation --
+// direct feedback: coaches wanted an optional way to sanity-check groupings
+// against *today's* actual attendance without it being a required step.
+// Purely informational (never persisted) for a plain drill, since nothing
+// about partners/groups is assigned ahead of time the way a station's own
+// live session_groups are; for a station block, prefers the real current
+// setupGroups so this matches what StationBlockSetupRow's own leader/
+// equipment view is already showing.
+function computeGroupingsPreview({kind,act,presentPlayers,setupGroups}){
+  if(kind==="drill"){
+    const grouping=act.grouping||"whole";
+    if(grouping==="whole")return null;
+    const n=grouping==="groups"?(act.numGroups||2):Math.ceil(presentPlayers.length/2)||1;
+    const groups=assignGroups(presentPlayers,grouping,act.numGroups).map((g,i)=>({label:grouping==="partners"?"Pair "+(i+1):"Group "+(i+1),players:g}));
+    const sizes=groups.map(g=>g.players.length);
+    const uneven=presentPlayers.length===0?false:(Math.max(...sizes)-Math.min(...sizes)>1);
+    return {groups,uneven,unevenNote:uneven?presentPlayers.length+" players don't split evenly -- one "+(grouping==="partners"?"pair":"group")+" will be short.":"",preview:true};
+  }
+  // station_block
+  const stCount=act.stations.length;
+  const saved=setupGroups[act.id];
+  const groupsIdArrays=saved||act.stations.map(st=>st.assignments||[]);
+  const presentIds=new Set(presentPlayers.map(p=>p.id));
+  const assignedAnywhere=new Set();
+  const groups=act.stations.map((st,i)=>{
+    const ids=(groupsIdArrays[i]||[]).filter(id=>presentIds.has(id));
+    ids.forEach(id=>assignedAnywhere.add(id));
+    return {label:st.name||"Station "+(i+1),players:ids.map(id=>presentPlayers.find(p=>p.id===id)).filter(Boolean)};
+  });
+  const unassigned=presentPlayers.filter(p=>!assignedAnywhere.has(p.id));
+  const sizes=groups.map(g=>g.players.length);
+  const uneven=(presentPlayers.length>0&&sizes.length>0&&(Math.max(...sizes)-Math.min(...sizes)>1))||unassigned.length>0;
+  const notes=[];
+  if(unassigned.length)notes.push(unassigned.length+" present player"+(unassigned.length===1?"":"s")+" not yet assigned to a station.");
+  if(!unassigned.length&&presentPlayers.length>0&&sizes.length>0&&Math.max(...sizes)-Math.min(...sizes)>1)notes.push("Stations aren't evenly split for "+presentPlayers.length+" present players.");
+  return {groups,uneven,unevenNote:notes.join(" "),preview:false};
+}
+function GroupingsDialog({title,data,onClose}){
+  if(!data)return null;
+  return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div className="modal" style={{background:"#0d1512",color:"#fff",border:"1px solid rgba(255,255,255,.12)"}}>
+      <div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
+      <div className="mtitle" style={{color:"#fff"}}>{title}</div>
+      {data.preview&&<div style={{fontSize:11,color:"#8fa89b",marginBottom:10}}>Preview only, based on who's checked in as present right now -- not saved anywhere.</div>}
+      {data.uneven&&<div style={{fontSize:12,color:"#fca5a5",fontWeight:600,marginBottom:12,background:"rgba(220,38,38,.15)",border:"1px solid rgba(248,113,113,.4)",borderRadius:8,padding:"8px 10px"}}>{data.unevenNote}</div>}
+      {data.groups.map((g,i)=>(<div key={i} style={{marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"#8fa89b",marginBottom:6}}>{g.label}</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {g.players.map(p=>(<span key={p.id} style={{padding:"6px 12px",borderRadius:20,background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.25)",fontSize:13,fontWeight:600,color:"#fff"}}>{p.jersey&&<span style={{fontFamily:"DM Mono,monospace",color:"#52b788",marginRight:4}}>#{p.jersey}</span>}{p.firstName}</span>))}
+          {g.players.length===0&&<span style={{fontSize:12,color:"#8fa89b"}}>No players</span>}
+        </div>
+      </div>))}
+      <button className="btn ghost bmd bfull" style={{marginTop:4,color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={onClose}>Close</button>
+    </div>
+  </div>);
+}
+
+// A single non-station Run of Practice row -- direct feedback: needs a
+// clickable coach-leader tap target (Unassigned/name, same picker stations
+// already use, extended to plain activities via onReassignActivityLead), an
+// expand-on-title-tap for description/coaching focus (collapsed by
+// default -- this is a review screen, not a wall of text), and an optional
+// "View Groupings" button whenever the drill actually has a Partners/Groups
+// split configured.
+function SetupActivityRow({act,loc,data,team,isController,onReassignActivityLead,onViewGroupings}){
+  const [expanded,setExpanded]=useState(false);
   const subName=id=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:null;};
-  const equipNames=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?{name:a.name,acquired:a.acquired!==false}:null;}).filter(Boolean);
-  return (<div style={{marginTop:20}}>
-    <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b",marginBottom:8}}>Stations</div>
-    {stationBlockActs.map(act=>{
-      const groups=setupGroups[act.id]||(act.stations||[]).map(st=>st.assignments||[]);
-      return (<div key={act.id} style={{marginBottom:14}}>
-        {stationBlockActs.length>1&&<div style={{fontSize:12,fontWeight:700,color:"#8fa89b",marginBottom:6,textTransform:"uppercase",letterSpacing:".05em"}}>{act.stations.map(s=>s.activityName||s.name).join(" / ")}</div>}
-        {act.stations.map((st,si)=>{
-          const stEquip=equipNames(st.equipment);
-          const stLoc=subName(st.sublocationId);
-          return (<div key={st.id} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"12px 14px",marginBottom:8}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,color:"#fff"}}>{st.name||"Station "+(si+1)}{st.activityName?" · "+st.activityName:""}</div>
-            {isController&&<button className="btn ghost bxs" onClick={()=>onReassignLead(st.id)} style={{color:leadName(st)?"#fff":"#f59e0b",borderColor:"rgba(255,255,255,.25)"}}>{leadName(st)||"Assign leader"}</button>}
-            {!isController&&leadName(st)&&<span style={{fontSize:12,color:"#8fa89b"}}>{leadName(st)}</span>}
-          </div>
-          {stLoc&&<div style={{fontSize:12,color:"#52b788",fontWeight:600,marginBottom:4}}>{stLoc}</div>}
-          {st.coachingPoints&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8,marginBottom:6}}>{st.coachingPoints}</div>}
-          {stEquip.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>
-            {stEquip.map((e,j)=>(<span key={j} style={e.acquired===false?{background:"rgba(220,38,38,.18)",border:"1px solid rgba(248,113,113,.6)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fca5a5",fontWeight:700}:{background:"rgba(202,138,4,.12)",border:"1px solid rgba(202,138,4,.3)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fde047"}}>{e.name}{e.acquired===false&&" · not acquired"}</span>))}
-          </div>}
-          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-            {(groups[si]||[]).map(pid=>{
-              const pl=team&&team.players.find(p=>p.id===pid);
-              if(!pl)return null;
-              return (<button key={pid} type="button" disabled={!isController} onClick={()=>setMovePicker({activityId:act.id,playerId:pid,stationCount:act.stations.length})} style={{padding:"6px 10px",borderRadius:20,border:"1.5px solid rgba(82,183,136,.5)",background:"rgba(82,183,136,.15)",fontSize:13,fontWeight:600,color:"#fff",cursor:isController?"pointer":"default"}}>
-                {pl.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"#52b788",marginRight:3}}>#{pl.jersey}</span>}{pl.firstName}
-              </button>);
-            })}
-            {(groups[si]||[]).length===0&&<span style={{fontSize:12,color:"#8fa89b"}}>No players here yet</span>}
-          </div>
-        </div>);})}
-      </div>);
-    })}
-    {movePicker&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setMovePicker(null);}}>
-      <div className="modal"><div className="mhandle"/>
-        <div className="mtitle">Move to which station?</div>
-        {Array.from({length:movePicker.stationCount}).map((_,i)=>{
-          const act=stationBlockActs.find(a=>a.id===movePicker.activityId);
-          const st=act&&act.stations[i];
-          return (<button key={i} className="btn outline bmd bfull" style={{marginBottom:8}} onClick={()=>{onMovePlayer(movePicker.activityId,movePicker.playerId,i);setMovePicker(null);}}>{st?(st.name||"Station "+(i+1)):"Station "+(i+1)}</button>);
-        })}
-        <button className="btn ghost bmd bfull" onClick={()=>setMovePicker(null)}>Cancel</button>
-      </div>
+  const equip=equipNamesFor(act.equipment,data);
+  const locName=subName(act.sublocationId);
+  const label=leaderLabel(act,team);
+  const hasGrouping=(act.grouping||"whole")!=="whole";
+  return (<div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"12px 14px",marginBottom:8}}>
+    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+      <button type="button" onClick={()=>setExpanded(e=>!e)} style={{background:"none",border:"none",padding:0,textAlign:"left",cursor:"pointer",flex:1,minWidth:0,display:"flex",alignItems:"center",gap:6}}>
+        <span style={{fontSize:15,fontWeight:700,color:"#fff"}}>{act.name}</span>
+        <Ic.Chev up={expanded}/>
+      </button>
+      <span style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"#8fa89b",flexShrink:0}}>{act.duration}m</span>
+    </div>
+    <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:8,marginTop:8}}>
+      {isController?<LeaderTapTarget label={label} onTap={()=>onReassignActivityLead(act.id)}/>:(label&&<span style={{fontSize:12,color:"#8fa89b"}}>{label}</span>)}
+      {locName&&<span style={{fontSize:12,color:"#52b788",fontWeight:600}}>{locName}</span>}
+      {hasGrouping&&<button type="button" className="btn ghost bxs" style={{color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>onViewGroupings({kind:"drill",act,title:act.name+" -- Groupings"})}>View Groupings</button>}
+    </div>
+    {equip.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:8}}>{equip.map((e,j)=>(<EquipPill key={j} e={e}/>))}</div>}
+    {expanded&&(act.description||act.coachingPoints)&&<div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,.08)"}}>
+      {act.description&&<div style={{fontSize:13,color:"#ccc",lineHeight:1.5,marginBottom:act.coachingPoints?8:0}}>{act.description}</div>}
+      {act.coachingPoints&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8}}>{act.coachingPoints}</div>}
     </div>}
   </div>);
 }
 
-// Non-station "Run of Practice" entries (Intro/Closer/Checklist/Water
-// Break/Stretch/Other) in Practice Setup -- read-only context (name,
-// duration, location, equipment, coaching points) so a coach reviewing the
-// plan beforehand sees the whole practice, not just the stations. These
-// never have live-editable assignments the way a station does.
-function SetupActivityRow({act,loc,data}){
+// A station block's own Run of Practice row, in its real running order
+// (direct feedback: used to be dumped into a separate "Stations" section
+// after everything else -- now just another row in the same ordered list).
+// Deliberately never shows which players are at which station here -- this
+// screen is for coaches to see where *they're* going and what to bring,
+// not a player-rotation view (that's what the groupings dialog is for, on
+// request). Each station's own leader is independently assignable, same
+// picker as a plain drill's.
+function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onViewGroupings}){
   const subName=id=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:null;};
-  const equip=(Array.isArray(act.equipment)?act.equipment:[]).map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?{name:a.name,acquired:a.acquired!==false}:null;}).filter(Boolean);
-  const locName=subName(act.sublocationId);
+  const totalMins=act.stations.length*(act.stationDuration||0)+Math.max(0,act.stations.length-1)*(act.rotate!==false?(act.transitionDuration||0):0);
   return (<div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"12px 14px",marginBottom:8}}>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:(locName||act.coachingPoints||equip.length)?6:0}}>
-      <div style={{fontSize:15,fontWeight:700,color:"#fff"}}>{act.name}</div>
-      <span style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"#555",flexShrink:0,marginLeft:8}}>{act.duration}m</span>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+      <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:".03em"}}>Station Block</span>
+      <span style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"#8fa89b"}}>{totalMins}m</span>
     </div>
-    {locName&&<div style={{fontSize:12,color:"#52b788",fontWeight:600,marginBottom:4}}>{locName}</div>}
-    {act.coachingPoints&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8,marginBottom:6}}>{act.coachingPoints}</div>}
-    {equip.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-      {equip.map((e,j)=>(<span key={j} style={e.acquired===false?{background:"rgba(220,38,38,.18)",border:"1px solid rgba(248,113,113,.6)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fca5a5",fontWeight:700}:{background:"rgba(202,138,4,.12)",border:"1px solid rgba(202,138,4,.3)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fde047"}}>{e.name}{e.acquired===false&&" · not acquired"}</span>))}
-    </div>}
+    <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:10}}>
+      <span style={{fontSize:11,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#52b788"}}>{act.rotate!==false?"Rotates":"Static"}</span>
+      <span style={{fontSize:12,color:"#8fa89b"}}>{act.stationDuration}m per station{act.rotate!==false?" · "+act.transitionDuration+"m transition":""}</span>
+      <button type="button" className="btn ghost bxs" style={{color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>onViewGroupings({kind:"station_block",act,title:"Station Groupings"})}>View Groupings</button>
+    </div>
+    {act.stations.map((st,si)=>{
+      const stEquip=equipNamesFor(st.equipment,data);
+      const stLoc=subName(st.sublocationId);
+      const label=leaderLabel(st,team);
+      return (<div key={st.id} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",borderRadius:10,padding:"10px 12px",marginBottom:si<act.stations.length-1?8:0}}>
+        <div style={{fontSize:13,fontWeight:700,color:"#fff",marginBottom:6}}>{st.name||"Station "+(si+1)}{st.activityName?" · "+st.activityName:""}</div>
+        <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:(stLoc||st.coachingPoints||stEquip.length)?8:0}}>
+          {isController?<LeaderTapTarget label={label} onTap={()=>onReassignLead(st.id)}/>:(label&&<span style={{fontSize:12,color:"#8fa89b"}}>{label}</span>)}
+          {stLoc&&<span style={{fontSize:12,color:"#52b788",fontWeight:600}}>{stLoc}</span>}
+        </div>
+        {st.coachingPoints&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8,marginBottom:stEquip.length?6:0}}>{st.coachingPoints}</div>}
+        {stEquip.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4}}>{stEquip.map((e,j)=>(<EquipPill key={j} e={e}/>))}</div>}
+      </div>);
+    })}
   </div>);
 }
 
@@ -284,7 +345,7 @@ function SetupActivityRow({act,loc,data}){
 // /preview/:token link already used, not a bare attendance form. A live
 // countdown to the scheduled start replaces that same need for a coach
 // who's signed in rather than viewing an anonymous share link.
-function PracticeSetupScreen({practice,team,data,isController,stationBlockActs,setupGroups,initialPresent,onConfirm,onBack,onReassignLead,onMovePlayer}){
+function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoach,stationBlockActs,setupGroups,initialPresent,onConfirm,onBack,onReassignLead,onReassignActivityLead,onEditPractice}){
   const allIds=team?team.players.map(p=>p.id):[];
   const [present,setPresent]=useState(()=>new Set(initialPresent||allIds));
   const [coachPresent,setCoachPresent]=useState(()=>new Set(team?team.coaches.map(c=>c.id):[]));
@@ -294,10 +355,17 @@ function PracticeSetupScreen({practice,team,data,isController,stationBlockActs,s
   const togC=id=>setCoachPresent(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
   const pCount=present.size;
   const total=allIds.length;
-  const needsBalance=stationBlockActs.some(b=>{
-    const assigned=b.stations.reduce((s,st)=>{(st.assignments||[]).forEach(id=>s.add(id));return s;},new Set());
-    return [...present].some(id=>!assigned.has(id));
-  });
+  // Direct feedback: the Rebalance/Keep Groups choice at the bottom is gone
+  // -- grouping review now lives per-drill/per-block above (View
+  // Groupings), so starting the practice is just one button. Existing
+  // assignments are always kept as-is; any player left unassigned anywhere
+  // gets swept up automatically once the live run actually starts (see
+  // handleAttConfirm).
+  const [attCollapsed,setAttCollapsed]=useState(false);
+  const [groupingsFor,setGroupingsFor]=useState(null); // {kind,act,title}
+  const [shareUrl,setShareUrl]=useState(null);
+  const [sharing,setSharing]=useState(false);
+  const [showEllipsis,setShowEllipsis]=useState(false);
   const loc=practice?data.locations.find(l=>l.id===practice.locationId):null;
   const scheduledMs=(()=>{
     if(!practice||!practice.date)return null;
@@ -315,14 +383,41 @@ function PracticeSetupScreen({practice,team,data,isController,stationBlockActs,s
     if(h>0)return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
     return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
   };
-  const nonStationActs=(practice&&practice.activities||[]).filter(a=>a.type!=="station_block");
-  const totalMins=(practice&&practice.activities||[]).reduce((s,a)=>{
+  const acts=(practice&&practice.activities)||[];
+  const totalMins=acts.reduce((s,a)=>{
     if(a.type==="station_block")return s+(a.stations.length*(a.stationDuration||0)+Math.max(0,a.stations.length-1)*(a.rotate!==false?(a.transitionDuration||0):0));
     return s+(a.duration||0);
   },0);
-  return (<div style={{minHeight:"100dvh",background:"#0d1512",color:"#fff",paddingBottom:140}}>
-    <div style={{padding:"14px 20px 0"}}>
+  // Equipment Needed: aggregated across every drill/station in the whole
+  // practice, deduped by name -- direct feedback this was the first section
+  // of the original design and should come back as its own thing, ahead of
+  // the full per-drill Run of Practice breakdown below.
+  const allEquip=[...new Map(acts.flatMap(a=>a.type==="station_block"?(a.stations||[]).flatMap(st=>equipNamesFor(st.equipment,data)):equipNamesFor(a.equipment,data)).map(e=>[e.name,e])).values()];
+  const presentPlayers=team?team.players.filter(p=>present.has(p.id)):[];
+  const shareSetupLink=async()=>{
+    if(sharing||!practice)return;
+    setSharing(true);
+    try{
+      const token=await findOrCreatePreviewToken(practice.id,coachId);
+      if(token){
+        const url=window.location.origin+"/preview/"+token;
+        setShareUrl(url);
+        if(navigator.share)navigator.share({title:"Practice Setup - "+(team?team.name:"Practice"),url});
+        else navigator.clipboard.writeText(url).catch(()=>{});
+      }
+    }catch(e){console.error(e);}
+    setSharing(false);
+  };
+  return (<div style={{minHeight:"100dvh",background:"#0d1512",color:"#fff",paddingBottom:120}}>
+    <div style={{padding:"14px 20px 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <button className="btn ghost bxs" style={{color:"#aaa",background:"transparent"}} onClick={onBack}>&#8249; Back</button>
+      <div style={{position:"relative"}}>
+        <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
+        {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
+          <button className="mm-item" onClick={()=>{setShowEllipsis(false);onBack();}}>Leave</button>
+          {isController&&amHeadCoach&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);onEditPractice();}}>Edit Practice</button>}
+        </div>}
+      </div>
     </div>
     <div style={{padding:"16px 20px 16px",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
@@ -330,7 +425,8 @@ function PracticeSetupScreen({practice,team,data,isController,stationBlockActs,s
         <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#52b788"}}>Practice Setup</span>
         {loc&&<span style={{fontSize:11,color:"#555",marginLeft:4}}>· {loc.name}</span>}
       </div>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1}}>{team&&team.name}</div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:10}}>{team&&team.name}</div>
+      <button className="btn outline bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} disabled={sharing} onClick={shareSetupLink}>{shareUrl?"Setup Link Copied/Shared":"Share Setup Link"}</button>
     </div>
     <div style={{padding:"24px 20px",textAlign:"center",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
       {diffSecs!==null?<div>
@@ -338,42 +434,47 @@ function PracticeSetupScreen({practice,team,data,isController,stationBlockActs,s
           {isStarted?"Practice should have started":"Starts in"}
         </div>
         <div style={{fontFamily:"DM Mono,monospace",fontSize:56,fontWeight:700,color:isStarted?"#f59e0b":"#fff",lineHeight:1,marginBottom:4}}>{fmtCountdown(absDiff)}</div>
-        <div style={{fontSize:12,color:"#555"}}>{isStarted?"Tap Start Practice below when ready":"Use this time to set up stations"}</div>
-      </div>:<div style={{fontSize:14,color:"#555"}}>No start time scheduled</div>}
+      </div>:<div style={{fontSize:14,color:"#555",marginBottom:4}}>No start time scheduled</div>}
+      <div style={{fontSize:13,color:"#ccc",marginTop:8}}>Use this time to get everyone and everything set up before you start.</div>
     </div>
     <div style={{padding:"20px 20px 0"}}>
-      <div style={{background:"rgba(82,183,136,.15)",border:"1px solid rgba(82,183,136,.4)",borderRadius:10,padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{color:"#fff",fontFamily:"DM Mono,monospace",fontSize:32,fontWeight:700}}>{pCount}/{total}</div>
-        <div style={{color:"#8fa89b",fontSize:13}}>players present</div>
-      </div>
-      <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b",marginBottom:8}}>Players</div>
-      <div className="att-grid att-grid-dark">
-        {team&&team.players.map(p=>(<button key={p.id} onClick={()=>togP(p.id)} className={"att-btn att-btn-dark "+(present.has(p.id)?"on":"")}>
-          <div className={"att-circle "+(present.has(p.id)?"on":"")}>{present.has(p.id)&&<Ic.Check/>}</div>
-          <div><div style={{fontSize:14,fontWeight:600,color:present.has(p.id)?"#fff":"#8fa89b"}}>{p.firstName}</div></div>
-        </button>))}
-      </div>
-      {team&&team.coaches.length>0&&(<div>
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b",marginTop:16,marginBottom:8}}>Coaches</div>
-        {team.coaches.map(c=>(<button key={c.id} onClick={()=>togC(c.id)} className={"att-btn att-btn-dark bfull "+(coachPresent.has(c.id)?"on":"")} style={{marginBottom:8}}>
-          <div className={"att-circle "+(coachPresent.has(c.id)?"on":"")}>{coachPresent.has(c.id)&&<Ic.Check/>}</div>
-          <div><div style={{fontSize:14,fontWeight:600,color:coachPresent.has(c.id)?"#fff":"#8fa89b"}}>{c.name}</div><div style={{fontSize:11,color:"#666"}}>{c.role}</div></div>
-        </button>))}
-      </div>)}
+      <button type="button" onClick={()=>setAttCollapsed(c=>!c)} style={{width:"100%",background:"rgba(82,183,136,.15)",border:"1px solid rgba(82,183,136,.4)",borderRadius:10,padding:"12px 16px",marginBottom:attCollapsed?16:12,display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}>
+        <span style={{display:"flex",alignItems:"baseline",gap:8}}>
+          <span style={{color:"#fff",fontFamily:"DM Mono,monospace",fontSize:24,fontWeight:700}}>{pCount}/{total}</span>
+          <span style={{color:"#8fa89b",fontSize:13}}>players present</span>
+        </span>
+        <Ic.Chev up={!attCollapsed}/>
+      </button>
+      {!attCollapsed&&<>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b",marginBottom:8}}>Players</div>
+        <div className="att-grid att-grid-dark">
+          {team&&team.players.map(p=>(<button key={p.id} onClick={()=>togP(p.id)} className={"att-btn att-btn-dark att-btn-compact "+(present.has(p.id)?"on":"")}>
+            <div className={"att-circle att-circle-dark att-circle-sm "+(present.has(p.id)?"on":"")}>{present.has(p.id)&&<Ic.Check/>}</div>
+            <div><div style={{fontSize:13,fontWeight:600,color:present.has(p.id)?"#fff":"#8fa89b"}}>{p.firstName}</div></div>
+          </button>))}
+        </div>
+        {team&&team.coaches.length>0&&(<div>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b",marginTop:16,marginBottom:8}}>Coaches</div>
+          {team.coaches.map(c=>(<button key={c.id} onClick={()=>togC(c.id)} className={"att-btn att-btn-dark att-btn-compact bfull "+(coachPresent.has(c.id)?"on":"")} style={{marginBottom:6}}>
+            <div className={"att-circle att-circle-dark att-circle-sm "+(coachPresent.has(c.id)?"on":"")}>{coachPresent.has(c.id)&&<Ic.Check/>}</div>
+            <div><div style={{fontSize:13,fontWeight:600,color:coachPresent.has(c.id)?"#fff":"#8fa89b"}}>{c.name}</div><div style={{fontSize:10,color:"#666"}}>{c.role}</div></div>
+          </button>))}
+        </div>)}
+      </>}
+      {allEquip.length>0&&<div style={{marginTop:24}}>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#555",marginBottom:10}}>Equipment Needed</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{allEquip.map((e,i)=>(<EquipPill key={i} e={e}/>))}</div>
+      </div>}
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#555",marginTop:24,marginBottom:12}}>Run of Practice · {totalMins}min</div>
-      {nonStationActs.map(act=>(<SetupActivityRow key={act.id} act={act} loc={loc} data={data}/>))}
-      <StationSetupSection stationBlockActs={stationBlockActs} setupGroups={setupGroups} team={team} isController={isController} onReassignLead={onReassignLead} onMovePlayer={onMovePlayer} data={data} loc={loc}/>
+      {acts.map(act=>act.type==="station_block"
+        ?<SetupStationBlockRow key={act.id} act={act} loc={loc} data={data} team={team} isController={isController} onReassignLead={onReassignLead} onViewGroupings={setGroupingsFor}/>
+        :<SetupActivityRow key={act.id} act={act} loc={loc} data={data} team={team} isController={isController} onReassignActivityLead={onReassignActivityLead} onViewGroupings={setGroupingsFor}/>
+      )}
     </div>
     <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#0d1512",borderTop:"1px solid rgba(255,255,255,.1)",padding:"12px 20px calc(12px + env(safe-area-inset-bottom))",zIndex:50}}>
-      {needsBalance&&<div>
-        <div style={{fontSize:12,color:"#8fa89b",marginBottom:8,textAlign:"center"}}>Groups need rebalancing for {pCount} players</div>
-        <div className="brow">
-          <button className="btn ghost bmd" style={{color:"#fff",borderColor:"rgba(255,255,255,.25)"}} onClick={()=>onConfirm({presentIds:present,coachPresentIds:coachPresent,balanceMode:"keep"})}>Keep Groups</button>
-          <button className="btn primary bmd" onClick={()=>onConfirm({presentIds:present,coachPresentIds:coachPresent,balanceMode:"rebalance"})}>Rebalance Evenly</button>
-        </div>
-      </div>}
-      {!needsBalance&&<button className="btn primary bfull bmd" onClick={()=>onConfirm({presentIds:present,coachPresentIds:coachPresent,balanceMode:"keep"})}>Start Practice</button>}
+      <button className="btn primary bfull bmd" onClick={()=>onConfirm({presentIds:present,coachPresentIds:coachPresent,balanceMode:"keep"})}>Run Practice</button>
     </div>
+    {groupingsFor&&<GroupingsDialog title={groupingsFor.title} data={computeGroupingsPreview({kind:groupingsFor.kind==="station_block"?"station_block":"drill",act:groupingsFor.act,presentPlayers,setupGroups})} onClose={()=>setGroupingsFor(null)}/>}
   </div>);
 }
 
@@ -1148,10 +1249,22 @@ function computeElapsed(session, nowMs) {
   return Math.max(0, Math.floor((effectiveNow - started) / 1000) - (session.total_paused_seconds || 0));
 }
 
+// Direct feedback: station blocks now start with no player assignments at
+// all until a coach explicitly generates/assigns them (Builder no longer
+// auto-fills every station the moment one's added) -- "if the coach
+// doesn't select players for the grouping, the app should be smart enough
+// to randomly assign once the practice begins and attendance has been
+// taken." mode="rebalance" (an explicit choice, still available to
+// mid-practice attendance updates) always does a fresh even split; the
+// default "keep" path used to just filter the plan's existing assignments
+// down to present players -- extended here so a block that was *never*
+// touched (every one of its stations still has zero assignments) gets that
+// same even split automatically instead of silently starting empty.
 async function seedAllStationGroups(sessionId, activities, presentIds, mode, createdBy, allPlayers) {
   for (const act of activities) {
     if (act.type !== "station_block") continue;
-    const rebalanced = mode === "rebalance" ? rebalanceEven(act.stations, presentIds, allPlayers) : rebalanceKeep(act.stations, presentIds);
+    const neverAssigned = act.stations.every(st => !(st.assignments || []).length);
+    const rebalanced = (mode === "rebalance" || neverAssigned) ? rebalanceEven(act.stations, presentIds, allPlayers) : rebalanceKeep(act.stations, presentIds);
     await saveSessionGroups(sessionId, act.id, createdBy, rebalanced.map(st => st.assignments || []));
   }
 }
@@ -1323,6 +1436,14 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const [reassignStationId,setReassignStationId]=useState(null);
   const [helperDraft,setHelperDraft]=useState("");
   const [reassignBusy,setReassignBusy]=useState(false);
+  // Practice Setup's own per-drill (non-station) leader assignment -- kept
+  // fully separate from reassignStationId above rather than generalizing
+  // its shape, since that state is already shared by several other live-view
+  // call sites (stations-overview, the no-leader warning modal) that expect
+  // it to always be a bare station id.
+  const [reassignActivityId,setReassignActivityId]=useState(null);
+  const [helperDraftAct,setHelperDraftAct]=useState("");
+  const [reassignActBusy,setReassignActBusy]=useState(false);
   const [showPlayerFocus,setShowPlayerFocus]=useState(false);
   // Local-only peek at the upcoming rotation -- doesn't touch session state,
   // so it's invisible to every other viewer on this live session.
@@ -1832,20 +1953,6 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     return()=>{cancelled=true;};
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[session?.id,stage,showAtt,stationBlockActsKey]);
-  const moveSetupPlayer=useCallback(async(activityId,playerId,toIdx)=>{
-    if(!session)return;
-    const groups=setupGroups[activityId];
-    if(!groups)return;
-    const fromIdx=groups.findIndex(g=>g.includes(playerId));
-    if(fromIdx===-1||fromIdx===toIdx)return;
-    const newGroups=groups.map((g,i)=>{
-      if(i===fromIdx)return g.filter(id=>id!==playerId);
-      if(i===toIdx)return [...g,playerId];
-      return g;
-    });
-    setSetupGroups(p=>Object.assign({},p,{[activityId]:newGroups}));
-    await saveSessionGroups(session.id,activityId,coachId,newGroups);
-  },[session,setupGroups,coachId]);
 
   const handleAttConfirm=useCallback(async({presentIds:pIds,coachPresentIds:cIds,balanceMode})=>{
     setPresentIds(pIds);setCoachPresentIds(cIds);
@@ -1861,12 +1968,12 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     await submitOperation(sessionRow.id,coachId,"start_practice");
     const allPlayerIds=team?team.players.map(p=>p.id):[];
     await submitAttendanceSnapshot(sessionRow.id,coachId,pIds,allPlayerIds);
-    // Only reseed station groups from the plan's defaults when the coach
-    // explicitly chose to rebalance (attendance changed enough to need
-    // it) -- otherwise leave session_groups exactly as Practice Setup's
-    // Stations section left them, including any manual "move Sam here"
-    // edits made before Start Practice was clicked.
-    if(balanceMode==="rebalance")await seedAllStationGroups(sessionRow.id,liveActs,pIds,balanceMode,coachId,team?team.players:[]);
+    // Always runs now (not gated on an explicit "rebalance" choice -- that
+    // whole choice is gone from Practice Setup's single Run Practice
+    // button): seedAllStationGroups itself only actually rewrites a block
+    // that was either explicitly asked to rebalance or was never touched
+    // at all, so a block the coach genuinely set up by hand is left alone.
+    await seedAllStationGroups(sessionRow.id,liveActs,pIds,balanceMode,coachId,team?team.players:[]);
     if(firstAct&&!firstIsBlock)await openLogFor(sessionRow.id,{practiceActivityId:firstAct.id},[...pIds]);
   },[liveActs,coachId,team,writeSession,openLogFor]);
 
@@ -1998,6 +2105,12 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     await refreshPlanning();
     setReassignBusy(false);setReassignStationId(null);setHelperDraft("");
   },[refreshPlanning]);
+  const doSetActivityLead=useCallback(async(practiceActivityId,{coachId:leadCoachId,helperName})=>{
+    setReassignActBusy(true);
+    await updateActivityLead(practiceActivityId,{coachId:leadCoachId,helperName});
+    await refreshPlanning();
+    setReassignActBusy(false);setReassignActivityId(null);setHelperDraftAct("");
+  },[refreshPlanning]);
   // Practice/station rows don't carry their own skillTagIds (they're a
   // snapshot copy of the drill at add-time) -- look the tags up on the
   // source library drill instead, same as the Library screen does.
@@ -2097,7 +2210,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       team={team}
       loc={loc}
       onSaveResume={async(newActs)=>{
-        await savePracticeTree(practice.id,{teamId:practice.teamId,locationId:practice.locationId,date:practice.date,startTime:practice.startTime,activities:newActs});
+        await savePracticeTree(practice.id,{teamId:practice.teamId,locationId:practice.locationId,date:practice.date,startTime:practice.startTime,activities:newActs,coachId});
         await refreshPlanning();
         const freshList=await fetchPracticesFull();
         const freshPractice=freshList.find(p=>p.id===practice.id);
@@ -2126,7 +2239,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     return (<>
       {showAtt
         ?<AttendanceScreen key="upd" practice={practice} team={team} isUpdate initialPresent={[...presentIds]} initialCoachPresent={[...coachPresentIds]} onConfirm={handleAttUpdate} onBack={attBack}/>
-        :<PracticeSetupScreen practice={practice} team={team} data={data} isController={isController} stationBlockActs={stationBlockActs} setupGroups={setupGroups} initialPresent={freshPresent} onConfirm={handleAttConfirm} onBack={attBack} onReassignLead={setReassignStationId} onMovePlayer={moveSetupPlayer}/>}
+        :<PracticeSetupScreen practice={practice} team={team} data={data} coachId={coachId} isController={isController} amHeadCoach={amHeadCoach} stationBlockActs={stationBlockActs} setupGroups={setupGroups} initialPresent={freshPresent} onConfirm={handleAttConfirm} onBack={attBack} onReassignLead={setReassignStationId} onReassignActivityLead={setReassignActivityId} onEditPractice={()=>setShowEditBuilder(true)}/>}
       {!showAtt&&reassignStationId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setReassignStationId(null);setHelperDraft("");}}}>
         <div className="modal" style={{background:"#0d1512",color:"#fff"}}><div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
           <div className="mtitle" style={{color:"#fff"}}>Assign Station Leader</div>
@@ -2137,6 +2250,18 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             <button className="btn primary bxs" disabled={!helperDraft.trim()||reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:"",helperName:helperDraft.trim()})}>Set</button>
           </div>
           <button className="btn ghost bmd bfull" style={{marginTop:8,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} onClick={()=>{setReassignStationId(null);setHelperDraft("");}}>Cancel</button>
+        </div>
+      </div>}
+      {!showAtt&&reassignActivityId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setReassignActivityId(null);setHelperDraftAct("");}}}>
+        <div className="modal" style={{background:"#0d1512",color:"#fff"}}><div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
+          <div className="mtitle" style={{color:"#fff"}}>Assign Leader</div>
+          <button className="btn ghost bmd bfull" style={{marginBottom:8,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} disabled={reassignActBusy} onClick={()=>doSetActivityLead(reassignActivityId,{coachId:"",helperName:""})}>Unassign</button>
+          {team&&team.coaches.map(c=>(<button key={c.id} className="btn outline bmd bfull" style={{marginBottom:8,color:"#fff",borderColor:"#52b788"}} disabled={reassignActBusy} onClick={()=>doSetActivityLead(reassignActivityId,{coachId:c.id,helperName:""})}>{c.name}</button>))}
+          <div style={{display:"flex",gap:6,marginTop:4}}>
+            <input className="inp" style={{flex:1}} placeholder="Helper's name" autoFocus value={helperDraftAct} onChange={e=>setHelperDraftAct(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&helperDraftAct.trim())doSetActivityLead(reassignActivityId,{coachId:"",helperName:helperDraftAct.trim()});}}/>
+            <button className="btn primary bxs" disabled={!helperDraftAct.trim()||reassignActBusy} onClick={()=>doSetActivityLead(reassignActivityId,{coachId:"",helperName:helperDraftAct.trim()})}>Set</button>
+          </div>
+          <button className="btn ghost bmd bfull" style={{marginTop:8,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} onClick={()=>{setReassignActivityId(null);setHelperDraftAct("");}}>Cancel</button>
         </div>
       </div>}
     </>);}
@@ -2216,6 +2341,17 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       </div>}
     </div>
     {showROS&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",maxHeight:200,overflowY:"auto",flexShrink:0}}>
+      {(()=>{
+        const byUserId=id=>{const c=team&&team.coaches.find(c=>c.userId===id);return c?c.name:null;};
+        const createdName=byUserId(practice&&practice.createdBy);
+        const editedName=byUserId(practice&&practice.lastEditedBy);
+        const sameAuthor=createdName&&editedName&&practice.createdBy===practice.lastEditedBy;
+        if(!createdName&&!editedName)return null;
+        return (<div style={{padding:"8px 14px",fontSize:12,color:"var(--td)",borderBottom:"1px solid var(--b)"}}>
+          {createdName&&<span>Planned by {createdName}</span>}
+          {!sameAuthor&&editedName&&<span>{createdName?" · ":""}Last edited by {editedName}</span>}
+        </div>);
+      })()}
       {liveActs.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--b)",background:i===idx?"var(--gbg)":"#fff",cursor:isController?"pointer":"default",opacity:i<idx?0.5:1}} onClick={()=>{if(isController)jumpTo(i);}}>
         <div style={{flex:1,fontSize:14,color:i===idx?"var(--green)":i<idx?"var(--td)":"var(--black)",textDecoration:i<idx?"line-through":"none"}}>{i===idx?">> ":""}{a.type==="station_block"?"Station Block":a.name}</div>
         <span className="bs bdg" style={{fontSize:11}}>{a.type==="station_block"?(a.stations.length*a.stationDuration+(a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>

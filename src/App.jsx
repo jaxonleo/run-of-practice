@@ -171,8 +171,22 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .att-btn.on{background:var(--gbg);border-color:var(--green);}
 .att-btn-dark{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.15);}
 .att-btn-dark.on{background:rgba(82,183,136,.18);border-color:#52b788;}
-.att-circle{width:26px;height:26px;border-radius:50%;background:var(--b2);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.att-circle.on{background:var(--green);}
+/* Direct feedback (Practice Setup): the normal 10px/12px tiles only fit a
+   handful of names per screen -- a compact variant with tighter padding and
+   a smaller circle so more of a full roster is visible at once without
+   scrolling as much. */
+.att-btn-compact{padding:6px 10px;gap:8px;}
+.att-circle-sm{width:20px;height:20px;}
+/* Real bug found live ("unselected circle disappears instead of showing
+   blank"): the unchecked state's background referenced --b2, a CSS custom
+   property never actually defined anywhere in :root -- an undefined var()
+   with no fallback resets the background to transparent, so the circle
+   rendered fully invisible (not merely unstyled) against any background,
+   light or dark, rather than a visibly "blank/empty" circle. */
+.att-circle{width:26px;height:26px;border-radius:50%;background:var(--s3);border:1.5px solid var(--b);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-sizing:border-box;}
+.att-circle.on{background:var(--green);border-color:var(--green);}
+.att-circle-dark{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.25);}
+.att-circle-dark.on{background:#52b788;border-color:#52b788;}
 .ccs{display:flex;flex-direction:column;height:100%;overflow:hidden;padding-bottom:0;}
 .cc-header{padding:8px 14px;background:var(--s1);border-bottom:1px solid var(--b);display:flex;flex-direction:column;align-items:stretch;flex-shrink:0;}
 .cc-header-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
@@ -857,8 +871,27 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // later (e.g. to edit a different practice) doesn't silently re-seed it.
   useEffect(()=>{if(startTemplateId&&setStartTemplateId)setStartTemplateId(null);},[]);
   const [existingId,setExistingId]=useState(editP?editP.id:null);
+  const [runError,setRunError]=useState("");
   const [teamId,setTeamId]=useState(editP?editP.teamId:(presetTeamId||(startTpl&&startTpl.defaultTeamId)||(data.teams[0]?data.teams[0].id:"")));
-  const lastLocForTeam=(tid)=>{const tps=data.practices.filter(p=>p.teamId===tid&&p.locationId).sort((a,b)=>b.date>a.date?1:-1);return tps.length?tps[0].locationId:(data.locations[0]?data.locations[0].id:"");};
+  // Real bug found live ("Run Now doesn't work, at least for an unscheduled
+  // practice"): for a team with no prior practice yet, this fell back to
+  // `data.locations[0]` -- the first location in the coach's entire
+  // (unscoped, cross-team) location list, by pure array order, with no
+  // regard for whether that location has anything to do with this team.
+  // Saving/Running then failed RLS's practices_insert_manage/update_manage
+  // location check for any team whose own real location wasn't coincidentally
+  // first in that array -- exactly the shape of "works sometimes, silently
+  // doesn't for other teams." Prefer a location this coach actually owns
+  // (always independently accessible/usable, per can_access_location's own
+  // simplest branch) over an arbitrary one that might belong to someone else
+  // entirely; only fall further back to data.locations[0] if the coach owns
+  // none at all (matches the prior behavior for that edge case, unchanged).
+  const lastLocForTeam=(tid)=>{
+    const tps=data.practices.filter(p=>p.teamId===tid&&p.locationId).sort((a,b)=>b.date>a.date?1:-1);
+    if(tps.length)return tps[0].locationId;
+    const ownLoc=data.locations.find(l=>l.ownerUserId===coachId);
+    return ownLoc?ownLoc.id:(data.locations[0]?data.locations[0].id:"");
+  };
   const [locId,setLocId]=useState(editP?editP.locationId:((startTpl&&startTpl.locationId)||lastLocForTeam(editP?editP.teamId:(data.teams[0]?data.teams[0].id:""))));
   const [acts,setActs]=useState(editP?JSON.parse(JSON.stringify(editP.activities)):(startTpl?stripIdsForCopy(startTpl.activities):[]));
   const [expandedId,setExpandedId]=useState(null);
@@ -896,6 +929,17 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const [visibleTypeKeys,setVisibleTypeKeysState]=useState(()=>getVisibleComponentTypes());
   const [componentsOpen,setComponentsOpen]=useState(true);
   const [myDrillsOpen,setMyDrillsOpen]=useState(true);
+  // Direct feedback: Builder's own library section had no sort/filter at
+  // all, unlike the main Library screen -- same Alphabetical/Group-by-Skill
+  // modes here (Most Used/Suggested skipped for now, since those need
+  // insight-summary/goal-report data this screen doesn't already load, and
+  // adding a second fetch just for this felt like scope creep beyond what
+  // was asked). Filter is a simple skill-tag multi-select, same idea as
+  // Library's own Filter modal, scoped to whichever source/sport is
+  // currently showing.
+  const [builderDrillSort,setBuilderDrillSort]=useState("custom");
+  const [builderTagFilter,setBuilderTagFilter]=useState([]);
+  const [showBuilderFilter,setShowBuilderFilter]=useState(false);
   const [showComponentsPicker,setShowComponentsPicker]=useState(false);
   const toggleComponentType=key=>{
     setVisibleTypeKeysState(prev=>{
@@ -957,6 +1001,26 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     ro.observe(outer);
     return()=>ro.disconnect();
   },[]);
+  // Real regression found live ("the most recently added drill should be
+  // frozen at the top... we had scoped this before but seem to have lost
+  // it"): the sticky-pin mechanism itself (SortableActivityRow's own
+  // `sticky` prop, keyed off lastAddedId) was still fully wired up, but
+  // nothing actually scrolled the view to it -- a coach adding a drill from
+  // the library section (usually scrolled well below the Run of Practice
+  // list) never saw anything change, since the new row landed off-screen
+  // above their current scroll position with no auto-scroll to reveal it.
+  // Only collapseAndScroll (the "Done" button) ever called scrollIntoView;
+  // adding a drill never did. Same double-rAF-then-scroll pattern as
+  // collapseAndScroll, reused here rather than duplicated, so both wait out
+  // the same layout-settling race documented there.
+  const scrollToRow=id=>{
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        const el=rowRefs.current[id];
+        if(el)el.scrollIntoView({behavior:"smooth",block:"start"});
+      });
+    });
+  };
   const collapseAndScroll=id=>{
     setExpandedId(null);
     // Direct feedback: Done on a long station block sometimes left the
@@ -1168,6 +1232,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     setExpandedId(id);
     setLastAddedId(id);
     setHandRotation(r=>r+360);
+    scrollToRow(id);
   };
   // Equipment-mismatch check before adding a drill straight into a practice
   // (2026-08-01): a drill from Explore (org-shared, peer-shared) may
@@ -1192,14 +1257,21 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     setEquipmentDialogLib(null);
     if(createMissingEquipment)await refreshLibrary();
   };
+  // Direct feedback: a new station block used to immediately split every
+  // present player into its stations (and defaulted Station 1's own coach
+  // to the head coach) -- both are gone now. Stations start with no player
+  // assignments at all until the coach explicitly taps Generate Random,
+  // manually assigns someone, or picks a grouping; a coach assigned here is
+  // now genuinely optional (the live session auto-fills any station still
+  // empty once attendance is actually known -- see handleAttConfirm).
   const addBlock=()=>{
-    const n=2;const groups=mkGroups(defaultAssignIds,n);
     const b={id:uid(),type:"station_block",rotate:true,stationDuration:10,transitionDuration:2,stations:[
-      {id:uid(),name:"Station 1",activityName:"",coachId:headCoachId,sublocationId:"",assignments:groups[0]||[],coachingPoints:"",equipment:[],playerGear:""},
-      {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:groups[1]||[],coachingPoints:"",equipment:[],playerGear:""},
+      {id:uid(),name:"Station 1",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
+      {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
     ]};
     setActs(p=>[...p,b]);setExpandedId(b.id);setLastAddedId(b.id);
     setHandRotation(r=>r+360);
+    scrollToRow(b.id);
   };
   // Replaces the old fixed addChecklist(isClose) -- Intro/Closer are now
   // just two of PRACTICE_COMPONENT_TYPES, all sharing this one path.
@@ -1212,6 +1284,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     const a={id:uid(),type:"checklist",name:type.defaultName,duration:type.defaultDuration,assignments:defaultAssignIds,coachId:headCoachId,items:[],notes:""};
     setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
     setHandRotation(r=>r+360);
+    scrollToRow(a.id);
   };
   const remAct=id=>{setActs(p=>p.filter(a=>a.id!==id));if(lastAddedId===id)setLastAddedId(null);setHandRotation(r=>r-360);};
   const updAct=(id,ch)=>setActs(p=>p.map(a=>a.id===id?Object.assign({},a,ch):a));
@@ -1219,7 +1292,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const {sensors:dndSensors,onDragEnd:onActDragEnd}=useActivityDnd(setActs);
   const doSchedule=async(dateVal,timeVal)=>{
     if(!dateVal)return;
-    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:dateVal,startTime:timeVal||"",timezone:team&&team.timezone,scheduledDurationMinutes:schedDuration||null,activities:acts});
+    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:dateVal,startTime:timeVal||"",timezone:team&&team.timezone,scheduledDurationMinutes:schedDuration||null,activities:acts,coachId});
     if(saved){setExistingId(saved.id);markSaved();}
     await refreshPlanning();
     setSchedSuccess(true);
@@ -1232,7 +1305,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     setTimeout(()=>setBottomMode(null),2000);
   };
   const handleSave=async()=>{
-    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,scheduledDurationMinutes:schedDuration||null,activities:acts});
+    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,scheduledDurationMinutes:schedDuration||null,activities:acts,coachId});
     if(saved){setExistingId(saved.id);markSaved();}
     await refreshPlanning();
     // Saving an already-scheduled practice's plan is a "make this edit and
@@ -1245,10 +1318,18 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     }
   };
   const handleRun=async()=>{
-    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,scheduledDurationMinutes:schedDuration||null,activities:acts});
+    setRunError("");
+    const {data:saved,error}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,scheduledDurationMinutes:schedDuration||null,activities:acts,coachId});
     if(saved)markSaved();
     await refreshPlanning();
     if(saved)launchRun(saved.id);
+    // Real bug found live ("Run Now doesn't work"): a save failure (e.g. an
+    // RLS rejection) left this button looking like it just did nothing at
+    // all -- data was always destructured alone, never error, so a coach
+    // had zero signal that anything had even gone wrong versus just being
+    // slow. Surfaced now so a genuine failure is at least visible instead
+    // of silent.
+    else if(error)setRunError("Couldn't start practice. Check the location and try again.");
   };
   // Direct feedback: Run Now shouldn't be available when a scheduled
   // practice is still far off -- it's for "happening now or very soon,"
@@ -1291,6 +1372,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         {(!bottomMode||bottomMode==="")&&<><button className="btn outline bsm" onClick={editP?handleSave:()=>setBottomMode("savechoice")}>Save</button>
         <button className="btn primary bsm" onClick={handleRun} disabled={!isSessionLive&&runTooFarAway} title={!isSessionLive&&runTooFarAway?"Run Now unlocks within 1 hour of the scheduled time":""}>{isSessionLive?"Join Practice":"Run Now"}</button></>}
       </div>
+      {runError&&<div style={{padding:"0 14px 8px",fontSize:12,color:"var(--red)"}}>{runError}</div>}
       {editP&&<div style={{padding:"0 14px 8px",display:"flex",alignItems:"baseline",gap:8}}>
         <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",flexShrink:0}}>Editing</span>
         <span style={{fontSize:13,fontWeight:700,color:"var(--black)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{team?team.name:"Practice"} · {schedDate?new Date(schedDate+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"No date"}{schedTime?" · "+fmt12(schedTime):""}</span>
@@ -1628,20 +1710,58 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       </div>
       {myDrillsOpen&&(<>
       {team&&<div className="clbl" style={{marginBottom:8}}>{teamSport} + General</div>}
-      {sourceFilteredLib.length===0&&<div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>No drills here yet.</div>}
-      {sourceFilteredLib.map(lib=>(
-        <div key={lib.id} className="li tap" onClick={()=>addActChecked(lib)}>
-          <div className="lim">
-            <div className="lin">{lib.name}</div>
-            <div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div>
-            {lib.coachingPoints&&<div style={{fontSize:11,color:"var(--green2)",marginTop:2}}>{lib.coachingPoints}</div>}
-            {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-              {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
-            </div>}
+      {(()=>{
+        const builderAvailableTags=[...new Set(sourceFilteredLib.flatMap(a=>a.skillTagIds||[]))].map(id=>skillTagsById[id]).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+        const builderFilteredLib=builderTagFilter.length?sourceFilteredLib.filter(a=>(a.skillTagIds||[]).some(id=>builderTagFilter.includes(id))):sourceFilteredLib;
+        const LibRow=({lib})=>(
+          <div key={lib.id} className="li tap" onClick={()=>addActChecked(lib)}>
+            <div className="lim">
+              <div className="lin">{lib.name}</div>
+              {lib.description&&<div className="limt">{lib.description}</div>}
+              {lib.coachingPoints&&<div style={{fontSize:11,color:"var(--green2)",marginTop:2}}>{lib.coachingPoints}</div>}
+              {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+              </div>}
+            </div>
+            <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
           </div>
-          <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
-        </div>
-      ))}
+        );
+        return (<>
+          <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:6,marginBottom:10,flexWrap:"wrap"}} onClick={e=>e.stopPropagation()}>
+            <select className="btn ghost bxs" value={builderDrillSort} onChange={e=>setBuilderDrillSort(e.target.value)}>
+              <option value="custom">Sort: Custom</option>
+              <option value="alpha">Sort: Alphabetical</option>
+              <option value="byskill">Group by Skill</option>
+            </select>
+            {builderAvailableTags.length>0&&<button type="button" className="btn ghost bxs" onClick={()=>setShowBuilderFilter(s=>!s)}>{builderTagFilter.length?"Filter ("+builderTagFilter.length+")":"Filter"}</button>}
+          </div>
+          {showBuilderFilter&&<div className="card" style={{marginBottom:10,padding:10}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:builderTagFilter.length?8:0}}>
+              {builderAvailableTags.map(t=>(<button key={t.id} type="button" onClick={()=>setBuilderTagFilter(f=>f.includes(t.id)?f.filter(id=>id!==t.id):[...f,t.id])} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:builderTagFilter.includes(t.id)?"var(--green)":"var(--s1)",color:builderTagFilter.includes(t.id)?"#fff":"var(--black)",fontSize:12,cursor:"pointer"}}>{t.name}</button>))}
+            </div>
+            {builderTagFilter.length>0&&<button type="button" className="btn ghost bxs" onClick={()=>setBuilderTagFilter([])}>Clear filter</button>}
+          </div>}
+          {builderFilteredLib.length===0&&<div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>No drills here yet.</div>}
+          {builderDrillSort==="byskill"?(()=>{
+            const byTag={};const untagged=[];
+            builderFilteredLib.forEach(lib=>{
+              if(!lib.skillTagIds||!lib.skillTagIds.length){untagged.push(lib);return;}
+              lib.skillTagIds.forEach(tid=>{(byTag[tid]=byTag[tid]||[]).push(lib);});
+            });
+            const tagIds=Object.keys(byTag).sort((a,b)=>((skillTagsById[a]&&skillTagsById[a].name)||"").localeCompare((skillTagsById[b]&&skillTagsById[b].name)||""));
+            return (<>
+              {tagIds.map(tid=>(<div key={tid} style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--gbg)"}}>{(skillTagsById[tid]&&skillTagsById[tid].name)||"Tag"} ({byTag[tid].length})</div>
+                {byTag[tid].map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
+              </div>))}
+              {untagged.length>0&&<div style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--s2)"}}>Untagged ({untagged.length})</div>
+                {untagged.map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
+              </div>}
+            </>);
+          })():(builderDrillSort==="alpha"?builderFilteredLib.slice().sort((a,b)=>a.name.localeCompare(b.name)):builderFilteredLib).map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
+        </>);
+      })()}
       </>)}
       </div>
 

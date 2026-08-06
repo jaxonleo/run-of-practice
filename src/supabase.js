@@ -911,7 +911,7 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
     id: a.id, type: a.type, name: a.name || '', duration: a.duration_minutes || 10,
     description: a.description || '', coachingPoints: a.coaching_points || '',
     grouping: a.grouping || 'whole', numGroups: a.num_groups || 2,
-    coachId: a.team_staff_id || '', sublocationId: a.sublocation_id || '',
+    coachId: a.team_staff_id || '', helperName: a.helper_name || '', sublocationId: a.sublocation_id || '',
     libraryId: a.library_activity_id || null,
     equipment: equipByAct[a.id] || [],
   }
@@ -982,6 +982,7 @@ export async function fetchPracticesFull(teamId) {
       id: p.id, teamId: p.team_id, locationId: p.location_id || '', sublocationId: p.sublocation_id || '',
       date, startTime, status: p.status, scheduledDurationMinutes: p.scheduled_duration_minutes || null,
       seriesId: p.series_id || null, durMin: sumMinsLocal(activities), activities,
+      createdBy: p.created_by || null, lastEditedBy: p.last_edited_by || null,
     }
   })
 }
@@ -996,15 +997,32 @@ function sumMinsLocal(acts) {
 // Full replace-all sync for a join/list table scoped to one parent row --
 // simplest robust approach for explicit-Save-button data (not live-typing),
 // matching the size of these lists (a handful of equipment/items per activity).
+// Direct feedback (real bug found investigating a Save-as-Template failure):
+// neither of these checked `.error` at all -- a rejected equipment/checklist
+// write (e.g. RLS declining to link an asset the caller can view but not
+// attach -- see can_link_asset_to_template_activity below) silently
+// vanished with no signal anywhere, not even into saveActivityTree's own
+// {errors} array. Now returns {error} so the caller can decide whether to
+// surface it.
 async function replaceEquipment(table, fkCol, parentId, assetIds) {
-  await supabase.from(table).delete().eq(fkCol, parentId)
+  const del = await supabase.from(table).delete().eq(fkCol, parentId)
+  if (del.error) return { error: del.error }
   const ids = (assetIds || []).filter(Boolean)
-  if (ids.length) await supabase.from(table).insert(ids.map(asset_id => ({ [fkCol]: parentId, asset_id })))
+  if (ids.length) {
+    const { error } = await supabase.from(table).insert(ids.map(asset_id => ({ [fkCol]: parentId, asset_id })))
+    if (error) return { error }
+  }
+  return { error: null }
 }
 async function replaceChecklistItems(table, fkCol, parentId, items) {
-  await supabase.from(table).delete().eq(fkCol, parentId)
+  const del = await supabase.from(table).delete().eq(fkCol, parentId)
+  if (del.error) return { error: del.error }
   const list = (items || []).filter(it => it.text && it.text.trim())
-  if (list.length) await supabase.from(table).insert(list.map((it, i) => ({ [fkCol]: parentId, position: i, text: it.text.trim() })))
+  if (list.length) {
+    const { error } = await supabase.from(table).insert(list.map((it, i) => ({ [fkCol]: parentId, position: i, text: it.text.trim() })))
+    if (error) return { error }
+  }
+  return { error: null }
 }
 
 // Direct feedback (real bug found investigating "Save as Template produced
@@ -1033,7 +1051,7 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
       library_activity_id: act.libraryId || null,
       sublocation_id: act.sublocationId || null,
     }
-    if (teamScoped) row.team_staff_id = act.coachId || null
+    if (teamScoped) { row.team_staff_id = act.coachId || null; row.helper_name = act.coachId ? null : (act.helperName || null) }
 
     let actId = act.id
     if (isDbId(actId)) {
@@ -1046,10 +1064,14 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
     }
     keepActIds.add(actId)
 
-    await replaceEquipment(equipTable, activityTable === 'practice_activities' ? 'practice_activity_id' : 'template_activity_id', actId, act.equipment)
+    {
+      const { error } = await replaceEquipment(equipTable, activityTable === 'practice_activities' ? 'practice_activity_id' : 'template_activity_id', actId, act.equipment)
+      if (error) { console.error('saveActivityTree activity equipment:', error); errors.push(error) }
+    }
 
     if (act.type === 'checklist' && itemsTable) {
-      await replaceChecklistItems(itemsTable, activityTable === 'practice_activities' ? 'practice_activity_id' : 'template_activity_id', actId, act.items)
+      const { error } = await replaceChecklistItems(itemsTable, activityTable === 'practice_activities' ? 'practice_activity_id' : 'template_activity_id', actId, act.items)
+      if (error) { console.error('saveActivityTree checklist items:', error); errors.push(error) }
     }
 
     if (act.type === 'station_block' && blockTable) {
@@ -1100,7 +1122,10 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
           stId = createdSt.id
         }
         keepStationIds.add(stId)
-        await replaceEquipment(stationEquipTable, stationTable === 'stations' ? 'station_id' : 'template_station_id', stId, st.equipment)
+        {
+          const { error } = await replaceEquipment(stationEquipTable, stationTable === 'stations' ? 'station_id' : 'template_station_id', stId, st.equipment)
+          if (error) { console.error('saveActivityTree station equipment:', error); errors.push(error) }
+        }
       }
       for (const es of existingStations || []) {
         if (!keepStationIds.has(es.id)) await supabase.from(stationTable).update({ archived_at: new Date().toISOString() }).eq('id', es.id)
@@ -1114,16 +1139,24 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
   return { errors }
 }
 
-export async function savePracticeTree(existingId, { teamId, locationId, sublocationId, date, startTime, timezone, scheduledDurationMinutes, activities }) {
+// coachId (direct feedback: "the author of a saved practice plan should be
+// saved with the practice") is optional so every pre-existing caller that
+// hasn't been updated yet still works -- it just won't record an author
+// until it is. created_by is set once, only on insert, and never touched
+// again; last_edited_by is set on every save (insert or update), so the two
+// read identically until a *different* coach saves the same plan.
+export async function savePracticeTree(existingId, { teamId, locationId, sublocationId, date, startTime, timezone, scheduledDurationMinutes, activities, coachId }) {
   const row = {
     team_id: teamId, location_id: locationId || null, sublocation_id: sublocationId || null,
     scheduled_at: teamLocalToScheduledAt(date, startTime, timezone), status: date ? 'scheduled' : 'draft',
     scheduled_duration_minutes: scheduledDurationMinutes || null,
   }
+  if (coachId) row.last_edited_by = coachId
   let practiceId = existingId
   if (isDbId(practiceId)) {
     await supabase.from('practices').update(row).eq('id', practiceId)
   } else {
+    if (coachId) row.created_by = coachId
     const { data, error } = await supabase.from('practices').insert(row).select().single()
     if (error) { console.error('savePracticeTree:', error); return { error } }
     practiceId = data.id
@@ -1148,6 +1181,15 @@ export async function savePracticeTree(existingId, { teamId, locationId, subloca
 export async function updateStationLead(stationId, { coachId, helperName }) {
   const { error } = await supabase.from('stations').update({ team_staff_id: coachId || null, helper_name: coachId ? null : (helperName || null) }).eq('id', stationId)
   if (error) console.error('updateStationLead:', error)
+  return { error }
+}
+// Same single-row assign as updateStationLead, for a plain (non-station)
+// Run of Practice drill -- Practice Setup's per-drill "Unassigned"/coach
+// name tap target uses this so a leader can be set for any drill, not just
+// stations.
+export async function updateActivityLead(practiceActivityId, { coachId, helperName }) {
+  const { error } = await supabase.from('practice_activities').update({ team_staff_id: coachId || null, helper_name: coachId ? null : (helperName || null) }).eq('id', practiceActivityId)
+  if (error) console.error('updateActivityLead:', error)
   return { error }
 }
 export async function archivePractice(id) {

@@ -112,7 +112,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
     const {data:saved}=await savePracticeTree(null,{
       teamId:practice.teamId,locationId:practice.locationId,sublocationId:practice.sublocationId,
       date:localDateStr(runNow),startTime:runNow.toTimeString().slice(0,5),
-      activities:stripIdsForCopy(practice.activities),
+      activities:stripIdsForCopy(practice.activities),coachId,
     });
     if(refreshPlanning)await refreshPlanning();
     setShowFutureGuard(false);
@@ -129,6 +129,21 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:2}}>{practice.date===todayStr?"TODAY":"RUN OF PRACTICE"} {practice.date&&new Date(practice.date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2,textDecoration:isCancelled?"line-through":"none",color:isCancelled?"var(--td)":"inherit"}}>{team?team.name:"Practice"}</div>
       <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>{timeLbl(practice)}{loc?" · "+loc.name:""} · {planningState(practice)?<PlanPill practice={practice} total={totalMins}/>:totalMins+"min"}</div>
+      {/* Direct feedback: a plan had no record of who built it -- a coach
+          reviewing it (or a teammate) couldn't tell who to ask about it.
+          Only shown once both names are known; a plan from before this
+          feature shipped has neither and shows nothing here. */}
+      {(()=>{
+        const byUserId=id=>{const c=team&&team.coaches.find(c=>c.userId===id);return c?c.name:null;};
+        const createdName=byUserId(practice.createdBy);
+        const editedName=byUserId(practice.lastEditedBy);
+        if(!createdName&&!editedName)return null;
+        const sameAuthor=createdName&&editedName&&practice.createdBy===practice.lastEditedBy;
+        return (<div style={{fontSize:12,color:"var(--td)",marginBottom:12}}>
+          {createdName&&<span>Planned by {createdName}</span>}
+          {!sameAuthor&&editedName&&<span>{createdName?" · ":""}Last edited by {editedName}</span>}
+        </div>);
+      })()}
       {absentPlayers.length>0&&<div style={{fontSize:13,color:"var(--red)",marginBottom:12}}>Out: {absentPlayers.map(p=>p.firstName+" "+(p.lastName||"").slice(0,1)).join(", ")}</div>}
       {!isCancelled&&!isPlanned&&canManage&&<div className="brow" style={{marginBottom:8}}>
         <button className="btn primary bmd bfull" onClick={()=>goToBuilder(practice.id)}>Plan Practice</button>

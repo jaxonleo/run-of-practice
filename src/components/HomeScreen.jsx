@@ -211,7 +211,7 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
     const { data: saved } = await savePracticeTree(null, {
       teamId: practice.teamId, locationId: practice.locationId, sublocationId: practice.sublocationId,
       date: localDateStr(runNow), startTime: runNow.toTimeString().slice(0, 5),
-      activities: stripIdsForCopy(practice.activities),
+      activities: stripIdsForCopy(practice.activities), coachId,
     });
     await refreshPlanning();
     setHistoryPractice(null);
@@ -262,7 +262,7 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
     const { data: saved } = await savePracticeTree(null, {
       teamId: practice.teamId, locationId: practice.locationId, sublocationId: practice.sublocationId,
       date: localDateStr(runNow), startTime: runNow.toTimeString().slice(0, 5),
-      activities: stripIdsForCopy(practice.activities),
+      activities: stripIdsForCopy(practice.activities), coachId,
     });
     await refreshPlanning();
     setShowFutureGuard(false);

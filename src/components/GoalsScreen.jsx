@@ -545,7 +545,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
     const { data: saved } = await savePracticeTree(null, {
       teamId: practice.teamId, locationId: practice.locationId, sublocationId: practice.sublocationId,
       date: localDateStr(runNow), startTime: runNow.toTimeString().slice(0, 5),
-      activities: stripIdsForCopy(practice.activities),
+      activities: stripIdsForCopy(practice.activities), coachId,
     });
     if (refreshPlanning) await refreshPlanning();
     setRunningNow(false);

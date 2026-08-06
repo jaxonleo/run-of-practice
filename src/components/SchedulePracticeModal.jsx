@@ -34,7 +34,7 @@ export default function SchedulePracticeModal({ data, coachId, mode, presetTeamI
     const { data: result, error: err } = await savePracticeTree(null, {
       teamId, locationId: locationId || null, sublocationId: null,
       date, startTime, timezone: team && team.timezone,
-      scheduledDurationMinutes: durationMinutes || null, activities: [],
+      scheduledDurationMinutes: durationMinutes || null, activities: [], coachId,
     });
     setSaving(false);
     if (err) { setError(err.message || "Something went wrong."); return; }

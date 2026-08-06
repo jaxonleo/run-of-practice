@@ -426,32 +426,47 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
         <div className="fld">
           <label className="lbl">Name</label>
           <input className="inp" placeholder="Write your own, or choose from library below" value={st.activityName||st.name||""} onChange={e=>onSt(st.id,{activityName:e.target.value,name:e.target.value})}/>
-          <button type="button" className="btn ghost bxs mt6" onClick={()=>setLibraryPickerIdx(libraryPickerIdx===si?null:si)}>{st.libraryId?"Change Library Drill":"Choose from Library"}</button>
-          {libraryPickerIdx===si&&<div style={{marginTop:6,border:"1px solid var(--b)",borderRadius:"var(--rs)",maxHeight:220,overflowY:"auto",background:"#fff"}}>
-            {/* Direct feedback: this picker used to silently merge every
-                accessible drill (own + org + any peer sharing with the
-                coach) with no way to tell which library a result came from
-                -- same gap the main "My Drill Library" section below
-                already closed with its own librarySources switcher.
-                Sharing that exact switcher's state (passed down from
-                BuilderScreen) rather than a second, independent one keeps
-                "which library am I browsing" answered the same way in both
-                places at once; defaults to "My Library" either way. */}
-            {librarySources&&librarySources.length>1&&<div style={{padding:8,borderBottom:"1px solid var(--b)"}}>
-              <select className="sel" value={libSource} onChange={e=>setLibSource(e.target.value)} onClick={e=>e.stopPropagation()} style={{fontSize:12}}>
-                {librarySources.map(s=>(<option key={s.key} value={s.key}>{s.label}</option>))}
-              </select>
-            </div>}
-            {filteredLibrary.length===0&&<div style={{padding:10,fontSize:12,color:"var(--td)"}}>No drills in this library for {sport} yet.</div>}
-            {filteredLibrary.map(lib=>(<div key={lib.id} className="li tap" style={{marginBottom:0,borderRadius:0,borderLeft:"none",borderRight:"none",borderTop:"none"}} onClick={()=>chooseFromLibrary(si,lib)}>
-              <div className="lim">
-                <div className="lin">{lib.name}</div>
-                {lib.description&&<div className="limt">{lib.description}</div>}
-                {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                  {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
-                </div>}
+          <button type="button" className="btn ghost bxs mt6" onClick={()=>setLibraryPickerIdx(si)}>{st.libraryId?"Change Library Drill":"Choose from Library"}</button>
+          {/* Direct feedback: the old inline dropdown (max-height 220px,
+              squeezed into the station's own card) felt claustrophobic --
+              a real full-screen popup (same movly/modal overlay pattern
+              used elsewhere) gives the whole viewport to browse instead of
+              a small scrolling box. */}
+          {libraryPickerIdx===si&&<div className="movly" style={{zIndex:300}} onClick={e=>{if(e.target===e.currentTarget)setLibraryPickerIdx(null);}}>
+            <div className="modal" style={{maxHeight:"85vh",display:"flex",flexDirection:"column",padding:"20px 0 0"}}>
+              <div className="mhandle"/>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",marginBottom:12}}>
+                <div className="mtitle" style={{marginBottom:0}}>Choose a Drill</div>
+                <button type="button" className="btn ghost bxs" onClick={()=>setLibraryPickerIdx(null)}>Close</button>
               </div>
-            </div>))}
+              {/* Direct feedback: this picker used to silently merge every
+                  accessible drill (own + org + any peer sharing with the
+                  coach) with no way to tell which library a result came
+                  from -- same gap the main "My Drill Library" section
+                  already closed with its own librarySources switcher.
+                  Sharing that exact switcher's state (passed down from
+                  BuilderScreen) rather than a second, independent one keeps
+                  "which library am I browsing" answered the same way in
+                  both places at once; defaults to "My Library" either way. */}
+              {librarySources&&librarySources.length>1&&<div style={{padding:"0 20px 12px"}}>
+                <select className="sel" value={libSource} onChange={e=>setLibSource(e.target.value)}>
+                  {librarySources.map(s=>(<option key={s.key} value={s.key}>{s.label}</option>))}
+                </select>
+              </div>}
+              <div style={{overflowY:"auto",flex:1,padding:"0 20px 20px"}}>
+                {filteredLibrary.length===0&&<div style={{padding:10,fontSize:13,color:"var(--td)"}}>No drills in this library for {sport} yet.</div>}
+                {filteredLibrary.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>chooseFromLibrary(si,lib)}>
+                  <div className="lim">
+                    <div className="lin">{lib.name}</div>
+                    {lib.description&&<div className="limt">{lib.description}</div>}
+                    {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                      {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+                    </div>}
+                  </div>
+                  <div className="lir"><span className="bdg bp">{lib.duration}m</span></div>
+                </div>))}
+              </div>
+            </div>
           </div>}
         </div>
         <div className="fld"><label className="lbl">Description</label><AutoTextarea minHeight={40} value={st.description||""} onChange={e=>onSt(st.id,{description:e.target.value})}/></div>
@@ -474,13 +489,34 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
             </div>
           </div>}
         </div>
-        {team&&<div className="fld"><label className="lbl">Coach</label>
-          {!st.helperName&&<>
-            {team.coaches.length>0&&<select className="sel" value={st.coachId||""} onChange={e=>onSt(st.id,{coachId:e.target.value,helperName:""})}>
-              <option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>}
-            <button type="button" className="btn ghost bxs mt6" onClick={()=>{setHelperIdx(si);onSt(st.id,{coachId:""});}}>+ Assign a Helper (not on roster)</button>
-          </>}
+        {/* Direct feedback: coach assignment is a pill row now, same idea
+            as the player chips -- green means assigned to *this* station,
+            white/plain means available, yellow means already assigned to a
+            different station in this same block (named, so it's obvious
+            where). Tapping a yellow pill *moves* that coach here rather
+            than creating a second assignment -- this is what actually
+            prevents a coach ending up double-booked across two stations at
+            once, which a plain per-station dropdown couldn't catch since
+            each station's own field had no idea what any other station had
+            picked. */}
+        {team&&team.coaches.length>0&&<div className="fld"><label className="lbl">Coach</label>
+          {!st.helperName&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
+            {team.coaches.map(c=>{
+              const isHere=st.coachId===c.id;
+              const elsewhereIdx=act.stations.findIndex((os,oi)=>oi!==si&&os.coachId===c.id);
+              const isElsewhere=!isHere&&elsewhereIdx!==-1;
+              const label=isElsewhere?c.name+" · "+(act.stations[elsewhereIdx].name||act.stations[elsewhereIdx].activityName||"Station "+(elsewhereIdx+1)):c.name;
+              return (<button key={c.id} type="button" onClick={()=>{
+                if(isHere){onSt(st.id,{coachId:""});return;}
+                if(isElsewhere){
+                  onChange({stations:act.stations.map((os,oi)=>oi===elsewhereIdx?Object.assign({},os,{coachId:""}):oi===si?Object.assign({},os,{coachId:c.id,helperName:""}):os)});
+                  return;
+                }
+                onSt(st.id,{coachId:c.id,helperName:""});
+              }} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid "+(isHere?"var(--green)":isElsewhere?"#fbbf24":"var(--b)"),background:isHere?"var(--green)":isElsewhere?"#fef3c7":"#fff",color:isHere?"#fff":isElsewhere?"#92400e":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{label}</button>);
+            })}
+          </div>}
+          {!st.helperName&&<button type="button" className="btn ghost bxs" onClick={()=>{setHelperIdx(si);onSt(st.id,{coachId:""});}}>+ Assign a Helper (not on roster)</button>}
           {(st.helperName||helperIdx===si)&&<div style={{display:"flex",gap:6,marginTop:st.helperName?0:6}}>
             <input className="inp" style={{flex:1}} placeholder="Helper's name" autoFocus={helperIdx===si&&!st.helperName} value={st.helperName||""} onChange={e=>onSt(st.id,{helperName:e.target.value,coachId:""})}/>
             <button type="button" className="btn ghost bxs" onClick={()=>{onSt(st.id,{helperName:""});setHelperIdx(null);}}>✕</button>

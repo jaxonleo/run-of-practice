@@ -569,7 +569,7 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
     if(!teamId||runBusy)return;
     setRunBusy(true);
     const team=data.teams.find(t=>t.id===teamId);
-    const {data:saved}=await savePracticeTree(null,{teamId,locationId:locId,date:localDateStr(),startTime:new Date().toTimeString().slice(0,5),timezone:team&&team.timezone,activities:acts});
+    const {data:saved}=await savePracticeTree(null,{teamId,locationId:locId,date:localDateStr(),startTime:new Date().toTimeString().slice(0,5),timezone:team&&team.timezone,activities:acts,coachId});
     setRunBusy(false);
     if(saved&&onRunNow)onRunNow(saved.id);
   };
@@ -1199,6 +1199,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           <option value="frequency">Sort: Most Used</option>
           <option value="alpha">Sort: Alphabetical</option>
           <option value="suggested">Sort: Suggested</option>
+          <option value="byskill">Group by Skill</option>
         </select>}
         {isMine&&drillSort==="suggested"&&myTeamsForSort.length>1&&<select className="btn ghost bsm" value={suggestedTeamId} onChange={e=>setSuggestedTeamId(e.target.value)} style={{flexShrink:0}}>
           {myTeamsForSort.map(t=>(<option key={t.id} value={t.id}>{t.name}</option>))}
@@ -1314,6 +1315,38 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
               </div>
             </div>}
           </div>);
+          // Direct feedback: a new grouping mode, distinct from the other
+          // three (which just reorder the same flat list) -- headers are
+          // the sport's own skill tags (global, not per-coach), each
+          // listing every drill tagged with it; a multi-tagged drill shows
+          // up under every one of its tags, same "lives in every applicable
+          // spot" rule the untagged-drills deep link already established
+          // for the inverse case. Derived straight from this sport's own
+          // drills (not a separate skill-category fetch), sorted
+          // alphabetically by tag name so the header order is stable.
+          if(isMine&&drillSort==="byskill"){
+            const byTag={};
+            const untagged=[];
+            sportDrills.forEach(act=>{
+              if(!act.skillTagIds||!act.skillTagIds.length){untagged.push(act);return;}
+              act.skillTagIds.forEach(tid=>{(byTag[tid]=byTag[tid]||[]).push(act);});
+            });
+            const tagIds=Object.keys(byTag).sort((a,b)=>{
+              const na=(skillTagsById[a]&&skillTagsById[a].name)||"";
+              const nb=(skillTagsById[b]&&skillTagsById[b].name)||"";
+              return na.localeCompare(nb);
+            });
+            return (<>
+              {tagIds.map(tid=>(<div key={tid} style={{marginBottom:14}}>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--gbg)"}}>{(skillTagsById[tid]&&skillTagsById[tid].name)||"Tag"} ({byTag[tid].length})</div>
+                {byTag[tid].map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
+              </div>))}
+              {untagged.length>0&&<div style={{marginBottom:14}}>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--s2)"}}>Untagged ({untagged.length})</div>
+                {untagged.map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
+              </div>}
+            </>);
+          }
           if(!isMine||drillSort!=="custom")return sportDrills.map(act=>(<Row key={act.id} act={act} dragHandle={null}/>));
           return (<ActivityDndContext sensors={drillDndSensors} onDragEnd={onDrillDragEnd(sport)} items={sportDrills.map(a=>a.id)}>
             {sportDrills.map(act=>(<SortableActivityRow key={act.id} id={act.id} raised={drillMenu===act.id||shareMenuId===act.id}>{dragHandle=><Row act={act} dragHandle={dragHandle}/>}</SortableActivityRow>))}
