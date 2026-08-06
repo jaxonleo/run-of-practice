@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI } from "../constants.js";
-import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchPracticeActualStart, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill } from "../supabase.js";
-import { ActConfig, ChecklistConfig, StationConfig } from "./ActivityConfigs.jsx";
+import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchPracticeActualStart, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach } from "../supabase.js";
+import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
+import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
@@ -388,10 +389,17 @@ function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onV
 // /preview/:token link already used, not a bare attendance form. A live
 // countdown to the scheduled start replaces that same need for a coach
 // who's signed in rather than viewing an anonymous share link.
-function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoach,stationBlockActs,setupGroups,onMoveGroupPlayer,onRegenerateGroups,initialPresent,onConfirm,onBack,onReassignLead,onReassignActivityLead,onEditPractice}){
+function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoach,stationBlockActs,setupGroups,onMoveGroupPlayer,onRegenerateGroups,initialPresent,onConfirm,onBack,onReassignLead,onReassignActivityLead,onEditPractice,session}){
   const allIds=team?team.players.map(p=>p.id):[];
-  const [present,setPresent]=useState(()=>new Set(initialPresent||allIds));
-  const [coachPresent,setCoachPresent]=useState(()=>new Set(team?team.coaches.map(c=>c.id):[]));
+  // Direct feedback: attendance used to default to everyone present, which
+  // meant a coach arriving to a mostly-empty gym had to tap out 15 kids one
+  // by one before anyone had actually shown up. Defaults to nobody present
+  // instead -- players and coaches get tapped IN as they arrive, matching
+  // how attendance is actually taken in person. The logged-in coach running
+  // this screen is the one known exception, marked present from the start.
+  const [present,setPresent]=useState(()=>new Set(initialPresent||[]));
+  const myCoach=team&&team.coaches.find(c=>c.userId===coachId);
+  const [coachPresent,setCoachPresent]=useState(()=>new Set(myCoach?[myCoach.id]:[]));
   const [now,setNow]=useState(Date.now());
   useEffect(()=>{const iv=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(iv);},[]);
   const togP=id=>setPresent(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
@@ -442,6 +450,18 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
     setSharing(true);
     try{
       const token=await findOrCreatePreviewToken(practice.id,coachId);
+      // Real bug: a live session already exists by the time a coach can
+      // even reach this screen (startOrJoinLiveSession creates/joins one on
+      // mount, before attendance is even taken) -- but linkPreviewToLiveSession
+      // used to only ever run once, at the moment that session row was first
+      // created. Sharing a link from here (the normal, expected way to share
+      // it) always happens *after* that point, so the freshly-minted preview
+      // token's own session row was left permanently unlinked -- the helper's
+      // link would never detect the practice going live, no matter how long
+      // they waited. Linking again here, every share, fixes it: the RPC only
+      // touches a still-unlinked preview row, so it's a safe no-op if this
+      // token (or an earlier one) is already linked.
+      if(token&&session)await linkPreviewToLiveSession(practice.id,session.id);
       if(token){
         const url=window.location.origin+"/preview/"+token;
         setShareUrl(url);
@@ -489,7 +509,13 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
         <Ic.Chev up={!attCollapsed}/>
       </button>
       {!attCollapsed&&<>
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b",marginBottom:8}}>Players</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b"}}>Players</div>
+          <div style={{display:"flex",gap:6}}>
+            <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>setPresent(new Set(allIds))}>Mark All Present</button>
+            <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>setPresent(new Set())}>Clear All</button>
+          </div>
+        </div>
         <div className="att-grid att-grid-dark">
           {team&&team.players.map(p=>(<button key={p.id} onClick={()=>togP(p.id)} className={"att-btn att-btn-dark att-btn-compact "+(present.has(p.id)?"on":"")}>
             <div className={"att-circle att-circle-dark att-circle-sm "+(present.has(p.id)?"on":"")}>{present.has(p.id)&&<Ic.Check/>}</div>
@@ -497,7 +523,13 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
           </button>))}
         </div>
         {team&&team.coaches.length>0&&(<div>
-          <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b",marginTop:16,marginBottom:8}}>Coaches</div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:16,marginBottom:8}}>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b"}}>Coaches</div>
+            <div style={{display:"flex",gap:6}}>
+              <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>setCoachPresent(new Set(team.coaches.map(c=>c.id)))}>Mark All Present</button>
+              <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>setCoachPresent(new Set())}>Clear All</button>
+            </div>
+          </div>
           {team.coaches.map(c=>(<button key={c.id} onClick={()=>togC(c.id)} className={"att-btn att-btn-dark att-btn-compact bfull "+(coachPresent.has(c.id)?"on":"")} style={{marginBottom:6}}>
             <div className={"att-circle att-circle-dark att-circle-sm "+(coachPresent.has(c.id)?"on":"")}>{coachPresent.has(c.id)&&<Ic.Check/>}</div>
             <div><div style={{fontSize:13,fontWeight:600,color:coachPresent.has(c.id)?"#fff":"#8fa89b"}}>{c.name}</div><div style={{fontSize:10,color:"#666"}}>{c.role}</div></div>
@@ -740,7 +772,13 @@ export function PreviewView({token}){
       redirectIfLive(data);
     };
     poll();
-    const iv=setInterval(poll,5000);
+    // Direct feedback: a helper's shared setup link should follow along
+    // "at the same time" the coach actually starts the practice -- a 5s
+    // poll made that feel laggy even once the real linking bug above was
+    // fixed. 2s is a reasonable floor for a plain poll (no realtime channel
+    // exists for an anonymous pre-live viewer to subscribe to, since the
+    // live session's real id is deliberately never exposed pre-link).
+    const iv=setInterval(poll,2000);
     return()=>{cancelled=true;clearInterval(iv);};
   },[token,redirectIfLive]);
 
@@ -1025,6 +1063,7 @@ function HelperView({token}){
   const [markingId,setMarkingId]=useState(null);
   const [showAudioPrompt,setShowAudioPrompt]=useState(true);
   const [previewUpcoming,setPreviewUpcoming]=useState(null);
+  const [showPlayerFocus,setShowPlayerFocus]=useState(false);
   const spokenRef=useRef({});
   const buzzedRef=useRef(false);
 
@@ -1183,6 +1222,7 @@ function HelperView({token}){
       {isCl&&cur&&<div className="cc-focus"><div className="cc-focus-lbl">{cur.name}</div>{(cur.items||[]).map(it=>(<div key={it.id} className="cl-item"><div className="cl-check"/><div className="cl-text">{it.text}</div></div>))}</div>}
       {!isBlock&&!isCl&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
         <HelperSkillTags names={cur.skill_tags}/>
+        {cur.skill_tags&&cur.skill_tags.length>0&&<button type="button" className="btn ghost bsm" style={{alignSelf:"flex-start"}} onClick={()=>setShowPlayerFocus(true)}>Player Focus</button>}
         {cur.description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
           <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{cur.description}</div>
@@ -1288,7 +1328,42 @@ function HelperView({token}){
           </div>);
         })}
       </div>}
+      {/* Direct feedback: helper view should look like the coach's live view
+          (read only) -- the coach's own screen has a persistent "Up Next"
+          preview row here (not just the Overview toggle above), so this
+          adds the same thing, same spoiler-avoidance during a mid-block
+          rotation (showing the *real* next rotation before it happens would
+          give away who's about to move where). */}
+      {isBlock&&blockRotate&&!inBlockIntro&&!inTrans&&stIdx<n-1?(
+        <div className="cc-queue">
+          <div style={{padding:"6px 12px",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>Up Next</div>
+          <div className="cc-queue-item" style={{width:"100%"}}><span style={{fontSize:14,color:"var(--black2)"}}>Station rotation coming up</span></div>
+        </div>
+      ):(upcoming.slice(0,3).length>0&&<div className="cc-queue">
+        <div style={{padding:"6px 12px",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>Up Next</div>
+        {upcoming.slice(0,3).map((a,i)=>(<button key={i} type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={()=>setPreviewUpcoming(toPreviewItem(a))}>
+          <span style={{fontSize:14,color:"var(--black2)"}}>{a.type==="station_block"?"Station Block":a.name}</span>
+          <span className="bdg bs">{upcomingMins(a)}m</span>
+        </button>))}
+      </div>)}
     </div>
+    {showPlayerFocus&&cur&&<div className="movly" onClick={()=>setShowPlayerFocus(false)}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="mhandle"/>
+        <div className="mtitle">Player Focus</div>
+        <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>What each present player is working on for {(cur.skill_tags||[]).join(", ")||"this drill"}.</div>
+        {(()=>{
+          const focus=cur.player_focus||{};
+          const withNotes=roster.filter(p=>p.status==="present"&&focus[p.id]);
+          if(!withNotes.length)return <div style={{fontSize:14,color:"var(--td)",textAlign:"center",padding:"16px 0"}}>No player notes set for this yet.</div>;
+          return withNotes.map(p=>(<div key={p.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--black)"}}>{p.jersey_number?"#"+p.jersey_number+" ":""}{p.first_name}</div>
+            <div style={{fontSize:13,color:"var(--black2)",marginTop:2}}>{focus[p.id]}</div>
+          </div>));
+        })()}
+        <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>setShowPlayerFocus(false)}>Close</button>
+      </div>
+    </div>}
   </div>);
 }
 // ── CommandScreen ─────────────────────────────────────────────────────────────
@@ -1327,37 +1402,107 @@ async function seedAllStationGroups(sessionId, activities, presentIds, mode, cre
 // and removes activities, then hands the new list back to the caller, which
 // is responsible for re-pointing the live session at whatever now sits at
 // index 0 (see onSaveResume in CommandScreen below).
+// Direct feedback: mid-live "Edit Practice" opened a bare-bones builder that
+// looked and behaved nothing like the real (modern) Builder screen -- no
+// drag reordering, no library source picker (mine/org/peer/public), no
+// equipment-mismatch check, old row header/subtext. Rebuilt in place (not a
+// real navigation to /builder/:id -- that would unmount CommandScreen and
+// lose the live-session refs/closures onSaveResume relies on to safely
+// resume the run) using the exact same reusable pieces the real Builder
+// screen (App.jsx) already uses, so a coach editing mid-live gets the same
+// experience as editing anywhere else, just without Save-as-Template/
+// Run Now/schedule fields, which don't apply here.
 function LiveEditBuilder({data,coachId,refreshLibrary,liveActs,team,loc,onSaveResume,onBack}){
   const [acts,setActs]=useState(()=>JSON.parse(JSON.stringify(liveActs||[])));
   const [expandedId,setExpandedId]=useState(null);
   const [saving,setSaving]=useState(false);
   const teamSport=(team&&team.sport)||"General";
   const filteredLib=(data.activityLibrary||[]).filter(a=>(a.sport||"General")===teamSport||(a.sport||"General")==="General");
-  const headCoach=(team&&(team.coaches.find(c=>c.role==="Head Coach")||team.coaches[0]))||null;
-  const headCoachId=(headCoach&&headCoach.id)||"";
   const defaultAssignIds=team?team.players.map(p=>p.id):[];
   const totalMins=sumMins(acts);
 
-  const addAct=lib=>{
-    setActs(p=>[...p,{id:uid(),type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:defaultAssignIds,coachId:headCoachId,sublocationId:"",notes:"",description:lib.description||"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);
+  const [lastAddedId,setLastAddedId]=useState(null);
+  const assetsById=Object.fromEntries((data.assets||[]).map(a=>[a.id,a]));
+  const ownAssetPool=(data.assets||[]).filter(a=>a.ownerUserId===coachId);
+  const [equipmentDialogLib,setEquipmentDialogLib]=useState(null);
+  const addAct=(lib,equipmentOverride)=>{
+    const id=uid();
+    setActs(p=>[...p,{id,type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:defaultAssignIds,coachId:"",sublocationId:"",notes:"",description:lib.description||"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:equipmentOverride!==undefined?equipmentOverride:(Array.isArray(lib.equipment)?lib.equipment:[])}]);
+    setExpandedId(id);setLastAddedId(id);
+  };
+  const addActChecked=lib=>{
+    const missing=findMissingEquipment(lib.equipment,assetsById,ownAssetPool);
+    if(missing.length===0){addAct(lib);return;}
+    setEquipmentDialogLib(lib);
+  };
+  const resolveAndAdd=async(lib,createMissingEquipment)=>{
+    const resolvedIds=await resolveDrillEquipmentForCoach(coachId,lib.equipment,assetsById,ownAssetPool,createMissingEquipment);
+    addAct(lib,resolvedIds);
+    setEquipmentDialogLib(null);
+    if(createMissingEquipment)await refreshLibrary();
   };
   const addChecklist=isClose=>{
-    const a={id:uid(),type:"checklist",name:isClose?"Closer":"Intro",duration:5,assignments:defaultAssignIds,coachId:headCoachId,items:[],notes:""};
-    setActs(p=>[...p,a]);setExpandedId(a.id);
+    const a={id:uid(),type:"checklist",name:isClose?"Closer":"Intro",duration:5,assignments:defaultAssignIds,coachId:"",items:[],notes:""};
+    setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
   };
   const addBlock=()=>{
     const b={id:uid(),type:"station_block",rotate:true,stationDuration:10,transitionDuration:2,stations:[
-      {id:uid(),name:"Station 1",activityName:"",coachId:headCoachId,sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
+      {id:uid(),name:"Station 1",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
       {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
     ]};
-    setActs(p=>[...p,b]);setExpandedId(b.id);
+    setActs(p=>[...p,b]);setExpandedId(b.id);setLastAddedId(b.id);
   };
-  const remAct=id=>setActs(p=>p.filter(a=>a.id!==id));
+  const remAct=id=>{setActs(p=>p.filter(a=>a.id!==id));if(lastAddedId===id)setLastAddedId(null);};
   const updAct=(id,ch)=>setActs(p=>p.map(a=>a.id===id?Object.assign({},a,ch):a));
   const updSt=(aid,sid,ch)=>setActs(p=>p.map(a=>a.id===aid?Object.assign({},a,{stations:a.stations.map(s=>s.id===sid?Object.assign({},s,ch):s)}):a));
+  const {sensors:dndSensors,onDragEnd:onActDragEnd}=useActivityDnd(setActs);
+
+  // Same library-source switcher (My/Org/Peer/Public Library) the real
+  // Builder screen has -- resolved from this same `data`/`team`/`coachId`
+  // shape, since CommandScreen receives the identical app data object.
+  const coachNameByUserId=useMemo(()=>{
+    const m={};
+    (data.teams||[]).forEach(t=>(t.coaches||[]).forEach(c=>{if(c.userId&&!m[c.userId])m[c.userId]=c.name;}));
+    return m;
+  },[data.teams]);
+  const coachDisplayName=userId=>(data.profilesById&&data.profilesById[userId]&&data.profilesById[userId].name)||coachNameByUserId[userId]||"A coach";
+  const librarySources=useMemo(()=>{
+    const sources=[{key:"mine",label:"My Library"}];
+    if(team&&team.organizationId){
+      const org=(data.myOrgs||[]).find(o=>o.id===team.organizationId);
+      sources.push({key:"org",label:(org?org.name:"Org")+" Library"});
+    }
+    const peerIds=[...new Set(data.activityLibrary.filter(a=>a.ownerUserId&&a.ownerUserId!==coachId&&!a.organizationId&&!a.sourceCatalogId).map(a=>a.ownerUserId))];
+    peerIds.forEach(pid=>{sources.push({key:"peer:"+pid,label:coachDisplayName(pid)+"'s Library"});});
+    if(data.activityLibrary.some(a=>a.sourceCatalogId&&(a.sport||"General")===teamSport))sources.push({key:"public",label:"Public Library"});
+    return sources;
+  },[team,data.activityLibrary,data.myOrgs,coachId,teamSport,coachNameByUserId,data.profilesById]);
+  const [libSource,setLibSource]=useState("mine");
+  const sourceFilteredLib=filteredLib.filter(a=>{
+    if(libSource==="mine")return a.ownerUserId===coachId&&!a.sourceCatalogId;
+    if(libSource==="org")return a.organizationId===(team&&team.organizationId)&&!a.sourceCatalogId;
+    if(libSource==="public")return !!a.sourceCatalogId;
+    if(libSource.startsWith("peer:"))return a.ownerUserId===libSource.slice(5)&&!a.sourceCatalogId;
+    return !a.sourceCatalogId;
+  });
+
+  const stickyHeaderRef=useRef(null);
+  const [stickyHeaderH,setStickyHeaderH]=useState(0);
+  useEffect(()=>{
+    const el=stickyHeaderRef.current;
+    if(!el)return;
+    const ro=new ResizeObserver(()=>setStickyHeaderH(el.offsetHeight));
+    ro.observe(el);
+    return()=>ro.disconnect();
+  },[]);
+
+  const leaderName=act=>{
+    const c=act.coachId&&team&&team.coaches.find(c=>c.id===act.coachId);
+    return (c&&c.name)||"Unassigned";
+  };
 
   return (<div style={{padding:"0 0 calc(var(--tab) + 20px)"}}>
-    <div style={{padding:"10px 14px",display:"flex",gap:6,position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
+    <div ref={stickyHeaderRef} style={{padding:"10px 14px",display:"flex",gap:6,position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
       <button className="btn ghost bsm" style={{flex:1}} onClick={onBack} disabled={saving}>Cancel</button>
       <button className="btn primary bsm" style={{flex:2}} disabled={saving} onClick={async()=>{setSaving(true);await onSaveResume(acts);}}>{saving?"Saving...":"Save & Resume"}</button>
     </div>
@@ -1369,18 +1514,24 @@ function LiveEditBuilder({data,coachId,refreshLibrary,liveActs,team,loc,onSaveRe
         <span className="sectitle">{acts.length} Activities</span>
         <span className="pill">{totalMins}m</span>
       </div>)}
-      {acts.map((act,i)=>(<div key={act.id}>
+      {acts.length>0&&(<ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
+      {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId} stickyTop={stickyHeaderH}>{dragHandle=>(<div>
         <div className="ablk">
-          <div className="abhdr" onClick={()=>setExpandedId(expandedId===act.id?null:act.id)}>
-            <div style={{display:"flex",flexDirection:"column",gap:2,marginRight:6,flexShrink:0}}>
-              <button onClick={e=>{e.stopPropagation();if(i>0)setActs(p=>{const a=[...p];[a[i-1],a[i]]=[a[i],a[i-1]];return a;});}} disabled={i===0} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===0?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8593;</button>
-              <button onClick={e=>{e.stopPropagation();if(i<acts.length-1)setActs(p=>{const a=[...p];[a[i],a[i+1]]=[a[i+1],a[i]];return a;});}} disabled={i===acts.length-1} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",color:i===acts.length-1?"var(--s3)":"var(--td)",fontSize:14,lineHeight:1}}>&#8595;</button>
-            </div>
+          <div className="abhdr" onClick={()=>{const willExpand=expandedId!==act.id;setExpandedId(willExpand?act.id:null);if(act.id===lastAddedId)setLastAddedId(null);}}>
+            {dragHandle}
             <div style={{flex:1,minWidth:0}}>
               <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                 {act.type==="station_block"?"Station Block":act.name}
+                {act.type==="activity"&&<span style={{fontWeight:400,color:"var(--td)"}}> · {leaderName(act)}</span>}
               </div>
-              {act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m</div>:<div className="limt">{act.duration}min</div>}
+              {act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m</div>:
+              <div className="limt">{(()=>{
+                const g=act.grouping||"whole";
+                const groupingText=g==="whole"?"Whole Team":g==="partners"?"Partners":(act.numGroups||2)+" Groups";
+                const areaText=loc&&act.sublocationId?(loc.sublocations.find(s=>s.id===act.sublocationId)||{}).name:null;
+                const equipText=(Array.isArray(act.equipment)?act.equipment:[]).map(id=>{const a=(data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean).join(", ");
+                return [groupingText,areaText,equipText].filter(Boolean).join(" · ");
+              })()}</div>}
             </div>
             <div className="row">
               {act.type!=="station_block"&&<span className="bdg bp">{act.duration}m</span>}
@@ -1391,10 +1542,12 @@ function LiveEditBuilder({data,coachId,refreshLibrary,liveActs,team,loc,onSaveRe
           {expandedId===act.id&&(<div className="abbody">
             {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
             {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-            {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
+            {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport} libraryDrills={sourceFilteredLib} librarySources={librarySources} libSource={libSource} setLibSource={setLibSource} skillTags={data.skillTags}/>}
           </div>)}
         </div>
-      </div>))}
+      </div>)}</SortableActivityRow>
+      ))}
+      </ActivityDndContext>)}
       <div style={{borderTop:"1px solid var(--b)",paddingTop:14}}>
         <div className="sechdr mb8"><span className="sectitle">Add Drills</span></div>
         <div className="g2" style={{marginBottom:6}}>
@@ -1405,13 +1558,22 @@ function LiveEditBuilder({data,coachId,refreshLibrary,liveActs,team,loc,onSaveRe
           <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">2 stations, add or remove as needed</div></div>
           <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
         </div>
+        <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--black)",color:"#fff",padding:"9px 12px",borderRadius:"var(--r)",marginBottom:8,minHeight:40}}>
+          {librarySources.length>1?(
+            <select value={libSource} onChange={e=>setLibSource(e.target.value)} style={{flex:1,background:"rgba(255,255,255,.12)",color:"#fff",border:"1px solid rgba(255,255,255,.3)",borderRadius:6,padding:"5px 6px",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".04em",textTransform:"uppercase"}}>
+              {librarySources.map(s=>(<option key={s.key} value={s.key} style={{color:"#000"}}>{s.label}</option>))}
+            </select>
+          ):(<span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flex:1}}>My Library</span>)}
+        </div>
         {team&&<div className="clbl" style={{marginBottom:8}}>{teamSport} + General</div>}
-        {filteredLib.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>addAct(lib)}>
-          <div className="lim"><div className="lin">{lib.name}</div><div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div></div>
+        {sourceFilteredLib.length===0&&<div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>No drills here yet.</div>}
+        {sourceFilteredLib.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>addActChecked(lib)}>
+          <div className="lim"><div className="lin">{lib.name}</div><div className="limt">{lib.description||""}</div></div>
           <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
         </div>))}
       </div>
     </div>
+    {equipmentDialogLib&&<EquipmentMismatchDialog drillName={equipmentDialogLib.name} missing={findMissingEquipment(equipmentDialogLib.equipment,assetsById,ownAssetPool)} context="practice" onAddWithEquipment={()=>resolveAndAdd(equipmentDialogLib,true)} onAddAnyway={()=>resolveAndAdd(equipmentDialogLib,false)} onCancel={()=>setEquipmentDialogLib(null)}/>}
   </div>);
 }
 
@@ -2389,16 +2551,15 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   }
 
   if(stage==="attend"||showAtt){const attBack=()=>{if(showAtt){setShowAtt(false);}else{setLiveId(null);setStage("pick");goHome();}};
-    // Fresh session start: default present-set excludes players marked out
-    // in advance (§7) -- the coach can still tap them back in if they show
-    // up anyway. This is the only place planned absences feed the live run;
-    // the normal submitAttendanceSnapshot call then records them correctly,
-    // no separate seed step.
-    const freshPresent=team?team.players.map(p=>p.id).filter(id=>!plannedAbsentIds.has(id)):[];
+    // Fresh session start: nobody is pre-checked present (see
+    // PracticeSetupScreen's own default) -- a player marked out in advance
+    // (§7) just stays unchecked like everyone else until someone taps them
+    // in, so there's no separate exclusion step needed here anymore.
+    const freshPresent=[];
     return (<>
       {showAtt
         ?<AttendanceScreen key="upd" practice={practice} team={team} isUpdate initialPresent={[...presentIds]} initialCoachPresent={[...coachPresentIds]} onConfirm={handleAttUpdate} onBack={attBack}/>
-        :<PracticeSetupScreen practice={practice} team={team} data={data} coachId={coachId} isController={isController} amHeadCoach={amHeadCoach} stationBlockActs={stationBlockActs} setupGroups={setupGroups} onMoveGroupPlayer={moveSetupGroupPlayer} onRegenerateGroups={regenerateSetupGroups} initialPresent={freshPresent} onConfirm={handleAttConfirm} onBack={attBack} onReassignLead={setReassignStationId} onReassignActivityLead={setReassignActivityId} onEditPractice={()=>setShowEditBuilder(true)}/>}
+        :<PracticeSetupScreen practice={practice} team={team} data={data} coachId={coachId} isController={isController} amHeadCoach={amHeadCoach} stationBlockActs={stationBlockActs} setupGroups={setupGroups} onMoveGroupPlayer={moveSetupGroupPlayer} onRegenerateGroups={regenerateSetupGroups} initialPresent={freshPresent} onConfirm={handleAttConfirm} onBack={attBack} onReassignLead={setReassignStationId} onReassignActivityLead={setReassignActivityId} onEditPractice={()=>setShowEditBuilder(true)} session={session}/>}
       {!showAtt&&reassignStationId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setReassignStationId(null);setHelperDraft("");}}}>
         <div className="modal" style={{background:"#0d1512",color:"#fff"}}><div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
           <div className="mtitle" style={{color:"#fff"}}>Assign Station Leader</div>
