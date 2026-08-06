@@ -206,62 +206,72 @@ function LeaderTapTarget({label,onTap,disabled}){
   return (<button type="button" disabled={disabled} onClick={onTap} style={{background:label?"rgba(82,183,136,.22)":"rgba(245,158,11,.18)",border:"1.5px solid "+(label?"#52b788":"#f59e0b"),borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:700,color:label?"#fff":"#fde68a",cursor:disabled?"default":"pointer"}}>{label||"Unassigned"}</button>);
 }
 
-// Computes a read-only preview of how players would currently split for a
-// drill's own Partners/Groups setting, or a station block's rotation --
-// direct feedback: coaches wanted an optional way to sanity-check groupings
-// against *today's* actual attendance without it being a required step.
-// Purely informational (never persisted) for a plain drill, since nothing
-// about partners/groups is assigned ahead of time the way a station's own
-// live session_groups are; for a station block, prefers the real current
-// setupGroups so this matches what StationBlockSetupRow's own leader/
-// equipment view is already showing.
+// Reads the real, already-seeded-and-persisted groupings for a drill's own
+// Partners/Groups split or a station block's rotation -- direct feedback,
+// two rounds: the dialog used to compute a fresh assignGroups() (a random
+// shuffle) inline during render, which re-ran and reshuffled on every
+// parent re-render (the countdown ticks setNow every second), looking
+// exactly like someone was hammering a shuffle button the whole time it
+// was open. Fixed at the source: CommandScreen's own setupGroups-seeding
+// effect now generates a drill's split *once*, saves it via
+// saveSessionGroups the same way a station block's rotation already was,
+// and this function only ever reads that stable, editable state -- never
+// computes its own randomness.
 function computeGroupingsPreview({kind,act,presentPlayers,setupGroups}){
-  if(kind==="drill"){
-    const grouping=act.grouping||"whole";
-    if(grouping==="whole")return null;
-    const n=grouping==="groups"?(act.numGroups||2):Math.ceil(presentPlayers.length/2)||1;
-    const groups=assignGroups(presentPlayers,grouping,act.numGroups).map((g,i)=>({label:grouping==="partners"?"Pair "+(i+1):"Group "+(i+1),players:g}));
-    const sizes=groups.map(g=>g.players.length);
-    const uneven=presentPlayers.length===0?false:(Math.max(...sizes)-Math.min(...sizes)>1);
-    return {groups,uneven,unevenNote:uneven?presentPlayers.length+" players don't split evenly -- one "+(grouping==="partners"?"pair":"group")+" will be short.":"",preview:true};
-  }
-  // station_block
-  const stCount=act.stations.length;
   const saved=setupGroups[act.id];
-  const groupsIdArrays=saved||act.stations.map(st=>st.assignments||[]);
+  if(!saved)return null;
   const presentIds=new Set(presentPlayers.map(p=>p.id));
   const assignedAnywhere=new Set();
-  const groups=act.stations.map((st,i)=>{
-    const ids=(groupsIdArrays[i]||[]).filter(id=>presentIds.has(id));
-    ids.forEach(id=>assignedAnywhere.add(id));
-    return {label:st.name||"Station "+(i+1),players:ids.map(id=>presentPlayers.find(p=>p.id===id)).filter(Boolean)};
+  const labelFor=i=>kind==="drill"
+    ?(act.grouping==="partners"?"Pair ":"Group ")+(i+1)
+    :((act.stations[i]&&(act.stations[i].name||act.stations[i].activityName))||"Station "+(i+1));
+  const groups=saved.map((ids,i)=>{
+    const here=(ids||[]).filter(id=>presentIds.has(id));
+    here.forEach(id=>assignedAnywhere.add(id));
+    return {label:labelFor(i),players:here.map(id=>presentPlayers.find(p=>p.id===id)).filter(Boolean)};
   });
   const unassigned=presentPlayers.filter(p=>!assignedAnywhere.has(p.id));
   const sizes=groups.map(g=>g.players.length);
   const uneven=(presentPlayers.length>0&&sizes.length>0&&(Math.max(...sizes)-Math.min(...sizes)>1))||unassigned.length>0;
   const notes=[];
-  if(unassigned.length)notes.push(unassigned.length+" present player"+(unassigned.length===1?"":"s")+" not yet assigned to a station.");
-  if(!unassigned.length&&presentPlayers.length>0&&sizes.length>0&&Math.max(...sizes)-Math.min(...sizes)>1)notes.push("Stations aren't evenly split for "+presentPlayers.length+" present players.");
-  return {groups,uneven,unevenNote:notes.join(" "),preview:false};
+  const noun=kind==="drill"?"group":"station";
+  if(unassigned.length)notes.push(unassigned.length+" present player"+(unassigned.length===1?"":"s")+" not yet assigned to a "+noun+".");
+  if(!unassigned.length&&uneven)notes.push((kind==="drill"?"Groups aren't":"Stations aren't")+" evenly split for "+presentPlayers.length+" present players.");
+  return {groups,uneven,unevenNote:notes.join(" "),activityId:act.id,unitLabel:kind==="drill"?"group":"station"};
 }
-function GroupingsDialog({title,data,onClose}){
+// Direct feedback: "add player grouping management, ... tap to reassign" --
+// tapping a player chip opens the same small "move to which group/station"
+// picker the app already uses elsewhere, backed by moveSetupGroupPlayer
+// (which persists via saveSessionGroups, same as everything else here).
+function GroupingsDialog({title,data,onClose,onMovePlayer}){
+  const [movePicker,setMovePicker]=useState(null); // {playerId,fromIdx}
   if(!data)return null;
-  return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-    <div className="modal" style={{background:"#0d1512",color:"#fff",border:"1px solid rgba(255,255,255,.12)"}}>
-      <div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
-      <div className="mtitle" style={{color:"#fff"}}>{title}</div>
-      {data.preview&&<div style={{fontSize:11,color:"#8fa89b",marginBottom:10}}>Preview only, based on who's checked in as present right now -- not saved anywhere.</div>}
-      {data.uneven&&<div style={{fontSize:12,color:"#fca5a5",fontWeight:600,marginBottom:12,background:"rgba(220,38,38,.15)",border:"1px solid rgba(248,113,113,.4)",borderRadius:8,padding:"8px 10px"}}>{data.unevenNote}</div>}
-      {data.groups.map((g,i)=>(<div key={i} style={{marginBottom:12}}>
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"#8fa89b",marginBottom:6}}>{g.label}</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-          {g.players.map(p=>(<span key={p.id} style={{padding:"6px 12px",borderRadius:20,background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.25)",fontSize:13,fontWeight:600,color:"#fff"}}>{p.jersey&&<span style={{fontFamily:"DM Mono,monospace",color:"#52b788",marginRight:4}}>#{p.jersey}</span>}{p.firstName}</span>))}
-          {g.players.length===0&&<span style={{fontSize:12,color:"#8fa89b"}}>No players</span>}
-        </div>
-      </div>))}
-      <button className="btn ghost bmd bfull" style={{marginTop:4,color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={onClose}>Close</button>
+  return (<>
+    <div className="movly" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal" style={{background:"#0d1512",color:"#fff",border:"1px solid rgba(255,255,255,.12)"}}>
+        <div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
+        <div className="mtitle" style={{color:"#fff"}}>{title}</div>
+        {onMovePlayer&&<div style={{fontSize:11,color:"#8fa89b",marginBottom:10}}>Tap a player to move them.</div>}
+        {data.uneven&&<div style={{fontSize:12,color:"#fca5a5",fontWeight:600,marginBottom:12,background:"rgba(220,38,38,.15)",border:"1px solid rgba(248,113,113,.4)",borderRadius:8,padding:"8px 10px"}}>{data.unevenNote}</div>}
+        {data.groups.map((g,i)=>(<div key={i} style={{marginBottom:12}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"#8fa89b",marginBottom:6}}>{g.label}</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {g.players.map(p=>(<button key={p.id} type="button" disabled={!onMovePlayer} onClick={()=>onMovePlayer&&setMovePicker({playerId:p.id,fromIdx:i})} style={{padding:"6px 12px",borderRadius:20,background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.25)",fontSize:13,fontWeight:600,color:"#fff",cursor:onMovePlayer?"pointer":"default"}}>{p.jersey&&<span style={{fontFamily:"DM Mono,monospace",color:"#52b788",marginRight:4}}>#{p.jersey}</span>}{p.firstName}</button>))}
+            {g.players.length===0&&<span style={{fontSize:12,color:"#8fa89b"}}>No players</span>}
+          </div>
+        </div>))}
+        <button className="btn ghost bmd bfull" style={{background:"transparent",marginTop:4,color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={onClose}>Close</button>
+      </div>
     </div>
-  </div>);
+    {movePicker&&<div className="movly" style={{zIndex:400}} onClick={e=>{if(e.target===e.currentTarget)setMovePicker(null);}}>
+      <div className="modal" style={{background:"#0d1512",color:"#fff",border:"1px solid rgba(255,255,255,.12)"}}>
+        <div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
+        <div className="mtitle" style={{color:"#fff"}}>Move to which {data.unitLabel}?</div>
+        {data.groups.map((g,i)=>(<button key={i} className="btn outline bmd bfull" style={{background:"transparent",marginBottom:8,color:"#fff",borderColor:i===movePicker.fromIdx?"rgba(255,255,255,.15)":"#52b788"}} disabled={i===movePicker.fromIdx} onClick={()=>{onMovePlayer(movePicker.playerId,i);setMovePicker(null);}}>{g.label}</button>))}
+        <button className="btn ghost bmd bfull" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>setMovePicker(null)}>Cancel</button>
+      </div>
+    </div>}
+  </>);
 }
 
 // A single non-station Run of Practice row -- direct feedback: needs a
@@ -289,7 +299,7 @@ function SetupActivityRow({act,loc,data,team,isController,onReassignActivityLead
     <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:8,marginTop:8}}>
       {isController?<LeaderTapTarget label={label} onTap={()=>onReassignActivityLead(act.id)}/>:(label&&<span style={{fontSize:12,color:"#8fa89b"}}>{label}</span>)}
       {locName&&<span style={{fontSize:12,color:"#52b788",fontWeight:600}}>{locName}</span>}
-      {hasGrouping&&<button type="button" className="btn ghost bxs" style={{color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>onViewGroupings({kind:"drill",act,title:act.name+" -- Groupings"})}>View Groupings</button>}
+      {hasGrouping&&<button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>onViewGroupings({kind:"drill",act,title:act.name+" -- Groupings"})}>View Groupings</button>}
     </div>
     {equip.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:8}}>{equip.map((e,j)=>(<EquipPill key={j} e={e}/>))}</div>}
     {expanded&&(act.description||act.coachingPoints)&&<div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,.08)"}}>
@@ -318,7 +328,7 @@ function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onV
     <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:10}}>
       <span style={{fontSize:11,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#52b788"}}>{act.rotate!==false?"Rotates":"Static"}</span>
       <span style={{fontSize:12,color:"#8fa89b"}}>{act.stationDuration}m per station{act.rotate!==false?" · "+act.transitionDuration+"m transition":""}</span>
-      <button type="button" className="btn ghost bxs" style={{color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>onViewGroupings({kind:"station_block",act,title:"Station Groupings"})}>View Groupings</button>
+      <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>onViewGroupings({kind:"station_block",act,title:"Station Groupings"})}>View Groupings</button>
     </div>
     {act.stations.map((st,si)=>{
       const stEquip=equipNamesFor(st.equipment,data);
@@ -345,7 +355,7 @@ function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onV
 // /preview/:token link already used, not a bare attendance form. A live
 // countdown to the scheduled start replaces that same need for a coach
 // who's signed in rather than viewing an anonymous share link.
-function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoach,stationBlockActs,setupGroups,initialPresent,onConfirm,onBack,onReassignLead,onReassignActivityLead,onEditPractice}){
+function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoach,stationBlockActs,setupGroups,onMoveGroupPlayer,initialPresent,onConfirm,onBack,onReassignLead,onReassignActivityLead,onEditPractice}){
   const allIds=team?team.players.map(p=>p.id):[];
   const [present,setPresent]=useState(()=>new Set(initialPresent||allIds));
   const [coachPresent,setCoachPresent]=useState(()=>new Set(team?team.coaches.map(c=>c.id):[]));
@@ -474,7 +484,7 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
     <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#0d1512",borderTop:"1px solid rgba(255,255,255,.1)",padding:"12px 20px calc(12px + env(safe-area-inset-bottom))",zIndex:50}}>
       <button className="btn primary bfull bmd" onClick={()=>onConfirm({presentIds:present,coachPresentIds:coachPresent,balanceMode:"keep"})}>Run Practice</button>
     </div>
-    {groupingsFor&&<GroupingsDialog title={groupingsFor.title} data={computeGroupingsPreview({kind:groupingsFor.kind==="station_block"?"station_block":"drill",act:groupingsFor.act,presentPlayers,setupGroups})} onClose={()=>setGroupingsFor(null)}/>}
+    {groupingsFor&&<GroupingsDialog title={groupingsFor.title} data={computeGroupingsPreview({kind:groupingsFor.kind==="station_block"?"station_block":"drill",act:groupingsFor.act,presentPlayers,setupGroups})} onClose={()=>setGroupingsFor(null)} onMovePlayer={isController&&onMoveGroupPlayer?(playerId,toIdx)=>onMoveGroupPlayer(groupingsFor.act.id,playerId,toIdx):null}/>}
   </div>);
 }
 
@@ -1937,22 +1947,68 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   // reassignment -- never touches the saved plan), so it's naturally
   // already there once Start Practice hands off to the real live view. ──
   const stationBlockActs=liveActs.filter(a=>a.type==="station_block");
-  const stationBlockActsKey=stationBlockActs.map(a=>a.id).join(",");
+  // Direct feedback: the groupings dialog "constantly cycled" -- computing
+  // a fresh assignGroups() (internally a random shuffle) inline during
+  // render meant every render (the countdown ticks setNow every second)
+  // reshuffled it again, indistinguishable from someone repeatedly hitting
+  // Generate Random. Extended this exact same fetch-or-seed-once pattern
+  // (already used for a plain activity's own partners/groups split once
+  // it's actually live, see the effect above) to *also* run during
+  // Practice Setup for any non-station activity with grouping!=="whole" --
+  // not just station blocks -- so its split is generated once, saved, and
+  // stable across re-renders and dialog reopens, and (direct feedback)
+  // editable via the same tap-to-move picker stations already use.
+  const groupableActs=liveActs.filter(a=>a.type==="station_block"||(a.grouping&&a.grouping!=="whole"));
+  const groupableActsKey=groupableActs.map(a=>a.id).join(",");
   const [setupGroups,setSetupGroups]=useState({});
   useEffect(()=>{
-    if(!session||stage!=="attend"||showAtt||!stationBlockActsKey){setSetupGroups({});return;}
+    if(!session||stage!=="attend"||showAtt||!groupableActsKey){setSetupGroups({});return;}
     let cancelled=false;
     (async()=>{
       const results={};
-      for(const act of stationBlockActs){
+      for(const act of groupableActs){
         const existing=await fetchLatestGroups(session.id,act.id);
-        results[act.id]=(existing&&existing.length)?existing:(act.stations||[]).map(st=>st.assignments||[]);
+        if(existing&&existing.length){results[act.id]=existing;continue;}
+        if(act.type==="station_block"){
+          results[act.id]=(act.stations||[]).map(st=>st.assignments||[]);
+          continue;
+        }
+        // Plain drill (partners/groups): no plan-time assignment exists to
+        // fall back to -- generate one now, from every present-by-default
+        // player (mirrors freshPresent's own planned-absence exclusion),
+        // and save it immediately so it's the same stable split every
+        // viewer/reopen sees from here on, not a fresh random guess.
+        const presentDefault=team?team.players.map(p=>p.id).filter(id=>!plannedAbsentIds.has(id)):[];
+        const players=(team?team.players:[]).filter(p=>presentDefault.includes(p.id));
+        const groups=assignGroups(players,act.grouping,act.numGroups||2).map(g=>g.map(p=>p.id));
+        results[act.id]=groups;
+        if(!cancelled)await saveSessionGroups(session.id,act.id,coachId,groups);
       }
       if(!cancelled)setSetupGroups(results);
     })();
     return()=>{cancelled=true;};
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[session?.id,stage,showAtt,stationBlockActsKey]);
+  },[session?.id,stage,showAtt,groupableActsKey]);
+  // Generalizes the old per-station-block moveSetupPlayer (removed when
+  // Practice Setup stopped showing players inline) to any groupable
+  // activity -- a station block's "which station" split and a plain
+  // drill's "which partner/group" split are both just an array of id
+  // arrays under the hood, so one handler covers the groupings dialog's
+  // tap-to-move for either kind.
+  const moveSetupGroupPlayer=useCallback(async(activityId,playerId,toIdx)=>{
+    if(!session)return;
+    const groups=setupGroups[activityId];
+    if(!groups)return;
+    const fromIdx=groups.findIndex(g=>g.includes(playerId));
+    if(fromIdx===-1||fromIdx===toIdx)return;
+    const newGroups=groups.map((g,i)=>{
+      if(i===fromIdx)return g.filter(id=>id!==playerId);
+      if(i===toIdx)return [...g,playerId];
+      return g;
+    });
+    setSetupGroups(p=>Object.assign({},p,{[activityId]:newGroups}));
+    await saveSessionGroups(session.id,activityId,coachId,newGroups);
+  },[session,setupGroups,coachId]);
 
   const handleAttConfirm=useCallback(async({presentIds:pIds,coachPresentIds:cIds,balanceMode})=>{
     setPresentIds(pIds);setCoachPresentIds(cIds);
@@ -2239,29 +2295,29 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     return (<>
       {showAtt
         ?<AttendanceScreen key="upd" practice={practice} team={team} isUpdate initialPresent={[...presentIds]} initialCoachPresent={[...coachPresentIds]} onConfirm={handleAttUpdate} onBack={attBack}/>
-        :<PracticeSetupScreen practice={practice} team={team} data={data} coachId={coachId} isController={isController} amHeadCoach={amHeadCoach} stationBlockActs={stationBlockActs} setupGroups={setupGroups} initialPresent={freshPresent} onConfirm={handleAttConfirm} onBack={attBack} onReassignLead={setReassignStationId} onReassignActivityLead={setReassignActivityId} onEditPractice={()=>setShowEditBuilder(true)}/>}
+        :<PracticeSetupScreen practice={practice} team={team} data={data} coachId={coachId} isController={isController} amHeadCoach={amHeadCoach} stationBlockActs={stationBlockActs} setupGroups={setupGroups} onMoveGroupPlayer={moveSetupGroupPlayer} initialPresent={freshPresent} onConfirm={handleAttConfirm} onBack={attBack} onReassignLead={setReassignStationId} onReassignActivityLead={setReassignActivityId} onEditPractice={()=>setShowEditBuilder(true)}/>}
       {!showAtt&&reassignStationId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setReassignStationId(null);setHelperDraft("");}}}>
         <div className="modal" style={{background:"#0d1512",color:"#fff"}}><div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
           <div className="mtitle" style={{color:"#fff"}}>Assign Station Leader</div>
-          <button className="btn ghost bmd bfull" style={{marginBottom:8,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} disabled={reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:"",helperName:""})}>Unassign</button>
-          {team&&team.coaches.map(c=>(<button key={c.id} className="btn outline bmd bfull" style={{marginBottom:8,color:"#fff",borderColor:"#52b788"}} disabled={reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:c.id,helperName:""})}>{c.name}</button>))}
+          <button className="btn ghost bmd bfull" style={{background:"transparent",marginBottom:8,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} disabled={reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:"",helperName:""})}>Unassign</button>
+          {team&&team.coaches.map(c=>(<button key={c.id} className="btn outline bmd bfull" style={{background:"transparent",marginBottom:8,color:"#fff",borderColor:"#52b788"}} disabled={reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:c.id,helperName:""})}>{c.name}</button>))}
           <div style={{display:"flex",gap:6,marginTop:4}}>
             <input className="inp" style={{flex:1}} placeholder="Helper's name" autoFocus value={helperDraft} onChange={e=>setHelperDraft(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&helperDraft.trim())doSetLead(reassignStationId,{coachId:"",helperName:helperDraft.trim()});}}/>
             <button className="btn primary bxs" disabled={!helperDraft.trim()||reassignBusy} onClick={()=>doSetLead(reassignStationId,{coachId:"",helperName:helperDraft.trim()})}>Set</button>
           </div>
-          <button className="btn ghost bmd bfull" style={{marginTop:8,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} onClick={()=>{setReassignStationId(null);setHelperDraft("");}}>Cancel</button>
+          <button className="btn ghost bmd bfull" style={{background:"transparent",marginTop:8,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} onClick={()=>{setReassignStationId(null);setHelperDraft("");}}>Cancel</button>
         </div>
       </div>}
       {!showAtt&&reassignActivityId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setReassignActivityId(null);setHelperDraftAct("");}}}>
         <div className="modal" style={{background:"#0d1512",color:"#fff"}}><div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
           <div className="mtitle" style={{color:"#fff"}}>Assign Leader</div>
-          <button className="btn ghost bmd bfull" style={{marginBottom:8,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} disabled={reassignActBusy} onClick={()=>doSetActivityLead(reassignActivityId,{coachId:"",helperName:""})}>Unassign</button>
-          {team&&team.coaches.map(c=>(<button key={c.id} className="btn outline bmd bfull" style={{marginBottom:8,color:"#fff",borderColor:"#52b788"}} disabled={reassignActBusy} onClick={()=>doSetActivityLead(reassignActivityId,{coachId:c.id,helperName:""})}>{c.name}</button>))}
+          <button className="btn ghost bmd bfull" style={{background:"transparent",marginBottom:8,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} disabled={reassignActBusy} onClick={()=>doSetActivityLead(reassignActivityId,{coachId:"",helperName:""})}>Unassign</button>
+          {team&&team.coaches.map(c=>(<button key={c.id} className="btn outline bmd bfull" style={{background:"transparent",marginBottom:8,color:"#fff",borderColor:"#52b788"}} disabled={reassignActBusy} onClick={()=>doSetActivityLead(reassignActivityId,{coachId:c.id,helperName:""})}>{c.name}</button>))}
           <div style={{display:"flex",gap:6,marginTop:4}}>
             <input className="inp" style={{flex:1}} placeholder="Helper's name" autoFocus value={helperDraftAct} onChange={e=>setHelperDraftAct(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&helperDraftAct.trim())doSetActivityLead(reassignActivityId,{coachId:"",helperName:helperDraftAct.trim()});}}/>
             <button className="btn primary bxs" disabled={!helperDraftAct.trim()||reassignActBusy} onClick={()=>doSetActivityLead(reassignActivityId,{coachId:"",helperName:helperDraftAct.trim()})}>Set</button>
           </div>
-          <button className="btn ghost bmd bfull" style={{marginTop:8,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} onClick={()=>{setReassignActivityId(null);setHelperDraftAct("");}}>Cancel</button>
+          <button className="btn ghost bmd bfull" style={{background:"transparent",marginTop:8,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} onClick={()=>{setReassignActivityId(null);setHelperDraftAct("");}}>Cancel</button>
         </div>
       </div>}
     </>);}
