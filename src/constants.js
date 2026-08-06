@@ -19,6 +19,32 @@ export function stripIdsForCopy(acts){
   });
 }
 export const fmt12=(t)=>{if(!t)return"";const[h,m]=t.split(":").map(Number);const ampm=h>=12?"PM":"AM";const h12=h%12||12;return h12+":"+(m<10?"0":"")+m+" "+ampm;};
+// Direct feedback: an "Equipment Needed" list (Practice Setup, the pre-live
+// Preview link, and the PDF export all had their own copy of this) used to
+// just dedupe equipment by name across the whole practice, with no sense of
+// which drill/station it actually belonged to -- a coach glancing at "Cones"
+// had no way to tell who's expected to bring them or where. `items` is
+// [{equipment:[{name,acquired}]|[string], coachName, locationName}], one
+// entry per drill/station; returns one row per equipment name with every
+// distinct (coach, location) combination that needs it, deduped, so the
+// same pair isn't listed twice for two drills at the same spot.
+export function buildEquipmentNeeded(items){
+  const byName=new Map();
+  (items||[]).forEach(it=>{
+    const hasCtx=!!(it.coachName||it.locationName);
+    const ctxKey=(it.coachName||"")+"@@"+(it.locationName||"");
+    (it.equipment||[]).forEach(e=>{
+      const name=typeof e==="string"?e:e&&e.name;
+      if(!name)return;
+      const acquired=typeof e==="string"?true:!(e&&e.acquired===false);
+      let entry=byName.get(name);
+      if(!entry){entry={name,acquired:true,ctxSet:new Set(),contexts:[]};byName.set(name,entry);}
+      if(!acquired)entry.acquired=false;
+      if(hasCtx&&!entry.ctxSet.has(ctxKey)){entry.ctxSet.add(ctxKey);entry.contexts.push({coachName:it.coachName||null,locationName:it.locationName||null});}
+    });
+  });
+  return [...byName.values()].map(({name,acquired,contexts})=>({name,acquired,contexts}));
+}
 export const fmt=(s)=>{const neg=s<0;const abs=Math.abs(s);const m=Math.floor(abs/60),sec=abs%60;return(neg?"-":"")+String(m).padStart(2,"0")+":"+String(sec).padStart(2,"0");};
 export const actSecs=(a)=>{if(a.type==="station_block"){const n=(a.stations?a.stations.length:0);return(n*(a.stationDuration||0)+Math.max(0,n-1)*(a.transitionDuration||0))*60;}return(a.duration||0)*60;};
 export const sumMins=(acts)=>Math.round(acts.reduce((s,a)=>s+actSecs(a),0)/60);

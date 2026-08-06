@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI } from "../constants.js";
+import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, buildEquipmentNeeded } from "../constants.js";
 import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchPracticeActualStart, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
@@ -195,6 +195,10 @@ function leaderLabel(act,team){
   const c=act.coachId&&team&&team.coaches.find(c=>c.id===act.coachId);
   return (c&&c.name)||act.helperName||null;
 }
+// Same clock-time formatting the PDF export already uses (PracticePlanPrint.jsx)
+// -- shared here so Practice Setup's own per-row start/end times read
+// identically to what a coach would see on a printed sheet.
+function fmtClock(d){return d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});}
 function equipNamesFor(ids,data){
   return (Array.isArray(ids)?ids:[]).map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?{name:a.name,acquired:a.acquired!==false}:null;}).filter(Boolean);
 }
@@ -313,7 +317,7 @@ function GroupingsDialog({title,data,onClose,onMovePlayer,team,onReshuffle,onGro
 // default -- this is a review screen, not a wall of text), and an optional
 // "View Groupings" button whenever the drill actually has a Partners/Groups
 // split configured.
-function SetupActivityRow({act,loc,data,team,isController,onReassignActivityLead,onViewGroupings}){
+function SetupActivityRow({act,loc,data,team,isController,onReassignActivityLead,onViewGroupings,timeRange}){
   const [expanded,setExpanded]=useState(false);
   const subName=id=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:null;};
   const equip=equipNamesFor(act.equipment,data);
@@ -326,7 +330,10 @@ function SetupActivityRow({act,loc,data,team,isController,onReassignActivityLead
         <span style={{fontSize:15,fontWeight:700,color:"#fff"}}>{act.name}</span>
         <Ic.Chev up={expanded}/>
       </button>
-      <span style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"#8fa89b",flexShrink:0}}>{act.duration}m</span>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",flexShrink:0}}>
+        <span style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"#8fa89b"}}>{act.duration}m</span>
+        {timeRange&&<span style={{fontSize:10,color:"#666",fontFamily:"DM Mono,monospace"}}>{fmtClock(timeRange.start)}–{fmtClock(timeRange.end)}</span>}
+      </div>
     </div>
     <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:6,marginTop:8}}>
       <span style={{fontSize:11,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b"}}>Coach</span>
@@ -350,13 +357,22 @@ function SetupActivityRow({act,loc,data,team,isController,onReassignActivityLead
 // not a player-rotation view (that's what the groupings dialog is for, on
 // request). Each station's own leader is independently assignable, same
 // picker as a plain drill's.
-function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onViewGroupings}){
+function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onViewGroupings,timeRange}){
   const subName=id=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:null;};
   const totalMins=act.stations.length*(act.stationDuration||0)+Math.max(0,act.stations.length-1)*(act.rotate!==false?(act.transitionDuration||0):0);
+  // Direct feedback: a station's description/coaching points showed
+  // unconditionally here (unlike a plain drill's own row, which already
+  // gated the same content behind expanded) -- one tap-to-expand toggle
+  // per station, matching that same pattern.
+  const [expandedStations,setExpandedStations]=useState(new Set());
+  const toggleExpand=id=>setExpandedStations(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
   return (<div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"12px 14px",marginBottom:8}}>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
       <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:".03em"}}>Station Block</span>
-      <span style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"#8fa89b"}}>{totalMins}m</span>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end"}}>
+        <span style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"#8fa89b"}}>{totalMins}m</span>
+        {timeRange&&<span style={{fontSize:10,color:"#666",fontFamily:"DM Mono,monospace"}}>{fmtClock(timeRange.start)}–{fmtClock(timeRange.end)}</span>}
+      </div>
     </div>
     <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:10}}>
       <span style={{fontSize:11,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#52b788"}}>{act.rotate!==false?"Rotates":"Static"}</span>
@@ -367,14 +383,21 @@ function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onV
       const stEquip=equipNamesFor(st.equipment,data);
       const stLoc=subName(st.sublocationId);
       const label=leaderLabel(st,team);
+      const expanded=expandedStations.has(st.id);
       return (<div key={st.id} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",borderRadius:10,padding:"10px 12px",marginBottom:si<act.stations.length-1?8:0}}>
-        <div style={{fontSize:13,fontWeight:700,color:"#fff",marginBottom:6}}>{st.name||"Station "+(si+1)}{st.activityName?" · "+st.activityName:""}</div>
-        <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:6,marginBottom:(stLoc||st.coachingPoints||stEquip.length)?8:0}}>
+        <button type="button" onClick={()=>toggleExpand(st.id)} style={{background:"none",border:"none",padding:0,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:6,width:"100%",marginBottom:6}}>
+          <span style={{fontSize:13,fontWeight:700,color:"#fff",flex:1,minWidth:0}}>{st.name||"Station "+(si+1)}{st.activityName?" · "+st.activityName:""}</span>
+          {(st.description||st.coachingPoints)&&<Ic.Chev up={expanded}/>}
+        </button>
+        <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:6,marginBottom:(stLoc||stEquip.length)?8:0}}>
           <span style={{fontSize:11,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b"}}>Coach</span>
           {isController?<LeaderTapTarget label={label} onTap={()=>onReassignLead(st.id)}/>:(label&&<span style={{fontSize:12,color:"#8fa89b"}}>{label}</span>)}
           {stLoc&&<span style={{fontSize:12,color:"#52b788",fontWeight:600,marginLeft:2}}>{stLoc}</span>}
         </div>
-        {st.coachingPoints&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8,marginBottom:stEquip.length?6:0}}>{st.coachingPoints}</div>}
+        {expanded&&(st.description||st.coachingPoints)&&<div style={{marginBottom:stEquip.length?8:0}}>
+          {st.description&&<div style={{fontSize:12,color:"#ccc",lineHeight:1.4,marginBottom:st.coachingPoints?6:0}}>{st.description}</div>}
+          {st.coachingPoints&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8}}>{st.coachingPoints}</div>}
+        </div>}
         {stEquip.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4}}>{stEquip.map((e,j)=>(<EquipPill key={j} e={e}/>))}</div>}
       </div>);
     })}
@@ -435,15 +458,35 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
     return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
   };
   const acts=(practice&&practice.activities)||[];
-  const totalMins=acts.reduce((s,a)=>{
-    if(a.type==="station_block")return s+(a.stations.length*(a.stationDuration||0)+Math.max(0,a.stations.length-1)*(a.rotate!==false?(a.transitionDuration||0):0));
-    return s+(a.duration||0);
-  },0);
+  const actMinsFor=a=>a.type==="station_block"?(a.stations.length*(a.stationDuration||0)+Math.max(0,a.stations.length-1)*(a.rotate!==false?(a.transitionDuration||0):0)):(a.duration||0);
+  const totalMins=acts.reduce((s,a)=>s+actMinsFor(a),0);
+  // Direct feedback: same clock-anchored start/end logic the PDF export
+  // already computes (timeRangeFor there) -- only meaningful with a real
+  // scheduled start time to anchor to, same caveat as the PDF.
+  const timeRanges=(()=>{
+    if(scheduledMs===null)return acts.map(()=>null);
+    let cursor=scheduledMs;
+    return acts.map(a=>{
+      const mins=actMinsFor(a);
+      const start=new Date(cursor);
+      const end=new Date(cursor+mins*60000);
+      cursor=end.getTime();
+      return {start,end};
+    });
+  })();
   // Equipment Needed: aggregated across every drill/station in the whole
   // practice, deduped by name -- direct feedback this was the first section
   // of the original design and should come back as its own thing, ahead of
-  // the full per-drill Run of Practice breakdown below.
-  const allEquip=[...new Map(acts.flatMap(a=>a.type==="station_block"?(a.stations||[]).flatMap(st=>equipNamesFor(st.equipment,data)):equipNamesFor(a.equipment,data)).map(e=>[e.name,e])).values()];
+  // the full per-drill Run of Practice breakdown below. Direct feedback,
+  // this round: a coach glancing at "Cones" had no way to tell who's
+  // supposed to bring them or where -- buildEquipmentNeeded pairs every
+  // equipment item with the coach/location of whichever drill(s) actually
+  // use it.
+  const equipItemsForNeeded=acts.flatMap(a=>a.type==="station_block"
+    ?(a.stations||[]).map(st=>({equipment:equipNamesFor(st.equipment,data),coachName:leaderLabel(st,team),locationName:(loc&&loc.sublocations.find(s=>s.id===st.sublocationId)||{}).name}))
+    :[{equipment:equipNamesFor(a.equipment,data),coachName:leaderLabel(a,team),locationName:(loc&&loc.sublocations.find(s=>s.id===a.sublocationId)||{}).name}]
+  );
+  const allEquip=buildEquipmentNeeded(equipItemsForNeeded);
   const presentPlayers=team?team.players.filter(p=>present.has(p.id)):[];
   const shareSetupLink=async()=>{
     if(sharing||!practice)return;
@@ -538,12 +581,17 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
       </>}
       {allEquip.length>0&&<div style={{marginTop:24}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#555",marginBottom:10}}>Equipment Needed</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{allEquip.map((e,i)=>(<EquipPill key={i} e={e}/>))}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {allEquip.map((e,i)=>(<div key={i} style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:6}}>
+            <EquipPill e={e}/>
+            {e.contexts.length>0&&<span style={{fontSize:11,color:"#8fa89b"}}>{e.contexts.map(c=>[c.coachName,c.locationName].filter(Boolean).join(" @ ")).join(", ")}</span>}
+          </div>))}
+        </div>
       </div>}
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#555",marginTop:24,marginBottom:12}}>Run of Practice · {totalMins}min</div>
-      {acts.map(act=>act.type==="station_block"
-        ?<SetupStationBlockRow key={act.id} act={act} loc={loc} data={data} team={team} isController={isController} onReassignLead={onReassignLead} onViewGroupings={setGroupingsFor}/>
-        :<SetupActivityRow key={act.id} act={act} loc={loc} data={data} team={team} isController={isController} onReassignActivityLead={onReassignActivityLead} onViewGroupings={setGroupingsFor}/>
+      {acts.map((act,i)=>act.type==="station_block"
+        ?<SetupStationBlockRow key={act.id} act={act} loc={loc} data={data} team={team} isController={isController} onReassignLead={onReassignLead} onViewGroupings={setGroupingsFor} timeRange={timeRanges[i]}/>
+        :<SetupActivityRow key={act.id} act={act} loc={loc} data={data} team={team} isController={isController} onReassignActivityLead={onReassignActivityLead} onViewGroupings={setGroupingsFor} timeRange={timeRanges[i]}/>
       )}
     </div>
     <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#0d1512",borderTop:"1px solid rgba(255,255,255,.1)",padding:"12px 20px calc(12px + env(safe-area-inset-bottom))",zIndex:50}}>
@@ -737,6 +785,8 @@ export function PreviewView({token}){
   const [helperDraft,setHelperDraft]=useState("");
   const [busy,setBusy]=useState(false);
   const [copied,setCopied]=useState(false);
+  const [expandedRows,setExpandedRows]=useState(new Set());
+  const toggleExpand=key=>setExpandedRows(s=>{const n=new Set(s);n.has(key)?n.delete(key):n.add(key);return n;});
   const presenceMe=preview&&!preview.error?(preview.can_manage?{kind:"coach",label:preview.my_coach_name||"A coach"}:{kind:"anon"}):null;
   const presence=usePracticePresence(preview&&preview.practice_id,presenceMe);
 
@@ -812,21 +862,38 @@ export function PreviewView({token}){
 
   // get_preview_view (20260805030000) sends equipment as {name,acquired}
   // objects so "Add Drill Anyway" gear a coach doesn't own yet can still be
-  // called out here, not just inside the app.
-  const allEquip=[...new Map(activities.flatMap(act=>{
-    if(act.type==="station_block")return (act.station_block&&act.station_block.stations||[]).flatMap(st=>st.equipment||[]);
-    return act.equipment||[];
-  }).map(e=>[e.name,e])).values()];
+  // called out here, not just inside the app. Paired with each drill's own
+  // coach/location (same buildEquipmentNeeded helper Practice Setup and the
+  // PDF export use) so a helper can tell who's bringing what, where.
+  const equipItemsForNeeded=activities.flatMap(act=>{
+    if(act.type==="station_block")return (act.station_block&&act.station_block.stations||[]).map(st=>({equipment:st.equipment||[],coachName:st.coach_name||null,locationName:st.sublocation_name||null}));
+    return [{equipment:act.equipment||[],coachName:act.coach_name||null,locationName:act.sublocation_name||null}];
+  });
+  const allEquip=buildEquipmentNeeded(equipItemsForNeeded);
 
-  const totalMins=activities.reduce((s,a)=>{
+  const actMinsFor=a=>{
     if(a.type==="station_block"&&a.station_block){
       const stCount=(a.station_block.stations||[]).length;
       const sd=Math.round((a.station_block.station_duration_seconds||0)/60);
       const td=Math.round((a.station_block.transition_duration_seconds||0)/60);
-      return s+stCount*sd+Math.max(0,stCount-1)*(a.station_block.rotate!==false?td:0);
+      return stCount*sd+Math.max(0,stCount-1)*(a.station_block.rotate!==false?td:0);
     }
-    return s+(a.duration_minutes||0);
-  },0);
+    return a.duration_minutes||0;
+  };
+  const totalMins=activities.reduce((s,a)=>s+actMinsFor(a),0);
+  // Same clock-anchored start/end logic Practice Setup and the PDF export
+  // both use -- only meaningful once there's a real scheduled start time.
+  const timeRanges=(()=>{
+    if(startMs===null)return activities.map(()=>null);
+    let cursor=startMs;
+    return activities.map(a=>{
+      const mins=actMinsFor(a);
+      const start=new Date(cursor);
+      const end=new Date(cursor+mins*60000);
+      cursor=end.getTime();
+      return {start,end};
+    });
+  })();
 
   return(<div style={{minHeight:"100dvh",background:"#0d1512",color:"#fff",paddingBottom:preview.can_manage?100:40}}>
     {/* Back-to-Home + a persistent Start Practice bar -- neither existed
@@ -859,21 +926,29 @@ export function PreviewView({token}){
           {fmtCountdown(absDiff)}
         </div>
         {isStarted&&<div style={{fontSize:12,color:"#555"}}>Waiting for coach to start the live run</div>}
-        {!isStarted&&<div style={{fontSize:12,color:"#555"}}>Use this time to set up stations</div>}
+        {!isStarted&&<div style={{fontSize:12,color:"#555"}}>Use this time to get everything set up before practice starts.</div>}
       </div>}
       {diffSecs===null&&<div style={{fontSize:14,color:"#555"}}>No start time scheduled</div>}
     </div>
 
     {allEquip.length>0&&<div style={{padding:"16px 20px",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#ca8a04",marginBottom:10}}>Equipment Needed</div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-        {allEquip.map((e,i)=>(<span key={i} style={e.acquired===false?{background:"rgba(220,38,38,.18)",border:"1px solid rgba(248,113,113,.6)",borderRadius:20,padding:"4px 12px",fontSize:13,color:"#fca5a5",fontWeight:700}:{background:"rgba(202,138,4,.15)",border:"1px solid rgba(202,138,4,.4)",borderRadius:20,padding:"4px 12px",fontSize:13,color:"#fde047",fontWeight:600}}>{e.name}{e.acquired===false&&" · not acquired"}</span>))}
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {allEquip.map((e,i)=>(<div key={i} style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:6}}>
+          <span style={e.acquired===false?{background:"rgba(220,38,38,.18)",border:"1px solid rgba(248,113,113,.6)",borderRadius:20,padding:"4px 12px",fontSize:13,color:"#fca5a5",fontWeight:700}:{background:"rgba(202,138,4,.15)",border:"1px solid rgba(202,138,4,.4)",borderRadius:20,padding:"4px 12px",fontSize:13,color:"#fde047",fontWeight:600}}>{e.name}{e.acquired===false&&" · not acquired"}</span>
+          {e.contexts.length>0&&<span style={{fontSize:11,color:"#888"}}>{e.contexts.map(c=>[c.coachName,c.locationName].filter(Boolean).join(" @ ")).join(", ")}</span>}
+        </div>))}
       </div>
     </div>}
 
     <div style={{padding:"16px 20px"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#555",marginBottom:12}}>Run of Practice · {totalMins}min</div>
       {activities.map((act,i)=>{
+        // Direct feedback: description/coaching points used to show
+        // unconditionally here -- same collapse-until-expanded behavior
+        // the coach's own Practice Setup screen just got, so this list
+        // reads as a scannable overview by default, not a wall of text.
+        const expanded=expandedRows.has(act.id||"act-"+i);
         if(act.type==="station_block"){
           const sb=act.station_block||{};
           const stations=sb.stations||[];
@@ -886,42 +961,61 @@ export function PreviewView({token}){
                 <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#52b788"}}>Station Block</div>
                 <div style={{fontSize:12,color:"#555",marginTop:2}}>{stations.length} stations · {sd}m each{sb.rotate!==false?" · rotates":""}</div>
               </div>
-              <span style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"#555"}}>{totalBlockMins}m</span>
-            </div>
-            {stations.map((st,si)=>(<div key={si} style={{padding:"10px 14px",borderBottom:si<stations.length-1?"1px solid rgba(255,255,255,.06)":"none"}}>
-              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:(st.equipment&&st.equipment.length)||st.coaching_points?6:0}}>
-                <div>
-                  <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,color:"#52b788",letterSpacing:".05em",marginBottom:2}}>Station {si+1}</div>
-                  <div style={{fontSize:15,fontWeight:700,color:"#fff"}}>{st.name||"Station "+(si+1)}</div>
-                  {(st.coach_name||st.sublocation_name||preview.can_manage)&&<div style={{fontSize:12,color:"#888",marginTop:2}}>
-                    {st.sublocation_name&&<span style={{color:"#52b788",fontWeight:600}}>{st.sublocation_name}</span>}
-                    {st.sublocation_name&&(st.coach_name||preview.can_manage)&&<span style={{color:"#444"}}> · </span>}
-                    {!preview.can_manage&&st.coach_name&&<span>{st.coach_name}</span>}
-                    {preview.can_manage&&<button type="button" onClick={()=>setReassignStationId(st.id)} style={{background:"none",border:"none",padding:0,font:"inherit",color:st.coach_name?"#fff":"#f59e0b",cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{st.coach_name||"No leader assigned -- tap to assign"}</button>}
-                  </div>}
-                </div>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end"}}>
+                <span style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"#555"}}>{totalBlockMins}m</span>
+                {timeRanges[i]&&<span style={{fontSize:10,color:"#555",fontFamily:"DM Mono,monospace"}}>{fmtClock(timeRanges[i].start)}–{fmtClock(timeRanges[i].end)}</span>}
               </div>
-              {st.coaching_points&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8,marginBottom:6}}>{st.coaching_points}</div>}
+            </div>
+            {stations.map((st,si)=>{
+              const stExpanded=expandedRows.has(st.id||(i+"-"+si));
+              return(<div key={si} style={{padding:"10px 14px",borderBottom:si<stations.length-1?"1px solid rgba(255,255,255,.06)":"none"}}>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:(st.equipment&&st.equipment.length)||st.description||st.coaching_points?6:0}}>
+                <button type="button" onClick={()=>toggleExpand(st.id||(i+"-"+si))} style={{background:"none",border:"none",padding:0,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:6,flex:1,minWidth:0}}>
+                  <div style={{minWidth:0}}>
+                    <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,color:"#52b788",letterSpacing:".05em",marginBottom:2}}>Station {si+1}</div>
+                    <div style={{fontSize:15,fontWeight:700,color:"#fff"}}>{st.name||"Station "+(si+1)}</div>
+                  </div>
+                  {(st.description||st.coaching_points)&&<Ic.Chev up={stExpanded}/>}
+                </button>
+              </div>
+              {(st.coach_name||st.sublocation_name||preview.can_manage)&&<div style={{fontSize:12,color:"#888",marginBottom:6}}>
+                {st.sublocation_name&&<span style={{color:"#52b788",fontWeight:600}}>{st.sublocation_name}</span>}
+                {st.sublocation_name&&(st.coach_name||preview.can_manage)&&<span style={{color:"#444"}}> · </span>}
+                {!preview.can_manage&&st.coach_name&&<span>{st.coach_name}</span>}
+                {preview.can_manage&&<button type="button" onClick={()=>setReassignStationId(st.id)} style={{background:"none",border:"none",padding:0,font:"inherit",color:st.coach_name?"#fff":"#f59e0b",cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{st.coach_name||"No leader assigned -- tap to assign"}</button>}
+              </div>}
+              {stExpanded&&(st.description||st.coaching_points)&&<div style={{marginBottom:6}}>
+                {st.description&&<div style={{fontSize:12,color:"#ccc",lineHeight:1.4,marginBottom:st.coaching_points?6:0}}>{st.description}</div>}
+                {st.coaching_points&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8}}>{st.coaching_points}</div>}
+              </div>}
               {(st.equipment&&st.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
                 {st.equipment.map((e,j)=>(<span key={j} style={e.acquired===false?{background:"rgba(220,38,38,.18)",border:"1px solid rgba(248,113,113,.6)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fca5a5",fontWeight:700}:{background:"rgba(202,138,4,.12)",border:"1px solid rgba(202,138,4,.3)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fde047"}}>{e.name}{e.acquired===false&&" · not acquired"}</span>))}
               </div>}
-            </div>))}
+            </div>);
+            })}
           </div>);
         }
         const equip=act.equipment||[];
         return(<div key={i} style={{marginBottom:8,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"12px 14px"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:act.coaching_points||equip.length?6:0}}>
-            <div>
-              <div style={{fontSize:15,fontWeight:700,color:"#fff"}}>{act.name}</div>
-              {(act.coach_name||act.sublocation_name)&&<div style={{fontSize:12,color:"#888",marginTop:2}}>
-                {act.sublocation_name&&<span style={{color:"#52b788",fontWeight:600}}>{act.sublocation_name}</span>}
-                {act.sublocation_name&&act.coach_name&&<span style={{color:"#444"}}> · </span>}
-                {act.coach_name&&<span>{act.coach_name}</span>}
-              </div>}
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
+            <button type="button" onClick={()=>toggleExpand("act-"+i)} style={{background:"none",border:"none",padding:0,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:6,flex:1,minWidth:0}}>
+              <span style={{fontSize:15,fontWeight:700,color:"#fff"}}>{act.name}</span>
+              {(act.description||act.coaching_points)&&<Ic.Chev up={expanded}/>}
+            </button>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",flexShrink:0,marginLeft:8}}>
+              <span style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"#555"}}>{act.duration_minutes}m</span>
+              {timeRanges[i]&&<span style={{fontSize:10,color:"#555",fontFamily:"DM Mono,monospace"}}>{fmtClock(timeRanges[i].start)}–{fmtClock(timeRanges[i].end)}</span>}
             </div>
-            <span style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"#555",flexShrink:0,marginLeft:8}}>{act.duration_minutes}m</span>
           </div>
-          {act.coaching_points&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8,marginBottom:6}}>{act.coaching_points}</div>}
+          {(act.coach_name||act.sublocation_name)&&<div style={{fontSize:12,color:"#888",marginTop:2,marginBottom:6}}>
+            {act.sublocation_name&&<span style={{color:"#52b788",fontWeight:600}}>{act.sublocation_name}</span>}
+            {act.sublocation_name&&act.coach_name&&<span style={{color:"#444"}}> · </span>}
+            {act.coach_name&&<span>{act.coach_name}</span>}
+          </div>}
+          {expanded&&(act.description||act.coaching_points)&&<div style={{marginBottom:6}}>
+            {act.description&&<div style={{fontSize:13,color:"#ccc",lineHeight:1.5,marginBottom:act.coaching_points?6:0}}>{act.description}</div>}
+            {act.coaching_points&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8}}>{act.coaching_points}</div>}
+          </div>}
           {equip.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
             {equip.map((e,j)=>(<span key={j} style={e.acquired===false?{background:"rgba(220,38,38,.18)",border:"1px solid rgba(248,113,113,.6)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fca5a5",fontWeight:700}:{background:"rgba(202,138,4,.12)",border:"1px solid rgba(202,138,4,.3)",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#fde047"}}>{e.name}{e.acquired===false&&" · not acquired"}</span>))}
           </div>}
@@ -974,6 +1068,14 @@ function HelperSkillTags({names}){
   return (<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
     {names.map(n=>(<span key={n} className="bdg bs" style={{fontSize:10}}>{n}</span>))}
   </div>);
+}
+// Direct feedback: coach/helper names in HelperView were plain gray text,
+// easy to miss -- the same light-theme green pill already used elsewhere in
+// this light-background live view (e.g. the header attendance pill) makes
+// it read as clearly as it does in the coach's own view.
+function CoachPill({name}){
+  if(!name)return null;
+  return <span style={{display:"inline-flex",alignItems:"center",background:"var(--gbg)",border:"1.5px solid var(--gb)",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700,color:"var(--green)"}}>{name}</span>;
 }
 
 // ── Notes system (Assistant Coach handoff §2) ────────────────────────────────
@@ -1237,7 +1339,7 @@ function HelperView({token}){
         </div>}
         {cur.coach_name&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:3}}>Coach</div>
-          <div style={{fontSize:14,color:"var(--black)"}}>{cur.coach_name}</div>
+          <CoachPill name={cur.coach_name}/>
         </div>}
         {(cur.equipment&&cur.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
           <span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"3px 10px",fontSize:12,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {cur.equipment.join(", ")}</span>
@@ -1265,7 +1367,7 @@ function HelperView({token}){
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",marginBottom:6}}>{st.name||"Station "+(i+1)}</div>
             {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
             {st.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:2}}>{st.sublocation_name}</div>}
-            {st.coach_name&&<div style={{fontSize:11,color:"var(--td)",marginBottom:4}}>{st.coach_name}</div>}
+            {st.coach_name&&<div style={{marginBottom:4}}><CoachPill name={st.coach_name}/></div>}
             <HelperSkillTags names={st.skill_tags}/>
             {st.coaching_points&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:4,lineHeight:1.4,borderLeft:"2px solid var(--green)",paddingLeft:8}}>{st.coaching_points}</div>}
             {(st.equipment&&st.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
@@ -1285,7 +1387,7 @@ function HelperView({token}){
           {rotatedStations[focusSt].sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:3}}>{rotatedStations[focusSt].sublocation_name}</div>}
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:6}}>{rotatedStations[focusSt].name||"Station "+(focusSt+1)}</div>
           {rotatedStations[focusSt].group_label&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {rotatedStations[focusSt].group_label}</span></div>}
-          {rotatedStations[focusSt].coach_name&&<div style={{fontSize:13,color:"var(--td)",marginBottom:6}}>{rotatedStations[focusSt].coach_name}</div>}
+          {rotatedStations[focusSt].coach_name&&<div style={{marginBottom:6}}><CoachPill name={rotatedStations[focusSt].coach_name}/></div>}
           <HelperSkillTags names={rotatedStations[focusSt].skill_tags}/>
           {rotatedStations[focusSt].coaching_points&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>

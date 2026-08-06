@@ -1,4 +1,5 @@
 import React from "react";
+import { buildEquipmentNeeded } from "../constants.js";
 
 // Practice plan -> clean PDF export. Renders a print-optimized document (not
 // a screenshot of the app UI) and hands off to the browser's native
@@ -33,7 +34,18 @@ export default function PracticePlanPrint({ practice, team, loc, data, onClose }
   const actMins = a => a.type === "station_block" ? a.stations.length * (a.stationDuration || 0) + Math.max(0, a.stations.length - 1) * (a.transitionDuration || 0) : (a.duration || 0);
   const totalMins = activities.reduce((s, a) => s + actMins(a), 0);
   const stationCount = activities.filter(a => a.type === "station_block").reduce((s, a) => s + (a.stations || []).length, 0);
-  const allEquip = [...new Set(activities.flatMap(a => a.type === "station_block" ? (a.stations || []).flatMap(st => resolveEquip(st.equipment)) : resolveEquip(a.equipment)))];
+  const coachNameFor = id => { const c = id && team && team.coaches.find(c => c.id === id); return c ? c.name : null; };
+  const subNameFor = id => { const s = id && loc && loc.sublocations && loc.sublocations.find(s => s.id === id); return s ? s.name : null; };
+  // Direct feedback: the Equipment Needed summary used to just dedupe names
+  // across the whole practice -- paired here with each drill's own coach/
+  // location (same buildEquipmentNeeded helper Practice Setup and the
+  // pre-live Preview link use) so a printed sheet actually says who's
+  // bringing what, where.
+  const equipItemsForNeeded = activities.flatMap(a => a.type === "station_block"
+    ? (a.stations || []).map(st => ({ equipment: resolveEquip(st.equipment), coachName: coachNameFor(st.coachId) || st.helperName || null, locationName: subNameFor(st.sublocationId) }))
+    : [{ equipment: resolveEquip(a.equipment), coachName: coachNameFor(a.coachId) || a.helperName || null, locationName: subNameFor(a.sublocationId) }]
+  );
+  const allEquip = buildEquipmentNeeded(equipItemsForNeeded);
 
   // Clock times only mean anything with a real start time to anchor to --
   // otherwise every drill just shows its duration, same as the in-app view.
@@ -93,7 +105,10 @@ export default function PracticePlanPrint({ practice, team, loc, data, onClose }
 
       {allEquip.length > 0 && <div style={{ marginBottom: 24 }}>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: P.amber, marginBottom: 6 }}>Equipment Needed</div>
-        <div style={{ fontSize: 13, color: P.black }}>{allEquip.join("  ·  ")}</div>
+        {allEquip.map((e, i) => (<div key={i} style={{ fontSize: 13, color: P.black, marginBottom: 3 }}>
+          <span style={{ fontWeight: 700 }}>{e.name}</span>
+          {e.contexts.length > 0 && <span style={{ color: P.td }}> — {e.contexts.map(c => [c.coachName, c.locationName].filter(Boolean).join(" @ ")).join(", ")}</span>}
+        </div>))}
       </div>}
 
       {activities.map((a, i) => {
