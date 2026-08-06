@@ -239,39 +239,59 @@ function computeGroupingsPreview({kind,act,presentPlayers,setupGroups}){
   if(!unassigned.length&&uneven)notes.push((kind==="drill"?"Groups aren't":"Stations aren't")+" evenly split for "+presentPlayers.length+" present players.");
   return {groups,uneven,unevenNote:notes.join(" "),activityId:act.id,unitLabel:kind==="drill"?"group":"station"};
 }
-// Direct feedback: "add player grouping management, ... tap to reassign" --
-// tapping a player chip opens the same small "move to which group/station"
-// picker the app already uses elsewhere, backed by moveSetupGroupPlayer
-// (which persists via saveSessionGroups, same as everything else here).
+// Direct feedback (second round): the first version's "tap a player, then
+// pick a destination from a bare list of labels" was a strange way to move
+// someone without any idea who's already in "Pairing 4." Redesigned as a
+// pick-up-and-drop flow instead: tapping a player picks them up (a visible
+// highlight, not a separate screen); every *other* group then grows a
+// dashed "landing zone" slot right alongside its real players, so the
+// coach can actually see who they'd be joining before committing. Tapping
+// a landing zone drops the player there. Evening a pairing back out after
+// a move is just the same gesture again, in reverse -- tap someone in the
+// now-larger group, drop them into the now-short group's own landing zone
+// -- no separate "swap mode" needed, since picking up any player from any
+// group and any landing zone in any other group is always available.
 function GroupingsDialog({title,data,onClose,onMovePlayer}){
-  const [movePicker,setMovePicker]=useState(null); // {playerId,fromIdx}
+  const [selected,setSelected]=useState(null); // {playerId,fromIdx}
   if(!data)return null;
-  return (<>
+  const pick=(playerId,fromIdx)=>{
+    if(selected&&selected.playerId===playerId){setSelected(null);return;}
+    setSelected({playerId,fromIdx});
+  };
+  const drop=toIdx=>{
+    if(!selected)return;
+    onMovePlayer(selected.playerId,toIdx);
+    setSelected(null);
+  };
+  return (
     <div className="movly" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div className="modal" style={{background:"#0d1512",color:"#fff",border:"1px solid rgba(255,255,255,.12)"}}>
         <div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
         <div className="mtitle" style={{color:"#fff"}}>{title}</div>
-        {onMovePlayer&&<div style={{fontSize:11,color:"#8fa89b",marginBottom:10}}>Tap a player to move them.</div>}
+        {onMovePlayer&&<div style={{fontSize:11,color:"#8fa89b",marginBottom:10}}>{selected?"Tap the dashed spot in another "+data.unitLabel+" to move them there.":"Tap a player to move them."}</div>}
         {data.uneven&&<div style={{fontSize:12,color:"#fca5a5",fontWeight:600,marginBottom:12,background:"rgba(220,38,38,.15)",border:"1px solid rgba(248,113,113,.4)",borderRadius:8,padding:"8px 10px"}}>{data.unevenNote}</div>}
-        {data.groups.map((g,i)=>(<div key={i} style={{marginBottom:12}}>
-          <div style={{fontSize:11,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"#8fa89b",marginBottom:6}}>{g.label}</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-            {g.players.map(p=>(<button key={p.id} type="button" disabled={!onMovePlayer} onClick={()=>onMovePlayer&&setMovePicker({playerId:p.id,fromIdx:i})} style={{padding:"6px 12px",borderRadius:20,background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.25)",fontSize:13,fontWeight:600,color:"#fff",cursor:onMovePlayer?"pointer":"default"}}>{p.jersey&&<span style={{fontFamily:"DM Mono,monospace",color:"#52b788",marginRight:4}}>#{p.jersey}</span>}{p.firstName}</button>))}
-            {g.players.length===0&&<span style={{fontSize:12,color:"#8fa89b"}}>No players</span>}
-          </div>
-        </div>))}
+        {data.groups.map((g,i)=>{
+          const isSourceOfSelection=selected&&selected.fromIdx===i;
+          return (<div key={i} style={{marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"#8fa89b",marginBottom:6}}>{g.label}</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {g.players.map(p=>{
+                const isPicked=selected&&selected.playerId===p.id;
+                return (<button key={p.id} type="button" disabled={!onMovePlayer} onClick={()=>pick(p.id,i)} style={{padding:"6px 12px",borderRadius:20,background:isPicked?"rgba(245,158,11,.25)":"rgba(255,255,255,.1)",border:"1.5px solid "+(isPicked?"#f59e0b":"rgba(255,255,255,.25)"),fontSize:13,fontWeight:600,color:isPicked?"#fde68a":"#fff",cursor:onMovePlayer?"pointer":"default"}}>{p.jersey&&<span style={{fontFamily:"DM Mono,monospace",color:isPicked?"#fde68a":"#52b788",marginRight:4}}>#{p.jersey}</span>}{p.firstName}{isPicked?" · picked up":""}</button>);
+              })}
+              {g.players.length===0&&!selected&&<span style={{fontSize:12,color:"#8fa89b"}}>No players</span>}
+              {/* The landing zone: only in a group other than wherever the
+                  picked-up player already is (moving them "into" their own
+                  group is a no-op) -- dashed border reads as an empty slot
+                  waiting to be filled, distinct from a real player pill. */}
+              {selected&&!isSourceOfSelection&&<button type="button" onClick={()=>drop(i)} style={{padding:"6px 14px",borderRadius:20,background:"transparent",border:"1.5px dashed #52b788",fontSize:13,fontWeight:600,color:"#52b788",cursor:"pointer"}}>+ Drop here</button>}
+            </div>
+          </div>);
+        })}
         <button className="btn ghost bmd bfull" style={{background:"transparent",marginTop:4,color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={onClose}>Close</button>
       </div>
     </div>
-    {movePicker&&<div className="movly" style={{zIndex:400}} onClick={e=>{if(e.target===e.currentTarget)setMovePicker(null);}}>
-      <div className="modal" style={{background:"#0d1512",color:"#fff",border:"1px solid rgba(255,255,255,.12)"}}>
-        <div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
-        <div className="mtitle" style={{color:"#fff"}}>Move to which {data.unitLabel}?</div>
-        {data.groups.map((g,i)=>(<button key={i} className="btn outline bmd bfull" style={{background:"transparent",marginBottom:8,color:"#fff",borderColor:i===movePicker.fromIdx?"rgba(255,255,255,.15)":"#52b788"}} disabled={i===movePicker.fromIdx} onClick={()=>{onMovePlayer(movePicker.playerId,i);setMovePicker(null);}}>{g.label}</button>))}
-        <button className="btn ghost bmd bfull" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>setMovePicker(null)}>Cancel</button>
-      </div>
-    </div>}
-  </>);
+  );
 }
 
 // A single non-station Run of Practice row -- direct feedback: needs a
