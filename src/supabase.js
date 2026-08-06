@@ -911,6 +911,7 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
     id: a.id, type: a.type, name: a.name || '', duration: a.duration_minutes || 10,
     description: a.description || '', coachingPoints: a.coaching_points || '',
     grouping: a.grouping || 'whole', numGroups: a.num_groups || 2,
+    groupAssignments: a.group_assignments || null,
     coachId: a.team_staff_id || '', helperName: a.helper_name || '', sublocationId: a.sublocation_id || '',
     libraryId: a.library_activity_id || null,
     equipment: equipByAct[a.id] || [],
@@ -1048,6 +1049,7 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
       description: act.type === 'checklist' ? (act.notes || null) : (act.description || null),
       coaching_points: act.coachingPoints || null,
       grouping: act.grouping || 'whole', num_groups: act.numGroups || null,
+      group_assignments: (Array.isArray(act.groupAssignments) && act.groupAssignments.some(g => g && g.length)) ? act.groupAssignments : null,
       library_activity_id: act.libraryId || null,
       sublocation_id: act.sublocationId || null,
     }

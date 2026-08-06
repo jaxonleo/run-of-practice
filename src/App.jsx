@@ -159,7 +159,7 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .notetx{font-size:14px;line-height:1.5;}
 .empty{text-align:center;padding:36px 20px;color:var(--td);}
 .emtx{font-size:14px;line-height:1.5;}
-.live{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;}
+.live{display:inline-block;width:7px;height:7px;min-width:7px;flex-shrink:0;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 .loadmark-hand{transform-origin:50px 50px;animation:tick 1.2s linear infinite;}
 @keyframes tick{to{transform:rotate(360deg)}}
@@ -1001,26 +1001,20 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     ro.observe(outer);
     return()=>ro.disconnect();
   },[]);
-  // Real regression found live ("the most recently added drill should be
-  // frozen at the top... we had scoped this before but seem to have lost
-  // it"): the sticky-pin mechanism itself (SortableActivityRow's own
-  // `sticky` prop, keyed off lastAddedId) was still fully wired up, but
-  // nothing actually scrolled the view to it -- a coach adding a drill from
-  // the library section (usually scrolled well below the Run of Practice
-  // list) never saw anything change, since the new row landed off-screen
-  // above their current scroll position with no auto-scroll to reveal it.
-  // Only collapseAndScroll (the "Done" button) ever called scrollIntoView;
-  // adding a drill never did. Same double-rAF-then-scroll pattern as
-  // collapseAndScroll, reused here rather than duplicated, so both wait out
-  // the same layout-settling race documented there.
-  const scrollToRow=id=>{
-    requestAnimationFrame(()=>{
-      requestAnimationFrame(()=>{
-        const el=rowRefs.current[id];
-        if(el)el.scrollIntoView({behavior:"smooth",block:"start"});
-      });
-    });
-  };
+  // Direct feedback, two rounds: a prior session added an actual
+  // scrollIntoView() here to fix "the last-added drill should be frozen at
+  // the top" -- but forcing the whole page to jump back up to the Run of
+  // Practice section every single time turned out to be worse than the
+  // original complaint: a coach adding several drills in a row from deep in
+  // their library kept getting yanked away from where they were browsing,
+  // needing to re-scroll and reorient every time. The real ask is just to
+  // *see* that the add landed (the green sticky margin) without being
+  // moved -- SortableActivityRow's own `sticky` prop (keyed off
+  // lastAddedId) already does exactly that via plain CSS position:sticky,
+  // no scroll call needed or wanted: as the coach's own scroll position
+  // naturally passes the newly-added row's spot, it pins to the top of the
+  // screen on its own and stays put while they keep browsing/adding further
+  // down in the library, with zero forced movement.
   const collapseAndScroll=id=>{
     setExpandedId(null);
     // Direct feedback: Done on a long station block sometimes left the
@@ -1139,7 +1133,10 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // RLS-scoped, not client-filtered, so it also contains public-catalog
   // and org-shared drills alongside the coach's own; this list was
   // showing all of them mixed together with no way to tell them apart.
-  const filteredLib=data.activityLibrary.filter(a=>!a.sourceCatalogId).filter(a=>(a.sport||"General")===teamSport||(a.sport||"General")==="General");
+  // Catalog (public-library) rows are no longer excluded up front -- they're
+  // only shown when the coach has actually picked "Public Library" as the
+  // source below (sourceFilteredLib), same as every other source.
+  const filteredLib=data.activityLibrary.filter(a=>(a.sport||"General")===teamSport||(a.sport||"General")==="General");
   // Direct feedback: this used to show every accessible drill merged
   // together (own + org + any peer sharing with the coach) with no way to
   // tell them apart, which read as "I can see my assistant's whole
@@ -1150,29 +1147,50 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // already correctly RLS-scoped in data.activityLibrary; this just groups
   // what's already there, same technique NewLibraryScreen's own
   // exploreShelves uses).
+  // Direct feedback: a peer source used to fall back to the generic "A
+  // coach's Library" the moment that peer wasn't personally rostered on
+  // *this* team (e.g. they share their library from a different team they
+  // co-coach with this coach on) -- team.coaches.find(...) only ever
+  // checked this one team's own roster. Same fix NewLibraryScreen's own
+  // Explore shelves already needed for the identical gap: resolve a name
+  // across *every* team the coach can see (coachNameByUserId), preferring
+  // a real resolved profile name first, only falling back to "A coach" if
+  // truly nothing is known about them.
+  const coachNameByUserId=useMemo(()=>{
+    const m={};
+    (data.teams||[]).forEach(t=>(t.coaches||[]).forEach(c=>{if(c.userId&&!m[c.userId])m[c.userId]=c.name;}));
+    return m;
+  },[data.teams]);
+  const coachDisplayName=userId=>(data.profilesById&&data.profilesById[userId]&&data.profilesById[userId].name)||coachNameByUserId[userId]||"A coach";
   const librarySources=useMemo(()=>{
     const sources=[{key:"mine",label:"My Library"}];
     if(team&&team.organizationId){
       const org=(data.myOrgs||[]).find(o=>o.id===team.organizationId);
       sources.push({key:"org",label:(org?org.name:"Org")+" Library"});
     }
-    const peerIds=[...new Set(data.activityLibrary.filter(a=>a.ownerUserId&&a.ownerUserId!==coachId&&!a.organizationId).map(a=>a.ownerUserId))];
+    const peerIds=[...new Set(data.activityLibrary.filter(a=>a.ownerUserId&&a.ownerUserId!==coachId&&!a.organizationId&&!a.sourceCatalogId).map(a=>a.ownerUserId))];
     peerIds.forEach(pid=>{
-      const c=team&&(team.coaches||[]).find(c=>c.userId===pid);
-      sources.push({key:"peer:"+pid,label:(c?c.name:"A coach")+"'s Library"});
+      sources.push({key:"peer:"+pid,label:coachDisplayName(pid)+"'s Library"});
     });
+    // Direct feedback: Public Library wasn't offered as a source here at
+    // all (filteredLib used to drop every catalog row before this switcher
+    // even ran) -- catalog rows are already loaded in data.activityLibrary
+    // exactly like everything else, just tagged with sourceCatalogId, so
+    // this only needed a real option to select them, not a new fetch.
+    if(data.activityLibrary.some(a=>a.sourceCatalogId&&(a.sport||"General")===teamSport))sources.push({key:"public",label:"Public Library"});
     return sources;
-  },[team,data.activityLibrary,data.myOrgs,coachId]);
+  },[team,data.activityLibrary,data.myOrgs,coachId,teamSport,coachNameByUserId,data.profilesById]);
   const [libSource,setLibSource]=useState("mine");
   // Reset back to "mine" on a team switch -- the other team's org/peers
   // rarely apply to the new one, and silently browsing a stale source
   // would be confusing.
   useEffect(()=>{setLibSource("mine");},[teamId]);
   const sourceFilteredLib=filteredLib.filter(a=>{
-    if(libSource==="mine")return a.ownerUserId===coachId;
-    if(libSource==="org")return a.organizationId===(team&&team.organizationId);
-    if(libSource.startsWith("peer:"))return a.ownerUserId===libSource.slice(5);
-    return true;
+    if(libSource==="mine")return a.ownerUserId===coachId&&!a.sourceCatalogId;
+    if(libSource==="org")return a.organizationId===(team&&team.organizationId)&&!a.sourceCatalogId;
+    if(libSource==="public")return !!a.sourceCatalogId;
+    if(libSource.startsWith("peer:"))return a.ownerUserId===libSource.slice(5)&&!a.sourceCatalogId;
+    return !a.sourceCatalogId;
   });
   const teamTemplates=(data.templates||[]).filter(t=>(t.sport||"General")===teamSport||(t.sport||"General")==="General");
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
@@ -1232,7 +1250,6 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     setExpandedId(id);
     setLastAddedId(id);
     setHandRotation(r=>r+360);
-    scrollToRow(id);
   };
   // Equipment-mismatch check before adding a drill straight into a practice
   // (2026-08-01): a drill from Explore (org-shared, peer-shared) may
@@ -1271,7 +1288,6 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     ]};
     setActs(p=>[...p,b]);setExpandedId(b.id);setLastAddedId(b.id);
     setHandRotation(r=>r+360);
-    scrollToRow(b.id);
   };
   // Replaces the old fixed addChecklist(isClose) -- Intro/Closer are now
   // just two of PRACTICE_COMPONENT_TYPES, all sharing this one path.
@@ -1284,7 +1300,6 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     const a={id:uid(),type:"checklist",name:type.defaultName,duration:type.defaultDuration,assignments:defaultAssignIds,coachId:headCoachId,items:[],notes:""};
     setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
     setHandRotation(r=>r+360);
-    scrollToRow(a.id);
   };
   const remAct=id=>{setActs(p=>p.filter(a=>a.id!==id));if(lastAddedId===id)setLastAddedId(null);setHandRotation(r=>r-360);};
   const updAct=(id,ch)=>setActs(p=>p.map(a=>a.id===id?Object.assign({},a,ch):a));
@@ -1621,8 +1636,26 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {act.type==="station_block"?"Station Block":act.name}
+                    {/* Direct feedback: a coach should be able to tell at a
+                        glance who's leading a drill without expanding it --
+                        same coach-or-typed-helper-name label the Practice
+                        Setup screen already shows, just inline in the title
+                        row here instead of its own section. */}
+                    {act.type==="activity"&&<span style={{fontWeight:400,color:"var(--td)"}}> · {act.coachId?((team&&team.coaches.find(c=>c.id===act.coachId))||{}).name||"Unassigned":(act.helperName||"Unassigned")}</span>}
                   </div>
-                  {act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m</div>:<div className="limt">{act.duration}min</div>}
+                  {act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m</div>:
+                  // Direct feedback: duration's already in the green badge
+                  // to the right -- this line's job is letting a coach spot
+                  // a forgotten grouping/area/equipment setup without
+                  // expanding the row, so it swaps duration out for those
+                  // instead.
+                  <div className="limt">{(()=>{
+                    const g=act.grouping||"whole";
+                    const groupingText=g==="whole"?"Whole Team":g==="partners"?"Partners":(act.numGroups||2)+" Groups";
+                    const areaText=loc&&act.sublocationId?(loc.sublocations.find(s=>s.id===act.sublocationId)||{}).name:null;
+                    const equipText=(Array.isArray(act.equipment)?act.equipment:[]).map(id=>{const a=(data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean).join(", ");
+                    return [groupingText,areaText,equipText].filter(Boolean).join(" · ");
+                  })()}</div>}
                 </div>
                 <div className="row">
                   {act.type==="activity"&&isStale(act)&&<div style={{position:"relative"}}>

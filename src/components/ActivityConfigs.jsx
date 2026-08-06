@@ -190,6 +190,7 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
           {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>onChange({numGroups:n})} style={{flex:1,padding:"8px 0",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(act.numGroups||2)===n?"var(--green)":"var(--s1)",color:(act.numGroups||2)===n?"#fff":"var(--black)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
         </div>
       </div>}
+      {(act.grouping||"whole")!=="whole"&&team&&team.players&&team.players.length>0&&<ManualGroupAssign act={act} team={team} sport={sport} onChange={onChange}/>}
     </div>
     {/* Team Equipment */}
     <div className="fld"><label className="lbl">Team Equipment</label>
@@ -227,6 +228,83 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
       </div>
     </div>}
     <button className="btn ghost bsm bfull mt8" onClick={onDone}>Done</button>
+  </div>);
+}
+
+// Direct feedback: when Partners/Groups is picked for a plain drill (not a
+// station block), a coach should be able to decide who lands in which group
+// at plan time instead of it always being silently randomized fresh once
+// attendance is taken. Picks are stored on the activity itself
+// (groupAssignments, ids only, against the full roster since attendance
+// isn't known yet at plan time) and only ever used as a *seed* -- Practice
+// Setup still filters to whoever actually shows up and treats anyone left
+// out as unassigned, same as it already does for station-block assignments.
+// Leaving it untouched (empty groupAssignments) preserves the old
+// random-after-attendance behavior.
+function ManualGroupAssign({act,team,sport,onChange}){
+  const [groupByOpen,setGroupByOpen]=useState(false);
+  const groupCount=act.grouping==="partners"?Math.max(1,Math.ceil(team.players.length/2)):(act.numGroups||2);
+  const groups=Array.from({length:groupCount},(_,i)=>(act.groupAssignments&&act.groupAssignments[i])||[]);
+  const handFields=HAND_FIELDS_BY_SPORT[sport]||[];
+  const HAND_GROUP_LABELS={L:"Lefties",R:"Righties",S:"Switch"};
+  const genRandom=()=>{
+    const shuffled=[...team.players].sort(()=>Math.random()-.5);
+    const g=Array.from({length:groupCount},()=>[]);
+    shuffled.forEach((p,i)=>g[i%groupCount].push(p.id));
+    onChange({groupAssignments:g});
+  };
+  const groupByPosition=()=>{
+    const g=groupByAttribute(team.players,groupCount,p=>(p.positions&&p.positions[0])||"",v=>v);
+    onChange({groupAssignments:g.map(x=>(x&&x.ids)||[])});
+    setGroupByOpen(false);
+  };
+  const groupByHand=key=>{
+    const g=groupByAttribute(team.players,groupCount,p=>p[key]||"",v=>HAND_GROUP_LABELS[v]||v);
+    onChange({groupAssignments:g.map(x=>(x&&x.ids)||[])});
+    setGroupByOpen(false);
+  };
+  const clearGroups=()=>onChange({groupAssignments:[]});
+  const handleChip=(gi,playerId)=>{
+    const here=groups[gi].includes(playerId);
+    const next=groups.map((g,i)=>{
+      if(i===gi)return here?g.filter(id=>id!==playerId):[...g,playerId];
+      return g.filter(id=>id!==playerId);
+    });
+    onChange({groupAssignments:next});
+  };
+  const noun=act.grouping==="partners"?"Pair":"Group";
+  return (<div style={{marginTop:8}}>
+    <div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>Manually assign now, or leave blank to randomize once attendance is taken.</div>
+    <div className="brow mb10" style={{flexWrap:"wrap"}}>
+      <button type="button" className="btn outline bmd" style={{flex:1}} onClick={genRandom}>Generate Random Groups</button>
+      <button type="button" className="btn ghost bmd" style={{flex:1}} onClick={clearGroups}>Clear Groups</button>
+      <div style={{position:"relative",flex:1}}>
+        <button type="button" className="btn ghost bmd bfull" onClick={()=>setGroupByOpen(o=>!o)}>Group By...</button>
+        {groupByOpen&&<div style={{position:"absolute",top:"100%",left:0,right:0,marginTop:4,background:"#fff",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:8,zIndex:20,boxShadow:"0 4px 16px rgba(0,0,0,.12)"}}>
+          <button type="button" className="mm-item" onClick={groupByPosition}>Position</button>
+          {handFields.map(hf=>(<button key={hf.key} type="button" className="mm-item" onClick={()=>groupByHand(hf.key)}>{hf.label}</button>))}
+          <button type="button" className="mm-item" style={{color:"var(--td)"}} onClick={()=>setGroupByOpen(false)}>Cancel</button>
+        </div>}
+      </div>
+    </div>
+    {groups.map((g,gi)=>(<div key={gi} style={{marginBottom:10}}>
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--td)",marginBottom:4}}>{noun} {gi+1}</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+        {team.players.map(p=>{
+          const here=g.includes(p.id);
+          const otherIdx=!here?groups.findIndex((g2,i2)=>i2!==gi&&g2.includes(p.id)):-1;
+          const elsewhere=otherIdx>=0;
+          return (<button key={p.id} type="button" onClick={()=>handleChip(gi,p.id)} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid",borderColor:here?"var(--green)":elsewhere?"#d97706":"var(--b)",background:here?"var(--green)":elsewhere?"#fef3c7":"var(--s1)",color:here?"#fff":elsewhere?"#92400e":"var(--black)",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:3}}>
+            {p.jersey?<span style={{fontFamily:"DM Mono,monospace",fontSize:10}}>#{p.jersey}</span>:null}{p.firstName}{elsewhere?" → "+noun[0]+(otherIdx+1):""}
+          </button>);
+        })}
+      </div>
+    </div>))}
+    <div style={{fontSize:11,color:"var(--td)",marginTop:2}}>
+      <span style={{color:"var(--green)",fontWeight:700}}>Green</span> = here &nbsp;
+      <span style={{color:"#d97706",fontWeight:700}}>Yellow</span> = in another {noun.toLowerCase()} &nbsp;
+      <span style={{color:"var(--td)"}}>Gray</span> = unassigned
+    </div>
   </div>);
 }
 
@@ -305,7 +383,11 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   // practice (same "copy not reference" rule org-shared equipment already
   // follows). Copy from Explore's Public Library shelf first; the copy is a
   // normal personal drill and shows up here like any other.
-  const filteredLibrary=(libraryDrills||[]).filter(a=>!a.sourceCatalogId).filter(a=>(a.sport||"General")===sport||(a.sport||"General")==="General");
+  // libraryDrills (sourceFilteredLib from BuilderScreen) is already scoped
+  // to whichever source is currently selected, including a real "Public
+  // Library" option -- re-excluding sourceCatalogId here unconditionally
+  // used to make that source always render empty.
+  const filteredLibrary=(libraryDrills||[]).filter(a=>(a.sport||"General")===sport||(a.sport||"General")==="General");
   const skillTagsById=Object.fromEntries((skillTags||[]).map(t=>[t.id,t]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
   const applyLibraryChoice=(si,lib,equipmentOverride)=>{
@@ -453,7 +535,15 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
                   {librarySources.map(s=>(<option key={s.key} value={s.key}>{s.label}</option>))}
                 </select>
               </div>}
-              <div style={{overflowY:"auto",flex:1,padding:"0 20px 20px"}}>
+              {/* Direct feedback: the last drill in this list was cut off by
+                  the app's own fixed bottom tab bar -- this popup renders
+                  above it in stacking order (movly's z-index beats the tab
+                  bar's), but that only means it's drawn on top, not that
+                  the scrollable content inside knows to leave room for it.
+                  Generous bottom padding, plus the safe-area inset for a
+                  home-indicator device on top of that, gives the real
+                  last row somewhere to scroll to. */}
+              <div style={{overflowY:"auto",flex:1,padding:"0 20px calc(20px + var(--tab) + env(safe-area-inset-bottom,0px))"}}>
                 {filteredLibrary.length===0&&<div style={{padding:10,fontSize:13,color:"var(--td)"}}>No drills in this library for {sport} yet.</div>}
                 {filteredLibrary.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>chooseFromLibrary(si,lib)}>
                   <div className="lim">
