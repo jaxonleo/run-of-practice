@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, buildEquipmentNeeded } from "../constants.js";
+import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, buildEquipmentNeeded } from "../constants.js";
 import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
@@ -487,7 +487,8 @@ function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onV
 // /preview/:token link already used, not a bare attendance form. A live
 // countdown to the scheduled start replaces that same need for a coach
 // who's signed in rather than viewing an anonymous share link.
-function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoach,stationBlockActs,setupGroups,onMoveGroupPlayer,onRegenerateGroups,initialPresent,onConfirm,onBack,onReassignLead,onReassignActivityLead,onEditPractice,session}){
+function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoach,stationBlockActs,setupGroups,onMoveGroupPlayer,onRegenerateGroups,initialPresent,plannedAbsentIds,onConfirm,onBack,onReassignLead,onReassignActivityLead,onEditPractice,session}){
+  plannedAbsentIds=plannedAbsentIds||new Set();
   const allIds=team?team.players.map(p=>p.id):[];
   // Direct feedback: attendance used to default to everyone present, which
   // meant a coach arriving to a mostly-empty gym had to tap out 15 kids one
@@ -630,7 +631,7 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
           <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b"}}>Players</div>
           <div style={{display:"flex",gap:6}}>
-            <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>setPresent(new Set(allIds))}>Mark All Present</button>
+            <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>setPresent(new Set(allIds.filter(id=>!plannedAbsentIds.has(id))))}>Mark All Present</button>
             <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>setPresent(new Set())}>Clear All</button>
           </div>
         </div>
@@ -2324,6 +2325,24 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       }else{
         const g=cur.grouping||"whole";
         if(g==="whole"){setLiveGroups(null);return;}
+        // Real bug fix: this used to skip straight to a fresh random
+        // shuffle every time, on both first entry and any later attendance
+        // edit -- silently discarding the coach's manual Builder
+        // assignment or anything tweaked live in Practice Setup's own
+        // groupings dialog (both already persisted via saveSessionGroups,
+        // same as a station block's own plan-time assignments). Fetches
+        // first now, same as the station-block branch above; when
+        // something's already there, reconciles it against current
+        // attendance (drop absentees, place newly-present players into
+        // the smallest group) instead of throwing it all away.
+        const existing=await fetchLatestGroups(session.id,cur.id);
+        if(cancelled)return;
+        if(existing&&existing.length){
+          const reconciled=reconcileGroups(existing,presentIds);
+          setLiveGroups(reconciled);
+          if(JSON.stringify(reconciled)!==JSON.stringify(existing))await saveSessionGroups(session.id,cur.id,coachId,reconciled);
+          return;
+        }
         if(presentIds.size===0)return;
         const present=[...presentIds];
         const players=(team?team.players:[]).filter(p=>present.includes(p.id));
@@ -2803,15 +2822,19 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   }
 
   if(stage==="attend"||showAtt){const attBack=()=>{if(showAtt){setShowAtt(false);}else{setLiveId(null);setStage("pick");goHome();}};
-    // Fresh session start: nobody is pre-checked present (see
-    // PracticeSetupScreen's own default) -- a player marked out in advance
-    // (§7) just stays unchecked like everyone else until someone taps them
-    // in, so there's no separate exclusion step needed here anymore.
-    const freshPresent=[];
+    // Direct feedback, reverted: an earlier round defaulted attendance to
+    // nobody present, on the reasoning that a coach shouldn't have to tap
+    // 15 kids out one by one. Given the planned-absence ("who's out?")
+    // feature already exists specifically to flag who won't show, Jax
+    // decided that default no longer makes sense -- back to everyone
+    // present *except* whoever's actually marked out in advance (§7), so
+    // Timmy stays unchecked even though the default is "present," and the
+    // coach only has to tap out real day-of surprises.
+    const freshPresent=team?team.players.map(p=>p.id).filter(id=>!plannedAbsentIds.has(id)):[];
     return (<>
       {showAtt
         ?<AttendanceScreen key="upd" practice={practice} team={team} data={data} amHeadCoach={amHeadCoach} isUpdate initialPresent={[...presentIds]} initialCoachPresent={[...coachPresentIds]} onConfirm={handleAttUpdate} onBack={attBack}/>
-        :<PracticeSetupScreen practice={practice} team={team} data={data} coachId={coachId} isController={isController} amHeadCoach={amHeadCoach} stationBlockActs={stationBlockActs} setupGroups={setupGroups} onMoveGroupPlayer={moveSetupGroupPlayer} onRegenerateGroups={regenerateSetupGroups} initialPresent={freshPresent} onConfirm={handleAttConfirm} onBack={attBack} onReassignLead={setReassignStationId} onReassignActivityLead={setReassignActivityId} onEditPractice={()=>setShowEditBuilder(true)} session={session}/>}
+        :<PracticeSetupScreen practice={practice} team={team} data={data} coachId={coachId} isController={isController} amHeadCoach={amHeadCoach} stationBlockActs={stationBlockActs} setupGroups={setupGroups} onMoveGroupPlayer={moveSetupGroupPlayer} onRegenerateGroups={regenerateSetupGroups} initialPresent={freshPresent} plannedAbsentIds={plannedAbsentIds} onConfirm={handleAttConfirm} onBack={attBack} onReassignLead={setReassignStationId} onReassignActivityLead={setReassignActivityId} onEditPractice={()=>setShowEditBuilder(true)} session={session}/>}
       {!showAtt&&reassignStationId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setReassignStationId(null);setHelperDraft("");}}}>
         <div className="modal" style={{background:"#0d1512",color:"#fff"}}><div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
           <div className="mtitle" style={{color:"#fff"}}>Assign Station Leader</div>

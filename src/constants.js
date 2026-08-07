@@ -119,6 +119,25 @@ export const shuffle=(arr)=>[...arr].sort(()=>Math.random()-.5);
 export function mkGroups(ids,n){const s=shuffle(ids),g=Array.from({length:n},()=>[]);s.forEach((id,i)=>g[i%n].push(id));return g;}
 export function rebalanceKeep(stations,presentIds){return stations.map(st=>Object.assign({},st,{assignments:(st.assignments||[]).filter(id=>presentIds.has(id))}));}
 export function rebalanceEven(stations,presentIds,allPlayers){const present=allPlayers.filter(p=>presentIds.has(p.id));const n=stations.length;const s=shuffle(present);const g=Array.from({length:n},()=>[]);s.forEach((p,i)=>g[i%n].push(p.id));return stations.map((st,i)=>Object.assign({},st,{assignments:g[i]||[]}));}
+// Real bug fix: a plain (non-station) drill's live groups used to be
+// discarded and fully re-randomized every time this drill became current
+// or attendance changed at all, throwing away whatever the coach actually
+// set up (Builder's manual assignment, or edits made in Practice Setup's
+// own groupings dialog). This is the minimal-disruption alternative --
+// keeps every existing pairing intact, only drops anyone now absent, and
+// places anyone newly present who isn't in any group yet into whichever
+// group is currently smallest, rather than reshuffling everyone.
+export function reconcileGroups(groups,presentIds){
+  const kept=(groups||[]).map(g=>(g||[]).filter(id=>presentIds.has(id)));
+  const alreadyAssigned=new Set(kept.flat());
+  const unassigned=[...presentIds].filter(id=>!alreadyAssigned.has(id));
+  unassigned.forEach(id=>{
+    let idx=0;
+    for(let i=1;i<kept.length;i++)if(kept[i].length<kept[idx].length)idx=i;
+    kept[idx].push(id);
+  });
+  return kept;
+}
 export function assignGroups(players,grouping,numGroups){
   const arr=[...players].sort(()=>Math.random()-0.5);
   if(grouping==="partners"){const g=[];for(let i=0;i<arr.length;i+=2)g.push(arr.slice(i,i+2));return g;}
