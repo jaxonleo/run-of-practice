@@ -248,7 +248,7 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
       {daySheetDate && <DaySheet date={daySheetDate} practices={(practicesByDate[daySheetDate] || []).sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))} data={data} todayStr={todayStr} runStatus={runStatus} onPick={p => { setDaySheetDate(null); openPractice(p); }} onClose={() => setDaySheetDate(null)} />}
     </div>}
 
-    {showWizard && <SeriesWizard data={data} coachId={coachId} mode={appMode} presetTeamId={fixedTeamId} onClose={() => setShowWizard(false)} onDone={async () => { setShowWizard(false); await refreshPlanning(); }} />}
+    {showWizard && <SeriesWizard data={data} coachId={coachId} mode={appMode} presetTeamId={fixedTeamId} refreshPlanning={refreshPlanning} onClose={() => setShowWizard(false)} onDone={async () => { setShowWizard(false); await refreshPlanning(); }} />}
     {showSingle && <SchedulePracticeModal data={data} coachId={coachId} mode={appMode} presetTeamId={fixedTeamId} refreshPlanning={refreshPlanning} onClose={() => setShowSingle(false)} onDone={async (result, planNow) => { setShowSingle(false); await refreshPlanning(); if (planNow && result) goToBuilder(result.id); }} />}
   </div>);
 }

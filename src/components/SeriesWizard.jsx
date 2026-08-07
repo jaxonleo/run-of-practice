@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from "react";
 import { createPracticeSeries } from "../supabase.js";
 import { canManageTeamInMode } from "../constants.js";
+import { AddLocationDialog } from "./NewLibraryScreen.jsx";
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const toStr = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 
-export default function SeriesWizard({ data, coachId, mode, presetTeamId, onClose, onDone }) {
+export default function SeriesWizard({ data, coachId, mode, presetTeamId, refreshPlanning, onClose, onDone }) {
   const today = new Date();
   // §3: only teams this user manages -- an assistant should never be able
   // to schedule for a team they don't manage, even via this wizard's own
@@ -45,6 +46,7 @@ export default function SeriesWizard({ data, coachId, mode, presetTeamId, onClos
     }
   };
   const [locationId, setLocationId] = useState("");
+  const [showAddLocation, setShowAddLocation] = useState(false);
   const [deselected, setDeselected] = useState(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -107,10 +109,13 @@ export default function SeriesWizard({ data, coachId, mode, presetTeamId, onClos
           <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">End Date</label><input className="inp" type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} /></div>
         </div>
         <div className="fld mb10"><label className="lbl">Location <span style={{ color: "var(--td)", fontWeight: 400 }}>(optional)</span></label>
-          <select className="sel" value={locationId} onChange={e => setLocationId(e.target.value)}>
+          {data.locations.length > 0 ? (<select className="sel" value={locationId} onChange={e => { const v = e.target.value; if (v === "__add_new__") { setShowAddLocation(true); return; } setLocationId(v); }}>
             <option value="">None</option>
             {data.locations.map(l => (<option key={l.id} value={l.id}>{l.name}</option>))}
-          </select>
+            <option value="__add_new__">+ Add New Location...</option>
+          </select>) : (
+            <button type="button" className="btn outline bsm bfull" onClick={() => setShowAddLocation(true)}>+ Add a Location</button>
+          )}
         </div>
         {rangeEnd < rangeStart && <div style={{ fontSize: 12, color: "var(--red)", marginBottom: 10 }}>End date can't be before the start date.</div>}
         <div className="brow"><button className="btn ghost bsm" onClick={onClose}>Cancel</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={() => setStep("preview")} disabled={!detailsValid}>Next</button></div>
@@ -133,5 +138,6 @@ export default function SeriesWizard({ data, coachId, mode, presetTeamId, onClos
         <div className="brow"><button className="btn ghost bsm" onClick={() => setStep("details")}>Back</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={confirm} disabled={saving || selectedOccurrences.length === 0}>{saving ? "Creating..." : "Create Schedule"}</button></div>
       </div>}
     </div>
+    {showAddLocation && <AddLocationDialog coachId={coachId} orgId={team && team.organizationId} onClose={() => setShowAddLocation(false)} onCreated={async (loc) => { if (refreshPlanning) await refreshPlanning(); setLocationId(loc.id); }} />}
   </div>);
 }

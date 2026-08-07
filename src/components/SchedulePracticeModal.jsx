@@ -66,9 +66,10 @@ export default function SchedulePracticeModal({ data, coachId, mode, presetTeamI
       <div className="fld mb10"><label className="lbl">Start Time</label><input className="inp" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} /></div>
       <div className="fld mb10"><label className="lbl">Duration (minutes)</label><input className="inp" type="number" min="1" value={durationMinutes} onChange={e => { const v = e.target.value; setDurationMinutes(v === "" ? "" : +v); }} onBlur={() => { if (!durationMinutes || durationMinutes < 1) setDurationMinutes(60); }} /></div>
       <div className="fld mb10"><label className="lbl">Location <span style={{ color: "var(--td)", fontWeight: 400 }}>(optional)</span></label>
-        {data.locations.length > 0 ? (<select className="sel" value={locationId} onChange={e => setLocationId(e.target.value)}>
+        {data.locations.length > 0 ? (<select className="sel" value={locationId} onChange={e => { const v = e.target.value; if (v === "__add_new__") { setShowAddLocation(true); return; } setLocationId(v); }}>
           <option value="">None</option>
           {data.locations.map(l => (<option key={l.id} value={l.id}>{l.name}</option>))}
+          <option value="__add_new__">+ Add New Location...</option>
         </select>) : (
           // "None" was always a valid way through here, but a coach with
           // zero locations at all never had a way to add one without
