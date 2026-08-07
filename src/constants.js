@@ -281,6 +281,18 @@ export function resolveVoiceByURI(uri){
     return voices.find(v=>v.voiceURI===uri)||null;
   }catch(e){return null;}
 }
+// Direct feedback: default voice for a live practice should read as male
+// (Daniel, the same curated option Settings itself offers) instead of
+// whatever the browser happens to pick on its own. Used whenever no
+// explicit per-coach voiceURI preference is saved, or the saved one no
+// longer resolves on this device -- and always for HelperView, which has
+// no Settings screen or saved preference of its own to fall back to.
+export function resolveDefaultVoice(){
+  try{
+    const voices=(window.speechSynthesis&&window.speechSynthesis.getVoices())||[];
+    return voices.find(v=>v.name.trim().toLowerCase()==="daniel")||null;
+  }catch(e){return null;}
+}
 
 // ── Builder: Practice Components ──────────────────────────────────────────────
 // The full menu of quick-add types Builder's "Practice Components" section

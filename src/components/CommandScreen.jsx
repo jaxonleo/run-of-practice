@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, buildEquipmentNeeded } from "../constants.js";
+import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, buildEquipmentNeeded } from "../constants.js";
 import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
@@ -1144,20 +1144,6 @@ function HelperPlayerChip({p,focus}){
   </span>);
 }
 
-function HelperSkillTags({names}){
-  if(!names||!names.length)return null;
-  return (<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
-    {names.map(n=>(<span key={n} className="bdg bs" style={{fontSize:10}}>{n}</span>))}
-  </div>);
-}
-// Direct feedback: coach/helper names in HelperView were plain gray text,
-// easy to miss -- the same light-theme green pill already used elsewhere in
-// this light-background live view (e.g. the header attendance pill) makes
-// it read as clearly as it does in the coach's own view.
-function CoachPill({name}){
-  if(!name)return null;
-  return <span style={{display:"inline-flex",alignItems:"center",background:"var(--gbg)",border:"1.5px solid var(--gb)",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700,color:"var(--green)"}}>{name}</span>;
-}
 
 // ── Notes system (Assistant Coach handoff §2) ────────────────────────────────
 // Only HelperView uses this composer -- the staff live view already had a
@@ -1272,7 +1258,10 @@ function HelperView({token}){
     setMarkingId(null);
   };
 
-  const speak=txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;window.speechSynthesis.speak(u);}catch(e){}};
+  // HelperView has no Settings screen or saved per-coach preference of its
+  // own -- always defaults to the same male voice (Daniel) coaches default
+  // to, instead of whatever the browser happens to pick.
+  const speak=txt=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.rate=0.9;const v=resolveDefaultVoice();if(v)u.voice=v;window.speechSynthesis.speak(u);}catch(e){}};
   const beep=()=>{if(!audioOn)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Next up!");u.rate=1.1;u.pitch=1.2;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}};
 
   const valid=session&&!session.error;
@@ -1358,7 +1347,7 @@ function HelperView({token}){
             or hardware volume, only in-page gain) -- there's no way to tell
             whether it's already loud enough, so this always shows rather
             than only below some volume threshold. */}
-        <div style={{fontSize:13,fontWeight:700,color:"var(--amber)",background:"var(--ambg)",border:"1.5px solid var(--ambb)",borderRadius:8,padding:"8px 10px",marginBottom:14}}>🔉 Also turn up your device's volume -- your browser can't check this for you.</div>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--amber)",background:"var(--ambg)",border:"1.5px solid var(--ambb)",borderRadius:8,padding:"8px 10px",marginBottom:14}}>🔉 Reminder: Turn up your device's volume.</div>
         <button className="btn primary bmd bfull mb8" onClick={()=>{
           if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}
           spokenRef.current={};buzzedRef.current=false;setAudioOn(true);setShowAudioPrompt(false);
@@ -1428,8 +1417,6 @@ function HelperView({token}){
     <div className="cc-body">
       {isCl&&cur&&<div className="cc-focus"><div className="cc-focus-lbl">{cur.name}</div>{(cur.items||[]).map(it=>(<div key={it.id} className="cl-item"><div className="cl-check"/><div className="cl-text">{it.text}</div></div>))}</div>}
       {!isBlock&&!isCl&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
-        <HelperSkillTags names={cur.skill_tags}/>
-        {cur.skill_tags&&cur.skill_tags.length>0&&<button type="button" className="btn ghost bsm" style={{alignSelf:"flex-start"}} onClick={()=>setShowPlayerFocus(true)}>Player Focus</button>}
         {cur.description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
           <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{cur.description}</div>
@@ -1438,6 +1425,7 @@ function HelperView({token}){
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
           <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{cur.coaching_points}</div>
         </div>}
+        {cur.skill_tags&&cur.skill_tags.length>0&&<button type="button" className="btn ghost bsm" style={{alignSelf:"flex-start"}} onClick={()=>setShowPlayerFocus(true)}>Player Focus</button>}
         {(cur.equipment&&cur.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
           <span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"3px 10px",fontSize:12,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {cur.equipment.join(", ")}</span>
         </div>}
@@ -1455,18 +1443,26 @@ function HelperView({token}){
           <div style={{fontSize:14,color:"var(--black)"}}>Whole Team Together</div>
         </div>}
       </div>}
-      {isBlock&&inBlockIntro&&stations.length>0&&<div>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--td)",marginBottom:12}}>Get everyone to their station</div>
+      {/* Direct feedback: this screen still looked like a plain light card,
+          not the coach's own dark #0d1512 Introduce Stations treatment,
+          and its field order/content (skill tags and coaching points shown
+          up front) didn't match the coach's minimal pre-block-start view
+          either. Matched exactly now: same background/card styling, same
+          header-row layout (station # / area / coach), same fields, same
+          order, coaching points and skill tags dropped since the coach's
+          own version never shows them here either. */}
+      {isBlock&&inBlockIntro&&stations.length>0&&<div style={{background:"#0d1512",borderRadius:"var(--r)",padding:"14px 12px",marginBottom:4}}>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b",marginBottom:12}}>Get everyone to their station</div>
         {stations.map((st,i)=>{
           const g=groups[i];
-          return(<div key={st.id||i} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:4}}>Station {i+1}</div>
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",marginBottom:6}}>{st.name||"Station "+(i+1)}</div>
-            {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
-            {st.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:2}}>{st.sublocation_name}</div>}
-            {st.coach_name&&<div style={{marginBottom:4}}><CoachPill name={st.coach_name}/></div>}
-            <HelperSkillTags names={st.skill_tags}/>
-            {st.coaching_points&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:4,lineHeight:1.4,borderLeft:"2px solid var(--green)",paddingLeft:8}}>{st.coaching_points}</div>}
+          return(<div key={st.id||i} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#52b788"}}>Station {i+1}</div>
+              {st.sublocation_name&&<div style={{fontSize:11,color:"#52b788",fontWeight:600}}>{st.sublocation_name}</div>}
+              {st.coach_name&&<div style={{fontSize:11,color:"#8fa89b"}}>{st.coach_name}</div>}
+            </div>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",marginBottom:6}}>{st.name||"Station "+(i+1)}</div>
+            {st.group_label&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {st.group_label}</span></div>}
             {(st.equipment&&st.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
               <span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {st.equipment.join(", ")}</span>
             </div>}
@@ -1475,17 +1471,30 @@ function HelperView({token}){
             </div>
           </div>);
         })}
-        <div style={{textAlign:"center",fontSize:12,color:"var(--td)",marginTop:8}}>Waiting for coach to start the block</div>
+        <div style={{textAlign:"center",fontSize:12,color:"#8fa89b",marginTop:8}}>Waiting for coach to start the block</div>
       </div>}
       {isBlock&&!inBlockIntro&&!inTrans&&rotatedStations&&<div>
         {focusSt!==null&&<div>
+          {/* Direct feedback: this used to show area before the drill name,
+              coach as a separate pill after the group label, no
+              description field at all (present in the data, just never
+              rendered), and skill tags that the coach's own view never
+              shows here either. Reordered and pruned to match the coach's
+              exact field order: title, group, coach+area combined on one
+              line, description, coaching focus, equipment, players. */}
           <button className="btn ghost bxs" style={{marginBottom:10}} onClick={()=>setFocusSt(null)}>&#8249; All Stations</button>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {focusSt+1}</div>
-          {rotatedStations[focusSt].sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:3}}>{rotatedStations[focusSt].sublocation_name}</div>}
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:6}}>{rotatedStations[focusSt].name||"Station "+(focusSt+1)}</div>
           {rotatedStations[focusSt].group_label&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {rotatedStations[focusSt].group_label}</span></div>}
-          {rotatedStations[focusSt].coach_name&&<div style={{marginBottom:6}}><CoachPill name={rotatedStations[focusSt].coach_name}/></div>}
-          <HelperSkillTags names={rotatedStations[focusSt].skill_tags}/>
+          {(rotatedStations[focusSt].coach_name||rotatedStations[focusSt].sublocation_name)&&<div style={{fontSize:14,fontWeight:600,color:"var(--green2)",marginBottom:10,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
+            {rotatedStations[focusSt].coach_name&&<span>{rotatedStations[focusSt].coach_name}</span>}
+            {rotatedStations[focusSt].coach_name&&rotatedStations[focusSt].sublocation_name&&<span>·</span>}
+            {rotatedStations[focusSt].sublocation_name&&<span>{rotatedStations[focusSt].sublocation_name}</span>}
+          </div>}
+          {rotatedStations[focusSt].description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
+            <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].description}</div>
+          </div>}
           {rotatedStations[focusSt].coaching_points&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
             <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coaching_points}</div>
@@ -1506,11 +1515,13 @@ function HelperView({token}){
               every card) instead of two. */}
           <div style={{fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+n+" · Tap a station to focus":"Tap a station to focus"}</div>
           {rotatedStations.map((st,i)=>(<div key={st.id||i} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {i+1}</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}}>
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Station {i+1}</div>
+              {st.coach_name&&<div style={{fontSize:11,color:"var(--td)"}}>{st.coach_name}</div>}
+            </div>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.name||"Station "+(i+1)}</div>
             {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
             {st.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{st.sublocation_name}</div>}
-            {st.coach_name&&<div style={{marginBottom:4}}><CoachPill name={st.coach_name}/></div>}
             {(st.equipment&&st.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
               <span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {st.equipment.join(", ")}</span>
             </div>}
@@ -1545,17 +1556,21 @@ function HelperView({token}){
           rotation (showing the *real* next rotation before it happens would
           give away who's about to move where). */}
       {isBlock&&blockRotate&&!inBlockIntro&&!inTrans&&stIdx<n-1?(
+        <>
+          <div className="cc-queue-hdr"><span className="cc-queue-hdr-label">Up Next</span><span className="cc-queue-hdr-line"/></div>
+          <div className="cc-queue">
+            <div className="cc-queue-item" style={{width:"100%"}}><span style={{fontSize:14,color:"var(--black2)"}}>Station rotation coming up</span></div>
+          </div>
+        </>
+      ):(upcoming.slice(0,3).length>0&&<>
+        <div className="cc-queue-hdr"><span className="cc-queue-hdr-label">Up Next</span><span className="cc-queue-hdr-line"/></div>
         <div className="cc-queue">
-          <div style={{padding:"6px 12px",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>Up Next</div>
-          <div className="cc-queue-item" style={{width:"100%"}}><span style={{fontSize:14,color:"var(--black2)"}}>Station rotation coming up</span></div>
+          {upcoming.slice(0,3).map((a,i)=>(<button key={i} type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={()=>setPreviewUpcoming(toPreviewItem(a))}>
+            <span style={{fontSize:14,color:"var(--black2)"}}>{a.type==="station_block"?"Station Block":a.name}</span>
+            <span className="bdg bs">{upcomingMins(a)}m</span>
+          </button>))}
         </div>
-      ):(upcoming.slice(0,3).length>0&&<div className="cc-queue">
-        <div style={{padding:"6px 12px",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>Up Next</div>
-        {upcoming.slice(0,3).map((a,i)=>(<button key={i} type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={()=>setPreviewUpcoming(toPreviewItem(a))}>
-          <span style={{fontSize:14,color:"var(--black2)"}}>{a.type==="station_block"?"Station Block":a.name}</span>
-          <span className="bdg bs">{upcomingMins(a)}m</span>
-        </button>))}
-      </div>)}
+      </>)}
     </div>
     {showPlayerFocus&&cur&&<div className="movly" onClick={()=>setShowPlayerFocus(false)}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
@@ -2054,17 +2069,17 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
 
   // Voice is coach-selectable (Settings -> Live Practice Audio) -- the
   // coach previews and picks a specific installed voice there, remembered
-  // by voiceURI. If it's not found here (uncleared preference, or a
-  // voice that only existed on a different device), this just leaves
-  // u.voice unset and falls back to whatever the browser's own default
-  // voice is, exactly like before this setting existed.
+  // by voiceURI. If no preference is saved yet, or the saved one only
+  // existed on a different device, this defaults to the male option
+  // (Daniel, resolveDefaultVoice) rather than whatever the browser's own
+  // default happens to be.
   const speak=useCallback(txt=>{
     if(!audioOn)return;
     try{
       window.speechSynthesis.cancel();
       const u=new SpeechSynthesisUtterance(txt);
       u.rate=0.9;
-      const v=resolveVoiceByURI(getVoiceURIPref());
+      const v=resolveVoiceByURI(getVoiceURIPref())||resolveDefaultVoice();
       if(v)u.voice=v;
       window.speechSynthesis.speak(u);
     }catch(e){};
@@ -2689,9 +2704,6 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     return (drill&&drill.skillTagIds)||[];
   };
   const tagNamesForLibraryId=libraryId=>tagIdsForLibraryId(libraryId).map(id=>{const t=(data.skillTags||[]).find(t=>t.id===id);return t?t.name:null;}).filter(Boolean);
-  const SkillTagRow=({names})=>names.length?(<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-    {names.map(n=>(<span key={n} className="bdg bs" style={{fontSize:10}}>{n}</span>))}
-  </div>):null;
   // Direct feedback: a drill with no skill tag silently loses the "Player
   // Focus" callout above (categoryIdsForLibraryId comes up empty), which a
   // coach mid-practice has no way to notice or fix without leaving the live
@@ -3024,7 +3036,6 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
           <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{cur.coachingPoints}</div>
         </div>}
-        <SkillTagRow names={tagNamesForLibraryId(cur.libraryId)}/>
         {isController&&untaggedOwnLibraryId(cur.libraryId)&&<button type="button" onClick={()=>openTagPicker(cur.libraryId)} style={{textAlign:"left",background:"var(--ambg)",border:"1px solid var(--ambb)",borderRadius:8,padding:"8px 10px",fontSize:12,color:"var(--amber)",fontWeight:600,cursor:"pointer"}}>No skill tag yet -- tap to add one</button>}
         {categoryIdsForLibraryId(cur.libraryId).length>0&&<button type="button" className="btn ghost bsm" style={{alignSelf:"flex-start"}} onClick={()=>setShowPlayerFocus(true)}>Player Focus</button>}
         {(()=>{const eq=Array.isArray(cur.equipment)?cur.equipment:[];const names=eq.map(id=>{const a=(data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(names.length>0||cur.playerGear)?(<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -3095,7 +3106,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
                 if(!isController)return <StationPlayerChip key={pid} pid={pid} team={team}/>;
                 const isPicked=movePlayer===pid;
                 const pl=team&&team.players.find(p=>p.id===pid);
-                return(<button key={pid} type="button" onClick={()=>setMovePlayer(m=>m===pid?null:pid)} style={{padding:"6px 10px",borderRadius:20,background:isPicked?"rgba(245,158,11,.25)":"var(--s2)",border:"1.5px solid "+(isPicked?"#f59e0b":"var(--b)"),fontSize:12,fontWeight:600,color:isPicked?"#fde68a":"#fff",cursor:"pointer"}}>
+                return(<button key={pid} type="button" onClick={()=>setMovePlayer(m=>m===pid?null:pid)} style={{padding:"6px 10px",borderRadius:20,background:isPicked?"rgba(245,158,11,.25)":"rgba(255,255,255,.1)",border:"1.5px solid "+(isPicked?"#f59e0b":"rgba(255,255,255,.25)"),fontSize:12,fontWeight:600,color:isPicked?"#fde68a":"#fff",cursor:"pointer"}}>
                   {pl&&pl.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:isPicked?"#fde68a":"#52b788",marginRight:4}}>#{pl.jersey}</span>}{pl?pl.firstName:""}{isPicked?" · picked up":""}
                 </button>);
               })}
@@ -3263,15 +3274,18 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           it's actually relevant. Offer a local peek at the next transition
           instead of the real (session-wide) queue. */}
       {isBlock&&blockRotate&&!inBlockIntro&&!inTrans&&stIdx<n-1?(
+        <>
+          <div className="cc-queue-hdr"><span className="cc-queue-hdr-label">Up Next</span><span className="cc-queue-hdr-line"/></div>
+          <div className="cc-queue">
+            <button type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={()=>setPreviewTrans(true)}>
+              <span style={{fontSize:14,color:"var(--black2)"}}>Station rotation coming up</span>
+              <span className="bdg bs">See next transition</span>
+            </button>
+          </div>
+        </>
+      ):(liveActs.slice(idx+1,idx+4).length>0&&<>
+        <div className="cc-queue-hdr"><span className="cc-queue-hdr-label">Up Next</span><span className="cc-queue-hdr-line"/></div>
         <div className="cc-queue">
-          <div style={{padding:"6px 12px",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>Up Next</div>
-          <button type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={()=>setPreviewTrans(true)}>
-            <span style={{fontSize:14,color:"var(--black2)"}}>Station rotation coming up</span>
-            <span className="bdg bs">See next transition</span>
-          </button>
-        </div>
-      ):(liveActs.slice(idx+1,idx+4).length>0&&<div className="cc-queue">
-        <div style={{padding:"6px 12px",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>Up Next</div>
         {/* Direct feedback: any viewer should be able to peek at what's
             coming (equipment/location/rotations) without advancing --
             everything needed is already in liveActs (the local plan),
@@ -3296,7 +3310,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           <span style={{fontSize:14,color:"var(--td)"}}>{a.type==="station_block"?"Station Block":a.name}</span>
           <span className="bdg bs">{a.type==="station_block"?(a.stations.length*a.stationDuration+(a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
         </button>))}
-      </div>)}
+        </div>
+      </>)}
       {previewUpcoming&&<UpcomingPreview item={previewUpcoming} onClose={()=>setPreviewUpcoming(null)}/>}
       {previewTrans&&rotatedStations&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setPreviewTrans(false);}}>
         <div className="modal">
@@ -3346,7 +3361,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             or hardware volume, only in-page gain) -- there's no way to tell
             whether it's already loud enough, so this always shows rather
             than only below some volume threshold. */}
-        <div style={{fontSize:13,fontWeight:700,color:"var(--amber)",background:"var(--ambg)",border:"1.5px solid var(--ambb)",borderRadius:8,padding:"8px 10px",marginBottom:14}}>🔉 Also turn up your device's volume -- your browser can't check this for you.</div>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--amber)",background:"var(--ambg)",border:"1.5px solid var(--ambb)",borderRadius:8,padding:"8px 10px",marginBottom:14}}>🔉 Reminder: Turn up your device's volume.</div>
           <button className="btn primary bmd bfull mb8" onClick={()=>{
             if(!audioOn){try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}startBgAudioSession();}
             spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(true);setShowAudioPrompt(false);
@@ -3391,7 +3406,13 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     <div className="cc-note-bar" style={{position:"relative"}}>
       <input ref={noteTaRef} className="inp" placeholder="Quick note... (@ to tag a player)" value={noteText} onChange={onNoteTextChange} onKeyDown={e=>e.key==="Enter"&&noteMentionQuery===null&&addNote()} style={{fontSize:14}}/>
       <button className="btn primary bsm" onClick={addNote} disabled={savingNote}>{savingNote?"Saving...":"Save"}</button>
-      {noteMentionQuery!==null&&noteMentionMatches.length>0&&<div className="mini-menu" style={{position:"absolute",bottom:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}}>{noteMentionMatches.map(p=>(<button key={p.id} type="button" className="mm-item" onClick={()=>pickNoteMention(p)}>{p.firstName} {p.lastName}</button>))}</div>}
+      {/* Real bug: .mini-menu's own CSS always sets top:calc(100% - 4px)
+          (it opens downward everywhere else it's used) -- overriding only
+          `bottom` here left both top and bottom pinned at once, an
+          inconsistent box the browser was rendering with ~zero height, so
+          the picker existed in the DOM but was effectively invisible.
+          Clearing `top` alongside `bottom` fixes it. */}
+      {noteMentionQuery!==null&&noteMentionMatches.length>0&&<div className="mini-menu" style={{position:"absolute",top:"auto",bottom:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}}>{noteMentionMatches.map(p=>(<button key={p.id} type="button" className="mm-item" onClick={()=>pickNoteMention(p)}>{p.firstName} {p.lastName}</button>))}</div>}
     </div>
     {noteError&&<div style={{padding:"0 14px 8px",fontSize:12,color:"var(--red)"}}>{noteError}</div>}
     {showShare&&shareToken&&<ShareSheet token={shareToken} scope={shareScope} onClose={()=>setShowShare(false)} title={"Help with the "+(practice&&practice.date?new Date(practice.date+"T12:00:00").toLocaleDateString(undefined,{month:"long",day:"numeric"})+" ":"")+(team?team.name+" ":"")+"Run of Practice"}/>}

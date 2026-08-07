@@ -210,8 +210,17 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .cc-trans-names{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:700;color:var(--black);line-height:1.2;margin-bottom:6px;}
 .cc-trans-to{font-size:14px;color:var(--green);font-weight:600;}
 .cc-trans-sub{font-size:12px;color:var(--td);margin-top:2px;}
-.cc-queue{background:var(--s2);border-radius:var(--r);overflow:hidden;}
-.cc-queue-item{padding:8px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--b);}
+/* Direct feedback: Up Next used to just be another card in the same
+   flex-gap stack as the current drill's own content, easy to read as a
+   continuation of it rather than a preview of something different. A
+   labeled divider above (cc-queue-hdr, in the eyebrow-header/thin-line
+   pattern used for section breaks elsewhere) plus a real border on the
+   card itself gives it its own visual identity. */
+.cc-queue-hdr{display:flex;align-items:center;gap:8px;margin-top:6px;}
+.cc-queue-hdr-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--green);flex-shrink:0;}
+.cc-queue-hdr-line{flex:1;height:1px;background:var(--b);}
+.cc-queue{background:var(--s1);border:1.5px solid var(--b);border-radius:var(--r);overflow:hidden;margin-top:8px;}
+.cc-queue-item{padding:10px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--b);}
 .cc-queue-item:last-child{border-bottom:none;}
 .cc-note-bar{padding:6px 14px;display:flex;gap:7px;flex-shrink:0;background:var(--s1);border-top:1px solid var(--b);}
 .cc-end{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;flex:1;}
