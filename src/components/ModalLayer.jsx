@@ -269,7 +269,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
       await refreshTeams();
     }
     if(t==="editTeam"){if(!f.name)return;await updateTeam(p.team.id,{name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||p.team.colorPrimary});await setTeamLocations(p.team.id,f.locationIds||[]);await refreshTeams();}
-    if(t==="addPlayer"){if(!f.firstName)return;await createPlayer(p.teamId,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:f.positions||[],bats:f.bats||"",throws:f.throws||"",notes:f.notes||""});await refreshTeams();}
+    if(t==="addPlayer"){if(!f.firstName)return;res=await createPlayer(p.teamId,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:f.positions||[],bats:f.bats||"",throws:f.throws||"",notes:f.notes||""});if(!res.error)await refreshTeams();}
     if(t==="addCoach"){if(!f.name||!f.inviteEmail)return;await inviteTeamStaff(p.teamId,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail});await refreshTeams();}
     if(t==="editCoach"){if(!f.name)return;if(!coach.userId&&!f.inviteEmail)return;await updateStaff(p.coach.id,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail||""});await refreshTeams();}
     if(t==="editInvite"){if(!f.name||!f.inviteEmail)return;await editTeamInvite(p.invite.id,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail});await refreshTeams();}
