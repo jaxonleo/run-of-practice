@@ -6,7 +6,7 @@ import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
-import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession } from "./supabase.js";
+import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes } from "./constants.js";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
@@ -1894,6 +1894,18 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
     const c=team.coaches.find(c=>c.userId===n.createdBy);
     return (c?c.name:"A coach")+(c?" · "+c.role:"");
   };
+  // Direct feedback: head coaches should be able to delete a note from
+  // any screen where notes tied to a player show up, not just the new
+  // live-attendance player card -- same isHeadCoach gate, same
+  // archiveNote call.
+  const amHeadCoach=isHeadCoach(team,coachId);
+  const [deletingNoteId,setDeletingNoteId]=useState(null);
+  const deletePlayerNote=async id=>{
+    setDeletingNoteId(id);
+    await archiveNote(id);
+    setPlayerNotes(ns=>ns.filter(n=>n.id!==id));
+    setDeletingNoteId(null);
+  };
   const areas=player.focusAreas||[];
   const areaFor=categoryId=>areas.find(a=>a.categoryId===categoryId);
   const categories=(data.skillCategories||[]).filter(c=>c.sport===team.sport).sort((a,b)=>a.sort_order-b.sort_order);
@@ -1995,7 +2007,10 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
       <div className="clbl mb8">Practice Notes</div>
       <div className="card mb10">
         {playerNotes.map(n=>(<div key={n.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--b)"}}>
-          <div style={{fontSize:11,color:"var(--td)",marginBottom:2}}>{playerNoteAuthor(n)} · {new Date(n.createdAt).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</div>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+            <div style={{fontSize:11,color:"var(--td)",marginBottom:2}}>{playerNoteAuthor(n)} · {new Date(n.createdAt).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</div>
+            {amHeadCoach&&<button type="button" disabled={deletingNoteId===n.id} onClick={()=>deletePlayerNote(n.id)} style={{background:"none",border:"none",padding:0,fontSize:11,color:"var(--red)",cursor:"pointer",flexShrink:0}}>{deletingNoteId===n.id?"Deleting...":"Delete"}</button>}
+          </div>
           <div style={{fontSize:14}}>{n.text}</div>
         </div>))}
       </div>

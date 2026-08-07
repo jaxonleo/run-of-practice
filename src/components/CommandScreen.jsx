@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, buildEquipmentNeeded } from "../constants.js";
-import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchPracticeActualStart, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach } from "../supabase.js";
+import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
@@ -127,16 +127,74 @@ function UpcomingPreview({item,onClose}){
   </div>);
 }
 
-function ShareSheet({token,scope,onClose}){
+function ShareSheet({token,scope,onClose,title}){
   const url=window.location.origin+"/live/"+token;
   const isAttendance=scope==="helper_attendance";
   const [copied,setCopied]=useState(false);
   const copy=()=>{try{navigator.clipboard.writeText(url).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});}catch(e){}};
-  const share=()=>{if(navigator.share)navigator.share({title:"Run of Practice - Live View",url});else copy();};
+  // Direct feedback: every shared link used the same generic title
+  // ("Run of Practice - Live View") no matter which practice it was for --
+  // a recipient juggling links from multiple teams/dates had no way to
+  // tell them apart. `title` is built by the caller from the real
+  // practice/team, falling back to the old generic text if unavailable.
+  const share=()=>{if(navigator.share)navigator.share({title:title||"Run of Practice - Live View",url});else copy();};
   return (<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:200,display:"flex",alignItems:"flex-end"}}><div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"24px 20px 40px"}}><div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 20px"}}/><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>{isAttendance?"Share for Attendance":"Share Live View"}</div><div style={{fontSize:13,color:"var(--td)",marginBottom:20}}>{isAttendance?"Anyone with this link can follow along AND mark players present/absent.":"Anyone with this link can follow along in real time."}</div><div style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:12,wordBreak:"break-all",fontSize:13,color:"var(--black2)",fontFamily:"DM Mono,monospace"}}>{url}</div><div className="brow"><button className="btn outline bmd" style={{flex:1}} onClick={copy}>{copied?"Copied!":"Copy Link"}</button><button className="btn primary bmd" style={{flex:1}} onClick={share}>Share</button></div><button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={onClose}>Done</button></div></div>);
 }
 
-function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPresent,onConfirm,onBack}){
+// Direct feedback, a real bug: tapping anywhere on a player's row toggled
+// their attendance, so a coach trying to just glance at someone's card
+// could accidentally mark them absent. Restructured so only the check
+// circle itself toggles attendance; the rest of the row (including a new
+// ellipsis) is for viewing the player, not marking them.
+function PlayerCardModal({player,team,data,amHeadCoach,onClose}){
+  const [notes,setNotes]=useState(null);
+  const [deletingId,setDeletingId]=useState(null);
+  useEffect(()=>{let cancelled=false;fetchNotesForPlayer(player.id).then(n=>{if(!cancelled)setNotes(n);});return()=>{cancelled=true;};},[player.id]);
+  const noteAuthor=n=>{
+    if(n.authorKind==="anonymous")return (n.authorLabel||"A helper")+" · Helper";
+    const c=team&&team.coaches.find(c=>c.userId===n.createdBy);
+    return (c?c.name:"A coach")+(c?" · "+c.role:"");
+  };
+  const deleteNote=async id=>{
+    setDeletingId(id);
+    await archiveNote(id);
+    setNotes(ns=>ns.filter(n=>n.id!==id));
+    setDeletingId(null);
+  };
+  const areas=(player.focusAreas||[]).filter(a=>a.note);
+  return (<div className="movly" onClick={onClose}>
+    <div className="modal" onClick={e=>e.stopPropagation()}>
+      <div className="mhandle"/>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+        <div>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900}}>{player.firstName} {player.lastName}</div>
+          {player.jersey&&<div style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"var(--green)"}}>#{player.jersey}</div>}
+        </div>
+        <button className="btn ghost bxs" onClick={onClose}>Close</button>
+      </div>
+      <div className="clbl mb8">Player Focus</div>
+      {areas.length===0&&<div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>No focus areas added yet.</div>}
+      {areas.length>0&&areas.map(a=>{
+        const cat=(data&&data.skillCategories||[]).find(c=>c.id===a.categoryId);
+        return(<div key={a.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--td)"}}>{cat?cat.name:""}</div>
+          <div style={{fontSize:14,lineHeight:1.5,marginTop:2}}>{a.note}</div>
+        </div>);
+      })}
+      <div className="clbl mb8" style={{marginTop:14}}>Practice Notes</div>
+      {notes===null&&<div style={{fontSize:13,color:"var(--td)"}}>Loading...</div>}
+      {notes&&notes.length===0&&<div style={{fontSize:13,color:"var(--td)"}}>No notes tagging this player yet.</div>}
+      {notes&&notes.map(n=>(<div key={n.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
+        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+          <div style={{fontSize:11,color:"var(--td)",marginBottom:2}}>{noteAuthor(n)} · {new Date(n.createdAt).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</div>
+          {amHeadCoach&&<button type="button" disabled={deletingId===n.id} onClick={()=>deleteNote(n.id)} style={{background:"none",border:"none",padding:0,fontSize:11,color:"var(--red)",cursor:"pointer",flexShrink:0}}>{deletingId===n.id?"Deleting...":"Delete"}</button>}
+        </div>
+        <div style={{fontSize:14}}>{n.text}</div>
+      </div>))}
+    </div>
+  </div>);
+}
+function AttendanceScreen({practice,team,data,amHeadCoach,isUpdate,initialPresent,initialCoachPresent,onConfirm,onBack}){
   const allIds=team?team.players.map(p=>p.id):[];
   const [present,setPresent]=useState(()=>{
     if(initialPresent!==null&&initialPresent!==undefined)return new Set(initialPresent);
@@ -146,6 +204,7 @@ function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPre
     if(initialCoachPresent&&initialCoachPresent.length>0)return new Set(initialCoachPresent);
     return new Set(team?team.coaches.map(c=>c.id):[]);
   });
+  const [playerCardId,setPlayerCardId]=useState(null);
   const togP=id=>setPresent(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
   const togC=id=>setCoachPresent(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
   const pCount=present.size;
@@ -155,6 +214,7 @@ function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPre
     const assigned=b.stations.reduce((s,st)=>{(st.assignments||[]).forEach(id=>s.add(id));return s;},new Set());
     return [...present].some(id=>!assigned.has(id));
   });
+  const playerCard=playerCardId&&team?team.players.find(p=>p.id===playerCardId):null;
   return (<div style={{padding:"14px",paddingBottom:"calc(var(--tab) + 100px)"}}>
     <div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>Back</button><div className="ptitle" style={{fontSize:22}}>{isUpdate?"Attendance":"Practice Setup"}</div></div>
     <div style={{background:"var(--green)",borderRadius:10,padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -163,10 +223,13 @@ function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPre
     </div>
     <div className="clbl mb8">Players</div>
     <div className="att-grid">
-      {team&&team.players.map(p=>(<button key={p.id} onClick={()=>togP(p.id)} className={"att-btn "+(present.has(p.id)?"on":"")}>
-        <div className={"att-circle "+(present.has(p.id)?"on":"")}>{present.has(p.id)&&<Ic.Check/>}</div>
-        <div><div style={{fontSize:14,fontWeight:600,color:present.has(p.id)?"var(--black)":"var(--td)"}}>{p.firstName}</div></div>
-      </button>))}
+      {team&&team.players.map(p=>(<div key={p.id} className={"att-btn "+(present.has(p.id)?"on":"")}>
+        <button type="button" onClick={()=>togP(p.id)} style={{background:"none",border:"none",padding:0,cursor:"pointer",display:"flex",flexShrink:0}} aria-label={present.has(p.id)?"Mark absent":"Mark present"}>
+          <div className={"att-circle "+(present.has(p.id)?"on":"")}>{present.has(p.id)&&<Ic.Check/>}</div>
+        </button>
+        <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:present.has(p.id)?"var(--black)":"var(--td)"}}>{p.firstName}</div></div>
+        <button type="button" className="ell-btn" style={{flexShrink:0}} onClick={()=>setPlayerCardId(p.id)}><span/><span/><span/></button>
+      </div>))}
     </div>
     {team&&team.coaches.length>0&&(<div>
       <div className="clbl mb8 mt8">Coaches</div>
@@ -185,6 +248,7 @@ function AttendanceScreen({practice,team,isUpdate,initialPresent,initialCoachPre
       </div>}
       {!needsBalance&&<button className="btn primary bfull bmd" onClick={()=>onConfirm({presentIds:present,coachPresentIds:coachPresent,balanceMode:"keep"})}>{isUpdate?"Update Attendance":"Start Practice"}</button>}
     </div>
+    {playerCard&&<PlayerCardModal player={playerCard} team={team} data={data} amHeadCoach={amHeadCoach} onClose={()=>setPlayerCardId(null)}/>}
   </div>);
 }
 
@@ -326,7 +390,7 @@ function SetupActivityRow({act,loc,data,team,isController,onReassignActivityLead
   const hasGrouping=(act.grouping||"whole")!=="whole";
   return (<div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"12px 14px",marginBottom:8}}>
     <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
-      <button type="button" onClick={()=>setExpanded(e=>!e)} style={{background:"none",border:"none",padding:0,textAlign:"left",cursor:"pointer",flex:1,minWidth:0,display:"flex",alignItems:"center",gap:6}}>
+      <button type="button" onClick={()=>setExpanded(e=>!e)} style={{background:"none",border:"none",padding:0,textAlign:"left",cursor:"pointer",flex:1,minWidth:0,display:"flex",alignItems:"center",gap:6,color:"#52b788"}}>
         <span style={{fontSize:15,fontWeight:700,color:"#fff"}}>{act.name}</span>
         <Ic.Chev up={expanded}/>
       </button>
@@ -342,7 +406,18 @@ function SetupActivityRow({act,loc,data,team,isController,onReassignActivityLead
       {hasGrouping&&<button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>onViewGroupings({kind:"drill",act,title:act.name+" -- Groupings"})}>View Groupings</button>}
     </div>
     {equip.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:8}}>{equip.map((e,j)=>(<EquipPill key={j} e={e}/>))}</div>}
-    {expanded&&(act.description||act.coachingPoints)&&<div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,.08)"}}>
+    {/* Direct feedback: expanding a practice component here used to show
+        nothing at all for a checklist (Intro/Closer/most components) --
+        this row only ever rendered a plain drill's description/coaching
+        points, and a checklist has neither field. Shows its line items
+        instead now, or its freeform notes for a component with no items
+        (an "Other" type component). */}
+    {expanded&&act.type==="checklist"&&<div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,.08)"}}>
+      {act.items&&act.items.length>0?act.items.map(it=>(<div key={it.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#ccc",marginBottom:6}}>
+        <span style={{width:14,height:14,border:"1.5px solid #52b788",borderRadius:4,flexShrink:0}}/>{it.text}
+      </div>)):act.notes?<div style={{fontSize:13,color:"#ccc",lineHeight:1.5}}>{act.notes}</div>:<div style={{fontSize:12,color:"#666"}}>Nothing added yet.</div>}
+    </div>}
+    {expanded&&act.type!=="checklist"&&(act.description||act.coachingPoints)&&<div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,.08)"}}>
       {act.description&&<div style={{fontSize:13,color:"#ccc",lineHeight:1.5,marginBottom:act.coachingPoints?8:0}}>{act.description}</div>}
       {act.coachingPoints&&<div style={{fontSize:12,color:"#888",lineHeight:1.4,borderLeft:"2px solid #52b788",paddingLeft:8}}>{act.coachingPoints}</div>}
     </div>}
@@ -385,7 +460,7 @@ function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onV
       const label=leaderLabel(st,team);
       const expanded=expandedStations.has(st.id);
       return (<div key={st.id} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",borderRadius:10,padding:"10px 12px",marginBottom:si<act.stations.length-1?8:0}}>
-        <button type="button" onClick={()=>toggleExpand(st.id)} style={{background:"none",border:"none",padding:0,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:6,width:"100%",marginBottom:6}}>
+        <button type="button" onClick={()=>toggleExpand(st.id)} style={{background:"none",border:"none",padding:0,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:6,width:"100%",marginBottom:6,color:"#52b788"}}>
           <span style={{fontSize:13,fontWeight:700,color:"#fff",flex:1,minWidth:0}}>{st.name||"Station "+(si+1)}{st.activityName?" · "+st.activityName:""}</span>
           {(st.description||st.coachingPoints)&&<Ic.Chev up={expanded}/>}
         </button>
@@ -544,7 +619,7 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
       <div style={{fontSize:13,color:"#ccc",marginTop:8}}>Use this time to get everyone and everything set up before you start.</div>
     </div>
     <div style={{padding:"20px 20px 0"}}>
-      <button type="button" onClick={()=>setAttCollapsed(c=>!c)} style={{width:"100%",background:"rgba(82,183,136,.15)",border:"1px solid rgba(82,183,136,.4)",borderRadius:10,padding:"12px 16px",marginBottom:attCollapsed?16:12,display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}>
+      <button type="button" onClick={()=>setAttCollapsed(c=>!c)} style={{width:"100%",background:"rgba(82,183,136,.15)",border:"1px solid rgba(82,183,136,.4)",borderRadius:10,padding:"12px 16px",marginBottom:attCollapsed?16:12,display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",color:"#52b788"}}>
         <span style={{display:"flex",alignItems:"baseline",gap:8}}>
           <span style={{color:"#fff",fontFamily:"DM Mono,monospace",fontSize:24,fontWeight:700}}>{pCount}/{total}</span>
           <span style={{color:"#8fa89b",fontSize:13}}>players present</span>
@@ -970,7 +1045,7 @@ export function PreviewView({token}){
               const stExpanded=expandedRows.has(st.id||(i+"-"+si));
               return(<div key={si} style={{padding:"10px 14px",borderBottom:si<stations.length-1?"1px solid rgba(255,255,255,.06)":"none"}}>
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:(st.equipment&&st.equipment.length)||st.description||st.coaching_points?6:0}}>
-                <button type="button" onClick={()=>toggleExpand(st.id||(i+"-"+si))} style={{background:"none",border:"none",padding:0,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:6,flex:1,minWidth:0}}>
+                <button type="button" onClick={()=>toggleExpand(st.id||(i+"-"+si))} style={{background:"none",border:"none",padding:0,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:6,flex:1,minWidth:0,color:"#52b788"}}>
                   <div style={{minWidth:0}}>
                     <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,color:"#52b788",letterSpacing:".05em",marginBottom:2}}>Station {si+1}</div>
                     <div style={{fontSize:15,fontWeight:700,color:"#fff"}}>{st.name||"Station "+(si+1)}</div>
@@ -998,7 +1073,7 @@ export function PreviewView({token}){
         const equip=act.equipment||[];
         return(<div key={i} style={{marginBottom:8,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"12px 14px"}}>
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
-            <button type="button" onClick={()=>toggleExpand("act-"+i)} style={{background:"none",border:"none",padding:0,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:6,flex:1,minWidth:0}}>
+            <button type="button" onClick={()=>toggleExpand("act-"+i)} style={{background:"none",border:"none",padding:0,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:6,flex:1,minWidth:0,color:"#52b788"}}>
               <span style={{fontSize:15,fontWeight:700,color:"#fff"}}>{act.name}</span>
               {(act.description||act.coaching_points)&&<Ic.Chev up={expanded}/>}
             </button>
@@ -1052,14 +1127,19 @@ function computeHelperElapsed(session,nowMs){
   return Math.max(0,Math.floor((effectiveNow-started)/1000)-(session.total_paused_seconds||0));
 }
 
+// Direct feedback: focus notes used to be hidden behind a tap-to-reveal
+// toggle here ("● focus" / "▲"), different from how the coach's own view
+// shows the exact same thing -- StationPlayerChip already shows a
+// player's focus note as a second line right inside the same chip,
+// always visible, no tap needed. Matched here so a helper/assistant sees
+// player focus the identical way a head coach does. No `focus` passed
+// (the pre-tap-to-focus views) renders a plain name-only chip.
 function HelperPlayerChip({p,focus}){
-  const [open,setOpen]=useState(false);
-  const hasFocus=!!focus;
-  return (<span style={{display:"inline-flex",flexDirection:"column",alignItems:"flex-start",gap:3}}>
-    <button type="button" onClick={()=>hasFocus&&setOpen(o=>!o)} style={{background:hasFocus?"var(--gbg)":"var(--s2)",border:"1px solid",borderColor:hasFocus?"var(--gb)":"var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,cursor:hasFocus?"pointer":"default",color:"var(--black)",font:"inherit"}}>
-      {p.jersey_number&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--green)"}}>#{p.jersey_number}</span>}{p.first_name} {p.last_initial}.{hasFocus&&<span style={{fontSize:9,color:"var(--green)"}}>{open?"▲":"● focus"}</span>}
-    </button>
-    {open&&hasFocus&&<div style={{fontSize:11,color:"var(--black2)",background:"var(--s1)",border:"1px solid var(--gb)",borderRadius:6,padding:"5px 8px",maxWidth:200,lineHeight:1.4}}>🎯 {focus}</div>}
+  return (<span style={{display:"inline-flex",flexDirection:"column",alignItems:"flex-start",gap:1,maxWidth:focus?150:undefined}}>
+    <span style={{background:"var(--s2)",border:"1px solid var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>
+      {p.jersey_number&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--green)"}}>#{p.jersey_number}</span>}{p.first_name} {p.last_initial}.
+    </span>
+    {focus&&<span style={{fontSize:10,color:"var(--green2)",lineHeight:1.3,whiteSpace:"normal"}}>{focus}</span>}
   </span>);
 }
 
@@ -1214,6 +1294,13 @@ function HelperView({token}){
 
   useEffect(()=>{
     if(!audioOn||!valid)return;
+    // Same fix the coach's own live view already got: a phase that's 2
+    // minutes or shorter lands inside the [118,122]s warning window almost
+    // the instant it starts, so the cue played right at the top of the
+    // phase instead of near its end. HelperView had its own separate copy
+    // of this timing logic that never got the same guard -- applied here
+    // too so both views actually agree on when this fires.
+    if(phaseSecs<=120)return;
     const key=(cur&&cur.name)+"_"+stIdx+"_"+inTrans+"_"+inBlockIntro;
     if(rem<=122&&rem>=118&&!spokenRef.current[key+"_120"]){speak("Two minutes remaining.");spokenRef.current[key+"_120"]=true;}
     if(rem<=0&&rem>-3&&!buzzedRef.current){beep();buzzedRef.current=true;}
@@ -1237,6 +1324,14 @@ function HelperView({token}){
     return submitPracticeNoteByToken(token,body,endOfPractice?null:session.current_practice_activity_id,null,authorLabel,taggedIds);
   };
   const upcoming=session.upcoming_activities||[];
+  // Direct feedback: the coach's own Overview crosses out anything already
+  // run (computed locally there, since the coach has the full plan client-
+  // side) -- HelperView never had the full list to do the same, only ever
+  // getting "what's left." all_activities (new RPC field) is every
+  // activity in order; comparing each one's own position against the
+  // current activity's gives the same completed/current/upcoming split.
+  const allActivities=session.all_activities||[];
+  const curPosition=(()=>{const a=allActivities.find(a=>a.id===session.current_practice_activity_id);return a?a.position:-1;})();
   const pCount=roster.filter(p=>p.status==="present").length;
   const pTotal=roster.length;
   const canMark=!!session.can_mark_attendance;
@@ -1277,8 +1372,8 @@ function HelperView({token}){
             <span style={{color:pCount<pTotal?"var(--amber)":"var(--green)",display:"flex"}}><Ic.Person/></span>
             <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
           </button>}
-          <button className="btn ghost bxs" onClick={()=>setShowNotes(s=>!s)}>{showNotes?"Close":"Notes"}</button>
-          <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}<Ic.Chev up={showROS}/></button>
+          <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowNotes(s=>!s)}>Notes<Ic.Chev up={showNotes}/></button>
+          <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowROS(s=>!s)}>Overview<Ic.Chev up={showROS}/></button>
           <button onClick={()=>{if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}spokenRef.current={};buzzedRef.current=false;setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 8px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:13,lineHeight:1}}>{audioOn?"🔊":"🔇"}</span><span>{audioOn?"On":"Off"}</span></button>
         </div>
       </div>
@@ -1287,6 +1382,11 @@ function HelperView({token}){
         <PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount}/>
       </div>
       <div className="cc-act-name">{phaseLabel}</div>
+      {!isBlock&&cur&&(cur.coach_name||cur.sublocation_name)&&<div style={{fontSize:13,fontWeight:600,color:"var(--td)",marginTop:2,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
+        {cur.coach_name&&<span style={{color:"var(--green2)"}}>{cur.coach_name}</span>}
+        {cur.coach_name&&cur.sublocation_name&&<span>·</span>}
+        {cur.sublocation_name&&<span>{cur.sublocation_name}</span>}
+      </div>}
       {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>{stations.length} Stations</div>}
     </div>
     {showNotes&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",padding:"12px 14px",flexShrink:0}}>
@@ -1310,11 +1410,15 @@ function HelperView({token}){
       <button className="btn ghost bxs" style={{marginTop:8}} onClick={()=>setShowAtt(false)}>Close</button>
     </div>}
     {showROS&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",maxHeight:200,overflowY:"auto",flexShrink:0}}>
-      {!upcoming.length&&<div style={{padding:"12px 14px",fontSize:13,color:"var(--td)"}}>Nothing left after this.</div>}
-      {upcoming.map((a,i)=>(<button key={i} type="button" onClick={()=>setPreviewUpcoming(toPreviewItem(a))} style={{display:"flex",alignItems:"center",width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left",padding:"8px 14px",borderBottom:"1px solid var(--b)"}}>
-        <div style={{flex:1,fontSize:14,color:"var(--td)"}}>{a.type==="station_block"?"Station Block":a.name}</div>
-        <span className="bdg bs">{upcomingMins(a)}m</span>
-      </button>))}
+      {!allActivities.length&&<div style={{padding:"12px 14px",fontSize:13,color:"var(--td)"}}>Nothing in this practice yet.</div>}
+      {allActivities.map((a,i)=>{
+        const isCur=a.id===session.current_practice_activity_id;
+        const isPast=curPosition>=0&&a.position<curPosition;
+        return(<button key={a.id||i} type="button" onClick={()=>setPreviewUpcoming(toPreviewItem(a))} style={{display:"flex",alignItems:"center",width:"100%",border:"none",background:isCur?"var(--gbg)":"none",cursor:"pointer",textAlign:"left",padding:"8px 14px",borderBottom:"1px solid var(--b)",opacity:isPast?0.5:1}}>
+          <div style={{flex:1,fontSize:14,color:isCur?"var(--green)":isPast?"var(--td)":"var(--black)",textDecoration:isPast?"line-through":"none"}}>{isCur?">> ":""}{a.type==="station_block"?"Station Block":a.name}</div>
+          <span className="bdg bs">{upcomingMins(a)}m</span>
+        </button>);
+      })}
       <div style={{padding:"8px 14px"}}><button className="btn ghost bxs" onClick={()=>setShowROS(false)}>Close</button></div>
     </div>}
     {previewUpcoming&&<UpcomingPreview item={previewUpcoming} onClose={()=>setPreviewUpcoming(null)}/>}
@@ -1332,14 +1436,6 @@ function HelperView({token}){
         {cur.coaching_points&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
           <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{cur.coaching_points}</div>
-        </div>}
-        {cur.sublocation_name&&<div style={{borderLeft:"3px solid #2563eb",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#2563eb",marginBottom:3}}>📍 Location</div>
-          <div style={{fontSize:14,color:"var(--black)",fontWeight:600}}>{cur.sublocation_name}</div>
-        </div>}
-        {cur.coach_name&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:3}}>Coach</div>
-          <CoachPill name={cur.coach_name}/>
         </div>}
         {(cur.equipment&&cur.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
           <span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"3px 10px",fontSize:12,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {cur.equipment.join(", ")}</span>
@@ -1396,37 +1492,48 @@ function HelperView({token}){
           {(rotatedStations[focusSt].equipment&&rotatedStations[focusSt].equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
             <span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#854d0e",fontWeight:600}}>Equipment: {rotatedStations[focusSt].equipment.join(", ")}</span>
           </div>}
-          <div><div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station · tap a name for their focus</div>
+          <div><div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(rotatedStations[focusSt].players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p} focus={rotatedStations[focusSt].player_focus&&rotatedStations[focusSt].player_focus[p.id]}/>))}</div></div>
         </div>}
         {focusSt===null&&<div>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+n+" · Tap to focus":"All Stations · Tap to focus"}</div>
-          {rotatedStations.map((st,i)=>(<div key={st.id||i} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
-            <div onClick={()=>setFocusSt(i)} style={{cursor:"pointer"}}>
-              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {i+1}</div>
-              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.name||"Station "+(i+1)}</div>
-              {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
-              {st.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{st.sublocation_name}</div>}
-              {st.coaching_points&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:6,lineHeight:1.4,borderLeft:"2px solid var(--green)",paddingLeft:8}}>{st.coaching_points}</div>}
-            </div>
-            <HelperSkillTags names={st.skill_tags}/>
-            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{(st.players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p} focus={st.player_focus&&st.player_focus[p.id]}/>))}</div>
-            <div onClick={()=>setFocusSt(i)} style={{fontSize:10,color:"var(--td)",marginTop:5,cursor:"pointer"}}>Tap station name to focus</div>
+          {/* Direct feedback: helper/assistant pre-tap info should match the
+              coach's own pre-tap view exactly -- station #, drill, area,
+              coach, equipment, player names only. Coaching points, skill
+              tags, and per-player focus notes are what tapping in reveals,
+              not something to show at a glance across every station. Also:
+              one clear hint here (sized up, not repeated at the bottom of
+              every card) instead of two. */}
+          <div style={{fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+n+" · Tap a station to focus":"Tap a station to focus"}</div>
+          {rotatedStations.map((st,i)=>(<div key={st.id||i} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {i+1}</div>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.name||"Station "+(i+1)}</div>
+            {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
+            {st.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{st.sublocation_name}</div>}
+            {st.coach_name&&<div style={{marginBottom:4}}><CoachPill name={st.coach_name}/></div>}
+            {(st.equipment&&st.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
+              <span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {st.equipment.join(", ")}</span>
+            </div>}
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}} onClick={e=>e.stopPropagation()}>{(st.players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p}/>))}</div>
           </div>))}
         </div>}
       </div>}
-      {isBlock&&inTrans&&rotatedStations&&<div>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"var(--red)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Rotate Now</div>
+      {/* Direct feedback: the coach's own transition screen is deliberately
+          dark (#0d1512) to read as "getting organized," distinct from the
+          light background used while actually coaching -- HelperView never
+          got the same treatment, so a helper had no visual cue a rotation
+          was happening. Same background/card styling and the same
+          from/to labels (station + area + coach) as the coach's view now. */}
+      {isBlock&&inTrans&&rotatedStations&&<div style={{background:"#0d1512",borderRadius:"var(--r)",padding:"14px 12px",marginBottom:4}}>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"#f87171",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Rotate Now</div>
         {rotatedStations.map((st,i)=>{
           const nextSt=stations[(i+1)%n];
-          const fromLabel="Station "+(i+1)+(st.name?": "+st.name:"");
-          const toLabel="Station "+((i+1)%n+1)+(nextSt.name?": "+nextSt.name:"");
-          return(<div key={st.id||i} className="cc-trans-card">
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",lineHeight:1.2,marginBottom:6}}>{(st.players||[]).map(p=>p.first_name).join(", ")||"--"}</div>
+          const fromLabel="Station "+(i+1)+(st.sublocation_name?": "+st.sublocation_name:"")+(st.coach_name?" · "+st.coach_name:"")+(st.name?" · "+st.name:"");
+          const toLabel="Station "+((i+1)%n+1)+(nextSt.sublocation_name?": "+nextSt.sublocation_name:"")+(nextSt.coach_name?" · "+nextSt.coach_name:"")+(nextSt.name?" · "+nextSt.name:"");
+          return(<div key={st.id||i} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--r)",padding:"14px",marginBottom:8}}>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",lineHeight:1.2,marginBottom:6}}>{(st.players||[]).map(p=>p.first_name).join(", ")||"--"}</div>
             {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
-            <div style={{fontSize:12,color:"var(--td)",marginBottom:3}}>from {fromLabel}</div>
-            <div style={{fontSize:13,fontWeight:700,color:"var(--black)"}}>→ {toLabel}</div>
-            {nextSt.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginTop:2}}>{nextSt.sublocation_name}</div>}
+            <div style={{fontSize:12,color:"#8fa89b",marginBottom:3}}>from {fromLabel}</div>
+            <div style={{fontSize:13,fontWeight:700,color:"#52b788"}}>→ {toLabel}</div>
           </div>);
         })}
       </div>}
@@ -1821,14 +1928,28 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       if('wakeLock' in navigator)wakeLockRef.current=await navigator.wakeLock.request('screen');
     }catch(e){}
   },[]);
+  // Direct feedback: the screen was going to sleep mid-practice even with
+  // audio cues off, and the first tap after that only wakes the device --
+  // by design, a phone's OS consumes that first touch to unlock the
+  // screen and never delivers it to the page as a real click, which is
+  // exactly the "tap once for audio, tap again for the real button" symptom
+  // described. Nothing in JS can change that OS behavior, but keeping the
+  // screen from sleeping in the first place avoids hitting it at all --
+  // Wake Lock used to only ever get requested when audio cues were on;
+  // broadened to hold for the entire live/setup session regardless, since
+  // a coach glancing at the timer with audio off still needs the screen
+  // to stay awake just as much.
+  useEffect(()=>{
+    if(stage==="live"||stage==="attend")requestWakeLock();
+  },[stage,requestWakeLock]);
   // Wake Lock is auto-released by the browser whenever the tab is hidden --
   // re-request it when the coach comes back so a quick app-switch doesn't
   // permanently drop it for the rest of the session.
   useEffect(()=>{
-    const onVis=()=>{if(document.visibilityState==='visible'&&audioOn)requestWakeLock();};
+    const onVis=()=>{if(document.visibilityState==='visible'&&(stage==="live"||stage==="attend"))requestWakeLock();};
     document.addEventListener('visibilitychange',onVis);
     return()=>document.removeEventListener('visibilitychange',onVis);
-  },[audioOn,requestWakeLock]);
+  },[stage,requestWakeLock]);
   const startBgAudioSession=useCallback(()=>{
     try{
       if(bgAudioRef.current){bgAudioRef.current.currentTime=0;bgAudioRef.current.play().catch(()=>{});}
@@ -2162,11 +2283,23 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       await openLogFor(sessionRow.id,{practiceActivityId:act.id},presentPlayerIds);
     }
   },[openLogFor]);
+  // Direct feedback: Next/Back/advance felt laggy -- closeCurrentLog and
+  // writeSession are both real network round trips, and nothing on screen
+  // changed until both had finished (openLogForActivityEntry too, when it
+  // applies). Applying the same patch to local state immediately makes the
+  // title/timer/phase flip the instant the button is tapped; the actual
+  // DB writes (closing the old activity log, persisting the session row,
+  // opening the new log) still happen in the same order right after, in
+  // the background -- if the write genuinely fails, writeSession's own
+  // existing fallback (re-fetching the real session) corrects local state
+  // back, same safety net optimistic pause/resume above already relies on.
   const transitionTo=useCallback(async(patch,logAct,logStIdx)=>{
-    await closeCurrentLog();
-    const updated=await writeSession(Object.assign({current_phase_started_at:new Date().toISOString(),paused_at:null,total_paused_seconds:0},patch));
-    if(updated&&logAct)await openLogForActivityEntry(updated,logAct,logStIdx,[...presentIds]);
+    const fullPatch=Object.assign({current_phase_started_at:new Date().toISOString(),paused_at:null,total_paused_seconds:0},patch);
+    setSession(s=>s?Object.assign({},s,fullPatch):s);
     spoken.current={};buzzedRef.current=false;warnedRef.current=false;setFocusSt(null);
+    await closeCurrentLog();
+    const updated=await writeSession(fullPatch);
+    if(updated&&logAct)await openLogForActivityEntry(updated,logAct,logStIdx,[...presentIds]);
     return updated;
   },[writeSession,closeCurrentLog,openLogForActivityEntry,presentIds]);
 
@@ -2365,7 +2498,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     // the mount effect above), so this is always an update, never a create.
     const sessionRow=await writeSession({current_practice_activity_id:firstAct?firstAct.id:null,current_rotation_number:0,in_transition:false,in_block_intro:!!firstIsBlock,current_phase_started_at:new Date().toISOString(),paused_at:null,total_paused_seconds:0,status:"active",setup_confirmed_at:new Date().toISOString()});
     if(!sessionRow)return;
-    await submitOperation(sessionRow.id,coachId,"start_practice");
+    submitOperation(sessionRow.id,coachId,"start_practice");
     const allPlayerIds=team?team.players.map(p=>p.id):[];
     await submitAttendanceSnapshot(sessionRow.id,coachId,pIds,allPlayerIds);
     // Always runs now (not gated on an explicit "rebalance" choice -- that
@@ -2386,13 +2519,13 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
 
   const startBlock=useCallback(async()=>{
     if(!session||!cur||!isBlock)return;
-    await submitOperation(session.id,coachId,"start_block");
+    submitOperation(session.id,coachId,"start_block");
     await transitionTo({current_rotation_number:0,in_transition:false,in_block_intro:false},cur,0);
   },[session,cur,isBlock,coachId,transitionTo]);
 
   const advance=useCallback(async()=>{
     if(!session||!cur)return;
-    await submitOperation(session.id,coachId,"advance");
+    submitOperation(session.id,coachId,"advance");
     if(isBlock){
       if(inBlockIntro){await transitionTo({current_rotation_number:0,in_transition:false,in_block_intro:false},cur,0);return;}
       if(blockRotate&&!inTrans&&cur.transitionDuration>0&&stIdx<cur.stations.length-1){await transitionTo({in_transition:true},null);return;}
@@ -2411,7 +2544,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
 
   const goBack=useCallback(async()=>{
     if(!session||!cur)return;
-    await submitOperation(session.id,coachId,"go_back");
+    submitOperation(session.id,coachId,"go_back");
     if(isBlock&&inTrans){await transitionTo({in_transition:false},cur,stIdx);return;}
     if(isBlock&&stIdx>0){const ns=stIdx-1;await transitionTo({current_rotation_number:ns,in_transition:false},cur,ns);return;}
     if(idx>0){const pi=idx-1;const prevAct=liveActs[pi];await transitionTo({current_practice_activity_id:prevAct.id,current_rotation_number:0,in_transition:false,in_block_intro:false},prevAct,0);}
@@ -2420,20 +2553,35 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const jumpTo=useCallback(async(i)=>{
     if(!session)return;
     const target=liveActs[i];if(!target)return;
-    await submitOperation(session.id,coachId,"jump_to");
+    submitOperation(session.id,coachId,"jump_to");
     await transitionTo({current_practice_activity_id:target.id,current_rotation_number:0,in_transition:false,in_block_intro:false},target,0);
     setShowROS(false);
   },[session,liveActs,coachId,transitionTo]);
 
+  // Direct feedback, a real bug: resuming used to show the timer jump to a
+  // different value before settling back near where it was. Root cause --
+  // total_paused_seconds only ever updated once the write round-tripped to
+  // Supabase and back (writeSession's own setSession call), so the elapsed
+  // real time spent waiting on that round trip got silently "charged" to
+  // the running timer instead of the pause, surfacing as a one-time jump
+  // forward the instant the response landed. Fixed by applying the exact
+  // same patch to local state immediately (synchronously, before the
+  // network call), so the display transitions the instant the button is
+  // tapped -- the network write still happens right after to persist it,
+  // and writeSession's own setSession(updated) simply confirms the same
+  // values once the server responds, a no-op visually.
   const togglePlay=useCallback(async()=>{
     if(!session)return;
-    await submitOperation(session.id,coachId,"toggle_play");
+    submitOperation(session.id,coachId,"toggle_play");
+    let patch;
     if(session.paused_at){
       const pausedDelta=Math.floor((Date.now()-new Date(session.paused_at).getTime())/1000);
-      await writeSession({paused_at:null,total_paused_seconds:(session.total_paused_seconds||0)+pausedDelta});
+      patch={paused_at:null,total_paused_seconds:(session.total_paused_seconds||0)+pausedDelta};
     }else{
-      await writeSession({paused_at:new Date().toISOString()});
+      patch={paused_at:new Date().toISOString()};
     }
+    setSession(s=>s?Object.assign({},s,patch):s);
+    await writeSession(patch);
   },[session,coachId,writeSession]);
 
   const nudge=useCallback(async(deltaSecs)=>{
@@ -2442,13 +2590,15 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     const newElapsed=Math.max(0,curElapsed+deltaSecs);
     const appliedDelta=curElapsed-newElapsed;
     buzzedRef.current=false;warnedRef.current=false;
-    await writeSession({total_paused_seconds:(session.total_paused_seconds||0)+appliedDelta});
+    const patch={total_paused_seconds:(session.total_paused_seconds||0)+appliedDelta};
+    setSession(s=>s?Object.assign({},s,patch):s);
+    await writeSession(patch);
   },[session,writeSession]);
 
   const endPractice=useCallback(async()=>{
     setShowEllipsis(false);
     if(!session)return;
-    await submitOperation(session.id,coachId,"end_practice");
+    submitOperation(session.id,coachId,"end_practice");
     await closeCurrentLog();
     await writeSession({status:"completed",ended_at:new Date().toISOString(),paused_at:null});
     setEndReason("completed");
@@ -2468,7 +2618,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     setShowEllipsis(false);
     if(!session)return;
     if(!window.confirm("Abort this practice? It won't count as completed, and you can start a fresh run any time."))return;
-    await submitOperation(session.id,coachId,"abort_practice");
+    submitOperation(session.id,coachId,"abort_practice");
     await closeCurrentLog();
     await writeSession({status:"abandoned",ended_at:new Date().toISOString(),paused_at:null});
     setEndReason("abandoned");
@@ -2660,7 +2810,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     const freshPresent=[];
     return (<>
       {showAtt
-        ?<AttendanceScreen key="upd" practice={practice} team={team} isUpdate initialPresent={[...presentIds]} initialCoachPresent={[...coachPresentIds]} onConfirm={handleAttUpdate} onBack={attBack}/>
+        ?<AttendanceScreen key="upd" practice={practice} team={team} data={data} amHeadCoach={amHeadCoach} isUpdate initialPresent={[...presentIds]} initialCoachPresent={[...coachPresentIds]} onConfirm={handleAttUpdate} onBack={attBack}/>
         :<PracticeSetupScreen practice={practice} team={team} data={data} coachId={coachId} isController={isController} amHeadCoach={amHeadCoach} stationBlockActs={stationBlockActs} setupGroups={setupGroups} onMoveGroupPlayer={moveSetupGroupPlayer} onRegenerateGroups={regenerateSetupGroups} initialPresent={freshPresent} onConfirm={handleAttConfirm} onBack={attBack} onReassignLead={setReassignStationId} onReassignActivityLead={setReassignActivityId} onEditPractice={()=>setShowEditBuilder(true)} session={session}/>}
       {!showAtt&&reassignStationId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setReassignStationId(null);setHelperDraft("");}}}>
         <div className="modal" style={{background:"#0d1512",color:"#fff"}}><div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
@@ -2737,7 +2887,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             <span style={{color:pCount<pTotal?"var(--amber)":"var(--green)",display:"flex"}}><Ic.Person/></span>
             <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
           </button>
-          <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowROS(s=>!s)}>{showROS?"Close":"Overview"}<Ic.Chev up={showROS}/></button>
+          <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowROS(s=>!s)}>Overview<Ic.Chev up={showROS}/></button>
           <button onClick={()=>{
             if(!audioOn){
               try{
@@ -2769,6 +2919,17 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         <PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount}/>
       </div>
       <div className="cc-act-name">{phaseLabel}</div>
+      {/* Direct feedback: coach + area should read right under the title,
+          before the timer -- not buried in the body below player focus/
+          equipment, which is where it used to sit for a plain drill. Only
+          for a plain drill/checklist (one coach, one area); a station
+          block already shows each station's own coach/area on its own
+          card, so there's no single one to put here. */}
+      {!isBlock&&cur&&(leaderLabel(cur,team)||subName(cur.sublocationId))&&<div style={{fontSize:13,fontWeight:600,color:"var(--td)",marginTop:2,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
+        {leaderLabel(cur,team)&&<span style={{color:"var(--green2)"}}>{leaderLabel(cur,team)}</span>}
+        {leaderLabel(cur,team)&&subName(cur.sublocationId)&&<span>·</span>}
+        {subName(cur.sublocationId)&&<span>{subName(cur.sublocationId)}</span>}
+      </div>}
       {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>
         {(()=>{const totalBlocks=liveActs.filter(a=>a.type==="station_block").length;const n2=cur.stations?cur.stations.length:0;const totalMins=n2*(cur.stationDuration||0)+Math.max(0,n2-1)*(blockRotate?(cur.transitionDuration||0):0);return(totalBlocks>1?"Block "+(blockCount+1)+" of "+totalBlocks+" · ":"")+n2+" Stations · "+totalMins+"min total";})()}
       </div>}
@@ -2841,16 +3002,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{cur.coachingPoints}</div>
         </div>}
         <SkillTagRow names={tagNamesForLibraryId(cur.libraryId)}/>
-        {isController&&untaggedOwnLibraryId(cur.libraryId)&&<button type="button" onClick={()=>openTagPicker(cur.libraryId)} style={{textAlign:"left",background:"var(--ambg)",border:"1px solid var(--ambb)",borderRadius:8,padding:"8px 10px",fontSize:12,color:"var(--amber)",fontWeight:600,cursor:"pointer"}}>No skill tag set -- tap to add one so you can see player focus areas for this drill.</button>}
+        {isController&&untaggedOwnLibraryId(cur.libraryId)&&<button type="button" onClick={()=>openTagPicker(cur.libraryId)} style={{textAlign:"left",background:"var(--ambg)",border:"1px solid var(--ambb)",borderRadius:8,padding:"8px 10px",fontSize:12,color:"var(--amber)",fontWeight:600,cursor:"pointer"}}>No skill tag yet -- tap to add one</button>}
         {categoryIdsForLibraryId(cur.libraryId).length>0&&<button type="button" className="btn ghost bsm" style={{alignSelf:"flex-start"}} onClick={()=>setShowPlayerFocus(true)}>Player Focus</button>}
-        {subName(cur.sublocationId)&&<div style={{borderLeft:"3px solid #2563eb",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#2563eb",marginBottom:3}}>📍 Location</div>
-          <div style={{fontSize:14,color:"var(--black)",fontWeight:600}}>{subName(cur.sublocationId)}</div>
-        </div>}
-        {coachName(cur.coachId)&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:3}}>Coach</div>
-          <div style={{fontSize:14,color:"var(--black)"}}>{coachName(cur.coachId)}</div>
-        </div>}
         {(()=>{const eq=Array.isArray(cur.equipment)?cur.equipment:[];const names=eq.map(id=>{const a=(data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(names.length>0||cur.playerGear)?(<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
           {names.length>0&&<span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"3px 10px",fontSize:12,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {names.join(", ")}</span>}
           {cur.playerGear&&<span style={{border:"1.5px solid #fdba74",borderRadius:20,padding:"3px 10px",fontSize:12,color:"#9a3412",fontWeight:600,background:"#fff"}}>Player Gear: {cur.playerGear}</span>}
@@ -2976,7 +3129,14 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           </div>
         </div>}
         {focusSt===null&&<div>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+cur.stations.length+" · Tap to focus":"All Stations · Tap to focus"}</div>
+          {/* Direct feedback: this hint used to also repeat at the bottom of
+              every single station card below -- one clear hint up here,
+              sized to actually be noticed, is enough. Also: pre-tap should
+              show only station #/drill/area/coach/equipment/player names --
+              coaching points and per-player focus notes are what tapping in
+              reveals, not something to see at a glance across every station
+              at once. */}
+          <div style={{fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+cur.stations.length+" · Tap a station to focus":"Tap a station to focus"}</div>
           {rotatedStations.map((st,i)=>{
             const stEquip=Array.isArray(st.equipment)?st.equipment:[];
             const equipNames=stEquip.map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
@@ -2989,7 +3149,6 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
               <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.activityName||st.name||"Station "+(i+1)}</div>
               {st.groupLabel&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}
               {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{subName(st.sublocationId)}</div>}
-              {st.coachingPoints&&<div style={{fontSize:12,color:"var(--black2)",marginBottom:6,lineHeight:1.4,borderLeft:"2px solid var(--green)",paddingLeft:8}}>{st.coachingPoints}</div>}
               {(equipNames.length>0||st.playerGear)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
                 {equipNames.length>0&&<span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600}}>Equipment: {equipNames.join(", ")}</span>}
                 {st.playerGear&&<span style={{background:"#fff7ed",border:"1px solid #fdba74",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#9a3412",fontWeight:600}}>Player Gear: {st.playerGear}</span>}
@@ -3001,10 +3160,9 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
                   the player's card instead. */}
               <div style={{display:"flex",flexWrap:"wrap",gap:5}} onClick={e=>e.stopPropagation()}>
                 {(st.assignments||[]).map(pid=>isController
-                  ?<PlayerChipLive key={pid} pid={pid} team={team} note={noteForPlayerAtDrill(pid,st.libraryId)} onProfile={pl=>setLivePlayerProfile(pl)}/>
-                  :<StationPlayerChip key={pid} pid={pid} team={team} note={noteForPlayerAtDrill(pid,st.libraryId)}/>)}
+                  ?<PlayerChipLive key={pid} pid={pid} team={team} onProfile={pl=>setLivePlayerProfile(pl)}/>
+                  :<StationPlayerChip key={pid} pid={pid} team={team}/>)}
               </div>
-              <div style={{fontSize:10,color:"var(--td)",marginTop:6}}>Tap to focus</div>
             </div>);
           })}
         </div>}
@@ -3033,22 +3191,29 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             </div>
           </div>
         </div>}
-        {tagPickerLibraryId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setTagPickerLibraryId(null);}}>
-          <div className="modal">
-            <div className="mhandle"/>
-            <div className="mtitle">Add a Skill Tag</div>
-            <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>This updates the drill in your library, so it's tagged going forward too.</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
-              {availableSkillTags.map(t=>{
-                const on=tagPickerSel.includes(t.id);
-                return(<button key={t.id} type="button" onClick={()=>setTagPickerSel(s=>on?s.filter(id=>id!==t.id):[...s,t.id])} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:on?"var(--green)":"var(--s1)",color:on?"#fff":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{t.name}</button>);
-              })}
-              {availableSkillTags.length===0&&<div style={{fontSize:13,color:"var(--td)"}}>No skill tags yet -- add one from Library first.</div>}
-            </div>
-            <button className="btn primary bmd bfull mb8" disabled={!tagPickerSel.length||tagPickerSaving} onClick={saveTagPicker}>{tagPickerSaving?"Saving...":"Save"}</button>
-            <button className="btn ghost bmd bfull" onClick={()=>setTagPickerLibraryId(null)}>Cancel</button>
+      </div>}
+      {/* Real bug: this modal used to be nested inside the isBlock-only
+          "focus station" wrapper below, but the reminder button that opens
+          it only ever renders for a plain (non-station) drill -- the two
+          conditions (isBlock true vs. !isBlock) can never both hold at
+          once, so the modal could never actually appear no matter what was
+          clicked. Moved out to the same unconditional level as the other
+          top-level live-view modals. */}
+      {tagPickerLibraryId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setTagPickerLibraryId(null);}}>
+        <div className="modal">
+          <div className="mhandle"/>
+          <div className="mtitle">Add a Skill Tag</div>
+          <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>This updates the drill in your library, so it's tagged going forward too.</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
+            {availableSkillTags.map(t=>{
+              const on=tagPickerSel.includes(t.id);
+              return(<button key={t.id} type="button" onClick={()=>setTagPickerSel(s=>on?s.filter(id=>id!==t.id):[...s,t.id])} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:on?"var(--green)":"var(--s1)",color:on?"#fff":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{t.name}</button>);
+            })}
+            {availableSkillTags.length===0&&<div style={{fontSize:13,color:"var(--td)"}}>No skill tags yet -- add one from Library first.</div>}
           </div>
-        </div>}
+          <button className="btn primary bmd bfull mb8" disabled={!tagPickerSel.length||tagPickerSaving} onClick={saveTagPicker}>{tagPickerSaving?"Saving...":"Save"}</button>
+          <button className="btn ghost bmd bfull" onClick={()=>setTagPickerLibraryId(null)}>Cancel</button>
+        </div>
       </div>}
       {/* Same dark practice-setup palette as the block-intro screen above --
           a rotation transition is another "getting organized, not
@@ -3206,6 +3371,6 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       {noteMentionQuery!==null&&noteMentionMatches.length>0&&<div className="mini-menu" style={{position:"absolute",bottom:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}}>{noteMentionMatches.map(p=>(<button key={p.id} type="button" className="mm-item" onClick={()=>pickNoteMention(p)}>{p.firstName} {p.lastName}</button>))}</div>}
     </div>
     {noteError&&<div style={{padding:"0 14px 8px",fontSize:12,color:"var(--red)"}}>{noteError}</div>}
-    {showShare&&shareToken&&<ShareSheet token={shareToken} scope={shareScope} onClose={()=>setShowShare(false)}/>}
+    {showShare&&shareToken&&<ShareSheet token={shareToken} scope={shareScope} onClose={()=>setShowShare(false)} title={"Help with the "+(practice&&practice.date?new Date(practice.date+"T12:00:00").toLocaleDateString(undefined,{month:"long",day:"numeric"})+" ":"")+(team?team.name+" ":"")+"Run of Practice"}/>}
   </div>);
 }
