@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { createPracticeSeries } from "../supabase.js";
 import { canManageTeamInMode } from "../constants.js";
 import { AddLocationDialog } from "./NewLibraryScreen.jsx";
@@ -49,6 +49,12 @@ export default function SeriesWizard({ data, coachId, mode, presetTeamId, refres
   const [showAddLocation, setShowAddLocation] = useState(false);
   const [deselected, setDeselected] = useState(new Set());
   const [saving, setSaving] = useState(false);
+  // A single unlucky series can insert well over 100 practice rows in one
+  // RPC call, slow enough on a bad connection that an impatient coach taps
+  // Create Schedule again before the disabled attribute has actually
+  // painted -- state alone isn't a safe guard against that (see the same
+  // fix and reasoning in ModalLayer.jsx's save()), so this uses a ref too.
+  const savingRef = useRef(false);
   const [error, setError] = useState("");
 
   const toggleDay = d => setDays(s => { const n = new Set(s); if (n.has(d)) n.delete(d); else n.add(d); return n; });
@@ -75,12 +81,14 @@ export default function SeriesWizard({ data, coachId, mode, presetTeamId, refres
   }, [selectedOccurrences.join(","), startTime, teamId]);
 
   const confirm = async () => {
-    if (saving) return;
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true); setError("");
     const { data: result, error: err } = await createPracticeSeries(teamId, {
       daysOfWeek: [...days], startTime, durationMinutes: durationMinutes || 60, locationId: locationId || null, sublocationId: null,
       rangeStart, rangeEnd, deselectedDates: [...deselected],
     });
+    savingRef.current = false;
     setSaving(false);
     if (err) { setError(err.message || "Something went wrong."); return; }
     onDone(result);
@@ -135,7 +143,8 @@ export default function SeriesWizard({ data, coachId, mode, presetTeamId, refres
             </label>);
           })}
         </div>
-        <div className="brow"><button className="btn ghost bsm" onClick={() => setStep("details")}>Back</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={confirm} disabled={saving || selectedOccurrences.length === 0}>{saving ? "Creating..." : "Create Schedule"}</button></div>
+        {saving && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 10 }}>Creating {selectedOccurrences.length} practice{selectedOccurrences.length === 1 ? "" : "s"}, this can take a few seconds for a full season. Please wait, don't tap again.</div>}
+        <div className="brow"><button className="btn ghost bsm" onClick={() => setStep("details")} disabled={saving}>Back</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={confirm} disabled={saving || selectedOccurrences.length === 0}>{saving ? "Creating..." : "Create Schedule"}</button></div>
       </div>}
     </div>
     {showAddLocation && <AddLocationDialog coachId={coachId} orgId={team && team.organizationId} onClose={() => setShowAddLocation(false)} onCreated={async (loc) => { if (refreshPlanning) await refreshPlanning(); setLocationId(loc.id); }} />}
