@@ -1236,6 +1236,54 @@ function HelperView({token}){
   const spokenRef=useRef({});
   const buzzedRef=useRef(false);
 
+  // Real bug: this whole block (silent background-audio loop, Wake Lock,
+  // Media Session registration) only ever existed on the coach's own
+  // CommandScreen. A helper's link is opened in a plain browser tab, not
+  // installed as a PWA -- exactly the case mobile browsers are most
+  // aggressive about suspending once it's backgrounded or the phone
+  // locks, since there's no registered "now playing" session telling the
+  // OS this tab is doing something worth keeping alive. Mirrors the
+  // coach's own implementation.
+  const bgAudioRef=useRef(null);
+  const wakeLockRef=useRef(null);
+  useEffect(()=>{
+    const bg=new Audio('/audio/silence-loop.wav');
+    bg.loop=true;bg.volume=0.02;
+    bgAudioRef.current=bg;
+    return()=>{
+      try{bg.pause();}catch(e){}
+      bgAudioRef.current=null;
+      if(wakeLockRef.current){try{wakeLockRef.current.release();}catch(e){}wakeLockRef.current=null;}
+    };
+  },[]);
+  const requestWakeLock=useCallback(async()=>{
+    try{if('wakeLock' in navigator)wakeLockRef.current=await navigator.wakeLock.request('screen');}catch(e){}
+  },[]);
+  const sessionActive=session&&!session.error&&session.status==="active";
+  useEffect(()=>{
+    if(sessionActive)requestWakeLock();
+  },[sessionActive,requestWakeLock]);
+  useEffect(()=>{
+    const onVis=()=>{if(document.visibilityState==='visible'&&sessionActive)requestWakeLock();};
+    document.addEventListener('visibilitychange',onVis);
+    return()=>document.removeEventListener('visibilitychange',onVis);
+  },[sessionActive,requestWakeLock]);
+  const startBgAudioSession=useCallback(()=>{
+    try{if(bgAudioRef.current){bgAudioRef.current.currentTime=0;bgAudioRef.current.play().catch(()=>{});}}catch(e){}
+    try{
+      if('mediaSession' in navigator){
+        navigator.mediaSession.metadata=new window.MediaMetadata({title:'Live Practice',artist:'Run of Practice'});
+        navigator.mediaSession.playbackState='playing';
+      }
+    }catch(e){}
+    requestWakeLock();
+  },[requestWakeLock]);
+  const stopBgAudioSession=useCallback(()=>{
+    try{if(bgAudioRef.current)bgAudioRef.current.pause();}catch(e){}
+    try{if('mediaSession' in navigator)navigator.mediaSession.playbackState='none';}catch(e){}
+    try{if(wakeLockRef.current){wakeLockRef.current.release();wakeLockRef.current=null;}}catch(e){}
+  },[]);
+
   useEffect(()=>{const iv=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(iv);},[]);
 
   useEffect(()=>{
@@ -1307,7 +1355,12 @@ function HelperView({token}){
     const g=groups.find(g=>g.group_number===srcIdx+1);
     return Object.assign({},st,{players:g?g.players:[],group_label:(stations[srcIdx]&&stations[srcIdx].group_label)||""});
   }):null;
-  const phaseLabel=isBlock?(inBlockIntro?"INTRODUCE STATIONS":blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+n):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
+  // Direct feedback: this always read "Station X of Y" even while
+  // rotating, which reads as "there are X stations" rather than "this is
+  // round X" -- the number changing is the rotation, not the station
+  // count. Static blocks (no rotation at all) get their own label too,
+  // instead of the generic "Station Block".
+  const phaseLabel=isBlock?(inBlockIntro?"INTRODUCE STATIONS":blockRotate?(inTrans?"TRANSITION":"ROTATION "+(stIdx+1)+" of "+n):"STATION BREAKOUTS"):((cur&&cur.name)||"").toUpperCase();
   const roster=session.roster||[];
   const mentionRoster=roster.map(p=>({id:p.id,displayName:(p.jersey_number?"#"+p.jersey_number+" ":"")+p.first_name+" "+p.last_initial+"."}));
   const submitHelperNote=async(body,taggedIds,endOfPractice,authorLabel)=>{
@@ -1349,7 +1402,7 @@ function HelperView({token}){
             than only below some volume threshold. */}
         <div style={{fontSize:13,fontWeight:700,color:"var(--amber)",background:"var(--ambg)",border:"1.5px solid var(--ambb)",borderRadius:8,padding:"8px 10px",marginBottom:14}}>🔉 Reminder: Turn up your device's volume.</div>
         <button className="btn primary bmd bfull mb8" onClick={()=>{
-          if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}
+          if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}startBgAudioSession();}
           spokenRef.current={};buzzedRef.current=false;setAudioOn(true);setShowAudioPrompt(false);
         }}>🔊 Turn On Audio</button>
         <button className="btn ghost bmd bfull" onClick={()=>{setAudioOn(false);setShowAudioPrompt(false);}}>🔇 Keep Audio Off</button>
@@ -1364,7 +1417,7 @@ function HelperView({token}){
           </button>}
           <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowNotes(s=>!s)}>Notes<Ic.Chev up={showNotes}/></button>
           <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowROS(s=>!s)}>Overview<Ic.Chev up={showROS}/></button>
-          <button onClick={()=>{if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}}spokenRef.current={};buzzedRef.current=false;setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 8px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:13,lineHeight:1}}>{audioOn?"🔊":"🔇"}</span><span>{audioOn?"On":"Off"}</span></button>
+          <button onClick={()=>{if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}startBgAudioSession();}else{stopBgAudioSession();}spokenRef.current={};buzzedRef.current=false;setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 8px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:13,lineHeight:1}}>{audioOn?"🔊":"🔇"}</span><span>{audioOn?"On":"Off"}</span></button>
         </div>
       </div>
       <div className="row" style={{gap:6,flexWrap:"wrap",marginTop:6}}>
@@ -2893,7 +2946,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
 
   if(!cur)return null;
 
-  const phaseLabel=isBlock?(inBlockIntro?"INTRODUCE STATIONS":blockRotate?(inTrans?"TRANSITION":"STATION "+(stIdx+1)+" of "+cur.stations.length):"STATION BLOCK"):((cur&&cur.name)||"").toUpperCase();
+  const phaseLabel=isBlock?(inBlockIntro?"INTRODUCE STATIONS":blockRotate?(inTrans?"TRANSITION":"ROTATION "+(stIdx+1)+" of "+cur.stations.length):"STATION BREAKOUTS"):((cur&&cur.name)||"").toUpperCase();
   const blockCount=liveActs.slice(0,idx).filter(a=>a.type==="station_block").length;
   const schedBadge=schedDelta===null?null:(Math.abs(schedDelta)<1?<span style={{background:"var(--gbg)",color:"var(--green)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>On time</span>:schedDelta>0?<span style={{background:"var(--ambg)",color:"var(--amber)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>+{schedDelta}m behind</span>:<span style={{background:"var(--gbg)",color:"var(--green)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>{Math.abs(schedDelta)}m ahead</span>);
 
