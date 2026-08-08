@@ -2040,6 +2040,13 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
   // re-rendering doesn't keep reopening it.
   const location=useLocation();
   const [pendingPermissionsUserId,setPendingPermissionsUserId]=useState(()=>(location.state&&location.state.openPermissionsForUserId)||null);
+  // Real bug: team_staff/team_invites have no realtime subscription and
+  // `data.teams` is loaded once at login, so a coach who accepted an
+  // invite on their own device left the inviter's already-open session
+  // showing the old pending row indefinitely. Refetching whenever this
+  // screen mounts means opening Coaches always reflects the real state,
+  // not just whichever moment the app happened to last load.
+  useEffect(()=>{if(refreshTeams)refreshTeams();},[]);
   const [tab,setTab]=useState(pendingPermissionsUserId?"coaches":"players");
   const [openMenu,setOpenMenu]=useState(null);
   const [sort,setSort]=useState({by:"firstName",dir:"asc"});

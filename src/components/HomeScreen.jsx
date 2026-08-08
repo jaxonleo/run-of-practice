@@ -398,7 +398,25 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
     setAckingJoinId(pendingJoinNotice.id);
     await acknowledgeTeamJoinNotice(pendingJoinNotice.id);
     if (refreshLibrary) await refreshLibrary();
+    // Real bug: the inviting coach's own `teams` state is loaded once at
+    // login and never refetched in response to someone else's write (no
+    // realtime subscription on team_staff/team_invites) -- if this card
+    // renders while that session is already open, the roster's Coaches
+    // tab kept showing the new coach as "pending" even after they'd
+    // actually accepted, until the inviter reloaded the whole app.
+    if (refreshTeams) await refreshTeams();
     setAckingJoinId(null);
+  };
+  const [openingPermissionsFor, setOpeningPermissionsFor] = useState(null);
+  const goToCoachPermissions = async () => {
+    if (!pendingJoinNotice) return;
+    setOpeningPermissionsFor(pendingJoinNotice.id);
+    // Await the refresh before navigating so RostersTab's deep-link effect
+    // (which reads team.coaches synchronously off already-loaded state)
+    // finds the newly-accepted coach instead of racing a stale roster.
+    if (refreshTeams) await refreshTeams();
+    setOpeningPermissionsFor(null);
+    navigate("/team/" + pendingJoinNotice.teamId + "/roster", { state: { openPermissionsForUserId: pendingJoinNotice.joinedUserId } });
   };
 
   // Org Experience handoff Sec 5: unlike the team_staff welcome card above
@@ -524,7 +542,7 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
     {pendingJoinNotice && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 14, marginBottom: 10 }}><strong>{pendingJoinNotice.joinedName}</strong> accepted your invite to <strong>{pendingJoinNotice.teamName}</strong> as {articleFor(pendingJoinNotice.role)} {pendingJoinNotice.role}. Set up what you share and delegate with them.</div>
       <div style={{ display: "flex", gap: 8 }}>
-        <button className="btn primary bxs" style={{ flex: 1 }} onClick={() => navigate("/team/" + pendingJoinNotice.teamId + "/roster", { state: { openPermissionsForUserId: pendingJoinNotice.joinedUserId } })}>Set Up Permissions</button>
+        <button className="btn primary bxs" style={{ flex: 1 }} disabled={openingPermissionsFor === pendingJoinNotice.id} onClick={goToCoachPermissions}>{openingPermissionsFor === pendingJoinNotice.id ? "Opening..." : "Set Up Permissions"}</button>
         <button className="btn ghost bxs" style={{ flex: 1 }} disabled={ackingJoinId === pendingJoinNotice.id} onClick={acknowledgeJoinNotice}>Dismiss</button>
       </div>
     </div></div>}
