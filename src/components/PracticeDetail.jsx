@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { findOrCreatePreviewToken, cancelPractice, restorePractice, fetchPlannedAbsences, findActiveLiveSession, savePracticeTree } from "../supabase.js";
 import { canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, isMoreThanTwoHoursAway } from "../constants.js";
 import AbsencePicker from "./AbsencePicker.jsx";
@@ -20,11 +20,13 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
   // registers with Layout's colored bar instead of rendering its own
   // inline Back button; reached from Home (no colored bar there) keeps
   // the inline button, since setSubViewBack is only passed in the former case.
+  const onBackRef=useRef(onBack);
+  useEffect(()=>{onBackRef.current=onBack;});
   useEffect(()=>{
     if(!setSubViewBack)return;
-    setSubViewBack({onBack});
+    setSubViewBack({onBack:()=>onBackRef.current()});
     return ()=>setSubViewBack(null);
-  },[setSubViewBack,onBack]);
+  },[setSubViewBack]);
   const team=data.teams.find(t=>t.id===practice.teamId);
   // canManageTeamInMode, not bare isHeadCoach -- a director overseeing an
   // org team can edit/cancel/plan its practices without a personal

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
 // Shared 3-choice guard shown whenever a coach tries to start a practice
 // more than 2 hours before its own scheduled time (direct feedback,
@@ -14,7 +14,8 @@ import React, { useState } from "react";
 // without a circular Home<->PracticeDetail dependency.
 export default function FuturePracticeGuardModal({ practice, team, onCancel, onRunAsNew, onRunNow }) {
   const [busy, setBusy] = useState(false);
-  const run = async fn => { if (busy) return; setBusy(true); await fn(); };
+  const busyRef = useRef(false);
+  const run = async fn => { if (busyRef.current) return; busyRef.current = true; setBusy(true); await fn(); };
   return (<div className="movly" onClick={e => { if (e.target === e.currentTarget) onCancel(); }}>
     <div className="modal">
       <div className="mhandle" />

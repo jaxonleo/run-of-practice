@@ -530,6 +530,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
     if (!window.confirm("Delete this practice? It will be removed from Practice History and Goals & Insights reporting. This can't be undone from here.")) return;
     setDeleting(true);
     await archivePractice(practice.id);
+    if (refreshPlanning) await refreshPlanning();
     setDeleting(false);
     if (onChanged) onChanged();
     onBack();

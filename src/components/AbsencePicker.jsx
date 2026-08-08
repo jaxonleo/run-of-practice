@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { fetchPlannedAbsences, createPlannedAbsence, deletePlannedAbsence, setPlannedAbsences } from "../supabase.js";
 import { localDateStr, myTeamRole } from "../constants.js";
 
@@ -32,6 +32,7 @@ export default function AbsencePicker({ data, coachId, mode, practice, team, pre
   const [selected, setSelected] = useState(new Set());
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const allPlayers = (data.teams || [])
     .filter(t => !teamFilter || t.id === teamFilter)
@@ -57,19 +58,26 @@ export default function AbsencePicker({ data, coachId, mode, practice, team, pre
 
   const toggle = id => setSelected(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
+  const savingRef = useRef(false);
   const save = async () => {
-    if (saving) return;
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
+    setSaveError("");
+    let failed = false;
     if (mode === "pickPlayersForPractice") {
       const roster = team ? team.players : [];
       for (const p of roster) {
-        if (selected.has(p.id)) await createPlannedAbsence(practice.id, p.id, coachId, null);
-        else await deletePlannedAbsence(practice.id, p.id);
+        const res = selected.has(p.id) ? await createPlannedAbsence(practice.id, p.id, coachId, null) : await deletePlannedAbsence(practice.id, p.id);
+        if (res && res.error) { failed = true; break; }
       }
     } else if (player) {
-      await setPlannedAbsences(player.id, coachId, [...selected], candidatePractices.map(p => p.id), null);
+      const res = await setPlannedAbsences(player.id, coachId, [...selected], candidatePractices.map(p => p.id), null);
+      if (res && res.error) failed = true;
     }
     setSaving(false);
+    savingRef.current = false;
+    if (failed) { setSaveError("Couldn't save -- please try again."); return; }
     onClose();
   };
 
@@ -115,6 +123,7 @@ export default function AbsencePicker({ data, coachId, mode, practice, team, pre
             <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} />
           </label>))}
         </div>
+        {saveError && <div style={{ fontSize: 13, color: "var(--red)", marginTop: 4 }}>{saveError}</div>}
         <div className="brow" style={{ marginTop: 12 }}>
           {!presetPlayer && <button className="btn ghost bsm" onClick={() => setStep("player")}>Back</button>}
           <button className="btn primary bsm" style={{ flex: 1 }} onClick={save} disabled={saving || !loaded}>{saving ? "Saving..." : "Save"}</button>
@@ -130,6 +139,7 @@ export default function AbsencePicker({ data, coachId, mode, practice, team, pre
             <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} />
           </label>))}
         </div>
+        {saveError && <div style={{ fontSize: 13, color: "var(--red)", marginTop: 4 }}>{saveError}</div>}
         <div className="brow" style={{ marginTop: 12 }}>
           <button className="btn ghost bsm" onClick={onClose}>Cancel</button>
           <button className="btn primary bsm" style={{ flex: 1 }} onClick={save} disabled={saving || !loaded}>{saving ? "Saving..." : "Save"}</button>

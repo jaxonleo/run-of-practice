@@ -1156,7 +1156,8 @@ export async function savePracticeTree(existingId, { teamId, locationId, subloca
   if (coachId) row.last_edited_by = coachId
   let practiceId = existingId
   if (isDbId(practiceId)) {
-    await supabase.from('practices').update(row).eq('id', practiceId)
+    const { error } = await supabase.from('practices').update(row).eq('id', practiceId)
+    if (error) { console.error('savePracticeTree:', error); return { error } }
   } else {
     if (coachId) row.created_by = coachId
     const { data, error } = await supabase.from('practices').insert(row).select().single()
@@ -1268,13 +1269,18 @@ export async function deletePlannedAbsence(practiceId, playerId) {
 export async function setPlannedAbsences(playerId, notedBy, selectedPracticeIds, candidatePracticeIds, note) {
   const selected = new Set(selectedPracticeIds)
   const toRemove = (candidatePracticeIds || []).filter(id => !selected.has(id))
-  if (toRemove.length) await supabase.from('planned_absences').delete().eq('player_id', playerId).in('practice_id', toRemove)
+  if (toRemove.length) {
+    const { error } = await supabase.from('planned_absences').delete().eq('player_id', playerId).in('practice_id', toRemove)
+    if (error) { console.error('setPlannedAbsences:', error); return { error } }
+  }
   if (selectedPracticeIds.length) {
-    await supabase.from('planned_absences').upsert(
+    const { error } = await supabase.from('planned_absences').upsert(
       selectedPracticeIds.map(practiceId => ({ practice_id: practiceId, player_id: playerId, noted_by: notedBy, note: note || null })),
       { onConflict: 'practice_id,player_id', ignoreDuplicates: true }
     )
+    if (error) { console.error('setPlannedAbsences:', error); return { error } }
   }
+  return {}
 }
 
 // ── Notes (§8) -- captured live during a drill/station or at the end of a

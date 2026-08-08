@@ -682,11 +682,13 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
   // with Layout's colored bar when reached from a team-scoped Schedule tab
   // (setSubViewBack passed in), otherwise keeps its own inline Back button
   // (reached from Home, which has no colored bar).
+  const onBackRef=useRef(onBack);
+  useEffect(()=>{onBackRef.current=onBack;});
   useEffect(()=>{
     if(!setSubViewBack)return;
-    setSubViewBack({onBack});
+    setSubViewBack({onBack:()=>onBackRef.current()});
     return ()=>setSubViewBack(null);
-  },[setSubViewBack,onBack]);
+  },[setSubViewBack]);
   const [tplSaved,setTplSaved]=useState(false);
   const [tplError,setTplError]=useState("");
   const [savingTpl,setSavingTpl]=useState(false);
