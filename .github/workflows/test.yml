@@ -1,0 +1,29 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Not `npm run check` -- that script pipes vite build's output through
+      # grep and always exits 0 regardless of whether a real error was found
+      # (useful for a quick local eyeball, useless as a CI gate). `npm run
+      # build` propagates vite's real exit code.
+      - name: Build
+        run: npm run build
+
+      - name: Unit + component tests
+        run: npm test
