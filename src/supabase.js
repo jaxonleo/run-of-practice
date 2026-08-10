@@ -1444,8 +1444,26 @@ export async function findActiveLiveSession(practiceId) {
 // row live forever otherwise. Six hours is comfortably longer than any
 // real practice + wrap-up. Doesn't delete or archive the row -- just
 // stops surfacing it as live/joinable.
+//
+// Also opportunistically triggers the real server-side cleanup
+// (abandon_stale_live_sessions, 20260810030000_auto_abandon_stale_sessions.sql)
+// before reading -- this client-side filter alone only ever hid a stale row
+// from this one banner, the underlying row stayed status='active' forever,
+// so every *other* "is this live" check in the app (findActiveLiveSession,
+// PreviewView's routing) would still treat it as real. The RPC is cheap and
+// idempotent (a targeted UPDATE gated on the same staleness rule, almost
+// always zero rows), so firing it on every 20s poll this function already
+// gets is fine -- no dedicated scheduled-job infra exists in this project,
+// this is the lazy "whoever's on Home eventually triggers it" pattern
+// BUILD-STATUS's own Known Gaps entry proposed instead. Errors are
+// swallowed, not surfaced -- a failed cleanup attempt just means this
+// banner's own client-side filter (unaffected) keeps doing its job until
+// the next poll tries again.
 const STALE_LIVE_SESSION_MS = 6 * 60 * 60 * 1000
 export async function fetchActiveLiveSessions() {
+  await supabase.rpc('abandon_stale_live_sessions').then(({ error }) => {
+    if (error) console.error('abandon_stale_live_sessions:', error)
+  })
   const staleCutoff = new Date(Date.now() - STALE_LIVE_SESSION_MS).toISOString()
   const { data, error } = await supabase.from('practice_live_sessions')
     .select('id, practice_id, controller_user_id, setup_confirmed_at, created_at, practices(team_id, teams(archived_at))')

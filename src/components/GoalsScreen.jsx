@@ -591,9 +591,11 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
     </div>
     <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>
       {session.wall_minutes}min wall time · {session.attendance_count} attended
+      {session.status === "abandoned" && <span className="bdg" style={{ marginLeft: 6, background: "var(--ambg)", color: "var(--amber)" }}>Abandoned</span>}
       {session.excluded && <span className="bdg bs" style={{ marginLeft: 6 }}>Excluded from goals</span>}
       {session.adjusted && <span className="bdg bp" style={{ marginLeft: 6 }}>Adjusted</span>}
     </div>
+    {session.status === "abandoned" && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 12 }}>This practice was never properly ended, so it doesn't count toward Goals &amp; Insights -- only the time logged before it was abandoned is shown below.</div>}
 
     {/* Direct feedback: Run Now belongs at the top, alongside Save as
         Template -- same look/actions HistoryViewer (Schedule/Home's own
@@ -695,7 +697,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
       })()}
     </div>}
 
-    {canManage && <button className={"btn bmd bfull " + (session.excluded ? "primary" : "outline")} onClick={toggleExclude} disabled={busy}>
+    {canManage && session.status !== "abandoned" && <button className={"btn bmd bfull " + (session.excluded ? "primary" : "outline")} onClick={toggleExclude} disabled={busy}>
       {session.excluded ? "Restore to goals" : "Exclude from goals"}
     </button>}
     {showPrint && data && <PracticePlanPrint practice={practice} team={team} loc={loc} data={data} onClose={() => setShowPrint(false)} />}
@@ -709,7 +711,7 @@ function HistoryList({ history, data, canManage, onOpen }) {
   return (<div>
     {history.map(s => {
       const practice = data.practices.find(p => p.id === s.practice_id);
-      return (<div key={s.session_id} className="card" style={{ marginBottom: 8, cursor: "pointer", opacity: s.excluded ? 0.6 : 1 }} onClick={() => onOpen(s)}>
+      return (<div key={s.session_id} className="card" style={{ marginBottom: 8, cursor: "pointer", opacity: s.excluded || s.status === "abandoned" ? 0.6 : 1 }} onClick={() => onOpen(s)}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -721,6 +723,7 @@ function HistoryList({ history, data, canManage, onOpen }) {
             <div style={{ fontSize: 12, color: "var(--td)" }}>
               {s.wall_minutes}min · {s.attendance_count} attended
               {(() => { const names = (s.top_skills || []).slice(0, 3).map(sk => sk.name).join(", "); return names && " · " + names; })()}
+              {s.status === "abandoned" && <span className="bdg" style={{ marginLeft: 6, background: "var(--ambg)", color: "var(--amber)" }}>Abandoned</span>}
               {s.excluded && <span className="bdg bs" style={{ marginLeft: 6 }}>Excluded</span>}
               {s.adjusted && <span className="bdg bp" style={{ marginLeft: 6 }}>Adjusted</span>}
             </div>
