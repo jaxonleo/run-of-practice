@@ -59,7 +59,15 @@ const Ic_Grip=()=><svg width="16" height="16" viewBox="0 0 16 16" fill="currentC
 // its own sticky header above this list (e.g. Builder's Save/Run Now bar),
 // since two siblings can't both actually occupy top:0 -- the later one just
 // renders hidden underneath the first.
-export function SortableActivityRow({id,children,sticky,stickyTop,raised}){
+// `stickyBg` paints this row's own wrapper green (and lightly padded) while
+// it's sticky, matching the horizontal green margin the shared backdrop
+// gives every row when it's still within that backdrop's own natural
+// height -- a sticky row that's been scrolled past that point has nothing
+// green left behind it otherwise (the backdrop is a fixed-height absolute
+// div, not something that grows to cover scrolled-past sticky content), so
+// without this it would land on the plain page background instead, looking
+// like a stray white card rather than still being "the Run of Practice."
+export function SortableActivityRow({id,children,sticky,stickyTop,raised,stickyBg}){
   const {attributes,listeners,setNodeRef,transform,transition,isDragging}=useSortable({id});
   // zIndex always at least 1 (not just when dragging/sticky) -- Builder's
   // Run of Practice paints its green background as an absolutely
@@ -80,7 +88,7 @@ export function SortableActivityRow({id,children,sticky,stickyTop,raised}){
   // row in a list needs this exactly as much as a middle one, since
   // without it the row's own trailing padding/the list's own edge clips
   // the popover the same way a sibling row's background would.
-  const style={transform:CSS.Transform.toString(transform),transition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?(stickyTop||0):undefined,zIndex:isDragging?1:(raised?10:(sticky?5:1))};
+  const style={transform:CSS.Transform.toString(transform),transition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?(stickyTop||0):undefined,zIndex:isDragging?1:(raised?10:(sticky?5:1)),background:sticky&&stickyBg?stickyBg:undefined,paddingTop:sticky&&stickyBg?8:undefined,paddingBottom:sticky&&stickyBg?10:undefined};
   // touchAction:"none" alone stops the page from scrolling under a drag,
   // but iOS Safari still fires its own long-press text-selection callout
   // (the magnifying-glass loupe) independently of that -- WebkitTouchCallout

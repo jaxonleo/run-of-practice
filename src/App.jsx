@@ -1124,6 +1124,54 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     ro.observe(el);
     return()=>ro.disconnect();
   },[]);
+  // Direct feedback, second round on the same request: the coach wants "The
+  // Run of Practice" title itself pinned too, not just the last-added row --
+  // and wants it to actually stay *green* once scrolled past its natural
+  // spot, not fall onto the white page background the way the lone sticky
+  // row used to (the shared backdrop below is only as tall as the section's
+  // natural, unscrolled height -- position:sticky content that pins past
+  // that point has nothing green left behind it). Same ResizeObserver
+  // pattern as stickyHeaderH above, measuring this section's own title bar
+  // so the last-row's own stickyTop can stack correctly beneath both the
+  // Save/Run Now bar *and* this header rather than overlapping either.
+  const ropHeaderRef=useRef(null);
+  const [ropHeaderH,setRopHeaderH]=useState(0);
+  useEffect(()=>{
+    const el=ropHeaderRef.current;
+    if(!el)return;
+    const ro=new ResizeObserver(()=>setRopHeaderH(el.offsetHeight));
+    ro.observe(el);
+    return()=>ro.disconnect();
+  },[]);
+  // The always-last-positional-drill sticky spacer's own height (the "torn
+  // edge" strip below, present only when there's more than one activity --
+  // with exactly one, there's nothing that could ever be hidden between the
+  // header and "the last drill," so no strip/zigzag makes sense at all).
+  const ropZigzagH=acts.length>1?16:0;
+  const ropStickyTop=stickyHeaderH+ropHeaderH;
+  const ropLastId=acts.length>0?acts[acts.length-1].id:null;
+  // Whether any activity between the header and the pinned last row is
+  // currently scrolled out of view -- drives the torn/zigzag edge on the
+  // spacer strip between them. Watches the *first* row specifically: since
+  // rows scroll away top-to-bottom under the sticky header, the first row
+  // is always the first thing to disappear, and by the time it's gone the
+  // header is necessarily already pinned (it sits above every row in
+  // document order) -- one observer target is enough, no need to watch
+  // every row in between. rootMargin shrinks the effective viewport by the
+  // sticky stack's own height, so "visible" means "visible in the actual
+  // remaining scroll area," not just "touches the literal top of the
+  // browser window" (which the sticky bar/header/strip already cover).
+  const [ropContentHidden,setRopContentHidden]=useState(false);
+  useEffect(()=>{
+    if(acts.length<=1){setRopContentHidden(false);return;}
+    const firstEl=rowRefs.current[acts[0].id];
+    if(!firstEl)return;
+    const topOffset=ropStickyTop+ropZigzagH;
+    const io=new IntersectionObserver(([entry])=>{setRopContentHidden(!entry.isIntersecting);},{rootMargin:(-topOffset)+"px 0px 0px 0px",threshold:0});
+    io.observe(firstEl);
+    return()=>io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[acts.length&&acts[0].id,ropStickyTop,ropZigzagH]);
   // Snapshot of what's actually persisted, so the router blocker (and the
   // beforeunload guard below) can warn before discarding edits that only
   // exist in this component's state. Replaces the old App-level
@@ -1604,11 +1652,22 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           the same tall padding:"0 14px" wrapper Practice Components/My
           Drill Library already live in, each carrying its own 10px
           inset (padding or margin) to match the backdrop's old uniform
-          padding:10 look. */}
+          padding:10 look.
+          Direct feedback, a second round on top of the below: browsing the
+          Library with the practice already scrolled past meant losing
+          sight of "the Run of Practice" entirely -- no header, no sense
+          the green section still existed above. The header (and, further
+          below, the last-added drill) are now both position:sticky,
+          stacked directly beneath the Save/Run Now bar (stickyHeaderH),
+          each carrying its own solid green background rather than relying
+          on this backdrop -- which only covers this section's natural,
+          unscrolled height and would otherwise leave pinned content
+          sitting on the plain white page background the moment it's
+          scrolled past that point. */}
       <div ref={runOfPracticeStartRef} style={{position:"relative"}}>
         <div style={{position:"absolute",top:0,left:0,right:0,height:runOfPracticeH,background:"var(--green)",borderRadius:"var(--r)",pointerEvents:"none",zIndex:0}}/>
       </div>
-      <div style={{position:"relative",zIndex:1,display:"flex",alignItems:"center",gap:10,padding:"10px 10px 8px"}}>
+      <div ref={ropHeaderRef} style={{position:"sticky",top:stickyHeaderH,zIndex:9,background:"var(--green)",borderRadius:"var(--r) var(--r) 0 0",display:"flex",alignItems:"center",gap:10,padding:"10px 10px 8px"}}>
         <RunOfPracticeMark rotation={handRotation}/>
         <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",letterSpacing:".01em",flex:1,lineHeight:1.1}}>The Run of Practice</span>
         {(()=>{
@@ -1648,23 +1707,52 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           {teamTemplates.length>0&&<button className="btn bsm" style={{background:"#fff",color:"var(--green)"}} onClick={()=>setShowTplPicker(true)}>Start with a Template</button>}
         </div>
       )}
+      {/* The "torn edge" strip: a sticky spacer sandwiched between the
+          header above and the always-last-drill row below, present
+          whenever there's more than one activity (with exactly one, first
+          === last and nothing could ever be hidden between them). Went
+          through two visuals before this one, both corrected from direct
+          feedback on a live screenshot: a 4-gradient CSS tile that read as
+          crosses, then a continuous mountain-range clip-path zigzag that
+          was the right *technique* but the wrong *shape* -- "a heartbeat
+          line that flattens after the first 1/5th," not a repeating wave.
+          An actual EKG trace is a real stroked line (a pulse then a flat
+          baseline), not a two-tone fill/cut boundary, so this is a plain
+          SVG polyline instead of a clip-path -- white, matching the
+          header's own white text/icon for contrast against the solid
+          green, `vectorEffect="non-scaling-stroke"` so the line stays a
+          crisp constant width regardless of how wide this stretches.
+          Opacity-toggled (not clip-path-toggled) by ropContentHidden --
+          invisible at 0 (flush green, matching the header/backdrop) the
+          moment the IntersectionObserver above reports the first activity
+          has scrolled back into view, fully visible the moment it's
+          scrolled out. */}
+      {acts.length>1&&(<div style={{position:"sticky",top:ropStickyTop,zIndex:8,height:ropZigzagH,background:"var(--green)",overflow:"hidden"}}>
+        <svg viewBox={"0 0 100 "+ropZigzagH} preserveAspectRatio="none" style={{width:"100%",height:"100%",display:"block"}}>
+          <polyline points={"0,"+(ropZigzagH/2)+" 6,"+(ropZigzagH/2)+" 7.5,"+(ropZigzagH*0.6)+" 9,"+(ropZigzagH*0.03)+" 10.5,"+(ropZigzagH*0.97)+" 12,"+(ropZigzagH*0.4)+" 13.5,"+(ropZigzagH/2)+" 100,"+(ropZigzagH/2)} fill="none" stroke="#fff" strokeWidth="2" vectorEffect="non-scaling-stroke" style={{opacity:ropContentHidden?1:0,transition:"opacity .2s ease"}}/>
+        </svg>
+      </div>)}
       {acts.length>0&&(<ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
-      {acts.map((act)=>(<SortableActivityRow key={act.id} id={act.id} sticky={act.id===lastAddedId} stickyTop={stickyHeaderH}>{dragHandle=>(<div>
+      {acts.map((act)=>{const isLast=act.id===ropLastId;return (<SortableActivityRow key={act.id} id={act.id} sticky={isLast} stickyTop={ropStickyTop+ropZigzagH} stickyBg={isLast?"var(--green)":undefined}>{dragHandle=>(<div>
             <div className="ablk" style={{marginLeft:10,marginRight:10}} ref={el=>{if(el)rowRefs.current[act.id]=el;else delete rowRefs.current[act.id];}}>
-              {/* A newly-added row is both expanded (see addAct/addBlock/
-                  addComponentType) and sticky-pinned to the top while the
-                  coach scrolls up to review it, at the same time now --
-                  direct feedback was that seeing the just-added drill's
-                  content immediately, without an extra tap, mattered more
-                  than the old worry about a very tall sticky row blocking
-                  scroll. That's a real risk in principle, but per-station
-                  collapse (StationConfig) keeps even a multi-station block
-                  short by default, so it isn't the trap it would have been
-                  before. Tapping this header (to expand or collapse) always
-                  clears lastAddedId -- once the coach has interacted with
-                  the row directly, it's done being "the one that just got
-                  added." Clicking away from it (see the click-away effect
-                  above) collapses it the same way. */}
+              {/* A newly-added row auto-expands (see addAct/addBlock/
+                  addComponentType) so the coach sees its content
+                  immediately without an extra tap -- that's a real risk in
+                  principle for a very tall row, but per-station collapse
+                  (StationConfig) keeps even a multi-station block short by
+                  default, so it isn't the trap it would have been before.
+                  Staying pinned to the top while scrolling, on the other
+                  hand, is no longer tied to "just added" at all -- it's
+                  whichever activity is positionally last in the practice
+                  (isLast, above), so the coach always sees the Run of
+                  Practice's own tail end while browsing the Library below
+                  it, not just briefly after adding something. Tapping this
+                  header (to expand or collapse) still clears lastAddedId --
+                  once the coach has interacted with the row directly, it's
+                  done being "the one that just got added" for auto-expand
+                  purposes, independent of whether it's still pinned.
+                  Clicking away from it (see the click-away effect above)
+                  collapses it the same way. */}
               <div className="abhdr" style={{position:"relative"}} onClick={()=>{const willExpand=expandedId!==act.id;setExpandedId(willExpand?act.id:null);if(act.id===lastAddedId)setLastAddedId(null);}}>
                 {dragHandle}
                 <div style={{flex:1,minWidth:0}}>
@@ -1720,7 +1808,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               )}
             </div>
           </div>)}</SortableActivityRow>
-      ))}
+      );})}
       </ActivityDndContext>)}
       <div ref={runOfPracticeEndRef} style={{height:14}}/>
       {/* Practice Components -- black bar (matches Practice Details/My
