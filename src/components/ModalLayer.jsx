@@ -367,7 +367,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
                 {STAFF_ROLES.map(r=>(<button key={r} type="button" className={"btn bsm "+((f.role||"Assistant Coach")===r?"primary":"ghost")} onClick={()=>set("role",r)}>{r}</button>))}
               </div>
             </div>
-            {!(coach&&coach.userId)&&<div className="fld"><label className="lbl">Invite Email</label><input className="inp" type="email" placeholder="Required until they create an account" value={f.inviteEmail||""} onChange={e=>set("inviteEmail",e.target.value)}/></div>}
+            {!(coach&&coach.userId)&&<div className="fld"><label className="lbl">Invite Email</label><input className="inp" type="email" placeholder="Needed to send the invite and link their account" value={f.inviteEmail||""} onChange={e=>set("inviteEmail",e.target.value)}/></div>}
           </div>
         )}
         {(modal.type==="addLocation"||modal.type==="editLocation"||modal.type==="addSublocation")&&(<div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>

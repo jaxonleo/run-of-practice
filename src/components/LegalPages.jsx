@@ -25,14 +25,15 @@ function ConsultationRequestForm({coachId, coachEmail, pageContext, onClose}){
   const [sending,setSending]=useState(false);
   const [done,setDone]=useState(false);
   const [sendError,setSendError]=useState("");
-  const canSend=name.trim()&&email.trim()&&phone.trim()&&numTeams;
+  const canSend=name.trim()&&(email.trim()||phone.trim())&&numTeams;
   const send=async()=>{
     if(!canSend||sending)return;
     setSending(true);
     setSendError("");
     const message="Organization consultation request\n\n"
       +"Name: "+name.trim()+"\n"
-      +"Phone: "+phone.trim()+"\n"
+      +"Email: "+(email.trim()||"(not provided)")+"\n"
+      +"Phone: "+(phone.trim()||"(not provided)")+"\n"
       +"Number of teams: "+numTeams+"\n\n"
       +(details.trim()?details.trim():"No additional details provided.");
     // Real gap found live: both submit* helpers can fail (network, a
@@ -51,14 +52,14 @@ function ConsultationRequestForm({coachId, coachEmail, pageContext, onClose}){
       <div className="mhandle"/>
       {done?(<div>
         <div className="mtitle">Thanks, that's in.</div>
-        <div style={{fontSize:14,color:"var(--black2)",marginBottom:16,lineHeight:1.5}}>We'll follow up at {email.trim()} (or by phone) to set up a quick call and get your organization going.</div>
+        <div style={{fontSize:14,color:"var(--black2)",marginBottom:16,lineHeight:1.5}}>We'll follow up to set up your consultation.</div>
         <button className="btn primary bmd bfull" onClick={onClose}>Close</button>
       </div>):(<div>
         <div className="mtitle">Request a Consultation</div>
-        <div style={{fontSize:13,color:"var(--td)",marginBottom:16,lineHeight:1.5}}>Tell us a bit about your club and we'll reach out to get your organization set up.</div>
+        <div style={{fontSize:13,color:"var(--td)",marginBottom:16,lineHeight:1.5}}>Tell us a bit about your organization and we'll reach out to get things set up.</div>
         <div className="fld mb10"><label className="lbl">Name</label><input className="inp" autoFocus value={name} onChange={e=>setName(e.target.value)}/></div>
-        <div className="fld mb10"><label className="lbl">Email</label><input className="inp" type="email" value={email} onChange={e=>setEmail(e.target.value)}/></div>
-        <div className="fld mb10"><label className="lbl">Phone</label><input className="inp" type="tel" value={phone} onChange={e=>setPhone(e.target.value)}/></div>
+        <div className="fld mb10"><label className="lbl">Email <span style={{color:"var(--td)",fontWeight:400}}>(email or phone required)</span></label><input className="inp" type="email" value={email} onChange={e=>setEmail(e.target.value)}/></div>
+        <div className="fld mb10"><label className="lbl">Phone <span style={{color:"var(--td)",fontWeight:400}}>(email or phone required)</span></label><input className="inp" type="tel" value={phone} onChange={e=>setPhone(e.target.value)}/></div>
         <div className="fld mb10"><label className="lbl">Number of Teams</label><input className="inp" type="number" min="1" value={numTeams} onChange={e=>{const v=e.target.value;setNumTeams(v===""?"":+v);}}/></div>
         <div className="fld mb10">
           <label className="lbl">Anything else that would help? <span style={{color:"var(--td)",fontWeight:400}}>(optional)</span></label>
@@ -125,7 +126,7 @@ function FAQItem({ q, children, open, onToggle }) {
 }
 
 export function FAQPage() {
-  const [open, setOpen] = useState(0);
+  const [open, setOpen] = useState(-1);
   const [showConsult, setShowConsult] = useState(false);
   const toggle = i => setOpen(open === i ? -1 : i);
   const items = [

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway } from "../constants.js";
+import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway, getGettingStartedHidden, setGettingStartedHidden } from "../constants.js";
 import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
@@ -33,7 +33,7 @@ function PlanPill({ practice }) {
 // Home (gone once every step is done) whose rows are real navigation, not
 // just a progress readout, and the green dot is dropped since the card
 // itself is now the visible nudge.
-function GettingStartedCard({ data, hasCompleted, coachId, mode, goToBuilder, goToSchedule, navigate }) {
+function GettingStartedCard({ data, hasCompleted, coachId, mode, goToBuilder, goToSchedule, navigate, onHide }) {
   const isOrgMode = mode && mode.type === "org";
   const libraryDone = isOrgMode
     ? (data.activityLibrary || []).some(a => a.organizationId === mode.orgId)
@@ -53,7 +53,10 @@ function GettingStartedCard({ data, hasCompleted, coachId, mode, goToBuilder, go
   ];
   return (<div style={{ margin: "0 16px 16px" }}>
     <div className="card">
-      <div className="clbl mb8">Getting Started</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <div className="clbl" style={{ marginBottom: 0 }}>Getting Started</div>
+        <button className="btn ghost bxs" style={{ padding: "2px 8px" }} onClick={onHide}>Hide</button>
+      </div>
       {steps.map((s, i) => {
         const Row = s.onClick ? "button" : "div";
         return (<Row key={i} onClick={s.onClick} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: "none", borderLeft: "none", borderRight: "none", borderBottom: i < steps.length - 1 ? "1px solid var(--s2)" : "none", width: "100%", background: "none", textAlign: "left", cursor: s.onClick ? "pointer" : "default", font: "inherit" }}>
@@ -154,6 +157,11 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   // finding out," distinct from a real false, so the card waits for that
   // one query to settle before it's allowed to render at all.
   const [hasCompleted, setHasCompleted] = useState(null);
+  // Synchronous localStorage read (not an effect) so a coach who already
+  // hid this card never sees it flash on screen for a frame before
+  // disappearing -- same "don't render a guess that corrects itself"
+  // reasoning as hasCompleted/runStatusLoaded above.
+  const [gettingStartedHidden, setGettingStartedHiddenState] = useState(() => getGettingStartedHidden(coachId));
   const practiceIdsKey = JSON.stringify(data.practices.map(p => p.id));
   useEffect(() => { hasCompletedSession(data.practices.map(p => p.id)).then(setHasCompleted); }, [practiceIdsKey]);
   // Mirrors ChecklistModal's own mode-aware library check (data.activityLibrary
@@ -301,6 +309,16 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
     const id = unviewedNoteTeamIds.find(tid => canManageTeamInMode(teamById(tid), coachId, mode));
     return id ? teamById(id) : null;
   })();
+  // Direct feedback: an assistant coach (or helper) who'd just accepted an
+  // invite saw Development Pulse for that team even though they don't head
+  // -coach it -- the card is a head-coach planning tool (goal-setting/
+  // Builder guidance), not something a non-managing coach should be shown
+  // at all, regardless of what its CTA copy says. Scope both the focus-team
+  // pool and nextPractice's own short-circuit to teams this coach actually
+  // head-coaches, so a non-head-coached team is never even considered, not
+  // just relabeled once picked.
+  const headCoachTeams = isOrgMode ? [] : data.teams.filter(t => isHeadCoach(t, coachId));
+  const dpNextPractice = nextPractice && isHeadCoach(teamById(nextPractice.teamId), coachId) ? nextPractice : null;
   // Direct feedback (same "glitchy" report as the runStatus fix above):
   // with no nextPractice and more than one home team, resolveDevelopment-
   // PulseFocusTeamId's own documented fallback (guess homeTeams[0], correct
@@ -311,9 +329,9 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   // nextPractice to short-circuit it, and more than one team for the
   // answer to possibly differ) -- a single-team coach or one with a
   // nextPractice already gets the right team on the very first render.
-  const focusTeamNeedsAsyncData = !isOrgMode && !nextPractice && data.teams.length > 1;
+  const focusTeamNeedsAsyncData = !isOrgMode && !dpNextPractice && headCoachTeams.length > 1;
   const focusTeamDataReady = !focusTeamNeedsAsyncData || recentSessionByTeamId !== null;
-  const focusTeamId = isOrgMode ? null : resolveDevelopmentPulseFocusTeamId({ nextPractice, homeTeams: data.teams, recentSessionByTeamId });
+  const focusTeamId = isOrgMode ? null : resolveDevelopmentPulseFocusTeamId({ nextPractice: dpNextPractice, homeTeams: headCoachTeams, recentSessionByTeamId });
   const focusTeam = focusTeamDataReady && focusTeamId ? teamById(focusTeamId) : null;
   const focusTeamCanManage = focusTeam ? canManageTeamInMode(focusTeam, coachId, mode) : false;
   const focusTeamHasCategories = focusTeam ? (data.skillCategories || []).some(c => c.sport === focusTeam.sport && !c.archived_at) : false;
@@ -411,6 +429,15 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   const goToCoachPermissions = async () => {
     if (!pendingJoinNotice) return;
     setOpeningPermissionsFor(pendingJoinNotice.id);
+    // Real bug: only the Dismiss button (acknowledgeJoinNotice above) ever
+    // called acknowledgeTeamJoinNotice -- Set Up Permissions, the button
+    // coaches actually tap to act on this card, navigated away without
+    // ever acknowledging it, so the same "X accepted your invite" prompt
+    // was still there (unread) the next time Home rendered. Acknowledge
+    // here too, same as Dismiss, so acting on the card closes it out just
+    // as surely as dismissing it does.
+    await acknowledgeTeamJoinNotice(pendingJoinNotice.id);
+    if (refreshLibrary) await refreshLibrary();
     // Await the refresh before navigating so RostersTab's deep-link effect
     // (which reads team.coaches synchronously off already-loaded state)
     // finds the newly-accepted coach instead of racing a stale roster.
@@ -509,7 +536,7 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
         {myOrgs.map(org => (<button key={org.id} className="mm-item" style={{ width: "100%", textAlign: "left" }} onClick={() => pickOrg(org.id)}>{org.name}</button>))}
       </div>}
     </div>}
-    {!checklistDone && <GettingStartedCard data={data} hasCompleted={hasCompleted} coachId={coachId} mode={mode} goToBuilder={goToBuilder} goToSchedule={goToSchedule} navigate={navigate} />}
+    {!checklistDone && !gettingStartedHidden && <GettingStartedCard data={data} hasCompleted={hasCompleted} coachId={coachId} mode={mode} goToBuilder={goToBuilder} goToSchedule={goToSchedule} navigate={navigate} onHide={() => { setGettingStartedHidden(coachId, true); setGettingStartedHiddenState(true); }} />}
     {showFeedback && <FeedbackModal coachId={coachId} coachEmail={coachEmail} onClose={() => setShowFeedback(false)} />}
     {showWelcome && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 14, marginBottom: 10 }}>You've been added to <strong>{pendingWelcome.team.name}</strong> by {adderName}.</div>
@@ -536,7 +563,7 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
       <div style={{ fontSize: 14, marginBottom: 10 }}><strong>{pendingDeparture.departedName}</strong> ({pendingDeparture.role}) left <strong>{pendingDeparture.teamName}</strong>.</div>
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn primary bxs" style={{ flex: 1 }} disabled={ackingDepartureId === pendingDeparture.id} onClick={acknowledgeDeparture}>Acknowledge</button>
-        <button className="btn ghost bxs" style={{ flex: 1 }} onClick={() => navigate("/team/" + pendingDeparture.teamId + "/roster")}>View Coaches</button>
+        <button className="btn ghost bxs" style={{ flex: 1 }} onClick={() => { acknowledgeDeparture(); navigate("/team/" + pendingDeparture.teamId + "/roster"); }}>View Coaches</button>
       </div>
     </div></div>}
     {pendingJoinNotice && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>

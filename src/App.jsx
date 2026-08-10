@@ -462,6 +462,27 @@ export default function App(){
       setLoaded(true);
     });
   },[coachId,refreshTeams,refreshLibrary,refreshPlanning]);
+  // Real bug (direct feedback): a head coach already signed in and sitting
+  // on Home never learned an assistant had accepted their invite -- teams/
+  // library are fetched once at login and never refetched in response to
+  // someone else's write (no realtime subscription on team_staff/team_
+  // invites/team_join_notices), so the "X accepted your invite" card and
+  // any updated permission a coach granted elsewhere just sat stale until
+  // the coach manually reloaded or fully quit and reopened the app (a fresh
+  // mount is the only thing that re-fetches). Cheaper than standing up a
+  // realtime channel for every table this could touch: refetch teams+
+  // library whenever the tab regains the foreground (covers both
+  // "backgrounded, then came back" and literally reopening the app) plus a
+  // periodic fallback for a tab that's stayed open and foregrounded a
+  // while, so notices and permission changes surface without a manual
+  // reload either way.
+  useEffect(()=>{
+    if(!coachId)return;
+    const refreshIfVisible=()=>{if(document.visibilityState==="visible"){refreshTeams();refreshLibrary();}};
+    document.addEventListener("visibilitychange",refreshIfVisible);
+    const iv=setInterval(refreshIfVisible,60000);
+    return()=>{document.removeEventListener("visibilitychange",refreshIfVisible);clearInterval(iv);};
+  },[coachId,refreshTeams,refreshLibrary]);
   const data=useMemo(()=>Object.assign({teams},library,planning),[teams,library,planning]);
 
   // Coach vs Organization mode (persisted per device -- a director doing
@@ -2052,6 +2073,10 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
   const [sort,setSort]=useState({by:"firstName",dir:"asc"});
   const [viewPlayer,setViewPlayer]=useState(null);
   const [confirmRemovePlayer,setConfirmRemovePlayer]=useState(null);
+  // Direct feedback: removing an assistant/helper from the roster used to
+  // happen immediately on tap, no confirmation -- same "Cannot be undone"
+  // confirm step confirmRemovePlayer already has below.
+  const [confirmRemoveCoach,setConfirmRemoveCoach]=useState(null);
   // Direct feedback: PermissionsModal's toggles weren't visually reflecting
   // a tap until the coach closed and reopened it. Root cause -- this used to
   // hold the whole coach *object*, snapshotted at the moment the row was
@@ -2080,6 +2105,10 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
     setConfirmRemovePlayer(null);
   };
   const delC=async id=>{await archiveStaff(id);await refreshTeams();};
+  const doRemoveCoach=async()=>{
+    await delC(confirmRemoveCoach.id);
+    setConfirmRemoveCoach(null);
+  };
   // Resend reuses invite_team_staff's own upsert-by-email logic -- calling
   // it again with the same stored fields just refreshes the existing
   // pending row (or revives a declined one) rather than creating a
@@ -2139,7 +2168,10 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
       </div>)}
       {tab==="coaches"&&(<div>
         <div className="sechdr mb8"><span className="sectitle">{team.coaches.length} Coaches</span>{canManage&&<button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addCoach",{teamId});}}>+ Add</button>}</div>
-        {team.coaches.map(c=>(<div key={c.id} className="li" style={{position:"relative"}}>
+        {/* Head Coach always listed first, regardless of add/accept order
+            (direct feedback) -- a stable sort so assistants/helpers below
+            it keep whatever relative order the server returned them in. */}
+        {[...team.coaches].sort((a,b)=>(a.role==="Head Coach"?0:1)-(b.role==="Head Coach"?0:1)).map(c=>(<div key={c.id} className="li" style={{position:"relative"}}>
           <div className="lim"><div className="lin">{c.name}</div><div className="limt">{c.role}</div></div>
           {/* Self-service entry point for an assistant/helper viewing their
               own row without manage rights -- there's no ellipsis menu for
@@ -2150,7 +2182,13 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
           {canManage&&openMenu==="coach_"+c.id&&<div className="mini-menu">
             {c.role!=="Head Coach"&&<button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setPermissionsCoachId(c.id);}}>Permissions</button>}
             <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editCoach",{teamId,coach:c});}}>Edit</button>
-            <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);delC(c.id);}}>Remove</button>
+            {/* A head coach removing their own row here (not the same as
+                leave_team's self-service leave for assistants/helpers) used
+                to be possible and would leave the team without a manager --
+                real bug found live. Hidden for that one row; the server
+                also refuses it now (before_team_staff_archive_block_self_
+                head_coach trigger) as a second line of defense. */}
+            {!(c.userId===coachId&&c.role==="Head Coach")&&<button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);setConfirmRemoveCoach(c);}}>Remove</button>}
           </div>}
         </div>))}
         {/* Sent invites still waiting on a response or already declined --
@@ -2176,6 +2214,13 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
         <div className="mtitle">Remove {confirmRemovePlayer.firstName}?</div>
         <div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This removes {confirmRemovePlayer.firstName} {confirmRemovePlayer.lastName} from the roster. Cannot be undone.</div>
         <div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmRemovePlayer(null)}>Cancel</button><button className="btn danger bmd" onClick={doRemovePlayer}>Remove</button></div>
+      </div>
+    </div>}
+    {confirmRemoveCoach&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setConfirmRemoveCoach(null);}}>
+      <div className="modal">
+        <div className="mtitle">Remove {confirmRemoveCoach.name}?</div>
+        <div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This removes {confirmRemoveCoach.name} from the roster. Cannot be undone.</div>
+        <div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmRemoveCoach(null)}>Cancel</button><button className="btn danger bmd" onClick={doRemoveCoach}>Remove</button></div>
       </div>
     </div>}
     {permissionsCoach&&<PermissionsModal team={team} coach={permissionsCoach} coachId={coachId} canManage={canManage} refreshTeams={refreshTeams} onClose={()=>setPermissionsCoachId(null)}/>}

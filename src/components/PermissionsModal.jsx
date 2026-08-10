@@ -76,7 +76,7 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
       {!managerView && isOwnRow && (<>
         <Row
           label="Share Drill Library"
-          blurb="Let your head coach on this team see your non-private drills in Explore and use them when building practices. Mark a drill private from your Library to keep it out of this regardless of this setting."
+          blurb="Let your head coach on this team see your non-private drills in Explore and use them when building practices."
           on={coach.assistantSharesLibrary}
           busy={busy}
           onToggle={() => run(() => setOwnLibraryShare(coach.id, !coach.assistantSharesLibrary))}
@@ -85,13 +85,13 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
           label="Head Coach's Library"
           blurb="Your head coach controls this from their own Permissions screen."
           readOnly
-          readOnlyNote={coach.headCoachSharesLibrary ? "Shared with you" : "Not shared"}
+          readOnlyNote={coach.headCoachSharesLibrary ? "Shared with you" : "Your head coach controls this"}
         />
         <Row
           label="Practice Planning"
           blurb="Your head coach controls this."
           readOnly
-          readOnlyNote={coach.canBuildPractices ? "You can build practices for this team" : "Not delegated to you"}
+          readOnlyNote={coach.canBuildPractices ? "You can build practices for this team" : "Your head coach controls this"}
         />
       </>)}
 

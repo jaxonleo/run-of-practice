@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { checkIsAdmin, listAdmins, grantAdmin, revokeAdmin, createOrganization, orgInviteCoach, leaveTeam, setTeamStaffShowOnHome } from "../supabase.js";
-import { myTeamRole, AUDIO_CUES, getAudioCuePref, setAudioCuePref, getVoiceURIPref, setVoiceURIPref, loadVoices } from "../constants.js";
+import { myTeamRole, AUDIO_CUES, getAudioCuePref, setAudioCuePref, getVoiceURIPref, setVoiceURIPref, loadVoices, resolveDefaultVoice, setGettingStartedHidden } from "../constants.js";
 import { ConsultationRequestForm } from "./LegalPages.jsx";
 
 // Settings hub (nav restructure, 2026-07-15; narrowed again in the Library
@@ -114,8 +114,8 @@ function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate,navi
     {!isAdmin&&<>
       <div className="clbl mb8">Membership</div>
       <div className="card" style={{marginBottom:24,padding:"14px 16px"}}>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,marginBottom:4}}>Running a club with multiple teams?</div>
-        <div style={{fontSize:13,color:"var(--td)",marginBottom:10,lineHeight:1.4}}>Organizations are for clubs running more than one team, with a director who can see across all of them. Our team personally sets up every organization, so tell us a bit about your club and we'll be in touch.</div>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,marginBottom:4}}>Part of an organization with multiple teams?</div>
+        <div style={{fontSize:13,color:"var(--td)",marginBottom:10,lineHeight:1.4}}>Organizations give a director (or a few) visibility across every team they oversee. Request a consultation and we'll walk through how Run of Practice can support your organization.</div>
         <button type="button" className="btn outline bmd bfull" onClick={()=>setShowConsult(true)}>Request a Consultation</button>
       </div>
       {showConsult&&<ConsultationRequestForm coachId={coachId} coachEmail={coachEmail} pageContext="Settings > Account" onClose={()=>setShowConsult(false)}/>}
@@ -194,7 +194,7 @@ function LivePracticeAudioSection(){
       window.speechSynthesis.cancel();
       const u=new SpeechSynthesisUtterance("Two minutes remaining.");
       u.rate=0.9;
-      const v=voices.find(v=>v.voiceURI===uri);
+      const v=uri?voices.find(v=>v.voiceURI===uri):resolveDefaultVoice();
       if(v)u.voice=v;
       window.speechSynthesis.speak(u);
     }catch(e){}
@@ -214,7 +214,7 @@ function LivePracticeAudioSection(){
     <div className="clbl mb8">Announcer Voice</div>
     {loadingVoices&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>Loading voices...</div>}
     {!loadingVoices&&<div style={{display:"flex",flexDirection:"column",gap:2,marginBottom:10,maxHeight:340,overflowY:"auto",border:"1px solid var(--b)",borderRadius:"var(--r)",padding:4}}>
-      <VoiceRow selected={!voiceURI} label="Device Default" onClick={()=>chooseVoice("")}/>
+      <VoiceRow selected={!voiceURI} label="Default" sub="(Daniel, if available)" onClick={()=>chooseVoice("")}/>
       {voices.map(v=>(<VoiceRow key={v.voiceURI} selected={voiceURI===v.voiceURI} label={v.name} sub={v.lang} onClick={()=>chooseVoice(v.voiceURI)}/>))}
     </div>}
     <div style={{fontSize:12,color:"var(--td)",lineHeight:1.5}}>Select a sound and voice for live practice audio.</div>
@@ -338,6 +338,14 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
         <div className="lim"><div className="lin">{item.label}</div>{item.sub&&<div className="limt">{item.sub}</div>}</div>
         <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
       </div>))}
+      {/* Brings back the Home checklist for a coach who hid it (see
+          HomeScreen.jsx's GettingStartedCard) -- a no-op if it was never
+          hidden, or if every step is already done, since Home's own gate
+          only shows the card when there's still something left to do. */}
+      <div className="li tap" style={{marginBottom:8}} onClick={()=>{setGettingStartedHidden(coachId,false);navigate("/");}}>
+        <div className="lim"><div className="lin">Getting Started</div><div className="limt">Show the setup checklist on Home again</div></div>
+        <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+      </div>
       {/* Per-org rows to "switch to Organization mode" were removed here --
           Home's own Coach/Org toggle already covers this, and duplicating
           it in Settings just as a list of links was redundant now that

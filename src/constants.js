@@ -294,6 +294,23 @@ export function resolveDefaultVoice(){
   }catch(e){return null;}
 }
 
+// ── Getting Started card dismissal ──────────────────────────────────────────
+// Per-device, per-coach ("hide this on my phone" isn't a server-side
+// preference any more than the audio prefs above are). Keyed by coachId so a
+// shared device signed into different accounts doesn't leak one coach's
+// dismissal onto another's. Read synchronously at mount (no async round
+// trip) so the card never flashes on screen before disappearing.
+const GETTING_STARTED_HIDDEN_KEY="rop_getting_started_hidden";
+export function getGettingStartedHidden(coachId){
+  try{return localStorage.getItem(GETTING_STARTED_HIDDEN_KEY+"_"+coachId)==="1";}catch(e){return false;}
+}
+export function setGettingStartedHidden(coachId,hidden){
+  try{
+    if(hidden)localStorage.setItem(GETTING_STARTED_HIDDEN_KEY+"_"+coachId,"1");
+    else localStorage.removeItem(GETTING_STARTED_HIDDEN_KEY+"_"+coachId);
+  }catch(e){}
+}
+
 // ── Builder: Practice Components ──────────────────────────────────────────────
 // The full menu of quick-add types Builder's "Practice Components" section
 // can offer. `kind` drives which shape gets appended to `acts` -- every

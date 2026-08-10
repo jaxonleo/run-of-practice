@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { uid, sumMins, localDateStr, planningState } from "../constants.js";
+import { uid, sumMins, localDateStr, planningState, teamsForMode } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
 import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport } from "../supabase.js";
@@ -281,10 +281,7 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
         <LocationChips locations={myLocations} selectedIds={newLocationIds} onToggle={toggleNewLoc}/>
         <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowAdd(false);setNewName("");setNewLocationIds([]);}}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
       </div>}
-      {playerAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>
-        <div style={{marginBottom:8}}>No player gear yet.</div>
-        <div style={{fontSize:12}}>Add gear here and it will appear as chips when building drills for that sport. Basketball coaches may not need this at all.</div>
-      </div>}
+      {playerAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No player gear yet.</div>}
       {(()=>{
         const bySport={};
         playerAssets.forEach(a=>{const s=a.sport||"General";if(!bySport[s])bySport[s]=[];bySport[s].push(a);});
@@ -341,7 +338,13 @@ export function SkillsTab({data,coachId,refreshLibrary,isAdmin,mode}){
   // the sports of the coach's own teams -- unless this is the founder-admin
   // managing the taxonomy itself, who needs every sport regardless of what
   // teams they personally coach.
-  const myTeamSports=new Set((data.teams||[]).map(t=>t.sport).filter(Boolean));
+  // teamsForMode, not a bare data.teams map: data.teams also includes any
+  // team the coach has a pending (not yet accepted) invite to -- teams_
+  // select_access intentionally makes that row visible so the Home accept/
+  // decline card can show its name, but that's not real membership yet.
+  // Without this, an invited-but-not-accepted coach saw that team's sport's
+  // skill tags here before they'd actually joined anything.
+  const myTeamSports=new Set(teamsForMode(data.teams,mode,coachId).map(t=>t.sport).filter(Boolean));
   const sports=[...new Set(cats.map(c=>c.sport))].filter(s=>isAdmin||myTeamSports.has(s)).sort();
   const del=async id=>{await archiveSkillTag(id);await refreshLibrary();};
   const add=async categoryId=>{
@@ -370,7 +373,7 @@ export function SkillsTab({data,coachId,refreshLibrary,isAdmin,mode}){
   };
   const delCategory=async id=>{await archiveSkillCategory(id);await refreshLibrary();};
   if(cats.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No skill categories set up yet.</div>;
-  if(sports.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Add a team to see skill tags for its sport here.</div>;
+  if(sports.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Add or join a team to see skill tags for its sport here.</div>;
   return(<div>
     {sports.map(sport=>{
       const isCollapsed=collapsed[sport];
