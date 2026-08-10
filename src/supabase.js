@@ -1435,12 +1435,23 @@ export async function findActiveLiveSession(practiceId) {
 // select_access already scopes results to whichever practices this caller
 // can access at all, the same trust model team_invites_select/
 // org_invites_select already lean on elsewhere in this schema.
+// Excludes archived teams and anything older than STALE_LIVE_SESSION_MS --
+// direct feedback: a month-old, never-actually-started dev-test session
+// (its team long since archived) still had status='active' and got
+// surfaced here as a real joinable practice with nothing in it. Nothing
+// in this app has ever transitioned a session out of 'active' except an
+// explicit end/abort by a coach, so an abandoned browser tab leaves the
+// row live forever otherwise. Six hours is comfortably longer than any
+// real practice + wrap-up. Doesn't delete or archive the row -- just
+// stops surfacing it as live/joinable.
+const STALE_LIVE_SESSION_MS = 6 * 60 * 60 * 1000
 export async function fetchActiveLiveSessions() {
+  const staleCutoff = new Date(Date.now() - STALE_LIVE_SESSION_MS).toISOString()
   const { data, error } = await supabase.from('practice_live_sessions')
-    .select('id, practice_id, controller_user_id, setup_confirmed_at, practices(team_id)')
-    .eq('status', 'active')
+    .select('id, practice_id, controller_user_id, setup_confirmed_at, created_at, practices(team_id, teams(archived_at))')
+    .eq('status', 'active').gte('created_at', staleCutoff)
   if (error) { console.error('fetchActiveLiveSessions:', error); return [] }
-  return (data || []).filter(r => r.practices).map(r => ({
+  return (data || []).filter(r => r.practices && !r.practices.teams?.archived_at).map(r => ({
     sessionId: r.id, practiceId: r.practice_id, teamId: r.practices.team_id,
     controllerUserId: r.controller_user_id, setupConfirmedAt: r.setup_confirmed_at,
   }))
