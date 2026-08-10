@@ -1424,6 +1424,28 @@ export async function findActiveLiveSession(practiceId) {
   return data
 }
 
+// Home's top join bar (direct feedback): every other "is something live"
+// check in this app is scoped to one specific practice_id the caller
+// already has in hand (isSessionLive on a hero/detail card, the bottom
+// live-resume bar's own liveId) -- none of them can answer "is ANYTHING
+// live across any of my teams right now," which is exactly what a coach
+// who hasn't personally opened/started this practice needs (an assistant
+// whose head coach just went live, or the same coach checking a second
+// team). No team filter needed server-side -- practice_live_sessions_
+// select_access already scopes results to whichever practices this caller
+// can access at all, the same trust model team_invites_select/
+// org_invites_select already lean on elsewhere in this schema.
+export async function fetchActiveLiveSessions() {
+  const { data, error } = await supabase.from('practice_live_sessions')
+    .select('id, practice_id, controller_user_id, setup_confirmed_at, practices(team_id)')
+    .eq('status', 'active')
+  if (error) { console.error('fetchActiveLiveSessions:', error); return [] }
+  return (data || []).filter(r => r.practices).map(r => ({
+    sessionId: r.id, practiceId: r.practice_id, teamId: r.practices.team_id,
+    controllerUserId: r.controller_user_id, setupConfirmedAt: r.setup_confirmed_at,
+  }))
+}
+
 // Atomic create-or-join (20260805040000_start_or_join_live_session.sql) --
 // replaces the old find-then-maybe-create pattern everywhere a coach can
 // reach a practice that might already be live for someone else (Run Now /

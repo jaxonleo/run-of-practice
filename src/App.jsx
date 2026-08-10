@@ -704,7 +704,7 @@ function HelperViewRoute(){ const {token}=useParams(); return <HelperView token=
 function PreviewViewRoute(){ const {token}=useParams(); return <PreviewView token={token}/>; }
 
 function HomeRoute(){
-  const {data,goToBuilder,goToRun,goToSchedule,goToTeam,goToSettings,coachId,coachName,coachEmail,refreshPlanning,refreshTeams,refreshLibrary,mode,setMode}=useAppCtx();
+  const {data,goToBuilder,goToRun,goToSchedule,goToTeam,goToSettings,coachId,coachName,coachEmail,refreshPlanning,refreshTeams,refreshLibrary,mode,setMode,liveId}=useAppCtx();
   // Coach mode: teams I personally coach, across any org. Org mode: every
   // team in the org being viewed, regardless of my personal involvement --
   // the whole point of the two modes. Scoped once here so HomeScreen's own
@@ -716,7 +716,11 @@ function HomeRoute(){
     teams:scopedTeams,
     practices:(data.practices||[]).filter(p=>scopedTeamIds.has(p.teamId)),
   }),[data,mode,coachId]);
-  return <HomeScreen data={scopedData} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeam={goToTeam} goToSettings={goToSettings} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams} refreshLibrary={refreshLibrary} mode={mode} setMode={setMode}/>;
+  // allTeams (unscoped by show_on_home) passed separately -- the live-
+  // practice join bar below deliberately needs to look up a team's name
+  // even when that team is toggled off Home's own agenda, since a coach
+  // still needs to know a practice is actually running to go join it.
+  return <HomeScreen data={scopedData} allTeams={data.teams} liveId={liveId} goToBuilder={goToBuilder} goToRun={goToRun} goToSchedule={goToSchedule} goToTeam={goToTeam} goToSettings={goToSettings} coachId={coachId} coachName={coachName} coachEmail={coachEmail} refreshPlanning={refreshPlanning} refreshTeams={refreshTeams} refreshLibrary={refreshLibrary} mode={mode} setMode={setMode}/>;
 }
 
 function LibraryRoute(){

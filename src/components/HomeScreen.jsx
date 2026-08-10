@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway, getGettingStartedHidden, setGettingStartedHidden } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
+import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchActiveLiveSessions, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
@@ -114,7 +114,7 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 };
 
-export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, goToTeam, goToSettings, coachId, coachName, coachEmail, refreshPlanning, refreshTeams, refreshLibrary, mode, setMode }) {
+export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRun, goToSchedule, goToTeam, goToSettings, coachId, coachName, coachEmail, refreshPlanning, refreshTeams, refreshLibrary, mode, setMode }) {
   const navigate = useNavigate();
   const isOrgMode = mode && mode.type === "org";
   const activeOrg = isOrgMode ? (data.myOrgs || []).find(o => o.id === mode.orgId) : null;
@@ -123,6 +123,37 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  // Direct feedback: the only existing "is a practice live" signals are
+  // either scoped to one specific practice a screen already has in hand
+  // (a hero/detail card's own isSessionLive check) or purely local state
+  // (the bottom live-resume bar's liveId, only ever set on a device that
+  // itself navigated into /run/:id -- never on a device that hasn't). An
+  // assistant whose head coach just went live, or a coach checking a
+  // second team, had zero indication anything was happening until they
+  // guessed to go look. Polled (no realtime channel for this yet) rather
+  // than fetched once, so a session that starts while this coach is
+  // already sitting on Home still surfaces without a reload -- matches the
+  // same "don't require a hard refresh" reasoning as App.jsx's own
+  // visibility/poll refresh. RLS (practice_live_sessions_select_access)
+  // already scopes results to whichever practices this coach can access
+  // at all, so no team filter is needed here.
+  const [liveSessions, setLiveSessions] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () => fetchActiveLiveSessions().then(rows => { if (!cancelled) setLiveSessions(rows); });
+    poll();
+    const iv = setInterval(poll, 20000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, []);
+  // allTeams, not the show_on_home-scoped data.teams this screen otherwise
+  // uses everywhere else -- a coach still needs to know a practice is
+  // actually running on a team they've hidden from their own Home agenda,
+  // in order to go join it. Excludes whichever session (if any) this
+  // device already has open via liveId -- that one's already covered by
+  // the bottom live-resume bar, so showing it here too would just be
+  // visual noise for the one case that's already handled.
+  const joinableLiveSessions = liveSessions.filter(s => s.practiceId !== liveId).map(s => ({ ...s, team: (allTeams || data.teams).find(t => t.id === s.teamId) })).filter(s => s.team);
 
   const [practiceMenuId, setPracticeMenuId] = useState(null);
   const [viewPractice, setViewPractice] = useState(null);
@@ -497,9 +528,19 @@ export default function HomeScreen({ data, goToBuilder, goToRun, goToSchedule, g
   const maxRun = Math.max(1, ...rollup.map(w => w.live_practices || 0));
 
   if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} coachId={coachId} refreshPlanning={refreshPlanning} /></div>);
-  if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} onBack={() => setViewPractice(null)} mode={mode} /></div>);
+  if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning} onBack={() => setViewPractice(null)} mode={mode} /></div>);
 
   return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}>
+    {joinableLiveSessions.map(s => (<button key={s.sessionId} onClick={() => goToRun(s.practiceId)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 16px", background: "var(--green)", color: "#fff", border: "none", borderBottom: "1px solid rgba(255,255,255,.15)", cursor: "pointer", fontFamily: "Barlow Condensed,sans-serif" }}>
+      <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff", flexShrink: 0 }} />
+      {/* setupConfirmedAt distinguishes a real running practice from one
+          still sitting in Practice Setup (shared pre-live stage) -- both
+          are joinable, but worded differently so a coach with more than
+          one open at once (e.g. two teams, or an un-aborted prior setup)
+          can tell which is which before tapping Join. */}
+      <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: ".02em" }}>{s.setupConfirmedAt ? "Live practice" : "Practice setup"} for {s.team.name}</span>
+      <span style={{ fontSize: 13, fontWeight: 900, textTransform: "uppercase", textDecoration: "underline", marginLeft: 4 }}>Join</span>
+    </button>))}
     <div style={{ padding: "20px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
       <div>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{greeting},</div>

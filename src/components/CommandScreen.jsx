@@ -487,7 +487,7 @@ function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onV
 // /preview/:token link already used, not a bare attendance form. A live
 // countdown to the scheduled start replaces that same need for a coach
 // who's signed in rather than viewing an anonymous share link.
-function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoach,stationBlockActs,setupGroups,onMoveGroupPlayer,onRegenerateGroups,initialPresent,plannedAbsentIds,onConfirm,onBack,onReassignLead,onReassignActivityLead,onEditPractice,session}){
+function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoach,stationBlockActs,setupGroups,onMoveGroupPlayer,onRegenerateGroups,initialPresent,plannedAbsentIds,onConfirm,onBack,onReassignLead,onReassignActivityLead,onEditPractice,onAbort,session}){
   plannedAbsentIds=plannedAbsentIds||new Set();
   const allIds=team?team.players.map(p=>p.id):[];
   // Direct feedback: attendance used to default to everyone present, which
@@ -598,6 +598,11 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
         {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
           <button className="mm-item" onClick={()=>{setShowEllipsis(false);onBack();}}>Leave</button>
           {isController&&amHeadCoach&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);onEditPractice();}}>Edit Practice</button>}
+          {/* Direct feedback: no way to back out of a practice from Setup at
+              all, even a mistaken "Run as New" -- the live stage already has
+              this exact action (Abort Practice, session status='abandoned'),
+              just never surfaced here. Same isController gate as there. */}
+          {isController&&onAbort&&<button className="mm-item mm-danger" onClick={()=>{setShowEllipsis(false);onAbort();}}>Abort Practice</button>}
         </div>}
       </div>
     </div>
@@ -2901,7 +2906,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     return (<>
       {showAtt
         ?<AttendanceScreen key="upd" practice={practice} team={team} data={data} amHeadCoach={amHeadCoach} isUpdate initialPresent={[...presentIds]} initialCoachPresent={[...coachPresentIds]} onConfirm={handleAttUpdate} onBack={attBack}/>
-        :<PracticeSetupScreen practice={practice} team={team} data={data} coachId={coachId} isController={isController} amHeadCoach={amHeadCoach} stationBlockActs={stationBlockActs} setupGroups={setupGroups} onMoveGroupPlayer={moveSetupGroupPlayer} onRegenerateGroups={regenerateSetupGroups} initialPresent={freshPresent} plannedAbsentIds={plannedAbsentIds} onConfirm={handleAttConfirm} onBack={attBack} onReassignLead={setReassignStationId} onReassignActivityLead={setReassignActivityId} onEditPractice={()=>setShowEditBuilder(true)} session={session}/>}
+        :<PracticeSetupScreen practice={practice} team={team} data={data} coachId={coachId} isController={isController} amHeadCoach={amHeadCoach} stationBlockActs={stationBlockActs} setupGroups={setupGroups} onMoveGroupPlayer={moveSetupGroupPlayer} onRegenerateGroups={regenerateSetupGroups} initialPresent={freshPresent} plannedAbsentIds={plannedAbsentIds} onConfirm={handleAttConfirm} onBack={attBack} onReassignLead={setReassignStationId} onReassignActivityLead={setReassignActivityId} onEditPractice={()=>setShowEditBuilder(true)} onAbort={abortPractice} session={session}/>}
       {!showAtt&&reassignStationId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setReassignStationId(null);setHelperDraft("");}}}>
         <div className="modal" style={{background:"#0d1512",color:"#fff"}}><div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
           <div className="mtitle" style={{color:"#fff"}}>Assign Station Leader</div>
@@ -3147,8 +3152,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
               <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#52b788"}}>Station {i+1}</div>
               {subName(st.sublocationId)&&<div style={{fontSize:11,color:"#52b788",fontWeight:600}}>{subName(st.sublocationId)}</div>}
-              {isController?<button type="button" onClick={()=>setReassignStationId(st.id)} style={{background:"none",border:"none",padding:0,fontSize:11,color:"#8fa89b",cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{leadName(st)||"Assign a coach"}</button>
-                :leadName(st)&&<div style={{fontSize:11,color:"#8fa89b"}}>{leadName(st)}</div>}
+              {isController?<button type="button" onClick={()=>setReassignStationId(st.id)} style={{background:"none",border:"none",padding:0,fontSize:11,color:"#52b788",cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{leadName(st)||"Assign a coach"}</button>
+                :leadName(st)&&<div style={{fontSize:11,color:"#52b788"}}>{leadName(st)}</div>}
             </div>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",marginBottom:6}}>{st.activityName||st.name||"Station "+(i+1)}</div>
             {groupLabel&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {groupLabel}</span></div>}
