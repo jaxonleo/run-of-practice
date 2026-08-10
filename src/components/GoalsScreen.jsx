@@ -561,7 +561,14 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
       activities: stripIdsForCopy(practice.activities),
     });
     setSavingTpl(false);
-    if (error) { setTplError("Something went wrong saving. Try again."); return; }
+    // Direct feedback: a coach hit this and had no way to tell us (or
+    // themselves) what actually went wrong beyond "something went wrong" --
+    // saveActivityTree's own errors are real Supabase/Postgres errors
+    // (an RLS rejection's .message is usually specific, e.g. "new row
+    // violates row-level security policy for table X"), not a mystery.
+    // Surface it instead of masking it, same principle as this app's other
+    // real-and-user-facing error surfaces (setPracticeDelegate, etc.).
+    if (error) { setTplError(error.message ? "Couldn't save: " + error.message : "Something went wrong saving. Try again."); return; }
     if (refreshPlanning) await refreshPlanning();
     setTplSaved(true); setShowTplInput(false); setTplNameInput("");
     setTimeout(() => setTplSaved(false), 2500);

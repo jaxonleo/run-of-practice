@@ -1,13 +1,23 @@
 import React, { useState } from "react";
 import { setOwnLibraryShare, setManagerLibraryShare, setPracticeDelegate } from "../supabase.js";
 
-// Reciprocal per-relationship permissions between a head coach and one
-// rostered assistant/helper on a personal (non-org) team -- each side
-// controls their own drill-library sharing, and the head coach separately
-// controls delegating practice building (one assistant per team, enforced
+// Reciprocal permissions between a head coach and one rostered assistant/
+// helper on a personal (non-org) team -- each side controls their own
+// drill-library sharing, and the head coach separately controls
+// delegating practice building (one assistant per team, enforced
 // server-side by a unique index, not just this UI). Deliberately its own
 // small component rather than folded into ModalLayer.jsx's already-large
 // if/else chain -- same reasoning as AbsencePicker.jsx.
+//
+// Library sharing is a per-(head coach, assistant) relationship, not
+// per-team, even though it's stored on team_staff (one row per team):
+// is_library_peer already unions across every personal team this exact
+// pair shares, and set_manager_library_share/set_own_library_share
+// (20260810000000) keep every one of that pair's rows in sync so the
+// toggle shown here always reflects the real, already-unioned access
+// regardless of which team's Permissions page it's viewed from. Practice-
+// building delegation is genuinely per-team on purpose (a coach may want
+// a different delegate on each team), so that one stays untouched.
 //
 // Toggle switch styling copied verbatim from SettingsScreen.jsx's
 // "Show on Home" control for visual consistency, not a new pattern.
@@ -53,7 +63,7 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
       {managerView && (<>
         <Row
           label="Share Drill Library"
-          blurb={"Let " + coach.name + " see your non-private drills in Explore and use them when building practices, including for their own teams. This does not give them any of your equipment or templates."}
+          blurb={"Let " + coach.name + " see your non-private drills in Explore and use them when building practices, including for their own teams. This does not give them any of your equipment or templates. Applies everywhere you and " + coach.name + " share a team, not just this one."}
           on={coach.headCoachSharesLibrary}
           busy={busy}
           onToggle={() => run(() => setManagerLibraryShare(coach.id, !coach.headCoachSharesLibrary))}
@@ -76,7 +86,7 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
       {!managerView && isOwnRow && (<>
         <Row
           label="Share Drill Library"
-          blurb="Let your head coach on this team see your non-private drills in Explore and use them when building practices."
+          blurb="Let your head coach on this team see your non-private drills in Explore and use them when building practices. Applies everywhere you and this head coach share a team, not just this one."
           on={coach.assistantSharesLibrary}
           busy={busy}
           onToggle={() => run(() => setOwnLibraryShare(coach.id, !coach.assistantSharesLibrary))}

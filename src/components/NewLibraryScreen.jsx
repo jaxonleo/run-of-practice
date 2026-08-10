@@ -149,6 +149,16 @@ export function visibleEquipment(data,coachId,mode){
   const coachTeamSports=new Set((data.teams||[]).map(t=>t.sport).filter(Boolean));
   const isOrgMode=mode&&mode.type==="org";
   return (data.assets||[]).filter(a=>{
+    // acquired:false marks a placeholder created for one specific drill's
+    // missing-equipment "Add Anyway" (resolveEquipmentAgainstPool) -- it's
+    // not really in the coach's equipment library yet, just referenced by
+    // a drill that needs it, so it doesn't belong in this "what do I own"
+    // browse view at all (real bug: it used to show up here exactly like
+    // owned equipment, and deleting it from here silently broke the
+    // drill's own reference to it too). Still fully visible/removable on
+    // the drill itself (ActConfig/StationConfig/ModalLayer's own pickers
+    // resolve it directly by id, not through this function).
+    if(a.acquired===false)return false;
     const sport=a.sport||"General";
     if(!(coachTeamSports.has(sport)||sport==="General"))return false;
     // Team-owned equipment (assets.team_id set, organization_id/owner_user_id
@@ -871,6 +881,15 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const location=useLocation();
   const navigate=useNavigate();
   const untaggedDeepLink=location.state&&location.state.untaggedForSport?location.state:null;
+  // Direct feedback: an assistant needed to close/reopen the app (or hard
+  // refresh) to see a drill's is_private/sharing state actually change --
+  // App.jsx's own visibility/60s poll (forty-second session) already
+  // catches this eventually, but a coach who navigates straight to Library
+  // to go check on it shouldn't have to wait out a poll window. Same
+  // "refetch whenever this screen mounts" convention RostersTab already
+  // established for the identical class of "someone else's write, no
+  // realtime channel for it" staleness.
+  useEffect(()=>{if(refreshLibrary)refreshLibrary();},[]);
   const [section,setSection]=useState("mine"); // "mine" | "explore" -- the untagged deep link only ever means My Drills, already the default
   const [mineTab,setMineTab]=useState("drills"); // sub-toggle within My Library
   // Only-untagged filter: forced on when arriving via the deep link, but a

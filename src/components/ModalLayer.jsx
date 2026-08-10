@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { uid, TEAM_COLORS, nextTeamColor, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "../constants.js";
 import { createTeam, orgCreateTeam, updateTeam, archiveTeam, setTeamLocations, createPlayer, inviteTeamStaff, updateStaff, editTeamInvite, createAsset, updateAsset, setAssetLocations, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, createSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
-import { AutoTextarea } from "./ActivityConfigs.jsx";
+import { AutoTextarea, EquipmentPickerPill, equipmentPickerAssets } from "./ActivityConfigs.jsx";
 import { LocationChips } from "./NewLibraryScreen.jsx";
 
 const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
@@ -449,27 +449,19 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
               // assets into data.assets, this just orders the picker per
               // handoff Sec 3.6.
               const ownFirst=(a,b)=>(a.ownerUserId===coachId?0:1)-(b.ownerUserId===coachId?0:1);
-              const teamAssets=(data.assets||[]).filter(a=>a.type==="team"&&(a.sport===drillSport||a.sport==="General")&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId)).sort(ownFirst);
-              const playerAssets=(data.assets||[]).filter(a=>a.type==="player"&&(a.sport===drillSport||a.sport==="General")&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId)).sort(ownFirst);
+              const teamAssetsPool=(data.assets||[]).filter(a=>a.type==="team"&&(a.sport===drillSport||a.sport==="General")&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId)).sort(ownFirst);
+              const playerAssetsPool=(data.assets||[]).filter(a=>a.type==="player"&&(a.sport===drillSport||a.sport==="General")&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId)).sort(ownFirst);
+              // equipmentPickerAssets, not the bare pool -- a coach can't
+              // newly pick equipment they don't own onto a drill (only
+              // remove it, or keep whatever's already linked, e.g. from
+              // "Add Drill Anyway" on a different drill entirely). See its
+              // own comment in ActivityConfigs.jsx.
+              const teamAssets=equipmentPickerAssets(teamAssetsPool,f.equipment,data.assets,a=>a.type==="team");
+              const playerAssets=equipmentPickerAssets(playerAssetsPool,f.equipment,data.assets,a=>a.type==="player");
               return(<div>
-                {/* Direct feedback: "Add Drill Anyway" on the equipment-
-                    mismatch dialog now keeps the missing item on the drill
-                    instead of silently dropping it (see resolveEquipmentAgainstPool),
-                    flagged acquired:false -- this is where that shows up: an
-                    amber chip with a one-tap "Got it" to mark it acquired,
-                    or the normal chip tap to unlink it from this drill
-                    entirely (the underlying asset itself isn't deleted,
-                    just this drill's reference to it). */}
                 <div className="fld"><label className="lbl">Team Equipment</label>
                   <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-                    {teamAssets.map(a=>{
-                      const selected=(f.equipment||[]).includes(a.id);
-                      const needsAcquire=selected&&a.acquired===false;
-                      return (<span key={a.id} style={{display:"inline-flex",alignItems:"stretch"}}>
-                        <button type="button" onClick={()=>toggleEquip(a.id)} title={needsAcquire?a.name+" -- not yet acquired":undefined} style={{padding:"4px 10px",borderRadius:needsAcquire?"20px 0 0 20px":20,border:"1.5px solid "+(needsAcquire?"var(--amber)":"var(--b)"),background:needsAcquire?"var(--ambg)":selected?"var(--green)":"var(--s1)",color:needsAcquire?"var(--amber)":selected?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}{needsAcquire&&" · Need to acquire"}</button>
-                        {needsAcquire&&<button type="button" onClick={async()=>{await updateAsset(a.id,{acquired:true});await refreshLibrary();}} title="Mark as acquired" style={{padding:"4px 8px",borderRadius:"0 20px 20px 0",border:"1.5px solid var(--amber)",borderLeft:"none",background:"var(--amber)",color:"#fff",fontSize:12,cursor:"pointer"}}>✓ Got it</button>}
-                      </span>);
-                    })}
+                    {teamAssets.map(a=>(<EquipmentPickerPill key={a.id} asset={a} selected={(f.equipment||[]).includes(a.id)} onToggle={()=>toggleEquip(a.id)} refreshLibrary={refreshLibrary}/>))}
                     {teamAssets.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No team equipment in library yet</span>}
                   </div>
                   <div style={{display:"flex",gap:6}}>
@@ -479,14 +471,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
                 </div>
                 <div className="fld"><label className="lbl">Player Gear Needed</label>
                   <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-                    {playerAssets.map(a=>{
-                      const selected=(f.equipment||[]).includes(a.id);
-                      const needsAcquire=selected&&a.acquired===false;
-                      return (<span key={a.id} style={{display:"inline-flex",alignItems:"stretch"}}>
-                        <button type="button" onClick={()=>toggleEquip(a.id)} title={needsAcquire?a.name+" -- not yet acquired":undefined} style={{padding:"4px 10px",borderRadius:needsAcquire?"20px 0 0 20px":20,border:"1.5px solid "+(needsAcquire?"var(--amber)":"var(--b)"),background:needsAcquire?"var(--ambg)":selected?"var(--green)":"var(--s1)",color:needsAcquire?"var(--amber)":selected?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}{needsAcquire&&" · Need to acquire"}</button>
-                        {needsAcquire&&<button type="button" onClick={async()=>{await updateAsset(a.id,{acquired:true});await refreshLibrary();}} title="Mark as acquired" style={{padding:"4px 8px",borderRadius:"0 20px 20px 0",border:"1.5px solid var(--amber)",borderLeft:"none",background:"var(--amber)",color:"#fff",fontSize:12,cursor:"pointer"}}>✓ Got it</button>}
-                      </span>);
-                    })}
+                    {playerAssets.map(a=>(<EquipmentPickerPill key={a.id} asset={a} selected={(f.equipment||[]).includes(a.id)} onToggle={()=>toggleEquip(a.id)} refreshLibrary={refreshLibrary}/>))}
                     {playerAssets.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No player gear set up for {drillSport} yet</span>}
                   </div>
                   <div style={{display:"flex",gap:6}}>

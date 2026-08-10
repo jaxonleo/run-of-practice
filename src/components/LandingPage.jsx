@@ -104,7 +104,7 @@ function useStepTimer(initialSeconds, initialAheadMinutes) {
 const LP_CSS = `
 .lp{background:var(--bg);--mock-card-primary:480px;}
 .lp-header{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between;padding:10px 20px;}
-.lp-brand{display:flex;align-items:center;gap:10px;}
+.lp-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;}
 .lp-brand img{width:32px;height:32px;border-radius:8px;flex-shrink:0;}
 .lp-brand span{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:-.01em;color:var(--black);}
 .lp-nav{display:flex;align-items:center;gap:22px;}

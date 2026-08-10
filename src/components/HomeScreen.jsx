@@ -40,12 +40,28 @@ function GettingStartedCard({ data, hasCompleted, coachId, mode, goToBuilder, go
     : (data.activityLibrary || []).some(a => a.ownerUserId === coachId);
   const firstTeam = data.teams[0] || null;
   const unplannedPractice = data.practices.find(p => (p.activities || []).length === 0) || null;
+  // Direct feedback: an assistant who can't actually build practices
+  // (not a head coach anywhere, not delegated on any team) still saw
+  // "Plan your first practice" as a live, tappable step straight into
+  // Builder -- the same entry point Feature Inventory's own "Builder...
+  // entry points are hidden for teams they don't head-coach" rule already
+  // hides everywhere else, just missed here. canManageAnyTeam already
+  // covers Org mode via canManageTeamInMode's org branch; Coach mode adds
+  // delegated practice-building on top, since that's a real, legitimate
+  // way to plan a practice too, not just being the head coach.
+  const canPlanAny = isOrgMode
+    ? data.teams.some(t => t.organizationId === mode.orgId)
+    : data.teams.some(t => isHeadCoach(t, coachId) || (t.coaches || []).some(c => c.userId === coachId && c.canBuildPractices));
   const steps = [
     { label: "Create a team", done: data.teams.length > 0, onClick: () => navigate("/teams") },
     { label: "Add players", done: data.teams.some(t => t.players.length > 0), onClick: () => navigate(firstTeam ? "/team/" + firstTeam.id + "/roster" : "/teams") },
     { label: isOrgMode ? "Build out the club's library" : "Build out your library", done: libraryDone, onClick: () => navigate("/library") },
     { label: "Set your practice schedule", done: data.practices.length > 0, onClick: goToSchedule },
-    { label: "Plan your first practice", done: data.practices.some(p => (p.activities || []).length > 0), onClick: () => goToBuilder(unplannedPractice ? unplannedPractice.id : null) },
+    // No onClick when this coach can't actually plan anywhere -- same
+    // "informational, not a dead-end action" treatment "Run it live"
+    // below already gets, rather than sending them into a build tool
+    // they don't have write access to.
+    { label: "Plan your first practice", done: data.practices.some(p => (p.activities || []).length > 0), onClick: canPlanAny ? () => goToBuilder(unplannedPractice ? unplannedPractice.id : null) : null },
     // Not clickable -- there's no single screen to jump to for this one,
     // it's the outcome of the hero card's own Start Practice button once a
     // practice is actually planned and today, not a page of its own.
@@ -736,6 +752,17 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
           a director-facing cross-team version is explicitly a future,
           separate widget, never this card reused with a random team. */}
       {!isOrgMode && focusTeam && <DevelopmentPulseCard team={focusTeam} nextPractice={nextPractice} canManage={focusTeamCanManage} data={data} coachId={coachId} hasSportCategories={focusTeamHasCategories} isLiveNow={focusTeamIsLiveNow} onNavigate={developmentPulseNavigate} />}
+      {/* Direct feedback: an assistant/helper with no head-coached team
+          anywhere used to just see nothing here (headCoachTeams.length===0
+          means focusTeam is always null for them) -- no explanation why the
+          widget they see other coaches use is simply missing. Prompts them
+          toward the one thing that would actually unlock it, same "Create a
+          team" entry point Getting Started's own first step uses. */}
+      {!isOrgMode && !focusTeam && headCoachTeams.length === 0 && <div className="card" style={{ marginBottom: 16, padding: "14px 16px" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)", marginBottom: 6 }}>Development Pulse</div>
+        <div style={{ fontSize: 14, color: "var(--black2)", marginBottom: 12, lineHeight: 1.5 }}>Development Pulse tracks how a team's practices compare to its goals over time -- it's for teams you head-coach. Create a team to start seeing it.</div>
+        <button className="btn outline bmd bfull" onClick={() => navigate("/teams")}>Create a Team</button>
+      </div>}
 
       {/* Direct feedback: the "N practices in the next 14 days need a plan"
           nudge is gone -- Upcoming Practices already shows the coach's next

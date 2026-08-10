@@ -738,7 +738,10 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
       activities:stripIdsForCopy(practice.activities),
     });
     setSavingTpl(false);
-    if(error){setTplError("Something went wrong saving. Try again.");return;}
+    // Real, specific errors (RLS rejection, etc.) were being masked behind
+    // a generic message -- see GoalsScreen.jsx's own Save as Template for
+    // the same fix and its full reasoning.
+    if(error){setTplError(error.message?"Couldn't save: "+error.message:"Something went wrong saving. Try again.");return;}
     if(refreshPlanning)await refreshPlanning();
     setTplSaved(true);setShowTplInput(false);setTplNameInput("");
     setTimeout(()=>setTplSaved(false),2500);
@@ -1604,8 +1607,8 @@ function HelperView({token}){
           return(<div key={st.id||i} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--r)",padding:"14px",marginBottom:8}}>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",lineHeight:1.2,marginBottom:6}}>{(st.players||[]).map(p=>p.first_name).join(", ")||"--"}</div>
             {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
-            <div style={{fontSize:12,color:"#8fa89b",marginBottom:3}}>from {fromLabel}</div>
-            <div style={{fontSize:13,fontWeight:700,color:"#52b788"}}>→ {toLabel}</div>
+            <div style={{fontSize:13,fontWeight:700,color:"#52b788",marginBottom:3}}>TO: <span style={{fontWeight:400}}>{toLabel}</span></div>
+            <div style={{fontSize:12,fontWeight:700,color:"#8fa89b"}}>FROM: <span style={{fontWeight:400}}>{fromLabel}</span></div>
           </div>);
         })}
       </div>}
@@ -2372,7 +2375,22 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const transitionTo=useCallback(async(patch,logAct,logStIdx)=>{
     const fullPatch=Object.assign({current_phase_started_at:new Date().toISOString(),paused_at:null,total_paused_seconds:0},patch);
     setSession(s=>s?Object.assign({},s,fullPatch):s);
-    spoken.current={};buzzedRef.current=false;warnedRef.current=false;setFocusSt(null);
+    spoken.current={};buzzedRef.current=false;warnedRef.current=false;
+    // Direct feedback: a station's leader who'd tapped into their own
+    // station's detail view got bounced back to the zoomed-out "All
+    // Stations" overview on every single rotation/transition, not just
+    // when actually leaving the block -- this cleared focusSt unconditionally
+    // regardless of what kind of transition it was. rotatedStations keeps
+    // every station object at its original, fixed index (only .assignments
+    // -- who's currently there -- gets remapped per round; see its own
+    // definition), so a station's leader's focusSt index is already
+    // correct for every round of the same block without re-deriving it --
+    // the only real bug was clearing it out from under them. Only clear it
+    // when actually moving to a different activity (a fresh block's own
+    // intro re-derives focus itself, see introJustEndedRef's effect); a
+    // same-activity transition (entering/exiting a rotation's transition
+    // period, advancing/reversing rotation number) leaves it alone.
+    if('current_practice_activity_id' in patch)setFocusSt(null);
     await closeCurrentLog();
     const updated=await writeSession(fullPatch);
     if(updated&&logAct)await openLogForActivityEntry(updated,logAct,logStIdx,[...presentIds]);
@@ -3043,7 +3061,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       })()}
       {liveActs.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--b)",background:i===idx?"var(--gbg)":"#fff",cursor:isController?"pointer":"default",opacity:i<idx?0.5:1}} onClick={()=>{if(isController)jumpTo(i);}}>
         <div style={{flex:1,fontSize:14,color:i===idx?"var(--green)":i<idx?"var(--td)":"var(--black)",textDecoration:i<idx?"line-through":"none"}}>{i===idx?">> ":""}{a.type==="station_block"?"Station Block":a.name}</div>
-        <span className="bs bdg" style={{fontSize:11}}>{a.type==="station_block"?(a.stations.length*a.stationDuration+(a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
+        <span className="bs bdg" style={{fontSize:11}}>{a.type==="station_block"?(a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
       </div>))}
       <div style={{padding:"8px 14px"}}><button className="btn ghost bxs" onClick={()=>setShowROS(false)}>Close</button></div>
     </div>}
@@ -3323,8 +3341,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           return (<div key={st.id} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--r)",padding:"14px",marginBottom:8}}>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",lineHeight:1.2,marginBottom:6}}>{pnames(st.assignments)||"--"}</div>
             {st.groupLabel&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}
-            <div style={{fontSize:12,color:"#8fa89b",marginBottom:3}}>from {fromLabel}</div>
-            <div style={{fontSize:13,fontWeight:700,color:"#52b788"}}>→ {toLabel}</div>
+            <div style={{fontSize:13,fontWeight:700,color:"#52b788",marginBottom:3}}>TO: <span style={{fontWeight:400}}>{toLabel}</span></div>
+            <div style={{fontSize:12,fontWeight:700,color:"#8fa89b"}}>FROM: <span style={{fontWeight:400}}>{fromLabel}</span></div>
           </div>);
         })}
       </div>}
@@ -3368,7 +3386,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           });
         }}>
           <span style={{fontSize:14,color:"var(--td)"}}>{a.type==="station_block"?"Station Block":a.name}</span>
-          <span className="bdg bs">{a.type==="station_block"?(a.stations.length*a.stationDuration+(a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
+          <span className="bdg bs">{a.type==="station_block"?(a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
         </button>))}
         </div>
       </>)}
@@ -3387,8 +3405,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             return (<div key={st.id} className="cc-trans-card">
               <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",lineHeight:1.2,marginBottom:6}}>{pnames(st.assignments)||"--"}</div>
               {st.groupLabel&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}
-              <div style={{fontSize:12,color:"var(--td)",marginBottom:3}}>from {fromLabel}</div>
-              <div style={{fontSize:13,fontWeight:700,color:"var(--black)"}}>→ {toLabel}</div>
+              <div style={{fontSize:13,fontWeight:700,color:"var(--green)",marginBottom:3}}>TO: <span style={{fontWeight:400}}>{toLabel}</span></div>
+              <div style={{fontSize:12,fontWeight:700,color:"var(--td)"}}>FROM: <span style={{fontWeight:400}}>{fromLabel}</span></div>
             </div>);
           })}
           <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>setPreviewTrans(false)}>Close</button>

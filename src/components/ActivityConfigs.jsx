@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { uid, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, groupByAttribute } from "../constants.js";
-import { createAsset, findMissingEquipment, resolveDrillEquipmentForCoach } from "../supabase.js";
+import { createAsset, updateAsset, findMissingEquipment, resolveDrillEquipmentForCoach } from "../supabase.js";
 import { Ic } from "../icons.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -121,6 +121,54 @@ function ownedOrOrgAtLoc(a,coachId,team,loc){
   return false;
 }
 
+// Direct feedback: "Add Drill Anyway" on a missing-equipment dialog
+// creates a real acquired:false asset row so the drill can keep pointing
+// at *something* (findMissingEquipment, buildEquipmentNeeded, etc. all
+// resolve equipment by id) -- but that row was showing up in the coach's
+// own Equipment Library right alongside gear they actually have, and
+// every drill/station equipment picker let it be toggled onto *other*
+// drills too, as if it were regular owned equipment. Neither is right: a
+// drill should be able to keep referencing equipment the coach doesn't
+// own (and get warned about it elsewhere), but the coach can't newly
+// *add* equipment to a drill unless it's really in their library --
+// distinct from removing a reference they already have. This is the
+// shared picker-list rule for both: equipment the coach actually owns is
+// always offered to add; anything already linked to this specific drill/
+// station (owned or not, including one whose real asset row was since
+// archived) still renders so it stays visible and removable, but nothing
+// unowned is ever offered as a fresh, clickable "add" option. `allAssets`
+// (not the location/sport-scoped `pool`) is the fallback lookup source
+// for an already-linked id, since a since-relocated or since-archived
+// asset shouldn't just vanish off a drill that still references it.
+// `isType` (e.g. a=>a.type==="team") scopes the fallback lookup to the
+// same team-equipment-vs-player-gear partition `pool` itself was already
+// filtered to -- without it, a selected team-equipment id not in `pool`
+// (unowned) would resolve by bare id against the *whole* asset list and
+// leak into the player-gear picker too, a real cross-contamination bug
+// caught live testing this (an unowned team item showing up under
+// "Player Gear Needed" as well).
+export function equipmentPickerAssets(pool,selectedIds,allAssets,isType){
+  const owned=pool.filter(a=>a.acquired!==false);
+  const ownedIds=new Set(owned.map(a=>a.id));
+  const source=isType?(allAssets||pool).filter(isType):(allAssets||pool);
+  const linkedElsewhere=(selectedIds||[]).filter(id=>!ownedIds.has(id)).map(id=>source.find(a=>a.id===id)).filter(Boolean);
+  return [...owned,...linkedElsewhere];
+}
+// Shared pill for every equipment/gear picker in the app (ModalLayer's
+// drill editor originated this exact amber/"Got it" treatment for a
+// selected-but-unacquired item; ActConfig/StationConfig reuse it here
+// rather than a near-duplicate). A plain tap unlinks it from this drill
+// (the underlying asset, if any, is untouched); "Got it" marks the real
+// asset acquired in one tap instead of making the coach go find it in
+// their Equipment Library separately.
+export function EquipmentPickerPill({asset,selected,onToggle,refreshLibrary}){
+  const needsAcquire=selected&&asset.acquired===false;
+  return (<span style={{display:"inline-flex",alignItems:"stretch"}}>
+    <button type="button" onClick={onToggle} title={needsAcquire?asset.name+" -- not yet acquired":undefined} style={{padding:"4px 10px",borderRadius:needsAcquire?"20px 0 0 20px":20,border:"1.5px solid "+(needsAcquire?"var(--amber)":"var(--b)"),background:needsAcquire?"var(--ambg)":selected?"var(--green)":"var(--s1)",color:needsAcquire?"var(--amber)":selected?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{asset.name}{needsAcquire&&" · Need to acquire"}</button>
+    {needsAcquire&&<button type="button" onClick={async()=>{await updateAsset(asset.id,{acquired:true});if(refreshLibrary)await refreshLibrary();}} title="Mark as acquired" style={{padding:"4px 8px",borderRadius:"0 20px 20px 0",border:"1.5px solid var(--amber)",borderLeft:"none",background:"var(--amber)",color:"#fff",fontSize:12,cursor:"pointer"}}>✓ Got it</button>}
+  </span>);
+}
+
 function DurStepper({value,min,onChange,step}){
   const s=step||1;const mn=min||1;
   return (<div style={{display:"flex",alignItems:"center",gap:0,border:"1.5px solid var(--b)",borderRadius:"var(--rs)",overflow:"hidden",background:"#fff"}}>
@@ -145,9 +193,11 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
   // equipment available there -- no locationIds means it travels with the
   // coach, so it's never excluded on location grounds.
   const atLoc=a=>!loc||!Array.isArray(a.locationIds)||a.locationIds.length===0||a.locationIds.includes(loc.id);
-  const teamEquip=(assets||[]).filter(a=>(!a.type||a.type==="team")&&(a.sport===sport||a.sport==="General")&&!a.sourceCatalogId&&atLoc(a)&&ownedOrOrgAtLoc(a,coachId,team,loc));
-  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General")&&!a.sourceCatalogId&&atLoc(a)&&ownedOrOrgAtLoc(a,coachId,team,loc));
   const equip=Array.isArray(act.equipment)?act.equipment:[];
+  const teamEquipPool=(assets||[]).filter(a=>(!a.type||a.type==="team")&&(a.sport===sport||a.sport==="General")&&!a.sourceCatalogId&&atLoc(a)&&ownedOrOrgAtLoc(a,coachId,team,loc));
+  const playerGearPool=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General")&&!a.sourceCatalogId&&atLoc(a)&&ownedOrOrgAtLoc(a,coachId,team,loc));
+  const teamEquip=equipmentPickerAssets(teamEquipPool,equip,assets,a=>!a.type||a.type==="team");
+  const playerGearAssets=equipmentPickerAssets(playerGearPool,equip,assets,a=>a.type==="player");
   const toggleEquip=id=>{const has=equip.includes(id);onChange({equipment:has?equip.filter(x=>x!==id):[...equip,id]});};
   // Practice/template activities are a snapshot copy of the drill at
   // add-time and don't carry their own skillTagIds -- look them up on the
@@ -195,7 +245,7 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
     {/* Team Equipment */}
     <div className="fld"><label className="lbl">Team Equipment</label>
       <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-        {teamEquip.map(a=>(<button key={a.id} type="button" onClick={()=>toggleEquip(a.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:equip.includes(a.id)?"var(--green)":"var(--s1)",color:equip.includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
+        {teamEquip.map(a=>(<EquipmentPickerPill key={a.id} asset={a} selected={equip.includes(a.id)} onToggle={()=>toggleEquip(a.id)} refreshLibrary={refreshLibrary}/>))}
         {teamEquip.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No team equipment in library yet</span>}
       </div>
       <div style={{display:"flex",gap:6}}>
@@ -206,7 +256,7 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
     {/* Player Gear */}
     {playerGearAssets.length>0&&<div className="fld"><label className="lbl">Player Gear Needed</label>
       <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-        {playerGearAssets.map(a=>(<button key={a.id} type="button" onClick={()=>toggleEquip(a.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:equip.includes(a.id)?"var(--green)":"var(--s1)",color:equip.includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
+        {playerGearAssets.map(a=>(<EquipmentPickerPill key={a.id} asset={a} selected={equip.includes(a.id)} onToggle={()=>toggleEquip(a.id)} refreshLibrary={refreshLibrary}/>))}
       </div>
       {newGearOpen?<div style={{display:"flex",gap:6}}>
         <input className="inp" style={{flex:1}} placeholder="Gear name..." id="actcfg-gear-inp" autoFocus/>
@@ -376,8 +426,11 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   // Same catalog-equipment/sport/location scoping as ActConfig -- see its
   // comment.
   const atLoc=a=>!loc||!Array.isArray(a.locationIds)||a.locationIds.length===0||a.locationIds.includes(loc.id);
-  const teamEquipAssets=(assets||[]).filter(a=>(!a.type||a.type==="team")&&(a.sport===sport||a.sport==="General")&&!a.sourceCatalogId&&atLoc(a)&&ownedOrOrgAtLoc(a,coachId,team,loc));
-  const playerGearAssets=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General")&&!a.sourceCatalogId&&atLoc(a)&&ownedOrOrgAtLoc(a,coachId,team,loc));
+  // Base pools only -- each station has its own equipment list, so the
+  // owned-plus-already-linked merge (equipmentPickerAssets) happens per
+  // station below, not once here.
+  const teamEquipPool=(assets||[]).filter(a=>(!a.type||a.type==="team")&&(a.sport===sport||a.sport==="General")&&!a.sourceCatalogId&&atLoc(a)&&ownedOrOrgAtLoc(a,coachId,team,loc));
+  const playerGearPool=(assets||[]).filter(a=>a.type==="player"&&(a.sport===sport||a.sport==="General"||sport==="General")&&!a.sourceCatalogId&&atLoc(a)&&ownedOrOrgAtLoc(a,coachId,team,loc));
   // Public-catalog drills are excluded from this quick-pick list -- their
   // equipment is catalog-owned, which can't be linked to a real team's
   // practice (same "copy not reference" rule org-shared equipment already
@@ -492,6 +545,8 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
     </div>}
     {act.stations.map((st,si)=>{
       const stEquip=Array.isArray(st.equipment)?st.equipment:[];
+      const teamEquipAssets=equipmentPickerAssets(teamEquipPool,stEquip,assets,a=>!a.type||a.type==="team");
+      const playerGearAssets=equipmentPickerAssets(playerGearPool,stEquip,assets,a=>a.type==="player");
       const collapsed=collapsedStations.has(st.id);
       return(<div key={st.id} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 12px 10px",marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:collapsed?0:10}}>
@@ -620,7 +675,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
         <div className="fld"><label className="lbl">Coaching Points</label><AutoTextarea minHeight={40} value={st.coachingPoints||""} onChange={e=>onSt(st.id,{coachingPoints:e.target.value})}/></div>
         <div className="fld"><label className="lbl">Equipment</label>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-            {teamEquipAssets.map(a=>(<button key={a.id} type="button" onClick={()=>{const has=stEquip.includes(a.id);onSt(st.id,{equipment:has?stEquip.filter(x=>x!==a.id):[...stEquip,a.id]});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:stEquip.includes(a.id)?"var(--green)":"#fff",color:stEquip.includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
+            {teamEquipAssets.map(a=>(<EquipmentPickerPill key={a.id} asset={a} selected={stEquip.includes(a.id)} onToggle={()=>{const has=stEquip.includes(a.id);onSt(st.id,{equipment:has?stEquip.filter(x=>x!==a.id):[...stEquip,a.id]});}} refreshLibrary={refreshLibrary}/>))}
             {teamEquipAssets.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No team equipment in library</span>}
           </div>
           {newEquipIdx===si?<div style={{display:"flex",gap:6}}>
@@ -631,7 +686,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
         </div>
         {(playerGearAssets.length>0||newGearIdx===si)&&<div className="fld"><label className="lbl">Player Gear Needed</label>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-            {playerGearAssets.map(a=>(<button key={a.id} type="button" onClick={()=>{const has=stEquip.includes(a.id);onSt(st.id,{equipment:has?stEquip.filter(x=>x!==a.id):[...stEquip,a.id]});}} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:stEquip.includes(a.id)?"var(--green)":"#fff",color:stEquip.includes(a.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{a.name}</button>))}
+            {playerGearAssets.map(a=>(<EquipmentPickerPill key={a.id} asset={a} selected={stEquip.includes(a.id)} onToggle={()=>{const has=stEquip.includes(a.id);onSt(st.id,{equipment:has?stEquip.filter(x=>x!==a.id):[...stEquip,a.id]});}} refreshLibrary={refreshLibrary}/>))}
           </div>
           {newGearIdx===si?<div style={{display:"flex",gap:6}}>
             <input className="inp" style={{flex:1}} placeholder="Gear name..." id={"new-st-gear-"+si} autoFocus/>
