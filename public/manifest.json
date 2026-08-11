@@ -4,7 +4,6 @@
   "description": "Youth sports practice operations",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait",
   "background_color": "#081c11",
   "theme_color": "#1b4332",
   "icons": [
