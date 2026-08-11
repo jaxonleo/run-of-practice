@@ -14,12 +14,20 @@
     <link rel="manifest" href="/manifest.json" />
     <title>Run of Practice</title>
     <!-- Portrait-only lock, pure CSS. The manifest's "orientation":"portrait"
-         above covers an installed Android/Chrome PWA, but iOS Safari (browser
-         tab or installed home-screen app) has never implemented the manifest
-         orientation member or the Screen Orientation lock API, so it's
-         silently ignored there -- this overlay is the only lock that actually
-         works on every device. Scoped to touch/coarse-pointer devices in
-         landscape so a real desktop monitor turned sideways is never caught. -->
+         above covers an installed Android/Chrome PWA. This overlay was
+         originally meant as the iOS fallback (Safari has never implemented
+         the manifest orientation member or the Screen Orientation lock API),
+         but direct feedback from a live test was that a full-screen black
+         "rotate back" block is worse than the thing it's blocking -- on iOS
+         specifically it replaces an awkward-but-still-usable landscape layout
+         with a dead screen. Rolled back to iOS only: the overlay still covers
+         Android/other touch devices (where it's a genuine improvement over
+         nothing), but is explicitly forced off on iOS via the standard
+         CSS-only "-webkit-touch-callout" feature-detection trick, which only
+         WebKit -- and therefore only iOS's browsers, since Apple requires
+         every iOS browser to use WebKit -- recognizes as a supported
+         property. Android Chrome/Firefox don't support it and fall through
+         to the normal rule above. -->
     <style>
       #rop-rotate-lock{display:none;position:fixed;inset:0;z-index:999999;background:#081c11;color:#fff;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
       #rop-rotate-lock svg{width:56px;height:56px;margin-bottom:16px;animation:rop-rotate-hint 1.6s ease-in-out infinite;}
@@ -28,6 +36,11 @@
       @keyframes rop-rotate-hint{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-90deg);}}
       @media (orientation:landscape) and (pointer:coarse){
         #rop-rotate-lock{display:flex;}
+      }
+      @supports (-webkit-touch-callout:none){
+        @media (orientation:landscape) and (pointer:coarse){
+          #rop-rotate-lock{display:none!important;}
+        }
       }
     </style>
   </head>

@@ -2023,9 +2023,20 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   },[stage,requestWakeLock]);
   // Wake Lock is auto-released by the browser whenever the tab is hidden --
   // re-request it when the coach comes back so a quick app-switch doesn't
-  // permanently drop it for the rest of the session.
+  // permanently drop it for the rest of the session. Also force an
+  // immediate clock tick: the setInterval driving `now` (below) gets
+  // throttled or fully suspended while the tab is hidden, so without this,
+  // elapsed/rem sit frozen until the next scheduled tick happens to land --
+  // snapping it forward the instant the tab is visible again means any
+  // audio cue that was due while backgrounded fires right away instead of
+  // waiting out however long is left on a throttled interval.
   useEffect(()=>{
-    const onVis=()=>{if(document.visibilityState==='visible'&&(stage==="live"||stage==="attend"))requestWakeLock();};
+    const onVis=()=>{
+      if(document.visibilityState==='visible'&&(stage==="live"||stage==="attend")){
+        requestWakeLock();
+        setNow(Date.now());
+      }
+    };
     document.addEventListener('visibilitychange',onVis);
     return()=>document.removeEventListener('visibilitychange',onVis);
   },[stage,requestWakeLock]);
@@ -2150,7 +2161,16 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   // Time's-up cue: the coach's chosen sound (whistle/buzzer/ding/beep),
   // then a spoken "Time" once it finishes -- onended (not a fixed
   // setTimeout) so the two stay in sync with the file's actual length
-  // regardless of playback hiccups.
+  // regardless of playback hiccups. This is the most consequential cue in
+  // the app (it's the one marking a drill actually over) and it used to go
+  // completely silent, with nothing to show for it, on a real-world class
+  // of failure: a rejected play() (an interrupted audio session -- a call,
+  // a Bluetooth handoff, autoplay policy re-engaging after the tab was
+  // backgrounded) meant onended simply never fired, so the chained "Time"
+  // never spoke either. speechSynthesis is a separate playback pathway
+  // from <audio> and, in practice, often still works when the audio
+  // element doesn't -- every failure path here now falls back to speaking
+  // "Time" directly instead of going silent.
   const beep=useCallback(()=>{
     if(!audioOn)return;
     try{
@@ -2158,9 +2178,12 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       if(audio){
         audio.currentTime=0;
         audio.onended=()=>speak("Time");
-        audio.play().catch(()=>{});
+        audio.onerror=()=>speak("Time");
+        audio.play().catch(()=>speak("Time"));
+      }else{
+        speak("Time");
       }
-    }catch(e){console.error('time cue error:',e);}
+    }catch(e){console.error('time cue error:',e);speak("Time");}
   },[audioOn,speak]);
   const playWarningTone=useCallback(()=>{
     if(!audioOn)return;
@@ -2195,7 +2218,17 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     // "still 2 minutes left" moment to warn about on a phase that short.
     if(phaseSecs<=120)return;
     const rem2=phaseSecs-elapsed;
-    if(rem2<=122&&rem2>=118&&!warnedRef.current&&running){
+    // At-or-past a threshold, not a narrow window -- elapsed only advances
+    // while a setInterval ticks (see the Timer effect above), and mobile
+    // browsers throttle/suspend that interval when the tab is briefly
+    // backgrounded (an app switch, a notification). A throttled tick can
+    // jump elapsed forward enough to step clean over a 4-second window in
+    // one go, silently skipping this cue for the rest of the phase with no
+    // trace it happened -- exactly the reported "audio wasn't consistent."
+    // Same shape as the time's-up buzzer effect above, which already used
+    // >= for this reason; rem2>0 keeps it from firing retroactively deep
+    // into an overrun phase after a long background gap.
+    if(rem2<=120&&rem2>0&&!warnedRef.current&&running){
       warnedRef.current=true;
       warnToneRef.current();
       speakRef.current("Two minutes remaining.");
@@ -2329,10 +2362,26 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const retryTimerRef=useRef(null);
   const retryDelayRef=useRef(3000);
 
-  const writeSession=useCallback(async(patch)=>{
-    if(!session)return null;
-    const {data:updated,offline}=await updateLiveSession(session.id,session.version,patch);
+  // Rapid taps on the same live control (±1 min tapped twice quickly, a
+  // nudge right after a pause) used to race each other: each call read
+  // `session.version` from whichever render happened to be current when it
+  // fired, so a second write could reach the server carrying a version the
+  // first write had already superseded, get rejected as a stale-version
+  // conflict, and have its own optimistic update silently discarded by the
+  // resync that follows -- visible as the timer jumping forward, then
+  // snapping back a beat later. Every write now funnels through
+  // writeQueueRef so a queued write only actually executes once every
+  // write ahead of it has resolved, and reads sessionRef.current (kept
+  // authoritative here the instant a write resolves, not just via the
+  // passive mirror effect above, which lags a render cycle behind) so it
+  // always carries the truly-current version instead of a stale one.
+  const writeQueueRef=useRef(Promise.resolve());
+  const writeSessionNow=useCallback(async(patch)=>{
+    const cur=sessionRef.current;
+    if(!cur)return null;
+    const {data:updated,offline}=await updateLiveSession(cur.id,cur.version,patch);
     if(updated){
+      sessionRef.current=updated;
       setSession(updated);setSyncOffline(false);pendingWriteRef.current=null;
       clearTimeout(retryTimerRef.current);retryDelayRef.current=3000;
       return updated;
@@ -2343,9 +2392,15 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       return null;
     }
     const fresh=await findActiveLiveSession(practice.id);
+    if(fresh)sessionRef.current=fresh;
     setSession(fresh);setSyncOffline(false);
     return null;
-  },[session,practice]);
+  },[practice]);
+  const writeSession=useCallback(patch=>{
+    const queued=writeQueueRef.current.then(()=>writeSessionNow(patch),()=>writeSessionNow(patch));
+    writeQueueRef.current=queued.catch(()=>null);
+    return queued;
+  },[writeSessionNow]);
 
   const attemptPendingRetry=useCallback(async()=>{
     const pending=pendingWriteRef.current;
@@ -2353,6 +2408,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(!pending||!cur)return;
     const {data:updated,offline}=await updateLiveSession(cur.id,cur.version,pending.patch);
     if(updated){
+      sessionRef.current=updated;
       setSession(updated);setSyncOffline(false);pendingWriteRef.current=null;
       clearTimeout(retryTimerRef.current);retryDelayRef.current=3000;
     }else if(!offline){
@@ -2360,6 +2416,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       // stop retrying this stale patch and reconcile to real state.
       pendingWriteRef.current=null;
       const fresh=await findActiveLiveSession(practice.id);
+      if(fresh)sessionRef.current=fresh;
       setSession(fresh);setSyncOffline(false);
     }
     // else: still offline, the scheduling effect below will try again.
