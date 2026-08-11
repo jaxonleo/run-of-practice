@@ -1733,20 +1733,36 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         </svg>
       </div>)}
       {acts.length>0&&(<ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
-      {acts.map((act)=>{const isLast=act.id===ropLastId;return (<SortableActivityRow key={act.id} id={act.id} sticky={isLast} stickyTop={ropStickyTop+ropZigzagH} stickyBg={isLast?"var(--green)":undefined}>{dragHandle=>(<div>
+      {acts.map((act)=>{const isLast=act.id===ropLastId;
+        // Real bug found live (direct feedback: building a station block,
+        // "unable to scroll down far enough to see the bottom options"):
+        // sticky was keyed on isLast alone, with no regard for whether the
+        // row was currently expanded. A position:sticky element, once
+        // stuck, never reveals more of its own overflowing content by
+        // scrolling further -- scrolling only moves whatever comes after
+        // it in the document, not the stuck element itself -- so a tall
+        // expanded row (a multi-station block with rotate/static controls,
+        // time-at-station/transition steppers, generate-random, group-by,
+        // every station's own equipment/player pickers) pinned this way
+        // permanently clips its own lower half, unreachable no matter how
+        // far the coach scrolls. This project's own prior assumption
+        // ("per-station collapse keeps even a multi-station block short")
+        // didn't hold -- the block-level controls alone, always visible
+        // whenever the block is expanded regardless of per-station
+        // collapse, are tall enough to trigger this on a phone viewport.
+        // Only the collapsed (single-line) case is ever safe to pin.
+        const stickyNow=isLast&&expandedId!==act.id;
+        return (<SortableActivityRow key={act.id} id={act.id} sticky={stickyNow} stickyTop={ropStickyTop+ropZigzagH} stickyBg={stickyNow?"var(--green)":undefined}>{dragHandle=>(<div>
             <div className="ablk" style={{marginLeft:10,marginRight:10}} ref={el=>{if(el)rowRefs.current[act.id]=el;else delete rowRefs.current[act.id];}}>
               {/* A newly-added row auto-expands (see addAct/addBlock/
                   addComponentType) so the coach sees its content
-                  immediately without an extra tap -- that's a real risk in
-                  principle for a very tall row, but per-station collapse
-                  (StationConfig) keeps even a multi-station block short by
-                  default, so it isn't the trap it would have been before.
-                  Staying pinned to the top while scrolling, on the other
-                  hand, is no longer tied to "just added" at all -- it's
-                  whichever activity is positionally last in the practice
-                  (isLast, above), so the coach always sees the Run of
-                  Practice's own tail end while browsing the Library below
-                  it, not just briefly after adding something. Tapping this
+                  immediately without an extra tap. Staying pinned to the
+                  top while scrolling, on the other hand, is tied to being
+                  both positionally last (isLast, above) *and* currently
+                  collapsed (stickyNow) -- an expanded row is never sticky,
+                  precisely to avoid the scroll trap described above; it
+                  only starts pinning once collapsed again, whether that's
+                  this same row or a later one added after it. Tapping this
                   header (to expand or collapse) still clears lastAddedId --
                   once the coach has interacted with the row directly, it's
                   done being "the one that just got added" for auto-expand

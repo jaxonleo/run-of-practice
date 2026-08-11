@@ -1527,10 +1527,19 @@ export async function takeControl(id, version, userId) {
   return updateLiveSession(id, version, { controller_user_id: userId })
 }
 
-export function subscribeToLiveSession(id, onUpdate) {
-  return supabase.channel('live_session_' + id)
+// onStatusChange (optional) reports the channel's own connection state
+// ('SUBSCRIBED'/'CHANNEL_ERROR'/'TIMED_OUT'/'CLOSED') -- postgres_changes
+// has no catch-up/replay, so any UPDATE that happens while the socket is
+// disconnected (a dropped venue wifi/cellular connection, common on a
+// field with spotty service) is simply never delivered once it reconnects.
+// Callers should treat every 'SUBSCRIBED' after the first as "we may have
+// missed something" and force a fresh fetch, not just trust the next
+// payload that happens to arrive.
+export function subscribeToLiveSession(id, onUpdate, onStatusChange) {
+  const channel = supabase.channel('live_session_' + id)
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'practice_live_sessions', filter: 'id=eq.' + id }, payload => onUpdate(payload.new))
-    .subscribe()
+  channel.subscribe(status => { if (onStatusChange) onStatusChange(status) })
+  return channel
 }
 
 // "Who has this practice open" presence -- pure Realtime Presence, no
@@ -1614,16 +1623,28 @@ export async function saveSessionGroups(sessionId, practiceActivityId, createdBy
   }
 }
 
+// Wrapped in try/catch (unlike most reads in this file) because this one
+// feeds a live-session render effect that has no other error handling of
+// its own -- on flaky venue wifi a genuine network failure here can throw
+// rather than resolve to a clean Postgrest {error}, and an unhandled
+// rejection inside that effect's async IIFE silently leaves the station
+// groups (and therefore the "Up Next"/rotation view built from them) blank
+// with nothing to ever retry it. Same null-on-failure contract either way.
 export async function fetchLatestGroups(sessionId, practiceActivityId, stationId, roundNumber) {
-  let q = supabase.from('session_groups').select('*').eq('session_id', sessionId).eq('practice_activity_id', practiceActivityId)
-  q = stationId ? q.eq('station_id', stationId).eq('round_number', roundNumber ?? 0) : q.is('station_id', null)
-  const { data: groups, error } = await q.order('created_at', { ascending: false })
-  if (error) { console.error('fetchLatestGroups:', error); return null }
-  if (!groups || !groups.length) return null
-  const latestTime = groups[0].created_at
-  const latestGroups = groups.filter(g => g.created_at === latestTime).sort((a, b) => a.group_number - b.group_number)
-  const { data: members } = await supabase.from('session_group_members').select('group_id,player_id').in('group_id', latestGroups.map(g => g.id))
-  return latestGroups.map(g => (members || []).filter(m => m.group_id === g.id).map(m => m.player_id))
+  try {
+    let q = supabase.from('session_groups').select('*').eq('session_id', sessionId).eq('practice_activity_id', practiceActivityId)
+    q = stationId ? q.eq('station_id', stationId).eq('round_number', roundNumber ?? 0) : q.is('station_id', null)
+    const { data: groups, error } = await q.order('created_at', { ascending: false })
+    if (error) { console.error('fetchLatestGroups:', error); return null }
+    if (!groups || !groups.length) return null
+    const latestTime = groups[0].created_at
+    const latestGroups = groups.filter(g => g.created_at === latestTime).sort((a, b) => a.group_number - b.group_number)
+    const { data: members } = await supabase.from('session_group_members').select('group_id,player_id').in('group_id', latestGroups.map(g => g.id))
+    return latestGroups.map(g => (members || []).filter(m => m.group_id === g.id).map(m => m.player_id))
+  } catch (e) {
+    console.error('fetchLatestGroups:', e)
+    return null
+  }
 }
 
 // Reconstructs the in-memory "currently open log row" ref after a resume

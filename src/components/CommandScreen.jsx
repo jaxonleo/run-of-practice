@@ -2251,15 +2251,52 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     return()=>{cancelled=true;};
   },[liveId]);
 
+  // Reconciles local session state against the server row, but only ever
+  // moves forward -- never lets a passive resync (reconnect, background
+  // poll) stomp a newer local write that just hasn't round-tripped yet, and
+  // never treats a transient fetch failure (findActiveLiveSession also
+  // returns null on error) as "the session ended." A real end/abort is
+  // already an explicit transition via writeSession elsewhere.
+  const reconcileSession=useCallback(async()=>{
+    if(!practice)return;
+    const fresh=await findActiveLiveSession(practice.id);
+    if(!fresh)return;
+    setSession(prev=>(prev&&fresh.version<prev.version)?prev:fresh);
+  },[practice]);
+
   // Realtime: pick up control handoffs / phase changes from another device.
+  // postgres_changes has no catch-up/replay -- on the "not great" service a
+  // real field can have, the websocket drops and silently reconnects fairly
+  // often, and any update that happened during that gap is gone for good
+  // once it's back, not queued. Two backstops against that: force a
+  // reconcile on every reconnect (not just the first SUBSCRIBED), and a
+  // slow background poll so no client can drift for more than a few
+  // seconds even if the socket looks connected the whole time. This is
+  // exactly why two coaches' screens could show different drills/timers/
+  // station rotations until something else happened to nudge a fresh
+  // update through, and why a "Take Control" tap on stale state silently
+  // no-op'd into a resync instead of an actual handoff (the version check
+  // failed on a version this client didn't know had already moved).
   useEffect(()=>{
     if(!session)return;
+    let sawFirstConnect=false;
     const sub=subscribeToLiveSession(session.id,updated=>{
-      setSession(updated);
+      setSession(prev=>(prev&&updated.version<prev.version)?prev:updated);
       if(updated.status!=="active")setStage("end");
+    },status=>{
+      if(status==='SUBSCRIBED'){
+        if(sawFirstConnect)reconcileSession();
+        sawFirstConnect=true;
+      }
     });
     return()=>{sub.unsubscribe();};
-  },[session?.id]);
+  },[session?.id,reconcileSession]);
+
+  useEffect(()=>{
+    if(!session||session.status!=='active')return;
+    const iv=setInterval(reconcileSession,7000);
+    return()=>clearInterval(iv);
+  },[session?.id,session?.status,reconcileSession]);
 
   // Assistant-coach handoff §1.3: a non-blocking toast for whoever just lost
   // control, so a habitual tap on Next/+-1m a beat after someone else took
@@ -2405,7 +2442,21 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   useEffect(()=>{
     if(!session||!cur){setLiveGroups(null);setLiveGroupLabels(null);return;}
     let cancelled=false;
-    (async()=>{
+    // fetchLatestGroups is now hardened against throwing, but a flaky
+    // connection can still mean this whole IIFE never resolves cleanly on
+    // the first try. Without a retry, that leaves liveGroups null for the
+    // rest of this mount -- nothing else re-triggers this effect -- which
+    // is exactly what made a station block's Up Next/rotation view go
+    // blank on a bad connection. Three quick retries covers a momentary
+    // drop; a real outage still gives up rather than retrying forever.
+    const run=async(attempt)=>{
+      try{await body();}
+      catch(e){
+        console.error('live-group sync failed:',e);
+        if(!cancelled&&attempt<3)setTimeout(()=>{if(!cancelled)run(attempt+1);},1500*(attempt+1));
+      }
+    };
+    const body=async()=>{
       if(isBlock){
         const existing=await fetchLatestGroups(session.id,cur.id);
         if(cancelled)return;
@@ -2445,7 +2496,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         setLiveGroups(groups);
         await saveSessionGroups(session.id,cur.id,coachId,groups);
       }
-    })();
+    };
+    run(0);
     return()=>{cancelled=true;};
   },[session?.id,cur?.id,presentIds]);
 
@@ -2459,7 +2511,18 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   useEffect(()=>{
     if(!session||!isBlock||!cur||!cur.stations||!liveGroups){setStationSubGroups({});return;}
     let cancelled=false;
-    (async()=>{
+    // Same flaky-connection retry as the live-group sync effect above --
+    // a throw partway through the loop below used to abort the whole
+    // fetch with nothing to retry it, leaving some/all stations' own
+    // sub-groups blank for the rest of this mount.
+    const run=async(attempt)=>{
+      try{await body();}
+      catch(e){
+        console.error('station sub-group sync failed:',e);
+        if(!cancelled&&attempt<3)setTimeout(()=>{if(!cancelled)run(attempt+1);},1500*(attempt+1));
+      }
+    };
+    const body=async()=>{
       const results={};
       for(let i=0;i<cur.stations.length;i++){
         const st=cur.stations[i];
@@ -2478,7 +2541,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         await saveSessionGroups(session.id,cur.id,coachId,groups,st.id,stIdx);
       }
       if(!cancelled)setStationSubGroups(results);
-    })();
+    };
+    run(0);
     return()=>{cancelled=true;};
   },[session?.id,cur?.id,stIdx,liveGroups]);
 
