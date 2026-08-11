@@ -39,6 +39,27 @@ function usePracticePresence(practiceId, me) {
   }, [practiceId, me && me.kind, me && me.label]);
   return presence;
 }
+// Peace-of-mind sync-confidence indicator, doubling as a manual refresh
+// (direct feedback: not meant to be needed in normal use, but there if a
+// coach notices the screen looks wrong). Same "Live" label/dot the header
+// already showed unconditionally -- now it degrades honestly instead of
+// always claiming to be live, and is always tappable. A real page reload
+// (not a soft in-app resync) deliberately: this app already re-derives
+// the entire live session -- timer, stage, controller -- from the server
+// on every fresh mount (see "A coach can leave a live session without
+// ending it" in the Feature Inventory), so a reload is already a fully
+// correct resync for free, and it's the one thing that still works if the
+// tab's own JS is what's actually stuck -- which no in-app retry logic
+// can fix from inside itself.
+function SyncBadge({health}){
+  const color=health==="stale"?"var(--red)":health==="warn"?"var(--amber)":"var(--green)";
+  const label=health==="stale"?"Refresh":health==="warn"?"Reconnecting…":"Live";
+  return (<button type="button" onClick={()=>window.location.reload()} title="Tap to refresh" style={{display:"flex",alignItems:"center",gap:5,background:"none",border:"none",padding:0,cursor:"pointer"}}>
+    <span className="live" style={{background:color}}/>
+    <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color}}>{label}</span>
+  </button>);
+}
+
 function PresenceBadge({ coachNames, anonCount, dark }) {
   if (!coachNames.length && !anonCount) return null;
   const parts = [];
@@ -1880,6 +1901,17 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const [endReason,setEndReason]=useState("completed");
   const [session,setSession]=useState(null);
   const [now,setNow]=useState(Date.now());
+  // Peace-of-mind sync-confidence indicator (direct feedback: "if I notice
+  // my screen isn't loading, it would be nice to have a refresh option").
+  // Stamped on every real confirmation that this client is actually
+  // current with the server -- a realtime message received, a background
+  // reconcile poll succeeding, or a write succeeding -- so "seconds since
+  // lastSyncedAt" is a single honest answer to "how stale could this
+  // screen possibly be right now," regardless of which of the three sync
+  // paths is the one actually working at any given moment. A ref, not
+  // state -- it doesn't need its own render, the already-ticking `now`
+  // clock re-derives the badge every second on its own.
+  const lastSyncedAtRef=useRef(null);
   const [plannedAbsentIds,setPlannedAbsentIds]=useState(new Set());
   useEffect(()=>{
     if(!practice){setPlannedAbsentIds(new Set());return;}
@@ -2070,6 +2102,17 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const elapsed=computeElapsed(session,now);
   const isController=!!(session&&session.controller_user_id===coachId);
   const controllerName=(()=>{if(!session||!team||isController)return null;const c=team.coaches.find(c=>c.userId===session.controller_user_id);return c?c.name:"another coach";})();
+  // Peace-of-mind sync-confidence badge (direct feedback, see lastSyncedAtRef
+  // above): the background reconcile poll runs every 7s and stamps this on
+  // success regardless of whether anything actually changed, so under
+  // normal conditions secsSinceSync should never climb much past that --
+  // "warn" gives room for one missed poll cycle before saying anything,
+  // "stale" is a real multi-cycle gap worth actually flagging. Purely
+  // time-based, not tied to the realtime channel's own reported status,
+  // since a channel can cycle through a brief reconnect harmlessly and
+  // this should only speak up once staleness is actually likely.
+  const secsSinceSync=session&&lastSyncedAtRef.current?Math.floor((now-lastSyncedAtRef.current)/1000):0;
+  const syncHealth=!session?"live":secsSinceSync>25?"stale":secsSinceSync>12?"warn":"live";
   // Assistant-coach handoff §1.3, confirmed decision: mid-run plan editing
   // stays gated on role, not on control -- an assistant who takes control
   // still can't open LiveEditBuilder, unlike every other controller action.
@@ -2252,6 +2295,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       if(cancelled||!result||!result.session)return;
       const {session:sessionRow,created}=result;
       setSession(sessionRow);
+      lastSyncedAtRef.current=Date.now();
       if(sessionRow.setup_confirmed_at){
         setStage("live");
         const latest=await fetchLatestAttendance(sessionRow.id);
@@ -2294,6 +2338,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(!practice)return;
     const fresh=await findActiveLiveSession(practice.id);
     if(!fresh)return;
+    lastSyncedAtRef.current=Date.now();
     setSession(prev=>(prev&&fresh.version<prev.version)?prev:fresh);
   },[practice]);
 
@@ -2314,6 +2359,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(!session)return;
     let sawFirstConnect=false;
     const sub=subscribeToLiveSession(session.id,updated=>{
+      lastSyncedAtRef.current=Date.now();
       setSession(prev=>(prev&&updated.version<prev.version)?prev:updated);
       if(updated.status!=="active")setStage("end");
     },status=>{
@@ -2381,6 +2427,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(!cur)return null;
     const {data:updated,offline}=await updateLiveSession(cur.id,cur.version,patch);
     if(updated){
+      lastSyncedAtRef.current=Date.now();
       sessionRef.current=updated;
       setSession(updated);setSyncOffline(false);pendingWriteRef.current=null;
       clearTimeout(retryTimerRef.current);retryDelayRef.current=3000;
@@ -2392,7 +2439,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       return null;
     }
     const fresh=await findActiveLiveSession(practice.id);
-    if(fresh)sessionRef.current=fresh;
+    if(fresh){lastSyncedAtRef.current=Date.now();sessionRef.current=fresh;}
     setSession(fresh);setSyncOffline(false);
     return null;
   },[practice]);
@@ -3149,7 +3196,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         </div>
       </div>
       <div className="row" style={{gap:6,flexWrap:"wrap",marginTop:6}}>
-        <span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Live</span>{schedBadge}
+        <SyncBadge health={syncHealth}/>{schedBadge}
         <PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount}/>
       </div>
       <div className="cc-act-name">{phaseLabel}</div>
