@@ -1507,6 +1507,21 @@ function isNetworkError(error) {
   return msg.includes('fetch') || msg.includes('network') || msg.includes('load failed') || (typeof navigator !== 'undefined' && navigator.onLine === false)
 }
 
+// A single present/absent tap during Practice Setup, real-coach-to-
+// real-coach concurrency-safe: one atomic add/remove on the server (see
+// toggle_setup_presence, 20260813163000), not a version-checked read-
+// modify-write -- two different coaches toggling two different players at
+// the same moment can never clobber each other this way, unlike routing
+// this through updateLiveSession's normal optimistic-concurrency path
+// would. Returns the updated row directly (or null on error/offline); the
+// caller applies it straight to local session state, same as any other
+// direct session-mutating RPC (takeControl, etc).
+export async function toggleSetupPresence(sessionId, kind, targetId) {
+  const { data, error } = await supabase.rpc('toggle_setup_presence', { p_session_id: sessionId, p_kind: kind, p_target_id: targetId })
+  if (error) { console.error('toggleSetupPresence:', error); return null }
+  return data
+}
+
 // Returns { data, offline }. data is the updated row, or null if the
 // version was stale (someone else wrote first / took control) or the
 // request never reached the server. offline distinguishes the two --

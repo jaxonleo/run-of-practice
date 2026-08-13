@@ -941,11 +941,17 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // through as real state (rather than reading editP directly) fixes that
   // and lets the pill react live as the coach edits it.
   const [schedDuration,setSchedDuration]=useState(editP?(editP.scheduledDurationMinutes||""):"");
-  // Pre-Practice Warmup: null = not added to this practice, a string
-  // (including "") = added, card shown, coach can type into it. Not an
-  // activity -- see the pre_practice_notes migration comment -- so this is
-  // the one piece of Builder state with no counterpart in `acts`.
-  const [prePracticeNotes,setPrePracticeNotes]=useState(editP?(editP.prePracticeNotes??null):(startTpl?(startTpl.prePracticeNotes??null):null));
+  // Pre-Practice Warmup: always present at the top of Builder now (direct
+  // feedback: it shouldn't be an opt-in "component" a coach has to remember
+  // to add) -- just a plain string, empty when there's nothing written yet.
+  // Not an activity -- see the pre_practice_notes migration comment -- so
+  // this is the one piece of Builder state with no counterpart in `acts`.
+  const [prePracticeNotes,setPrePracticeNotes]=useState(editP?(editP.prePracticeNotes||""):(startTpl?(startTpl.prePracticeNotes||""):""));
+  // Collapsed by default -- most practices won't need this every time, and
+  // a coach who wants it expands it themselves. Not persisted; a coach who
+  // already wrote something still starts collapsed on a fresh Builder visit,
+  // same as any other already-filled-in section here.
+  const [warmupOpen,setWarmupOpen]=useState(false);
   // Direct feedback: the Run of Practice pill only ever showed "35/60 min" --
   // tapping it now toggles to a plainer "needs N more minutes" readout
   // (or "N min over"/"Fully planned" once there's nothing left to close),
@@ -1711,17 +1717,23 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           pre_practice_notes migration comment) -- rendered here, above
           every real row, so it's always first regardless of how the coach
           reorders the rest of the plan, and outside ActivityDndContext so
-          it can never be dragged into the middle of it. Dashed border +
-          light green fill against the solid green backdrop is the "visual
-          distinction from the rest of the practice plan" asked for. */}
-      {prePracticeNotes!==null&&<div style={{position:"relative",zIndex:1,marginLeft:10,marginRight:10,marginBottom:9,background:"var(--gbg)",border:"2px dashed var(--green2)",borderRadius:"var(--r)",padding:"11px 12px"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".05em",textTransform:"uppercase",color:"var(--green)"}}>Pre-Practice Warmup</span>
-          <button type="button" onClick={()=>setPrePracticeNotes(null)} style={{background:"none",border:"none",color:"var(--green)",cursor:"pointer",fontSize:12,fontWeight:700,padding:"2px 4px"}}>Remove</button>
-        </div>
-        <div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>What should players do if they arrive before practice starts? Shown on the Practice Setup screen -- no duration, doesn't count toward drills or planned time.</div>
-        <textarea className="ta" value={prePracticeNotes} onChange={e=>setPrePracticeNotes(e.target.value)} placeholder="e.g. Grab a ball and start dribbling." style={{minHeight:64}}/>
-      </div>}
+          it can never be dragged into the middle of it. Always present now
+          (direct feedback: shouldn't be an opt-in component a coach has to
+          remember to add), collapsed by default so it doesn't take up room
+          on the common case of a practice that doesn't need one. Dashed
+          border + light green fill against the solid green backdrop is the
+          "visual distinction from the rest of the practice plan" asked for. */}
+      <div style={{position:"relative",zIndex:1,marginLeft:10,marginRight:10,marginBottom:9,background:"var(--gbg)",border:"2px dashed var(--green2)",borderRadius:"var(--r)",padding:"11px 12px"}}>
+        <button type="button" onClick={()=>setWarmupOpen(o=>!o)} style={{display:"flex",alignItems:"center",width:"100%",background:"none",border:"none",padding:0,cursor:"pointer",gap:8,textAlign:"left"}}>
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".05em",textTransform:"uppercase",color:"var(--green)",flex:1}}>Pre-Practice Warmup</span>
+          {!warmupOpen&&prePracticeNotes&&<span style={{fontSize:11,color:"var(--td)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:140}}>{prePracticeNotes}</span>}
+          <Ic.Chev up={warmupOpen}/>
+        </button>
+        {warmupOpen&&<>
+          <div style={{fontSize:12,color:"var(--td)",margin:"8px 0"}}>What should players do if they arrive before practice starts (grab a ball, start stretching, etc.)? Shown on the Practice Setup screen. Leave this blank if you'd rather not give arrival guidance.</div>
+          <textarea className="ta" value={prePracticeNotes} onChange={e=>setPrePracticeNotes(e.target.value)} placeholder="e.g. Grab a ball and start dribbling." style={{minHeight:64}}/>
+        </>}
+      </div>
       {acts.length===0&&(<div style={{position:"relative",zIndex:1,textAlign:"center",padding:"8px 22px 18px"}}>
           <div style={{fontSize:13,color:"rgba(255,255,255,.9)",lineHeight:1.7,marginBottom:teamTemplates.length?10:0}}>Nothing added yet.<br/>Add activities below to begin building your Run of Practice.</div>
           {teamTemplates.length>0&&<button className="btn bsm" style={{background:"#fff",color:"var(--green)"}} onClick={()=>setShowTplPicker(true)}>Start with a Template</button>}
@@ -1866,31 +1878,21 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         <button type="button" onClick={()=>setComponentsOpen(o=>!o)} aria-label={componentsOpen?"Collapse Practice Components":"Expand Practice Components"} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",padding:6,display:"flex",alignItems:"center"}}><Ic.Chev up={componentsOpen}/></button>
       </div>
       {componentsOpen&&(<>
-        {visibleTypeKeys.length===0&&prePracticeNotes!==null&&<div style={{fontSize:13,color:"var(--td)",textAlign:"center",padding:"12px 0",marginBottom:8}}>No quick-add types selected. Tap the ⋯ above to choose some.</div>}
-        {(visibleTypeKeys.length>0||prePracticeNotes===null)&&<div className="g2" style={{marginBottom:14}}>
+        {visibleTypeKeys.length===0&&<div style={{fontSize:13,color:"var(--td)",textAlign:"center",padding:"12px 0",marginBottom:8}}>No quick-add types selected. Tap the ⋯ above to choose some.</div>}
+        {visibleTypeKeys.length>0&&<div className="g2" style={{marginBottom:14}}>
           {PRACTICE_COMPONENT_TYPES.filter(t=>visibleTypeKeys.includes(t.key)).map(t=>(
             <div key={t.key} className="li tap" style={{marginBottom:0}} onClick={()=>addComponentType(t.key)}>
               <div className="lim"><div className="lin">{t.label}</div><div className="limt">{t.kind==="station_block"?"2+ stations":t.defaultDuration+" min"}</div></div>
               <span style={{color:"var(--green)",fontSize:18,fontWeight:700,flexShrink:0}}>+</span>
             </div>
           ))}
-          {/* Pre-Practice Warmup: not part of PRACTICE_COMPONENT_TYPES (it's
-              not an activity -- see the pre_practice_notes migration
-              comment), but reads as one more one-tap tile here, matching
-              how a coach already adds Intro/Closer/Station Block. Singleton
-              -- disappears once added; "Remove" on the pinned card above
-              (or clearing this tile) is what brings it back. */}
-          {prePracticeNotes===null&&<div className="li tap" style={{marginBottom:0}} onClick={()=>setPrePracticeNotes("")}>
-            <div className="lim"><div className="lin">Pre-Practice Warmup</div><div className="limt">What kids do before practice starts</div></div>
-            <span style={{color:"var(--green)",fontSize:18,fontWeight:700,flexShrink:0}}>+</span>
-          </div>}
           {/* Direct feedback: an odd number of tiles always leaves one grid
               cell blank in this 2-column layout -- fill it with a real
               pointer to the ellipsis menu instead of leaving dead space.
               Reactive off visibleTypeKeys itself, so this comes back on its
               own any time editing the picker leaves an odd count again,
               never something that has to be dismissed once and remembered. */}
-          {(visibleTypeKeys.length+(prePracticeNotes===null?1:0))%2===1&&<div className="li tap" style={{marginBottom:0,background:"var(--gbg)",border:"1px dashed var(--gb)"}} onClick={()=>setShowComponentsPicker(true)}>
+          {visibleTypeKeys.length%2===1&&<div className="li tap" style={{marginBottom:0,background:"var(--gbg)",border:"1px dashed var(--gb)"}} onClick={()=>setShowComponentsPicker(true)}>
             <div className="lim"><div className="limt" style={{color:"var(--green2)",lineHeight:1.4}}>Tap ⋯ above to add or remove your default practice components.</div></div>
           </div>}
         </div>}

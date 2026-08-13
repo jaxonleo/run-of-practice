@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea } from "../constants.js";
-import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach } from "../supabase.js";
+import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
@@ -311,7 +311,7 @@ function EquipmentByArea({equipByArea}){
 // the old translucent-green player chips were hard to read) -- used for
 // both the coach-leader tap target and the groupings-dialog player list.
 function LeaderTapTarget({label,onTap,disabled}){
-  return (<button type="button" disabled={disabled} onClick={onTap} style={{background:label?"rgba(82,183,136,.22)":"rgba(245,158,11,.18)",border:"1.5px solid "+(label?"#52b788":"#f59e0b"),borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:700,color:label?"#fff":"#fde68a",cursor:disabled?"default":"pointer"}}>{label||"Unassigned"}</button>);
+  return (<button type="button" disabled={disabled} onClick={onTap} style={{background:label?"rgba(82,183,136,.22)":"rgba(245,158,11,.18)",border:"1.5px solid "+(label?"#52b788":"#f59e0b"),borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:700,color:label?"#fff":"#fde68a",cursor:disabled?"default":"pointer"}}>Coach: {label||"Unassigned"}</button>);
 }
 
 // Reads the real, already-seeded-and-persisted groupings for a drill's own
@@ -439,7 +439,7 @@ function SetupActivityRow({act,loc,data,team,isController,onReassignActivityLead
     </div>
     <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:6,marginTop:8}}>
       <span style={{fontSize:11,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b"}}>Coach</span>
-      {isController?<LeaderTapTarget label={label} onTap={()=>onReassignActivityLead(act.id)}/>:(label&&<span style={{fontSize:12,color:"#8fa89b"}}>{label}</span>)}
+      <LeaderTapTarget label={label} onTap={()=>onReassignActivityLead(act.id)} disabled={!isController}/>
       {locName&&<span style={{fontSize:12,color:"#52b788",fontWeight:600,marginLeft:2}}>{locName}</span>}
       {hasGrouping&&<button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>onViewGroupings({kind:"drill",act,title:act.name+" -- Groupings"})}>View Groupings</button>}
     </div>
@@ -504,7 +504,7 @@ function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onV
         </button>
         <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:6,marginBottom:(stLoc||stEquip.length)?8:0}}>
           <span style={{fontSize:11,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b"}}>Coach</span>
-          {isController?<LeaderTapTarget label={label} onTap={()=>onReassignLead(st.id)}/>:(label&&<span style={{fontSize:12,color:"#8fa89b"}}>{label}</span>)}
+          <LeaderTapTarget label={label} onTap={()=>onReassignLead(st.id)} disabled={!isController}/>
           {stLoc&&<span style={{fontSize:12,color:"#52b788",fontWeight:600,marginLeft:2}}>{stLoc}</span>}
         </div>
         {expanded&&(st.description||st.coachingPoints)&&<div style={{marginBottom:stEquip.length?8:0}}>
@@ -525,22 +525,29 @@ function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onV
 // /preview/:token link already used, not a bare attendance form. A live
 // countdown to the scheduled start replaces that same need for a coach
 // who's signed in rather than viewing an anonymous share link.
-function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoach,stationBlockActs,setupGroups,onMoveGroupPlayer,onRegenerateGroups,initialPresent,plannedAbsentIds,onConfirm,onBack,onReassignLead,onReassignActivityLead,onEditPractice,onAbort,session}){
+function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoach,stationBlockActs,setupGroups,onMoveGroupPlayer,onRegenerateGroups,initialPresent,plannedAbsentIds,onConfirm,onBack,onReassignLead,onReassignActivityLead,onEditPractice,onAbort,session,onSetPresentPlayerIds,onSetPresentCoachIds,onTogglePlayerPresent,onToggleCoachPresent}){
   plannedAbsentIds=plannedAbsentIds||new Set();
   const allIds=team?team.players.map(p=>p.id):[];
-  // Direct feedback: attendance used to default to everyone present, which
-  // meant a coach arriving to a mostly-empty gym had to tap out 15 kids one
-  // by one before anyone had actually shown up. Defaults to nobody present
-  // instead -- players and coaches get tapped IN as they arrive, matching
-  // how attendance is actually taken in person. The logged-in coach running
-  // this screen is the one known exception, marked present from the start.
-  const [present,setPresent]=useState(()=>new Set(initialPresent||[]));
   const myCoach=team&&team.coaches.find(c=>c.userId===coachId);
-  const [coachPresent,setCoachPresent]=useState(()=>new Set(myCoach?[myCoach.id]:[]));
+  // Real bug found live testing with two real coaches: this used to be
+  // plain local useState, seeded once from a locally-computed default and
+  // never written anywhere -- a second coach's own screen never saw
+  // anything the first one toggled, and "I'm here" (the signed-in coach
+  // marked present by default) was itself just local state nobody else
+  // ever saw either. Both present sets now live on the session row itself
+  // (setup_present_player_ids/setup_present_coach_ids, defaulted server-side
+  // by start_or_join_live_session -- see that migration), so every toggle
+  // rides the same sync machinery (writeSession's queue, realtime, the
+  // reconcile poll) every other live-session field already uses. Derived
+  // straight from session, with the old locally-computed values as a
+  // fallback only for the impossible-in-practice case this screen renders
+  // before session has loaded at all.
+  const present=new Set((session&&session.setup_present_player_ids)||initialPresent||[]);
+  const coachPresent=new Set((session&&session.setup_present_coach_ids)||(myCoach?[myCoach.id]:[]));
   const [now,setNow]=useState(Date.now());
   useEffect(()=>{const iv=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(iv);},[]);
-  const togP=id=>setPresent(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
-  const togC=id=>setCoachPresent(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
+  const togP=id=>onTogglePlayerPresent(id);
+  const togC=id=>onToggleCoachPresent(id);
   const pCount=present.size;
   const total=allIds.length;
   // Direct feedback: the Rebalance/Keep Groups choice at the bottom is gone
@@ -659,7 +666,7 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
         </div>
         <div style={{fontFamily:"DM Mono,monospace",fontSize:56,fontWeight:700,color:isStarted?"#f59e0b":"#fff",lineHeight:1,marginBottom:4}}>{fmtCountdown(absDiff)}</div>
       </div>:<div style={{fontSize:14,color:"#555",marginBottom:4}}>No start time scheduled</div>}
-      <div style={{fontSize:13,color:"#ccc",marginTop:8}}>Use this time to get everyone and everything set up before you start.</div>
+      <div style={{fontSize:13,color:"#ccc",marginTop:8}}>Use this time to get everything set up before you start.</div>
     </div>
     {/* Pre-Practice Warmup, if the coach wrote one -- deliberately above
         Attendance (direct feedback: this is the first thing a coach or an
@@ -683,8 +690,8 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
           <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b"}}>Players</div>
           <div style={{display:"flex",gap:6}}>
-            <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>setPresent(new Set(allIds.filter(id=>!plannedAbsentIds.has(id))))}>Mark All Present</button>
-            <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>setPresent(new Set())}>Clear All</button>
+            <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>onSetPresentPlayerIds(allIds.filter(id=>!plannedAbsentIds.has(id)))}>Mark All Present</button>
+            <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>onSetPresentPlayerIds([])}>Clear All</button>
           </div>
         </div>
         <div className="att-grid att-grid-dark">
@@ -697,8 +704,8 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:16,marginBottom:8}}>
             <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b"}}>Coaches</div>
             <div style={{display:"flex",gap:6}}>
-              <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>setCoachPresent(new Set(team.coaches.map(c=>c.id)))}>Mark All Present</button>
-              <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>setCoachPresent(new Set())}>Clear All</button>
+              <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>onSetPresentCoachIds(team.coaches.map(c=>c.id))}>Mark All Present</button>
+              <button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>onSetPresentCoachIds([])}>Clear All</button>
             </div>
           </div>
           {team.coaches.map(c=>(<button key={c.id} onClick={()=>togC(c.id)} className={"att-btn att-btn-dark att-btn-compact bfull "+(coachPresent.has(c.id)?"on":"")} style={{marginBottom:6}}>
@@ -1054,7 +1061,7 @@ export function PreviewView({token}){
           {fmtCountdown(absDiff)}
         </div>
         {isStarted&&<div style={{fontSize:12,color:"#555"}}>Waiting for coach to start the live run</div>}
-        {!isStarted&&<div style={{fontSize:12,color:"#555"}}>Use this time to get everything set up before practice starts.</div>}
+        {!isStarted&&<div style={{fontSize:12,color:"#555"}}>Use this time to get everything set up before you start.</div>}
       </div>}
       {diffSecs===null&&<div style={{fontSize:14,color:"#555"}}>No start time scheduled</div>}
     </div>
@@ -1483,11 +1490,11 @@ function HelperView({token}){
       </div>
       <div className="cc-act-name">{phaseLabel}</div>
       {!isBlock&&cur&&(cur.coach_name||cur.sublocation_name)&&<div style={{fontSize:13,fontWeight:600,color:"var(--td)",marginTop:2,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
-        {cur.coach_name&&<span style={{color:"var(--green2)"}}>{cur.coach_name}</span>}
+        {cur.coach_name&&<span className="bdg bp">Coach: {cur.coach_name}</span>}
         {cur.coach_name&&cur.sublocation_name&&<span>·</span>}
         {cur.sublocation_name&&<span>{cur.sublocation_name}</span>}
       </div>}
-      {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>{stations.length} Stations</div>}
+      {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>{(cur.name?cur.name+" · ":"")+stations.length+" Stations"}</div>}
     </div>
     {showNotes&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",padding:"12px 14px",flexShrink:0}}>
       <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Add a Note</div>
@@ -1574,7 +1581,7 @@ function HelperView({token}){
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",marginBottom:6}}>{st.name||"Station "+(i+1)}</div>
             {st.group_label&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {st.group_label}</span></div>}
             {(st.equipment&&st.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
-              <span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {st.equipment.join(", ")}</span>
+              <span style={{background:"rgba(202,138,4,.22)",border:"1px solid rgba(253,224,71,.5)",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#fde047",fontWeight:700}}>Equipment: {st.equipment.join(", ")}</span>
             </div>}
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
               {g&&(g.players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p} focus={st.player_focus&&st.player_focus[p.id]}/>))}
@@ -1633,7 +1640,7 @@ function HelperView({token}){
             {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
             {st.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{st.sublocation_name}</div>}
             {(st.equipment&&st.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
-              <span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {st.equipment.join(", ")}</span>
+              <span style={{background:"rgba(202,138,4,.22)",border:"1px solid rgba(253,224,71,.5)",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#fde047",fontWeight:700}}>Equipment: {st.equipment.join(", ")}</span>
             </div>}
             <div style={{display:"flex",flexWrap:"wrap",gap:5}} onClick={e=>e.stopPropagation()}>{(st.players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p}/>))}</div>
           </div>))}
@@ -1650,7 +1657,7 @@ function HelperView({token}){
         {/* Same fixed area-sequence summary the coach's own live view shows
             -- the station order (and so this sequence) never changes across
             a rotation, only who's occupying each slot does. */}
-        {n>1&&<div style={{fontSize:13,color:"#ccc",lineHeight:1.5,marginBottom:12,paddingBottom:12,borderBottom:"1px solid rgba(255,255,255,.1)"}}>
+        {n>1&&<div style={{fontSize:17,fontWeight:800,color:"#fff",lineHeight:1.4,marginBottom:12,paddingBottom:12,borderBottom:"1px solid rgba(255,255,255,.1)"}}>
           {stations.map((st,i)=>{
             const nextSt=stations[(i+1)%n];
             const fromLoc=st.sublocation_name||"Station "+(i+1);
@@ -1684,10 +1691,10 @@ function HelperView({token}){
             <div className="cc-queue-item" style={{width:"100%"}}><span style={{fontSize:14,color:"var(--black2)"}}>Station rotation coming up</span></div>
           </div>
         </>
-      ):(upcoming.slice(0,3).length>0&&<>
+      ):(upcoming.length>0&&<>
         <div className="cc-queue-hdr"><span className="cc-queue-hdr-label">Up Next</span><span className="cc-queue-hdr-line"/></div>
-        <div className="cc-queue">
-          {upcoming.slice(0,3).map((a,i)=>(<button key={i} type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={()=>setPreviewUpcoming(toPreviewItem(a))}>
+        <div className="cc-queue" style={{maxHeight:220,overflowY:"auto"}}>
+          {upcoming.map((a,i)=>(<button key={i} type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={()=>setPreviewUpcoming(toPreviewItem(a))}>
             <span style={{fontSize:14,color:"var(--black2)"}}>{a.type==="station_block"?(a.name||"Station Block"):a.name}</span>
             <span className="bdg bs">{upcomingMins(a)}m</span>
           </button>))}
@@ -2399,6 +2406,40 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     return()=>{cancelled=true;};
   },[liveId]);
 
+  // Direct feedback, real bug: an assistant tapping "Run Practice" while
+  // the head coach was still looking at their own Practice Setup screen
+  // didn't move the head coach's screen into the live view at all -- they
+  // had to notice and tap Run Practice themselves too. The mount effect
+  // above only ever sets `stage` once, at mount, from whatever
+  // setup_confirmed_at looked like at that moment -- session state itself
+  // already syncs live across every viewer (realtime + the reconcile poll,
+  // see below), but nothing was watching for setup_confirmed_at flipping
+  // true *after* mount and catching this tab's own `stage` up to it. Same
+  // shape (a synced signal on the server, nothing locally reactive to it)
+  // as the "start/stop" style flags a session polls elsewhere -- fixed by
+  // reacting to the session's already-synced fields directly. Only ever
+  // moves stage forward (attend->live, ->end) -- never regresses a tab
+  // that's already further along, and does nothing for the tab whose own
+  // click already advanced its own `stage` synchronously (that tab is no
+  // longer "attend" by the time this runs, so the guard below is a no-op
+  // for it).
+  useEffect(()=>{
+    if(!session)return;
+    if(session.status!=="active"){
+      if(stage!=="end")setStage("end");
+      return;
+    }
+    if(session.setup_confirmed_at&&stage==="attend"){
+      setStage("live");
+      (async()=>{
+        const latest=await fetchLatestAttendance(session.id);
+        setPresentIds(new Set(Object.keys(latest).filter(pid=>latest[pid]==="present")));
+        activityLogIdRef.current=await findOpenActivityLogId(session.id);
+        activityLogOpenedAtRef.current=activityLogIdRef.current?0:null;
+      })();
+    }
+  },[session,stage]);
+
   // Reconciles local session state against the server row, but only ever
   // moves forward -- never lets a passive resync (reconnect, background
   // poll) stomp a newer local write that just hasn't round-tripped yet, and
@@ -3011,6 +3052,26 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(fresh)setSession(fresh);
   },[session,coachId,practice]);
 
+  // Practice Setup's per-tap present/absent toggles -- see
+  // toggle_setup_presence (20260813163000) for why this bypasses the usual
+  // version-checked writeSession path. Version-gated on the way in anyway
+  // (same as reconcileSession) purely so a slow response can't clobber a
+  // newer state some other update already delivered in the meantime.
+  const togglePlayerPresent=useCallback(async(playerId)=>{
+    if(!session)return;
+    const updated=await toggleSetupPresence(session.id,"player",playerId);
+    if(!updated)return;
+    lastSyncedAtRef.current=Date.now();
+    setSession(prev=>(prev&&updated.version<prev.version)?prev:updated);
+  },[session]);
+  const toggleCoachPresent=useCallback(async(staffId)=>{
+    if(!session)return;
+    const updated=await toggleSetupPresence(session.id,"coach",staffId);
+    if(!updated)return;
+    lastSyncedAtRef.current=Date.now();
+    setSession(prev=>(prev&&updated.version<prev.version)?prev:updated);
+  },[session]);
+
   // Assistant-coach handoff §2.4: @mention roster for the existing
   // quick-note/end-of-practice inputs below -- the notes themselves already
   // had a real capture UI before this handoff (createNote/notes table),
@@ -3189,7 +3250,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     return (<>
       {showAtt
         ?<AttendanceScreen key="upd" practice={practice} team={team} data={data} amHeadCoach={amHeadCoach} isUpdate initialPresent={[...presentIds]} initialCoachPresent={[...coachPresentIds]} onConfirm={handleAttUpdate} onBack={attBack}/>
-        :<PracticeSetupScreen practice={practice} team={team} data={data} coachId={coachId} isController={isController} amHeadCoach={amHeadCoach} stationBlockActs={stationBlockActs} setupGroups={setupGroups} onMoveGroupPlayer={moveSetupGroupPlayer} onRegenerateGroups={regenerateSetupGroups} initialPresent={freshPresent} plannedAbsentIds={plannedAbsentIds} onConfirm={handleAttConfirm} onBack={attBack} onReassignLead={setReassignStationId} onReassignActivityLead={setReassignActivityId} onEditPractice={()=>setShowEditBuilder(true)} onAbort={abortPractice} session={session}/>}
+        :<PracticeSetupScreen practice={practice} team={team} data={data} coachId={coachId} isController={isController} amHeadCoach={amHeadCoach} stationBlockActs={stationBlockActs} setupGroups={setupGroups} onMoveGroupPlayer={moveSetupGroupPlayer} onRegenerateGroups={regenerateSetupGroups} initialPresent={freshPresent} plannedAbsentIds={plannedAbsentIds} onConfirm={handleAttConfirm} onBack={attBack} onReassignLead={setReassignStationId} onReassignActivityLead={setReassignActivityId} onEditPractice={()=>setShowEditBuilder(true)} onAbort={abortPractice} session={session} onSetPresentPlayerIds={ids=>writeSession({setup_present_player_ids:ids})} onSetPresentCoachIds={ids=>writeSession({setup_present_coach_ids:ids})} onTogglePlayerPresent={togglePlayerPresent} onToggleCoachPresent={toggleCoachPresent}/>}
       {!showAtt&&reassignStationId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setReassignStationId(null);setHelperDraft("");}}}>
         <div className="modal" style={{background:"#0d1512",color:"#fff"}}><div className="mhandle" style={{background:"rgba(255,255,255,.2)"}}/>
           <div className="mtitle" style={{color:"#fff"}}>Assign Station Leader</div>
@@ -3303,12 +3364,12 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           block already shows each station's own coach/area on its own
           card, so there's no single one to put here. */}
       {!isBlock&&cur&&(leaderLabel(cur,team)||subName(cur.sublocationId))&&<div style={{fontSize:13,fontWeight:600,color:"var(--td)",marginTop:2,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
-        {leaderLabel(cur,team)&&<span style={{color:"var(--green2)"}}>{leaderLabel(cur,team)}</span>}
+        {leaderLabel(cur,team)&&<span className="bdg bp">Coach: {leaderLabel(cur,team)}</span>}
         {leaderLabel(cur,team)&&subName(cur.sublocationId)&&<span>·</span>}
         {subName(cur.sublocationId)&&<span>{subName(cur.sublocationId)}</span>}
       </div>}
       {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>
-        {(()=>{const n2=cur.stations?cur.stations.length:0;const totalMins=n2*(cur.stationDuration||0)+Math.max(0,n2-1)*(blockRotate?(cur.transitionDuration||0):0);return n2+" Stations · "+totalMins+"min total";})()}
+        {(()=>{const n2=cur.stations?cur.stations.length:0;const totalMins=n2*(cur.stationDuration||0)+Math.max(0,n2-1)*(blockRotate?(cur.transitionDuration||0):0);return (cur.name?cur.name+" · ":"")+n2+" Stations · "+totalMins+"min total";})()}
       </div>}
     </div>
     {showROS&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",maxHeight:200,overflowY:"auto",flexShrink:0}}>
@@ -3601,7 +3662,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             head -- one summary line up top, the fixed area sequence every
             rotation in this block follows (station order never changes,
             only who's occupying each slot does), reads at a glance. */}
-        {cur.stations.length>1&&<div style={{fontSize:13,color:"#ccc",lineHeight:1.5,marginBottom:12,paddingBottom:12,borderBottom:"1px solid rgba(255,255,255,.1)"}}>
+        {cur.stations.length>1&&<div style={{fontSize:17,fontWeight:800,color:"#fff",lineHeight:1.4,marginBottom:12,paddingBottom:12,borderBottom:"1px solid rgba(255,255,255,.1)"}}>
           {cur.stations.map((st,i)=>{
             const nextSt=cur.stations[(i+1)%cur.stations.length];
             const fromLoc=subName(st.sublocationId)||"Station "+(i+1);
@@ -3646,9 +3707,9 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             </button>
           </div>
         </>
-      ):(liveActs.slice(idx+1,idx+4).length>0&&<>
+      ):(liveActs.slice(idx+1).length>0&&<>
         <div className="cc-queue-hdr"><span className="cc-queue-hdr-label">Up Next</span><span className="cc-queue-hdr-line"/></div>
-        <div className="cc-queue">
+        <div className="cc-queue" style={{maxHeight:220,overflowY:"auto"}}>
         {/* Direct feedback: any viewer should be able to peek at what's
             coming (equipment/location/rotations) without advancing --
             everything needed is already in liveActs (the local plan),
@@ -3658,8 +3719,11 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             block reassigned during Practice Setup or mid-live should
             preview the real current rotation, not the plan's original
             default, which fetchLatestGroups' own "latest batch wins"
-            resolution already gives us for free. */}
-        {liveActs.slice(idx+1,idx+4).map(a=>(<button key={a.id} type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={async()=>{
+            resolution already gives us for free. Direct feedback (second
+            round): this used to cap at 3 -- now shows every remaining
+            activity, scrollable, rather than hiding the tail of a longer
+            practice. */}
+        {liveActs.slice(idx+1).map(a=>(<button key={a.id} type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={async()=>{
           let liveStationGroups=null;
           if(a.type==="station_block"&&session)liveStationGroups=await fetchLatestGroups(session.id,a.id);
           setPreviewUpcoming({
