@@ -128,6 +128,7 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
     const { data: saved } = await savePracticeTree(null, {
       teamId: practice.teamId, locationId: practice.locationId, sublocationId: practice.sublocationId,
       date: localDateStr(runNow), startTime: runNow.toTimeString().slice(0, 5),
+      prePracticeNotes: practice.prePracticeNotes,
       activities: stripIdsForCopy(practice.activities), coachId,
     });
     await refreshPlanning();

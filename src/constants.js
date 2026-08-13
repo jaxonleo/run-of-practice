@@ -45,6 +45,35 @@ export function buildEquipmentNeeded(items){
   });
   return [...byName.values()].map(({name,acquired,contexts})=>({name,acquired,contexts}));
 }
+// Practice Setup's Equipment Needed, grouped by Area instead of listing a
+// coach name next to each item -- direct feedback: the coach name added
+// noise a solo/small-staff team doesn't need, and grouping by where
+// equipment actually needs to be tells a coach getting the gym ready what
+// to grab for each spot in one glance. `items` is the same shape
+// buildEquipmentNeeded takes; groups preserve the order areas first appear
+// in the practice, with anything lacking an Area (no sublocationId on its
+// drill/station) collected into a trailing "Other" group rather than
+// dropped.
+export function groupEquipmentByArea(items){
+  const order=[];
+  const byArea=new Map();
+  (items||[]).forEach(it=>{
+    const area=it.locationName||"";
+    (it.equipment||[]).forEach(e=>{
+      const name=typeof e==="string"?e:e&&e.name;
+      if(!name)return;
+      const acquired=typeof e==="string"?true:!(e&&e.acquired===false);
+      let areaMap=byArea.get(area);
+      if(!areaMap){areaMap=new Map();byArea.set(area,areaMap);order.push(area);}
+      let entry=areaMap.get(name);
+      if(!entry){entry={name,acquired:true};areaMap.set(name,entry);}
+      if(!acquired)entry.acquired=false;
+    });
+  });
+  const named=order.filter(a=>a).map(area=>({area,items:[...byArea.get(area).values()]}));
+  const blank=byArea.has("")?[{area:"Other",items:[...byArea.get("").values()]}]:[];
+  return [...named,...blank];
+}
 export const fmt=(s)=>{const neg=s<0;const abs=Math.abs(s);const m=Math.floor(abs/60),sec=abs%60;return(neg?"-":"")+String(m).padStart(2,"0")+":"+String(sec).padStart(2,"0");};
 export const actSecs=(a)=>{if(a.type==="station_block"){const n=(a.stations?a.stations.length:0);return(n*(a.stationDuration||0)+Math.max(0,n-1)*(a.transitionDuration||0))*60;}return(a.duration||0)*60;};
 export const sumMins=(acts)=>Math.round(acts.reduce((s,a)=>s+actSecs(a),0)/60);

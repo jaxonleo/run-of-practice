@@ -528,6 +528,13 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   };
 
   return (<div>
+    {/* Direct feedback: a station block always displayed as the bare word
+        "Station Block" everywhere (Builder, Practice Setup, live), no
+        different from any other block in the same practice -- a coach
+        running e.g. rapid-fire warmup drills through one block and skill
+        work through another had no way to tell them apart at a glance.
+        Optional; falls back to "Station Block" everywhere this is blank. */}
+    <div className="fld"><label className="lbl">Block Name</label><input className="inp" value={act.name||""} onChange={e=>onChange({name:e.target.value})} placeholder="Station Block" onFocus={e=>e.target.select()}/></div>
     <div className="fld"><label className="lbl">Player Movement</label>
       <div style={{display:"flex",gap:0,borderRadius:"var(--r)",overflow:"hidden",border:"1.5px solid var(--b)"}}>
         <button type="button" onClick={()=>onChange({rotate:true})} style={{flex:1,padding:"10px 0",border:"none",background:rotate?"var(--green)":"var(--s1)",color:rotate?"#fff":"var(--black)",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",letterSpacing:".03em"}}>ROTATE</button>

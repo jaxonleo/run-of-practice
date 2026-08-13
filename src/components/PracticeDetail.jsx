@@ -114,6 +114,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
     const {data:saved}=await savePracticeTree(null,{
       teamId:practice.teamId,locationId:practice.locationId,sublocationId:practice.sublocationId,
       date:localDateStr(runNow),startTime:runNow.toTimeString().slice(0,5),
+      prePracticeNotes:practice.prePracticeNotes,
       activities:stripIdsForCopy(practice.activities),coachId,
     });
     if(refreshPlanning)await refreshPlanning();

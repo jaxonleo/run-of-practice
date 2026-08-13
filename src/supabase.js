@@ -982,6 +982,7 @@ export async function fetchPracticesFull(teamId) {
     return {
       id: p.id, teamId: p.team_id, locationId: p.location_id || '', sublocationId: p.sublocation_id || '',
       date, startTime, status: p.status, scheduledDurationMinutes: p.scheduled_duration_minutes || null,
+      prePracticeNotes: p.pre_practice_notes ?? null,
       seriesId: p.series_id || null, durMin: sumMinsLocal(activities), activities,
       createdBy: p.created_by || null, lastEditedBy: p.last_edited_by || null,
     }
@@ -1147,11 +1148,12 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
 // until it is. created_by is set once, only on insert, and never touched
 // again; last_edited_by is set on every save (insert or update), so the two
 // read identically until a *different* coach saves the same plan.
-export async function savePracticeTree(existingId, { teamId, locationId, sublocationId, date, startTime, timezone, scheduledDurationMinutes, activities, coachId }) {
+export async function savePracticeTree(existingId, { teamId, locationId, sublocationId, date, startTime, timezone, scheduledDurationMinutes, prePracticeNotes, activities, coachId }) {
   const row = {
     team_id: teamId, location_id: locationId || null, sublocation_id: sublocationId || null,
     scheduled_at: teamLocalToScheduledAt(date, startTime, timezone), status: date ? 'scheduled' : 'draft',
     scheduled_duration_minutes: scheduledDurationMinutes || null,
+    pre_practice_notes: prePracticeNotes === undefined ? null : prePracticeNotes,
   }
   if (coachId) row.last_edited_by = coachId
   let practiceId = existingId
@@ -1377,12 +1379,13 @@ export async function fetchTemplatesFull() {
       id: t.id, name: t.name, sport: t.sport, locationId: t.location_id || '',
       organizationId: t.organization_id, ownerUserId: t.owner_user_id, sharedWithOrganizationId: t.shared_with_organization_id,
       createdAt: t.created_at, updatedAt: t.updated_at, defaultTeamId: t.default_team_id || '',
+      prePracticeNotes: t.pre_practice_notes ?? null,
       durMin: sumMinsLocal(activities), activities,
     }
   })
 }
-export async function saveTemplateTree(ownerUserId, existingId, { name, sport, locationId, teamId, activities }) {
-  const row = { name, sport: sport || 'General', location_id: locationId || null, default_team_id: teamId || null }
+export async function saveTemplateTree(ownerUserId, existingId, { name, sport, locationId, teamId, prePracticeNotes, activities }) {
+  const row = { name, sport: sport || 'General', location_id: locationId || null, default_team_id: teamId || null, pre_practice_notes: prePracticeNotes === undefined ? null : prePracticeNotes }
   let tplId = existingId
   if (isDbId(tplId)) {
     await supabase.from('templates').update(row).eq('id', tplId)
