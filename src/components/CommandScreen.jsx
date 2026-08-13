@@ -438,7 +438,6 @@ function SetupActivityRow({act,loc,data,team,isController,onReassignActivityLead
       </div>
     </div>
     <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:6,marginTop:8}}>
-      <span style={{fontSize:11,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b"}}>Coach</span>
       <LeaderTapTarget label={label} onTap={()=>onReassignActivityLead(act.id)} disabled={!isController}/>
       {locName&&<span style={{fontSize:12,color:"#52b788",fontWeight:600,marginLeft:2}}>{locName}</span>}
       {hasGrouping&&<button type="button" className="btn ghost bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} onClick={()=>onViewGroupings({kind:"drill",act,title:act.name+" -- Groupings"})}>View Groupings</button>}
@@ -503,7 +502,6 @@ function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onV
           {(st.description||st.coachingPoints)&&<Ic.Chev up={expanded}/>}
         </button>
         <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:6,marginBottom:(stLoc||stEquip.length)?8:0}}>
-          <span style={{fontSize:11,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b"}}>Coach</span>
           <LeaderTapTarget label={label} onTap={()=>onReassignLead(st.id)} disabled={!isController}/>
           {stLoc&&<span style={{fontSize:12,color:"#52b788",fontWeight:600,marginLeft:2}}>{stLoc}</span>}
         </div>
@@ -1681,17 +1679,15 @@ function HelperView({token}){
       {/* Direct feedback: helper view should look like the coach's live view
           (read only) -- the coach's own screen has a persistent "Up Next"
           preview row here (not just the Overview toggle above), so this
-          adds the same thing, same spoiler-avoidance during a mid-block
-          rotation (showing the *real* next rotation before it happens would
-          give away who's about to move where). */}
-      {isBlock&&blockRotate&&!inBlockIntro&&!inTrans&&stIdx<n-1?(
-        <>
-          <div className="cc-queue-hdr"><span className="cc-queue-hdr-label">Up Next</span><span className="cc-queue-hdr-line"/></div>
-          <div className="cc-queue">
-            <div className="cc-queue-item" style={{width:"100%"}}><span style={{fontSize:14,color:"var(--black2)"}}>Station rotation coming up</span></div>
-          </div>
-        </>
-      ):(upcoming.length>0&&<>
+          adds the same thing. Direct feedback (second round): mid-block,
+          this used to show a vague "Station rotation coming up" placeholder
+          instead of the real queue -- now shows what's actually next once
+          this whole station block finishes, same as every other activity.
+          `upcoming` (session.upcoming_activities) is already computed
+          server-side as "everything after the *current top-level activity*"
+          (get_live_session_view), so it's already exactly this regardless
+          of which rotation is showing -- no extra filtering needed here. */}
+      {upcoming.length>0&&<>
         <div className="cc-queue-hdr"><span className="cc-queue-hdr-label">Up Next</span><span className="cc-queue-hdr-line"/></div>
         <div className="cc-queue" style={{maxHeight:220,overflowY:"auto"}}>
           {upcoming.map((a,i)=>(<button key={i} type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={()=>setPreviewUpcoming(toPreviewItem(a))}>
@@ -1699,7 +1695,7 @@ function HelperView({token}){
             <span className="bdg bs">{upcomingMins(a)}m</span>
           </button>))}
         </div>
-      </>)}
+      </>}
     </div>
     {showPlayerFocus&&cur&&<div className="movly" onClick={()=>setShowPlayerFocus(false)}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
@@ -2049,9 +2045,6 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   // always the *current* activity's whole present roster) since this is a
   // specific incoming group and a specific upcoming station's drill.
   const [transitionFocus,setTransitionFocus]=useState(null);
-  // Local-only peek at the upcoming rotation -- doesn't touch session state,
-  // so it's invisible to every other viewer on this live session.
-  const [previewTrans,setPreviewTrans]=useState(false);
   const [showEllipsis,setShowEllipsis]=useState(false);
   const [showEditBuilder,setShowEditBuilder]=useState(false);
   const [focusSt,setFocusSt]=useState(null);
@@ -3692,22 +3685,14 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           </div>);
         })}
       </div>}
-      {/* Mid-block and not on the last station yet: what's "next" for this
-          practice is really the next rotation, not whatever activity
-          follows the whole block -- showing that here would spoil it before
-          it's actually relevant. Offer a local peek at the next transition
-          instead of the real (session-wide) queue. */}
-      {isBlock&&blockRotate&&!inBlockIntro&&!inTrans&&stIdx<n-1?(
-        <>
-          <div className="cc-queue-hdr"><span className="cc-queue-hdr-label">Up Next</span><span className="cc-queue-hdr-line"/></div>
-          <div className="cc-queue">
-            <button type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={()=>setPreviewTrans(true)}>
-              <span style={{fontSize:14,color:"var(--black2)"}}>Station rotation coming up</span>
-              <span className="bdg bs">See next transition</span>
-            </button>
-          </div>
-        </>
-      ):(liveActs.slice(idx+1).length>0&&<>
+      {/* Direct feedback (second round): mid-block, this used to show a
+          vague "Station rotation coming up" placeholder (with a "See next
+          transition" peek) instead of the real queue. Now shows what's
+          actually next once the whole station block finishes, the same as
+          every other activity -- liveActs.slice(idx+1) already means
+          "after the current top-level activity" regardless of which
+          rotation is showing, so no extra filtering is needed. */}
+      {liveActs.slice(idx+1).length>0&&<>
         <div className="cc-queue-hdr"><span className="cc-queue-hdr-label">Up Next</span><span className="cc-queue-hdr-line"/></div>
         <div className="cc-queue" style={{maxHeight:220,overflowY:"auto"}}>
         {/* Direct feedback: any viewer should be able to peek at what's
@@ -3738,29 +3723,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           <span className="bdg bs">{a.type==="station_block"?(a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
         </button>))}
         </div>
-      </>)}
+      </>}
       {previewUpcoming&&<UpcomingPreview item={previewUpcoming} onClose={()=>setPreviewUpcoming(null)}/>}
-      {previewTrans&&rotatedStations&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setPreviewTrans(false);}}>
-        <div className="modal">
-          <div className="mhandle"/>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"var(--red)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Next Transition</div>
-          <div style={{fontSize:12,color:"var(--td)",marginBottom:12}}>A preview only -- visible just to you, doesn't advance the practice.</div>
-          {rotatedStations.map((st,i)=>{
-            const nextSt=cur.stations[(i+1)%cur.stations.length];
-            const fromLoc=subName(st.sublocationId);
-            const toLoc=subName(nextSt.sublocationId);
-            const fromLabel="Station "+(i+1)+(st.activityName?": "+st.activityName:"")+(leadName(st)?" · "+leadName(st):"")+(fromLoc?" · "+fromLoc:"");
-            const toLabel="Station "+((i+1)%cur.stations.length+1)+(nextSt.activityName?": "+nextSt.activityName:"")+(leadName(nextSt)?" · "+leadName(nextSt):"")+(toLoc?" · "+toLoc:"");
-            return (<div key={st.id} className="cc-trans-card">
-              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"var(--black)",lineHeight:1.2,marginBottom:6}}>{pnames(st.assignments)||"--"}</div>
-              {st.groupLabel&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}
-              <div style={{fontSize:13,fontWeight:700,color:"var(--green)",marginBottom:3}}>TO: <span style={{fontWeight:400}}>{toLabel}</span></div>
-              <div style={{fontSize:12,fontWeight:700,color:"var(--td)"}}>FROM: <span style={{fontWeight:400}}>{fromLabel}</span></div>
-            </div>);
-          })}
-          <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>setPreviewTrans(false)}>Close</button>
-        </div>
-      </div>}
       {reassignStationId&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setReassignStationId(null);setHelperDraft("");}}}>
         <div className="modal">
           <div className="mhandle"/>
