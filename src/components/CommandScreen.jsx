@@ -285,10 +285,38 @@ function leaderLabel(act,team){
 // identically to what a coach would see on a printed sheet.
 function fmtClock(d){return d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});}
 function equipNamesFor(ids,data){
-  return (Array.isArray(ids)?ids:[]).map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?{name:a.name,acquired:a.acquired!==false}:null;}).filter(Boolean);
+  return (Array.isArray(ids)?ids:[]).map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?{name:a.name,acquired:a.acquired!==false,type:a.type}:null;}).filter(Boolean);
+}
+// Splits a Builder-picker id list into team equipment vs. player gear using
+// each asset's own type -- the picker already tracks this per item, it was
+// just never carried through to any display, so both groups always got
+// merged into one flat "Equipment" list everywhere they were shown.
+function splitEquipFor(ids,data){
+  const all=equipNamesFor(ids,data);
+  return {equipment:all.filter(e=>e.type!=="player"),playerGear:all.filter(e=>e.type==="player")};
 }
 function EquipPill({e}){
   return <span style={e.acquired===false?{background:"rgba(220,38,38,.22)",border:"1px solid rgba(248,113,113,.7)",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#fecaca",fontWeight:700}:{background:"rgba(202,138,4,.22)",border:"1px solid rgba(253,224,71,.5)",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#fde047",fontWeight:700}}>{e.name}{e.acquired===false&&" · not acquired"}</span>;
+}
+function PlayerGearPill({e}){
+  return <span style={e.acquired===false?{background:"rgba(220,38,38,.22)",border:"1px solid rgba(248,113,113,.7)",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#fecaca",fontWeight:700}:{background:"rgba(234,88,12,.22)",border:"1px solid rgba(253,186,116,.6)",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#fdba74",fontWeight:700}}>{e.name}{e.acquired===false&&" · not acquired"}</span>;
+}
+// Equipment and player gear rendered as two clearly-labeled groups instead
+// of one merged list, so a coach glancing at the screen can tell "bring
+// these cones out" apart from "make sure players brought these."
+function EquipGearRow({equipment,playerGear,labelColor}){
+  if((!equipment||!equipment.length)&&(!playerGear||!playerGear.length))return null;
+  const lc=labelColor||"var(--td)";
+  return (<div style={{display:"flex",flexDirection:"column",gap:6}}>
+    {equipment&&equipment.length>0&&<div>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:lc,marginBottom:3}}>Equipment</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{equipment.map((e,j)=>(<EquipPill key={j} e={e}/>))}</div>
+    </div>}
+    {playerGear&&playerGear.length>0&&<div>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:lc,marginBottom:3}}>Player Gear</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{playerGear.map((e,j)=>(<PlayerGearPill key={j} e={e}/>))}</div>
+    </div>}
+  </div>);
 }
 // Equipment Needed, grouped by Area (no coach name -- direct feedback that
 // listing who's bringing each item was noise, and grouping by where it's
@@ -1446,8 +1474,8 @@ function HelperView({token}){
     name:a.type==="station_block"?(a.name||"Station Block"):a.name,
     durationMins:upcomingMins(a),
     locationName:a.sublocation_name||"",
-    equipmentNames:a.equipment||[],
-    stations:(a.stations||[]).map(st=>({name:st.name,locationName:st.sublocation_name||"",coachName:st.coach_name||null,equipmentNames:st.equipment||[],playerNames:(st.player_ids||[]).map(playerName).filter(Boolean)})),
+    equipmentNames:(a.equipment||[]).map(e=>e.name),
+    stations:(a.stations||[]).map(st=>({name:st.name,locationName:st.sublocation_name||"",coachName:st.coach_name||null,equipmentNames:(st.equipment||[]).map(e=>e.name),playerNames:(st.player_ids||[]).map(playerName).filter(Boolean)})),
   });
 
   return(<div className="ccs">
@@ -1541,9 +1569,7 @@ function HelperView({token}){
           <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{cur.coaching_points}</div>
         </div>}
         {cur.skill_tags&&cur.skill_tags.length>0&&<button type="button" className="btn ghost bsm" style={{alignSelf:"flex-start"}} onClick={()=>setShowPlayerFocus(true)}>Player Focus</button>}
-        {(cur.equipment&&cur.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-          <span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"3px 10px",fontSize:12,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {cur.equipment.join(", ")}</span>
-        </div>}
+        <EquipGearRow equipment={cur.equipment} playerGear={cur.player_gear}/>
         {groups.length>0&&<div style={{borderLeft:"3px solid #7c3aed",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed",marginBottom:8}}>👥 Groups</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -1578,9 +1604,7 @@ function HelperView({token}){
             </div>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",marginBottom:6}}>{st.name||"Station "+(i+1)}</div>
             {st.group_label&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {st.group_label}</span></div>}
-            {(st.equipment&&st.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
-              <span style={{background:"rgba(202,138,4,.22)",border:"1px solid rgba(253,224,71,.5)",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#fde047",fontWeight:700}}>Equipment: {st.equipment.join(", ")}</span>
-            </div>}
+            {(st.equipment&&st.equipment.length>0||st.player_gear&&st.player_gear.length>0)&&<div style={{marginBottom:6}}><EquipGearRow equipment={st.equipment} playerGear={st.player_gear} labelColor="#8fa89b"/></div>}
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
               {g&&(g.players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p} focus={st.player_focus&&st.player_focus[p.id]}/>))}
             </div>
@@ -1614,9 +1638,7 @@ function HelperView({token}){
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
             <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coaching_points}</div>
           </div>}
-          {(rotatedStations[focusSt].equipment&&rotatedStations[focusSt].equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
-            <span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#854d0e",fontWeight:600}}>Equipment: {rotatedStations[focusSt].equipment.join(", ")}</span>
-          </div>}
+          <div style={{marginBottom:10}}><EquipGearRow equipment={rotatedStations[focusSt].equipment} playerGear={rotatedStations[focusSt].player_gear}/></div>
           <div><div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(rotatedStations[focusSt].players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p} focus={rotatedStations[focusSt].player_focus&&rotatedStations[focusSt].player_focus[p.id]}/>))}</div></div>
         </div>}
@@ -1637,9 +1659,7 @@ function HelperView({token}){
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.name||"Station "+(i+1)}</div>
             {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
             {st.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{st.sublocation_name}</div>}
-            {(st.equipment&&st.equipment.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
-              <span style={{background:"rgba(202,138,4,.22)",border:"1px solid rgba(253,224,71,.5)",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#fde047",fontWeight:700}}>Equipment: {st.equipment.join(", ")}</span>
-            </div>}
+            {(st.equipment&&st.equipment.length>0||st.player_gear&&st.player_gear.length>0)&&<div style={{marginBottom:6}}><EquipGearRow equipment={st.equipment} playerGear={st.player_gear}/></div>}
             <div style={{display:"flex",flexWrap:"wrap",gap:5}} onClick={e=>e.stopPropagation()}>{(st.players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p}/>))}</div>
           </div>))}
         </div>}
@@ -2302,20 +2322,21 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
 
   const buzzedRef=useRef(false);
   useEffect(()=>{
-    // Direct feedback: the transition ("Rotate Now") screen shouldn't buzz
-    // at zero -- it auto-advances to the next station/timer on its own (see
-    // the auto-advance effect below, once advance() is declared), so a
-    // buzzer here would just be noise announcing something that's already
-    // happening automatically. Every other phase (a station round, a plain
-    // drill, block-intro) keeps the normal buzz-and-wait-for-Next behavior.
-    if(elapsed>=phaseSecs&&phaseSecs>0&&!buzzedRef.current&&running&&!inTrans){
+    // Direct feedback: neither the transition ("Rotate Now") screen nor
+    // block-intro ("Introduce Stations") should buzz at zero -- both
+    // auto-advance on their own (see the auto-advance effects below, once
+    // advance() is declared), so a buzzer here would just be noise
+    // announcing something that's already happening automatically. Every
+    // other phase (a station round, a plain drill) keeps the normal
+    // buzz-and-wait-for-Next behavior.
+    if(elapsed>=phaseSecs&&phaseSecs>0&&!buzzedRef.current&&running&&!inTrans&&!inBlockIntro){
       buzzedRef.current=true;
       beepRef.current();
     }
     if(elapsed<phaseSecs-5){
       buzzedRef.current=false;
     }
-  },[elapsed,phaseSecs,running,inTrans]);
+  },[elapsed,phaseSecs,running,inTrans,inBlockIntro]);
   // Guards the transition auto-advance below the same way buzzedRef guards
   // the beep -- fires once per phase, resets everywhere a real phase change
   // happens (transitionTo, practice start, a timer nudge, mid-live Edit
@@ -2953,6 +2974,24 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     advance();
   },[isController,isBlock,blockRotate,inTrans,elapsed,phaseSecs,running,advance]);
 
+  // Same silent auto-advance as the transition screen above, for
+  // block-intro ("Introduce Stations"): direct feedback that the coach
+  // shouldn't hear the buzzer and have to tap Next just to kick off
+  // Rotation 1 -- advance()'s own inBlockIntro branch already does exactly
+  // what Start Block's button does, so this just fires it once the intro's
+  // own countdown reaches zero. transitionAdvancedRef is shared with the
+  // transition effect above since block-intro and mid-rotation transition
+  // are mutually exclusive phases -- transitionTo() resets it on every real
+  // phase change either effect could fire from.
+  useEffect(()=>{
+    if(!isController)return;
+    if(!(isBlock&&inBlockIntro))return;
+    if(!(elapsed>=phaseSecs&&phaseSecs>0&&running))return;
+    if(transitionAdvancedRef.current)return;
+    transitionAdvancedRef.current=true;
+    advance();
+  },[isController,isBlock,inBlockIntro,elapsed,phaseSecs,running,advance]);
+
   const goBack=useCallback(async()=>{
     if(!session||!cur)return;
     submitOperation(session.id,coachId,"go_back");
@@ -3434,10 +3473,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         </div>}
         {isController&&untaggedOwnLibraryId(cur.libraryId)&&<button type="button" onClick={()=>openTagPicker(cur.libraryId)} style={{textAlign:"left",background:"var(--ambg)",border:"1px solid var(--ambb)",borderRadius:8,padding:"8px 10px",fontSize:12,color:"var(--amber)",fontWeight:600,cursor:"pointer"}}>No skill tag yet -- tap to add one</button>}
         {categoryIdsForLibraryId(cur.libraryId).length>0&&<button type="button" className="btn ghost bsm" style={{alignSelf:"flex-start"}} onClick={()=>setShowPlayerFocus(true)}>Player Focus</button>}
-        {(()=>{const eq=Array.isArray(cur.equipment)?cur.equipment:[];const names=eq.map(id=>{const a=(data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(names.length>0||cur.playerGear)?(<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-          {names.length>0&&<span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"3px 10px",fontSize:12,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {names.join(", ")}</span>}
-          {cur.playerGear&&<span style={{border:"1.5px solid #fdba74",borderRadius:20,padding:"3px 10px",fontSize:12,color:"#9a3412",fontWeight:600,background:"#fff"}}>Player Gear: {cur.playerGear}</span>}
-        </div>):null;})()}
+        {(()=>{const{equipment,playerGear}=splitEquipFor(cur.equipment,data);return<EquipGearRow equipment={equipment} playerGear={playerGear}/>;})()}
         {(!cur.grouping||cur.grouping==="whole")&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:3}}>👥 Players</div>
           <div style={{fontSize:14,color:"var(--black)"}}>Whole Team Together</div>
@@ -3480,7 +3516,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b",marginBottom:4}}>Get everyone to their station</div>
         {isController&&<div style={{fontSize:11,color:"#8fa89b",marginBottom:8}}>{movePlayer?"Tap the dashed spot in another station to move them there.":"Tap a player to move them."}</div>}
         {cur.stations.map((st,i)=>{
-          const stEquip=(Array.isArray(st.equipment)?st.equipment:[]).map(id=>{const a=(data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
+          const{equipment:stEquip,playerGear:stGear}=splitEquipFor(st.equipment,data);
           const assignments=liveGroups?(liveGroups[i]||[]):[];
           const groupLabel=(liveGroupLabels&&liveGroupLabels[i])||st.groupLabel||"";
           const isSourceOfSelection=movePlayer&&assignments.includes(movePlayer);
@@ -3493,10 +3529,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             </div>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",marginBottom:6}}>{st.activityName||st.name||"Station "+(i+1)}</div>
             {groupLabel&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {groupLabel}</span></div>}
-            {(stEquip.length>0||st.playerGear)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
-              {stEquip.length>0&&<span style={{border:"1.5px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600,background:"#fff"}}>Equipment: {stEquip.join(", ")}</span>}
-              {st.playerGear&&<span style={{border:"1.5px solid #fdba74",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#fff"}}>Player Gear: {st.playerGear}</span>}
-            </div>}
+            {(stEquip.length>0||stGear.length>0)&&<div style={{marginBottom:6}}><EquipGearRow equipment={stEquip} playerGear={stGear} labelColor="#8fa89b"/></div>}
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
               {assignments.map(pid=>{
                 if(!isController)return <StationPlayerChip key={pid} pid={pid} team={team}/>;
@@ -3532,10 +3565,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
             <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coachingPoints}</div>
           </div>}
-          {(()=>{const stEquip=Array.isArray(rotatedStations[focusSt].equipment)?rotatedStations[focusSt].equipment:[];const names=stEquip.map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);return(names.length>0||rotatedStations[focusSt].playerGear)?(<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
-            {names.length>0&&<span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#854d0e",fontWeight:600}}>Equipment: {names.join(", ")}</span>}
-            {rotatedStations[focusSt].playerGear&&<span style={{background:"#fff7ed",border:"1px solid #fdba74",borderRadius:20,padding:"4px 10px",fontSize:12,color:"#9a3412",fontWeight:600}}>Player Gear: {rotatedStations[focusSt].playerGear}</span>}
-          </div>):null;})()}
+          {(()=>{const{equipment,playerGear}=splitEquipFor(rotatedStations[focusSt].equipment,data);return<div style={{marginBottom:10}}><EquipGearRow equipment={equipment} playerGear={playerGear}/></div>;})()}
           {rotatedStations[focusSt].grouping&&rotatedStations[focusSt].grouping!=="whole"&&<div style={{borderLeft:"3px solid #c4b5fd",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:10}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
               <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed"}}>👥 {rotatedStations[focusSt].grouping==="partners"?"Partners":"Groups"} at this station</div>
@@ -3568,8 +3598,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
               at once. */}
           <div style={{fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+cur.stations.length+" · Tap a station to focus":"Tap a station to focus"}</div>
           {rotatedStations.map((st,i)=>{
-            const stEquip=Array.isArray(st.equipment)?st.equipment:[];
-            const equipNames=stEquip.map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean);
+            const{equipment:equipNames,playerGear:gearNames}=splitEquipFor(st.equipment,data);
             return (<div key={st.id} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}}>
                 <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Station {i+1}</div>
@@ -3579,10 +3608,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
               <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.activityName||st.name||"Station "+(i+1)}</div>
               {st.groupLabel&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}
               {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{subName(st.sublocationId)}</div>}
-              {(equipNames.length>0||st.playerGear)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
-                {equipNames.length>0&&<span style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#854d0e",fontWeight:600}}>Equipment: {equipNames.join(", ")}</span>}
-                {st.playerGear&&<span style={{background:"#fff7ed",border:"1px solid #fdba74",borderRadius:20,padding:"2px 8px",fontSize:11,color:"#9a3412",fontWeight:600}}>Player Gear: {st.playerGear}</span>}
-              </div>}
+              {(equipNames.length>0||gearNames.length>0)&&<div style={{marginBottom:6}}><EquipGearRow equipment={equipNames} playerGear={gearNames}/></div>}
               {/* Stopped from bubbling into the card's own onClick so
                   tapping a player's card doesn't also jump into that
                   station's focus view -- player movement now happens on
