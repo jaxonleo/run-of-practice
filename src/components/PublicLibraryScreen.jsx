@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { archiveCatalogDrill } from "../supabase.js";
+import { menuNeedsToOpenUpward } from "../constants.js";
 
 // Wraps the substring of `text` that matches `query` (case-insensitive) in a
 // <mark> -- a small, standard content-search touch that makes scanning a
@@ -32,6 +33,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
   const [showFilter, setShowFilter] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [drillMenu, setDrillMenu] = useState(null);
+  const [drillMenuUp, setDrillMenuUp] = useState(false);
 
   const catalogs = (data.catalogs || []).filter(c => c.visibility === "public");
   const catalogsById = Object.fromEntries(catalogs.map(c => [c.id, c]));
@@ -152,8 +154,13 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
             <div className="limt" style={{color: "var(--green2)"}}>Published by {(catalog && catalog.publisherName) || "Staff Editor"}{catalog && catalog.organizationName ? " - " + catalog.organizationName : ""}</div>
           </div>
           {isAdmin && <div style={{position: "relative", flexShrink: 0}}>
-            <button className="ell-btn" onClick={e => { e.stopPropagation(); setDrillMenu(drillMenu === d.id ? null : d.id); }}><span/><span/><span/></button>
-            {drillMenu === d.id && <div className="mini-menu" style={{right: 0}} onClick={e => e.stopPropagation()}>
+            <button className="ell-btn" onClick={e => {
+              e.stopPropagation();
+              if (drillMenu === d.id) { setDrillMenu(null); return; }
+              setDrillMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(), 120));
+              setDrillMenu(d.id);
+            }}><span/><span/><span/></button>
+            {drillMenu === d.id && <div className="mini-menu" style={drillMenuUp ? {right: 0, top: "auto", bottom: "calc(100% - 4px)"} : {right: 0}} onClick={e => e.stopPropagation()}>
               <button className="mm-item" onClick={() => { setDrillMenu(null); openModal("editActivity", {activity: d}); }}>Edit</button>
               <button className="mm-item mm-danger" onClick={async () => { setDrillMenu(null); await archiveCatalogDrill(d.id); await refreshLibrary(); }}>Delete</button>
             </div>}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { fetchOrgMembers, fetchOrgSentInvites, orgInviteCoach, cancelOrgInvite, updateOrganization, setOrgMemberRole, removeOrgMember, ORG_ROLE_LABELS } from "../supabase.js";
-import { SPORTS, TEAM_COLORS, myTeamRole } from "../constants.js";
+import { SPORTS, TEAM_COLORS, myTeamRole, menuNeedsToOpenUpward } from "../constants.js";
 
 // Org details (Jax's ask): the Teams list itself just shows a tappable
 // org card now, no inline Edit/Add-Member buttons -- everything lives one
@@ -25,6 +25,7 @@ function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
   const [addingMember, setAddingMember] = useState(false);
   const [busyMemberId, setBusyMemberId] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [openMenuUp, setOpenMenuUp] = useState(false);
   const [editingMemberId, setEditingMemberId] = useState(null);
   const [draftRole, setDraftRole] = useState(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState(null);
@@ -127,8 +128,13 @@ function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
               <div className="lin">{m.name}{isSelf ? " (You)" : ""}{m.email ? " · " + m.email : ""}</div>
               <div className="limt">{ORG_ROLE_LABELS[m.role] || m.role} · Added {fmtDate(m.createdAt)}</div>
             </div>
-            <button className="ell-btn" onClick={e => { e.stopPropagation(); setOpenMenuId(openMenuId === m.id ? null : m.id); }}><span/><span/><span/></button>
-            {openMenuId === m.id && <div className="mini-menu" style={{ right: 0, top: "100%" }} onClick={e => e.stopPropagation()}>
+            <button className="ell-btn" onClick={e => {
+              e.stopPropagation();
+              if (openMenuId === m.id) { setOpenMenuId(null); return; }
+              setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(), 120));
+              setOpenMenuId(m.id);
+            }}><span/><span/><span/></button>
+            {openMenuId === m.id && <div className="mini-menu" style={openMenuUp ? { right: 0, top: "auto", bottom: "calc(100% - 4px)" } : { right: 0, top: "100%" }} onClick={e => e.stopPropagation()}>
               <button className="mm-item" onClick={() => startEditRole(m)}>Edit Role</button>
               {members.length > 1 && <button className="mm-item mm-danger" onClick={() => { setOpenMenuId(null); setConfirmRemoveId(m.id); }}>Remove</button>}
             </div>}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea } from "../constants.js";
+import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea, menuNeedsToOpenUpward } from "../constants.js";
 import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
@@ -1245,6 +1245,7 @@ function NoteComposer({roster,currentActivityLabel,onSubmit,showAuthorLabel}){
   const [taggedIds,setTaggedIds]=useState([]);
   const [endOfPractice,setEndOfPractice]=useState(!currentActivityLabel);
   const [mentionQuery,setMentionQuery]=useState(null);
+  const [mentionUp,setMentionUp]=useState(false);
   const [submitting,setSubmitting]=useState(false);
   const [error,setError]=useState(null);
   const [justSaved,setJustSaved]=useState(false);
@@ -1256,6 +1257,13 @@ function NoteComposer({roster,currentActivityLabel,onSubmit,showAuthorLabel}){
     setBody(val);
     const caret=e.target.selectionStart;
     const m=val.slice(0,caret).match(/@([a-zA-Z]*)$/);
+    // Same viewport-clipping fix as every list-row ellipsis menu (they all
+    // share .mini-menu's own top:calc(100% - 4px)) -- this card can end up
+    // anywhere on a scrollable HelperView page, so unlike the always-fixed-
+    // to-the-bottom quick-note bar elsewhere in this file (see its own
+    // comment), this one needs an actual per-open check, not a hardcoded
+    // direction.
+    if(m&&taRef.current)setMentionUp(menuNeedsToOpenUpward(taRef.current.getBoundingClientRect(),180));
     setMentionQuery(m?m[1]:null);
   };
   const filtered=mentionQuery===null?[]:roster.filter(p=>p.displayName.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0,8);
@@ -1284,7 +1292,7 @@ function NoteComposer({roster,currentActivityLabel,onSubmit,showAuthorLabel}){
     </div>}
     <div style={{position:"relative"}}>
       <textarea ref={taRef} className="ta" placeholder="Add a note... type @ to tag a player" value={body} onChange={handleChange} maxLength={500}/>
-      {mentionQuery!==null&&filtered.length>0&&<div className="mini-menu" style={{position:"absolute",top:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}}>
+      {mentionQuery!==null&&filtered.length>0&&<div className="mini-menu" style={mentionUp?{position:"absolute",top:"auto",bottom:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}:{position:"absolute",top:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}}>
         {filtered.map(p=>(<button key={p.id} type="button" className="mm-item" onClick={()=>pickPlayer(p)}>{p.displayName}</button>))}
       </div>}
     </div>
@@ -2023,12 +2031,18 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   // is ever visible at a time) rather than a new composer.
   const [noteTaggedIds,setNoteTaggedIds]=useState([]);
   const [noteMentionQuery,setNoteMentionQuery]=useState(null);
+  // Only consumed by the end-of-practice screen's own popup below -- the
+  // quick-note bar's identical popup is always pinned to the fixed bottom
+  // note bar regardless, so it stays hardcoded upward (see its own comment)
+  // rather than reading this.
+  const [noteMentionUp,setNoteMentionUp]=useState(false);
   const noteTaRef=useRef(null);
   const onNoteTextChange=e=>{
     const val=e.target.value;
     setNoteText(val);
     if(noteError)setNoteError("");
     const m=val.slice(0,e.target.selectionStart).match(/@([a-zA-Z]*)$/);
+    if(m&&noteTaRef.current)setNoteMentionUp(menuNeedsToOpenUpward(noteTaRef.current.getBoundingClientRect(),180));
     setNoteMentionQuery(m?m[1]:null);
   };
   const noteMentionMatches=noteMentionQuery===null?[]:(team&&team.players||[]).filter(p=>(p.firstName+" "+(p.lastName||"")).toLowerCase().includes(noteMentionQuery.toLowerCase())).slice(0,8);
@@ -3325,7 +3339,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(noteText.trim()&&!window.confirm("You have an unsaved note. Leave without saving it?"))return;
     setLiveId(null);setStage("pick");goHome();
   };
-  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:endReason==="abandoned"?"var(--amber)":"var(--green)",marginBottom:4}}>{endReason==="abandoned"?"Practice Aborted":"Practice Complete"}</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{endReason==="abandoned"?(team&&team.name)+" practice aborted -- it won't count as completed. Start a fresh run any time.":(team&&team.name)+" practice complete."}</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><div style={{position:"relative"}}><textarea ref={noteTaRef} className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time... (type @ to tag a player)" onChange={onNoteTextChange}/>{noteMentionQuery!==null&&noteMentionMatches.length>0&&<div className="mini-menu" style={{position:"absolute",top:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}}>{noteMentionMatches.map(p=>(<button key={p.id} type="button" className="mm-item" onClick={()=>pickNoteMention(p)}>{p.firstName} {p.lastName}</button>))}</div>}</div>{noteError&&<div style={{fontSize:12,color:"var(--red)",marginTop:4}}>{noteError}</div>}<button className="btn primary bsm bfull mt6" onClick={saveEndNote} disabled={savingNote}>{savingNote?"Saving...":"Save Note"}</button></div><button className="btn ghost bmd bfull" style={{marginTop:32}} onClick={finishPractice}>Done</button></div></div>);
+  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:endReason==="abandoned"?"var(--amber)":"var(--green)",marginBottom:4}}>{endReason==="abandoned"?"Practice Aborted":"Practice Complete"}</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{endReason==="abandoned"?(team&&team.name)+" practice aborted -- it won't count as completed. Start a fresh run any time.":(team&&team.name)+" practice complete."}</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><div style={{position:"relative"}}><textarea ref={noteTaRef} className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time... (type @ to tag a player)" onChange={onNoteTextChange}/>{noteMentionQuery!==null&&noteMentionMatches.length>0&&<div className="mini-menu" style={noteMentionUp?{position:"absolute",top:"auto",bottom:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}:{position:"absolute",top:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}}>{noteMentionMatches.map(p=>(<button key={p.id} type="button" className="mm-item" onClick={()=>pickNoteMention(p)}>{p.firstName} {p.lastName}</button>))}</div>}</div>{noteError&&<div style={{fontSize:12,color:"var(--red)",marginTop:4}}>{noteError}</div>}<button className="btn primary bsm bfull mt6" onClick={saveEndNote} disabled={savingNote}>{savingNote?"Saving...":"Save Note"}</button></div><button className="btn ghost bmd bfull" style={{marginTop:32}} onClick={finishPractice}>Done</button></div></div>);
 
   if(!cur)return null;
 

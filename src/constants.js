@@ -376,6 +376,17 @@ export function setVisibleComponentTypes(keys){
   try{localStorage.setItem(PRACTICE_COMPONENT_TYPES_KEY,JSON.stringify(keys));}catch(e){}
 }
 
+// Shared by every ".mini-menu" ellipsis/dropdown across the app: that
+// class always opens downward (top:calc(100% - 4px)), which clips against
+// the viewport edge/fixed bottom tab bar for a row near the bottom of a
+// scrollable list. Callers measure the trigger's own rect at open time
+// (a click handler's e.currentTarget, or a ref for a keystroke-driven
+// popup like an @mention picker) and flip to open upward when there isn't
+// enough room below for the menu's own worst-case height.
+export function menuNeedsToOpenUpward(rect,thresholdPx){
+  return (window.innerHeight-rect.bottom)<(thresholdPx||260);
+}
+
 // ── Goals & Insights: shared attribution/guidance math ──────────────────────
 // These mirror the exact rules the live get_team_goal_report/
 // get_team_goal_trends RPCs already use (see

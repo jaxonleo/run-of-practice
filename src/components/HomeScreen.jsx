@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway, getGettingStartedHidden, setGettingStartedHidden } from "../constants.js";
+import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway, getGettingStartedHidden, setGettingStartedHidden, menuNeedsToOpenUpward } from "../constants.js";
 import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchActiveLiveSessions, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
@@ -172,6 +172,7 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   const joinableLiveSessions = liveSessions.filter(s => s.practiceId !== liveId).map(s => ({ ...s, team: (allTeams || data.teams).find(t => t.id === s.teamId) })).filter(s => s.team);
 
   const [practiceMenuId, setPracticeMenuId] = useState(null);
+  const [practiceMenuUp, setPracticeMenuUp] = useState(false);
   const [viewPractice, setViewPractice] = useState(null);
   const [historyPractice, setHistoryPractice] = useState(null);
   const [showAbsencePicker, setShowAbsencePicker] = useState(false);
@@ -789,8 +790,13 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
             </div>
           </div>
           <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
-            <button className="ell-btn" onClick={e => { e.stopPropagation(); setPracticeMenuId(practiceMenuId === p.id ? null : p.id); }}><span /><span /><span /></button>
-            {practiceMenuId === p.id && <div className="mini-menu" style={{ right: 0, minWidth: 140 }}>
+            <button className="ell-btn" onClick={e => {
+              e.stopPropagation();
+              if (practiceMenuId === p.id) { setPracticeMenuId(null); return; }
+              setPracticeMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(), 120));
+              setPracticeMenuId(p.id);
+            }}><span /><span /><span /></button>
+            {practiceMenuId === p.id && <div className="mini-menu" style={practiceMenuUp ? { right: 0, minWidth: 140, top: "auto", bottom: "calc(100% - 4px)" } : { right: 0, minWidth: 140 }}>
               <button className="mm-item" onClick={() => { setPracticeMenuId(null); goToBuilder(p.id); }}>Edit</button>
               <button className="mm-item mm-danger" onClick={() => { delPractice(p.id); setPracticeMenuId(null); }}>Delete</button>
             </div>}

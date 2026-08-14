@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { uid, sumMins, localDateStr, planningState, teamsForMode } from "../constants.js";
+import { uid, sumMins, localDateStr, planningState, teamsForMode, menuNeedsToOpenUpward } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
 import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport } from "../supabase.js";
@@ -23,6 +23,7 @@ const Ic_Lock=()=><svg width="12" height="12" viewBox="0 0 12 12" fill="none" st
 // managing an org's shared stuff wants one place for all five content types.
 export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
   const [menu,setMenu]=useState(null);
+  const [menuUp,setMenuUp]=useState(false);
   const isOrgMode=mode&&mode.type==="org";
   const locations=(data.locations||[]).filter(l=>isOrgMode?l.organizationId===mode.orgId:l.ownerUserId===coachId);
   const addPayload=isOrgMode?{organizationId:mode.orgId}:undefined;
@@ -34,10 +35,15 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
         <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{loc.name}</span>
         <div className="row">
           <button className="btn ghost bxs" onClick={()=>openModal("addSublocation",{locationId:loc.id})}>+ Area</button>
-          <button className="ell-btn" onClick={e=>{e.stopPropagation();setMenu(menu===loc.id?null:loc.id);}}><span/><span/><span/></button>
+          <button className="ell-btn" onClick={e=>{
+            e.stopPropagation();
+            if(menu===loc.id){setMenu(null);return;}
+            setMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));
+            setMenu(loc.id);
+          }}><span/><span/><span/></button>
         </div>
       </div>
-      {menu===loc.id&&<div className="mini-menu" style={{right:8,top:44}}>
+      {menu===loc.id&&<div className="mini-menu" style={menuUp?{right:8,top:"auto",bottom:"calc(100% - 4px)"}:{right:8,top:44}}>
         <button className="mm-item" onClick={e=>{e.stopPropagation();setMenu(null);openModal("editLocation",{location:loc});}}>Edit</button>
         <button className="mm-item mm-danger" onClick={async e=>{e.stopPropagation();setMenu(null);await archiveLocation(loc.id);await refreshPlanning();}}>Delete</button>
       </div>}
@@ -173,6 +179,7 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
   const [equipTabState,setEquipTabState]=useState(forceType||"team");
   const equipTab=forceType||equipTabState;
   const [openMenu,setOpenMenu]=useState(null);
+  const [openMenuUp,setOpenMenuUp]=useState(false);
   const [newName,setNewName]=useState("");
   const [newSport,setNewSport]=useState(sportFilter||"General");
   const [newLocationIds,setNewLocationIds]=useState([]);
@@ -216,8 +223,13 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
         <div className="lin">{a.name}</div>
         {locs.length>0&&<div className="limt">📍 {locs.join(", ")}</div>}
       </div>
-      <button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===a.id?null:a.id);}}><span/><span/><span/></button>
-      {openMenu===a.id&&<div className="mini-menu">
+      <button className="ell-btn" onClick={e=>{
+        e.stopPropagation();
+        if(openMenu===a.id){setOpenMenu(null);return;}
+        setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));
+        setOpenMenu(a.id);
+      }}><span/><span/><span/></button>
+      {openMenu===a.id&&<div className="mini-menu" style={openMenuUp?{top:"auto",bottom:"calc(100% - 4px)"}:undefined}>
         <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);(onEdit||(()=>openModal("editAsset",{asset:a})))();}}>Edit</button>
         <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);del(a.id);}}>Delete</button>
       </div>}
@@ -514,6 +526,7 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
     setStaleMenuId(null);
   };
   const [staleMenuId,setStaleMenuId]=useState(null);
+  const [staleMenuUp,setStaleMenuUp]=useState(false);
 
   // Dirty-tracking mirrors BuilderScreen's savedSnapshotRef pattern -- lets
   // Save Template gray out when there's nothing to save, and lets Back/
@@ -655,10 +668,15 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
           </div>
           <div className="row">
             {act.type==="activity"&&isStale(act)&&<div style={{position:"relative"}}>
-              <button type="button" onClick={e=>{e.stopPropagation();setStaleMenuId(staleMenuId===act.id?null:act.id);}} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 2px",display:"flex",alignItems:"center"}} aria-label="Drill updated since added" title="This drill has changed in your library since it was added here">
+              <button type="button" onClick={e=>{
+                e.stopPropagation();
+                if(staleMenuId===act.id){setStaleMenuId(null);return;}
+                setStaleMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),160));
+                setStaleMenuId(act.id);
+              }} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 2px",display:"flex",alignItems:"center"}} aria-label="Drill updated since added" title="This drill has changed in your library since it was added here">
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 2L18.5 17H1.5L10 2Z" fill="#f59e0b" stroke="#b45309" strokeWidth="1" strokeLinejoin="round"/><rect x="9.1" y="7.5" width="1.8" height="5" rx="0.9" fill="#fff"/><rect x="9.1" y="13.3" width="1.8" height="1.8" rx="0.9" fill="#fff"/></svg>
               </button>
-              {staleMenuId===act.id&&<div className="mini-menu" style={{right:0,minWidth:220,padding:10}} onClick={e=>e.stopPropagation()}>
+              {staleMenuId===act.id&&<div className="mini-menu" style={staleMenuUp?{right:0,minWidth:220,padding:10,top:"auto",bottom:"calc(100% - 4px)"}:{right:0,minWidth:220,padding:10}} onClick={e=>e.stopPropagation()}>
                 <div style={{fontSize:12,color:"var(--td)",marginBottom:8,lineHeight:1.4}}>This drill has changed in your library since it was added here.</div>
                 <button type="button" className="btn primary bxs bfull" style={{marginBottom:6}} onClick={()=>refreshFromLibrary(act)}>Refresh to Latest</button>
                 <button type="button" className="btn ghost bxs bfull" onClick={()=>setStaleMenuId(null)}>Keep This Version</button>
@@ -897,10 +915,12 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   // without losing the "Back to Goals & Insights" exit or leaving the page.
   const [untaggedOnly,setUntaggedOnly]=useState(!!untaggedDeepLink);
   const [openMenu,setOpenMenu]=useState(null);
+  const [openMenuUp,setOpenMenuUp]=useState(false);
   const [editingTpl,setEditingTpl]=useState(null);
   const [confirmDel,setConfirmDel]=useState(null);
   const [collapsed,setCollapsed]=useState({});
   const [drillMenu,setDrillMenu]=useState(null);
+  const [drillMenuUp,setDrillMenuUp]=useState(false);
   const [insightSummaries,setInsightSummaries]=useState({});
   const [openInsightsId,setOpenInsightsId]=useState(null);
   // Confirm-before-Make-Public (direct feedback): a real prompt, not an
@@ -1315,8 +1335,20 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
             </div>
             {isMine&&<div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
               <div style={{position:"relative",flexShrink:0}}>
-              <button className="ell-btn" onClick={e=>{e.stopPropagation();setDrillMenu(drillMenu===act.id?null:act.id);setShareMenuId(null);}}><span/><span/><span/></button>
-              {drillMenu===act.id&&<div className="mini-menu" style={{right:0,minWidth:140}}>
+              <button className="ell-btn" onClick={e=>{
+                e.stopPropagation();
+                if(drillMenu===act.id){setDrillMenu(null);return;}
+                // Direct feedback: a drill near the bottom of the list had
+                // its menu clipped by the viewport edge/bottom tab bar,
+                // since the menu always opened downward regardless of how
+                // much room was actually below the button. Flips to open
+                // upward instead whenever there isn't enough space below
+                // for the menu's own worst-case height (6 items) plus the
+                // fixed bottom tab bar.
+                setDrillMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),270));
+                setDrillMenu(act.id);setShareMenuId(null);
+              }}><span/><span/><span/></button>
+              {drillMenu===act.id&&<div className="mini-menu" style={drillMenuUp?{right:0,minWidth:140,top:"auto",bottom:"calc(100% - 4px)"}:{right:0,minWidth:140}}>
                 <button className="mm-item" onClick={()=>{setDrillMenu(null);openModal("editActivity",{activity:act});}}>Edit</button>
                 {myOrgs.length>0&&<button className="mm-item" onClick={e=>{e.stopPropagation();setDrillMenu(null);setShareMenuId(shareMenuId===act.id?null:act.id);}}>{(act.sharedWithOrganizationIds||[]).length>0?"Change Sharing":"Share..."}</button>}
                 {(act.sharedWithOrganizationIds||[]).length>0&&<button className="mm-item" onClick={()=>makePrivate(act.id)}>Make Private</button>}
@@ -1331,7 +1363,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
                 <button className="mm-item" onClick={()=>{setDrillMenu(null);setOpenInsightsId(act.id);}}>View Drill Insights</button>
                 <button className="mm-item mm-danger" onClick={async()=>{setDrillMenu(null);await archiveDrill(act.id);await refreshLibrary();}}>Delete</button>
               </div>}
-              {shareMenuId===act.id&&<div className="mini-menu" style={{right:0,top:"100%",minWidth:160}} onClick={e=>e.stopPropagation()}>
+              {shareMenuId===act.id&&<div className="mini-menu" style={drillMenuUp?{right:0,minWidth:160,top:"auto",bottom:"calc(100% - 4px)"}:{right:0,top:"100%",minWidth:160}} onClick={e=>e.stopPropagation()}>
                 {myOrgs.map(org=>(<button key={org.id} className="mm-item" onClick={()=>toggleShare(act.id,org.id)}>{(act.sharedWithOrganizationIds||[]).includes(org.id)?"✓ ":""}{org.name}</button>))}
               </div>}
               </div>
@@ -1402,8 +1434,12 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
             </div>}
           </div>
           <div style={{position:"relative"}}>
-            <button className="ell-btn" onClick={()=>setOpenMenu(openMenu===tpl.id?null:tpl.id)}><span/><span/><span/></button>
-            {openMenu===tpl.id&&<div className="mini-menu" style={{right:0}}>
+            <button className="ell-btn" onClick={e=>{
+              if(openMenu===tpl.id){setOpenMenu(null);return;}
+              setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));
+              setOpenMenu(tpl.id);
+            }}><span/><span/><span/></button>
+            {openMenu===tpl.id&&<div className="mini-menu" style={openMenuUp?{right:0,top:"auto",bottom:"calc(100% - 4px)"}:{right:0}}>
               <button className="mm-item" onClick={()=>{setEditingTpl(tpl);setOpenMenu(null);}}>Edit</button>
               <button className="mm-item" onClick={()=>{setConfirmDel(tpl.id);setOpenMenu(null);}}>Delete</button>
             </div>}

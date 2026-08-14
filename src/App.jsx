@@ -7,7 +7,7 @@ import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes } from "./constants.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes, menuNeedsToOpenUpward } from "./constants.js";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
@@ -1312,6 +1312,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     setStaleMenuId(null);
   };
   const [staleMenuId,setStaleMenuId]=useState(null);
+  const [staleMenuUp,setStaleMenuUp]=useState(false);
   // Appends rather than replaces -- safe to offer regardless of whether acts
   // is already empty (a fresh/unplanned build) or has drills in it (editing
   // an already-scheduled practice and wanting to pull in a template on top).
@@ -1829,10 +1830,15 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                 </div>
                 <div className="row">
                   {act.type==="activity"&&isStale(act)&&<div style={{position:"relative"}}>
-                    <button type="button" onClick={e=>{e.stopPropagation();setStaleMenuId(staleMenuId===act.id?null:act.id);}} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 2px",display:"flex",alignItems:"center"}} aria-label="Drill updated since added" title="This drill has changed in your library since it was added here">
+                    <button type="button" onClick={e=>{
+                      e.stopPropagation();
+                      if(staleMenuId===act.id){setStaleMenuId(null);return;}
+                      setStaleMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),160));
+                      setStaleMenuId(act.id);
+                    }} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 2px",display:"flex",alignItems:"center"}} aria-label="Drill updated since added" title="This drill has changed in your library since it was added here">
                       <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 2L18.5 17H1.5L10 2Z" fill="#f59e0b" stroke="#b45309" strokeWidth="1" strokeLinejoin="round"/><rect x="9.1" y="7.5" width="1.8" height="5" rx="0.9" fill="#fff"/><rect x="9.1" y="13.3" width="1.8" height="1.8" rx="0.9" fill="#fff"/></svg>
                     </button>
-                    {staleMenuId===act.id&&<div className="mini-menu" style={{right:0,minWidth:220,padding:10}} onClick={e=>e.stopPropagation()}>
+                    {staleMenuId===act.id&&<div className="mini-menu" style={staleMenuUp?{right:0,minWidth:220,padding:10,top:"auto",bottom:"calc(100% - 4px)"}:{right:0,minWidth:220,padding:10}} onClick={e=>e.stopPropagation()}>
                       <div style={{fontSize:12,color:"var(--td)",marginBottom:8,lineHeight:1.4}}>This drill has changed in your library since it was added here.</div>
                       <button type="button" className="btn primary bxs bfull" style={{marginBottom:6}} onClick={()=>refreshFromLibrary(act)}>Refresh to Latest</button>
                       <button type="button" className="btn ghost bxs bfull" onClick={()=>setStaleMenuId(null)}>Keep This Version</button>
@@ -2210,6 +2216,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
   useEffect(()=>{if(refreshTeams)refreshTeams();},[]);
   const [tab,setTab]=useState(pendingPermissionsUserId?"coaches":"players");
   const [openMenu,setOpenMenu]=useState(null);
+  const [openMenuUp,setOpenMenuUp]=useState(false);
   const [sort,setSort]=useState({by:"firstName",dir:"asc"});
   const [viewPlayer,setViewPlayer]=useState(null);
   const [confirmRemovePlayer,setConfirmRemovePlayer]=useState(null);
@@ -2301,8 +2308,13 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
             {(p.focusAreas&&p.focusAreas.length>0)&&<div className="limt">{p.focusAreas.length} focus area{p.focusAreas.length>1?"s":""}</div>}
             {(!p.focusAreas||!p.focusAreas.length)&&p.notes&&<div className="limt">{p.notes}</div>}
           </div>
-          {canManage&&<button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu===p.id?null:p.id);}}><span/><span/><span/></button>}
-          {canManage&&openMenu===p.id&&<div className="mini-menu"><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setViewPlayer(p);}}>Player Profile</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);setConfirmRemovePlayer(p);}}>Remove</button></div>}
+          {canManage&&<button className="ell-btn" onClick={e=>{
+            e.stopPropagation();
+            if(openMenu===p.id){setOpenMenu(null);return;}
+            setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));
+            setOpenMenu(p.id);
+          }}><span/><span/><span/></button>}
+          {canManage&&openMenu===p.id&&<div className="mini-menu" style={openMenuUp?{top:"auto",bottom:"calc(100% - 4px)"}:undefined}><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setViewPlayer(p);}}>Player Profile</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);setConfirmRemovePlayer(p);}}>Remove</button></div>}
         </div>))}
         {!team.players.length&&<div className="empty"><div className="emtx">No players yet{canManage?" -- tap + Add.":"."}</div></div>}
       </div>)}
@@ -2318,8 +2330,13 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
               a non-manager otherwise, so this is a plain text button
               instead of hiding the same action inside one. */}
           {!canManage&&c.userId===coachId&&c.role!=="Head Coach"&&<button className="btn ghost bxs" onClick={e=>{e.stopPropagation();setPermissionsCoachId(c.id);}}>Permissions</button>}
-          {canManage&&<button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="coach_"+c.id?null:"coach_"+c.id);}}><span/><span/><span/></button>}
-          {canManage&&openMenu==="coach_"+c.id&&<div className="mini-menu">
+          {canManage&&<button className="ell-btn" onClick={e=>{
+            e.stopPropagation();
+            if(openMenu==="coach_"+c.id){setOpenMenu(null);return;}
+            setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),160));
+            setOpenMenu("coach_"+c.id);
+          }}><span/><span/><span/></button>}
+          {canManage&&openMenu==="coach_"+c.id&&<div className="mini-menu" style={openMenuUp?{top:"auto",bottom:"calc(100% - 4px)"}:undefined}>
             {c.role!=="Head Coach"&&<button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setPermissionsCoachId(c.id);}}>Permissions</button>}
             <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editCoach",{teamId,coach:c});}}>Edit</button>
             {/* A head coach removing their own row here (not the same as
@@ -2339,8 +2356,13 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
         {(team.invites||[]).length>0&&(<div className="sechdr mb8" style={{marginTop:16}}><span className="sectitle" style={{fontSize:13,color:"var(--td)"}}>Pending Invites</span></div>)}
         {(team.invites||[]).map(inv=>(<div key={inv.id} className="li" style={{position:"relative"}}>
           <div className="lim"><div className="lin">{inv.name}</div><div className="limt">{inv.role} · {inv.status==="pending"?"Invite pending":"Declined"} ({inv.email})</div></div>
-          {canManage&&<button className="ell-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="invite_"+inv.id?null:"invite_"+inv.id);}}><span/><span/><span/></button>}
-          {canManage&&openMenu==="invite_"+inv.id&&<div className="mini-menu">
+          {canManage&&<button className="ell-btn" onClick={e=>{
+            e.stopPropagation();
+            if(openMenu==="invite_"+inv.id){setOpenMenu(null);return;}
+            setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),160));
+            setOpenMenu("invite_"+inv.id);
+          }}><span/><span/><span/></button>}
+          {canManage&&openMenu==="invite_"+inv.id&&<div className="mini-menu" style={openMenuUp?{top:"auto",bottom:"calc(100% - 4px)"}:undefined}>
             <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);resendInvite(inv);}}>{inv.status==="pending"?"Resend":"Request Again"}</button>
             <button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openModal("editInvite",{invite:inv});}}>Edit</button>
             <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);clearInvite(inv.id);}}>Clear</button>
