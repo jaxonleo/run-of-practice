@@ -659,9 +659,22 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
             once, which a plain per-station dropdown couldn't catch since
             each station's own field had no idea what any other station had
             picked. */}
+        {/* Multi-Coach Builder: this specific picker (Builder, pre-live) is
+            the one that actually grants write access to the station's own
+            content once saved -- station.team_staff_id is what
+            update_station_content checks the caller against. Narrowed to
+            coaches with canBuildPractices ("Share Practice Planning",
+            unlimited-per-team as of this feature) so assigning someone here
+            always means they can actually come edit it, not a silent dead
+            end. The live/Practice Setup reassignment picker
+            (SetupStationBlockRow, CommandScreen.jsx) is deliberately left
+            unrestricted -- that one is about who physically runs the
+            station during the session, a different, lower-stakes concept
+            that already supports any coach or a freeform helper name. */}
         {team&&team.coaches.length>0&&<div className="fld"><label className="lbl">Coach</label>
+          {team.coaches.filter(c=>c.canBuildPractices).length===0&&<div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>No assistant has Share Practice Planning yet -- grant it from the roster's Permissions to make them assignable here.</div>}
           {!st.helperName&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-            {team.coaches.map(c=>{
+            {team.coaches.filter(c=>c.canBuildPractices).map(c=>{
               const isHere=st.coachId===c.id;
               const elsewhereIdx=act.stations.findIndex((os,oi)=>oi!==si&&os.coachId===c.id);
               const isElsewhere=!isHere&&elsewhereIdx!==-1;

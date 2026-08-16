@@ -32,6 +32,17 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
   // org team can edit/cancel/plan its practices without a personal
   // team_staff row on that specific team.
   const canManage=canManageTeamInMode(team,coachId,mode);
+  // Multi-Coach Builder: a coach who isn't the head coach but has a station
+  // assigned to them on this specific practice still needs a repeat way
+  // back into Builder (BuilderRoute itself scopes them to just their own
+  // station once there) -- without this they'd only ever be able to reach
+  // it via the one-time Home assignment notice, which doesn't fit the
+  // async "assigned days before, comes back on their own schedule" shape
+  // this feature is explicitly built for. Only gates the Edit button --
+  // Cancel Practice stays canManage-only, a skeleton/scheduling decision.
+  const myTeamStaffId=team?((team.coaches||[]).find(c=>c.userId===coachId)||{}).id:null;
+  const hasMyStation=!canManage&&!!(myTeamStaffId&&(practice.activities||[]).some(a=>a.type==="station_block"&&(a.stations||[]).some(st=>st.coachId===myTeamStaffId)));
+  const canEdit=canManage||hasMyStation;
   const loc=data.locations.find(l=>l.id===practice.locationId);
   const now=new Date();
   const todayStr=localDateStr(now);
@@ -160,7 +171,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
       {showFutureGuard&&<FuturePracticeGuardModal practice={practice} team={team} onCancel={()=>setShowFutureGuard(false)} onRunAsNew={runAsNewFromGuard} onRunNow={()=>{setShowFutureGuard(false);goToRun(practice.id);}}/>}
       {!isCancelled&&<div style={{display:"flex",gap:8,marginBottom:12}}>
         <button className="btn outline bmd" style={{flex:1}} onClick={()=>setShowAbsencePicker(true)}>Who's Out?</button>
-        {isPlanned&&canManage&&<button className="btn outline bmd" style={{flex:1}} onClick={()=>goToBuilder(practice.id)}>Edit</button>}
+        {isPlanned&&canEdit&&<button className="btn outline bmd" style={{flex:1}} onClick={()=>goToBuilder(practice.id)}>{canManage?"Edit":"Build My Station"}</button>}
       </div>}
       {/* Print/PDF export: a clean, standalone document a coach can follow
           without the app (old-school coaches, or a remote player doing

@@ -4,8 +4,10 @@ import { setOwnLibraryShare, setManagerLibraryShare, setPracticeDelegate } from 
 // Reciprocal permissions between a head coach and one rostered assistant/
 // helper on a personal (non-org) team -- each side controls their own
 // drill-library sharing, and the head coach separately controls
-// delegating practice building (one assistant per team, enforced
-// server-side by a unique index, not just this UI). Deliberately its own
+// delegating practice building (any number of assistants per team as of
+// the Multi-Coach Builder work, 2026-08-16 -- was capped at one, enforced
+// server-side by a unique index; that cap is gone, not just relaxed in
+// this UI). Deliberately its own
 // small component rather than folded into ModalLayer.jsx's already-large
 // if/else chain -- same reasoning as AbsencePicker.jsx.
 //
@@ -70,7 +72,7 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
         />
         <Row
           label="Share Practice Planning"
-          blurb={"Let " + coach.name + " build and edit this team's scheduled practices, the same as you can. Only one coach per team can have this at a time."}
+          blurb={"Let " + coach.name + " build and edit this team's scheduled practices, the same as you can, and be assignable to individual stations in Builder."}
           on={coach.canBuildPractices}
           busy={busy}
           onToggle={() => run(() => setPracticeDelegate(coach.id, !coach.canBuildPractices))}

@@ -13,8 +13,9 @@ const CONTACT_EMAIL = "contact@runofpractice.com";
 // self-contained, same reasoning as PP_CSS itself.
 // Launch structure: Free, Pro, Pro+, and Organizations. Pro+ (added back
 // after a follow-up request) grants everything Pro does, plus delegating
-// practice planning to one assistant per team and 2 concurrent live
-// practices -- pricing-page content only for now, not enforced anywhere
+// practice planning to any number of assistants per team (widened from one,
+// 2026-08-16) and 2 concurrent live practices -- pricing-page content only
+// for now, not enforced anywhere
 // (see src/entitlements.js's PLAN_LIMITS.pro_plus, same inert scaffolding
 // as free/pro). Forward-looking on purpose: the rest of the site still says
 // "free during early access" everywhere, and FEATURE_FLAGS.BILLING_ENABLED
@@ -151,7 +152,7 @@ const PRO_FEATURES = [
 ];
 
 const PROPLUS_FEATURES = PRO_FEATURES.concat([
-  "Delegate practice planning to one assistant coach on each of your teams",
+  "Delegate practice planning to any number of assistant coaches on each of your teams",
   "Run two practices live at the same time, ideal when your teams practice at overlapping hours",
   "Share drill-library and practice-planning permissions with your assistants even when they aren't on Pro themselves",
 ]);
@@ -183,7 +184,7 @@ const COMPARISON_GROUPS = [
     rows: [
       { feature: "Active personal teams", type: "value", free: "1", pro: "3", proplus: "3", org: "Org-managed" },
       { feature: "Assistant coaches", type: "value", free: "2", pro: "Unlimited", proplus: "Unlimited", org: "Org-managed" },
-      { feature: "Delegate practice planning to an assistant", type: "value", free: "—", pro: "—", proplus: "1 per team", org: "Org-managed" },
+      { feature: "Delegate practice planning to an assistant", type: "value", free: "—", pro: "—", proplus: "Unlimited per team", org: "Org-managed" },
       { feature: "Concurrent live practices", type: "value", free: "1", pro: "1", proplus: "2", org: "Unlimited" },
     ],
   },

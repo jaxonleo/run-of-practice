@@ -48,12 +48,18 @@ export const PLAN_LIMITS = {
     concurrentLivePractices: 1,
     delegatedPlanningPerTeam: 0,
   },
-  // Everything Pro has, plus delegating practice planning to one assistant
-  // per team and running 2 concurrent live practices. Added per a follow-up
-  // request (2026-08-01) after the original brief's launch structure
-  // shipped with Free/Pro/Organizations only -- pricing-page content and
-  // this config entry only, same inert-until-BILLING_ENABLED treatment as
-  // every other plan here, not wired into any real gate yet.
+  // Everything Pro has, plus delegating practice planning to any number of
+  // assistants per team and running 2 concurrent live practices. Added per
+  // a follow-up request (2026-08-01) after the original brief's launch
+  // structure shipped with Free/Pro/Organizations only -- pricing-page
+  // content and this config entry only, same inert-until-BILLING_ENABLED
+  // treatment as every other plan here, not wired into any real gate yet.
+  // delegatedPlanningPerTeam widened from 1 to null (Multi-Coach Builder
+  // handoff, 2026-08-16) -- station-level assignment eligibility reuses
+  // this same delegated-planning permission, so a team splitting station
+  // ownership across several assistants needs more than the old one-per-
+  // team cap. null means "no plan-based cap," same convention every other
+  // unlimited field on this object already uses.
   pro_plus: {
     activePersonalTeams: 3,
     assistants: null,
@@ -64,7 +70,7 @@ export const PLAN_LIMITS = {
     goals: true,
     insights: true,
     concurrentLivePractices: 2,
-    delegatedPlanningPerTeam: 1,
+    delegatedPlanningPerTeam: null,
   },
 };
 

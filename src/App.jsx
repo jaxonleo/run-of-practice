@@ -11,7 +11,8 @@ import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, re
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
-import CommandScreen, { HelperView, HistoryViewer, PreviewView } from "./components/CommandScreen.jsx";
+import CommandScreen, { HelperView, HistoryViewer, PreviewView, usePracticePresence, PresenceBadge } from "./components/CommandScreen.jsx";
+import MyStationBuilderScreen, { StationPresenceIndicator } from "./components/MyStationBuilder.jsx";
 import HomeScreen from "./components/HomeScreen.jsx";
 import ScheduleScreen from "./components/ScheduleScreen.jsx";
 import AbsencePicker from "./components/AbsencePicker.jsx";
@@ -834,7 +835,7 @@ function TeamGoalsRoute(){
 
 function BuilderRoute(){
   const {practiceId}=useParams();
-  const {data,openModal,goToRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,coachId,refreshPlanning,refreshLibrary}=useAppCtx();
+  const {data,openModal,goToRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,coachId,coachName,refreshPlanning,refreshLibrary,mode,goHome}=useAppCtx();
   // Restores state from the URL on a fresh mount (direct link / refresh) --
   // navigation via goToBuilder() already set this state before navigating,
   // so this is a no-op in the normal in-app flow.
@@ -842,6 +843,27 @@ function BuilderRoute(){
     const wanted=practiceId&&practiceId!=="new"?practiceId:null;
     if(wanted!==editPracticeId)setEditPracticeId(wanted);
   },[practiceId]);
+
+  // Multi-Coach Builder handoff section 5: an already-saved practice whose
+  // viewer neither manages the team nor is a full skeleton-editing delegate,
+  // but does have at least one station assigned to them (stations.
+  // team_staff_id), lands on the restricted single-station screen instead
+  // of the normal full BuilderScreen -- never both, and never a grayed-out
+  // version of the same screen (matches this app's existing "hidden
+  // entirely, not disabled" convention for access a coach doesn't have).
+  // A full delegate (can_build_practices) with no specific station
+  // assignment still gets the normal full BuilderScreen, unchanged --
+  // station assignment only narrows the view when it actually applies.
+  const editP=editPracticeId?data.practices.find(p=>p.id===editPracticeId):null;
+  const teamForEditP=editP?data.teams.find(t=>t.id===editP.teamId):null;
+  const canManageThisTeam=teamForEditP?canManageTeamInMode(teamForEditP,coachId,mode):false;
+  const myTeamStaffId=teamForEditP?((teamForEditP.coaches||[]).find(c=>c.userId===coachId)||{}).id:null;
+  const hasStationAssignment=!!(editP&&myTeamStaffId&&(editP.activities||[]).some(a=>a.type==="station_block"&&(a.stations||[]).some(st=>st.coachId===myTeamStaffId)));
+
+  if(editP&&teamForEditP&&!canManageThisTeam&&hasStationAssignment){
+    return <MyStationBuilderScreen practice={editP} team={teamForEditP} data={data} coachId={coachId} coachLabel={coachName||"Coach"} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} goHome={goHome}/>;
+  }
+
   return <BuilderScreen data={data} openModal={openModal} launchRun={goToRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} startTemplateId={startTemplateId} setStartTemplateId={setStartTemplateId} presetTeamId={presetTeamId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>;
 }
 
@@ -1814,7 +1836,32 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                         row here instead of its own section. */}
                     {act.type==="activity"&&<span style={{fontWeight:400,color:"var(--td)"}}> · {act.coachId?((team&&team.coaches.find(c=>c.id===act.coachId))||{}).name||"Unassigned":(act.helperName||"Unassigned")}</span>}
                   </div>
-                  {act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m</div>:
+                  {act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m
+                    {/* Multi-Coach Builder: only shown once this block
+                        actually has a station delegated to someone --
+                        pure noise for the far more common single-owner
+                        block, where "filled in" isn't a meaningful
+                        question (the head coach fills in everything
+                        themselves, in one pass, same as always). */}
+                    {/* "Filled in" can't just check for a non-empty name --
+                        addStation seeds every station's own `name` with a
+                        "Station N" placeholder, and saveActivityTree
+                        persists that same placeholder as the real DB value
+                        for a station nobody ever touched (there's only one
+                        `name` column; activityName/name collapse to the
+                        same string the moment it's saved, so the
+                        distinction doesn't survive a reload either). A
+                        station counts as filled in if it has a real drill
+                        identity (library pick or a name that isn't just
+                        the untouched placeholder) or any other real
+                        content, or has ever been saved through the
+                        assigned-coach RPC (stationUpdatedAt) even if only
+                        equipment/notes changed. */}
+                    {act.stations.some(s=>s.coachId)&&<span> · {act.stations.filter(s=>{
+                      const nm=(s.activityName||s.name||"").trim();
+                      return !!(s.libraryId||s.stationUpdatedAt||(s.description||"").trim()||(s.coachingPoints||"").trim()||(s.equipment||[]).length||(nm&&!/^Station \d+$/.test(nm)));
+                    }).length} of {act.stations.length} stations filled in</span>}
+                  </div>:
                   // Direct feedback: duration's already in the green badge
                   // to the right -- this line's job is letting a coach spot
                   // a forgotten grouping/area/equipment setup without
@@ -1857,6 +1904,9 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               {expandedId===act.id&&(<div className="abbody">
                   {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} sport={teamSport} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
                   {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)}/>}
+                  {act.type==="station_block"&&act.stations.some(s=>s.coachId)&&<div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:8}}>
+                    {act.stations.filter(s=>s.coachId).map(s=><StationPresenceIndicator key={s.id} stationId={s.id}/>)}
+                  </div>}
                   {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} libraryDrills={sourceFilteredLib} librarySources={librarySources} libSource={libSource} setLibSource={setLibSource} skillTags={data.skillTags} absentPlayerIds={absentPlayerIds}/>}
                 </div>
               )}

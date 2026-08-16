@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway, getGettingStartedHidden, setGettingStartedHidden, menuNeedsToOpenUpward } from "../constants.js";
-import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchActiveLiveSessions, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
+import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, acknowledgeStationAssignmentNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchActiveLiveSessions, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
@@ -496,6 +496,30 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
     navigate("/team/" + pendingJoinNotice.teamId + "/roster", { state: { openPermissionsForUserId: pendingJoinNotice.joinedUserId } });
   };
 
+  // Multi-Coach Builder handoff section 8: the assigned coach's own real
+  // in-app notice, the moment a head coach assigns them a station -- can't
+  // assume they're looking at the app right now, so this is a persistent
+  // Home card (acknowledged via a real server write, not a local dismiss)
+  // rather than a passive badge. Same shape as the join-notice card above,
+  // one level down: "go build it" instead of "go set up permissions."
+  const [ackingStationNoticeId, setAckingStationNoticeId] = useState(null);
+  const pendingStationNotice = (data.pendingStationAssignmentNotices || [])[0] || null;
+  const dismissStationNotice = async () => {
+    if (!pendingStationNotice) return;
+    setAckingStationNoticeId(pendingStationNotice.id);
+    await acknowledgeStationAssignmentNotice(pendingStationNotice.id);
+    if (refreshLibrary) await refreshLibrary();
+    setAckingStationNoticeId(null);
+  };
+  const goToMyStation = async () => {
+    if (!pendingStationNotice) return;
+    setAckingStationNoticeId(pendingStationNotice.id);
+    await acknowledgeStationAssignmentNotice(pendingStationNotice.id);
+    if (refreshLibrary) await refreshLibrary();
+    setAckingStationNoticeId(null);
+    goToBuilder(pendingStationNotice.practiceId);
+  };
+
   // Org Experience handoff Sec 5: unlike the team_staff welcome card above
   // (already-added, just an FYI), an org invite is a real consent gate --
   // nothing is granted until accept/decline runs. Surfaced here since Home
@@ -631,6 +655,13 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn primary bxs" style={{ flex: 1 }} disabled={openingPermissionsFor === pendingJoinNotice.id} onClick={goToCoachPermissions}>{openingPermissionsFor === pendingJoinNotice.id ? "Opening..." : "Set Up Permissions"}</button>
         <button className="btn ghost bxs" style={{ flex: 1 }} disabled={ackingJoinId === pendingJoinNotice.id} onClick={acknowledgeJoinNotice}>Dismiss</button>
+      </div>
+    </div></div>}
+    {pendingStationNotice && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
+      <div style={{ fontSize: 14, marginBottom: 10 }}>You've been assigned <strong>{pendingStationNotice.stationName || "a station"}</strong> for <strong>{pendingStationNotice.practiceName || "a practice"}</strong> ({pendingStationNotice.teamName}).</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button className="btn primary bxs" style={{ flex: 1 }} disabled={ackingStationNoticeId === pendingStationNotice.id} onClick={goToMyStation}>Build My Station</button>
+        <button className="btn ghost bxs" style={{ flex: 1 }} disabled={ackingStationNoticeId === pendingStationNotice.id} onClick={dismissStationNotice}>Dismiss</button>
       </div>
     </div></div>}
     {unviewedNoteTeam && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>

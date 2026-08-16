@@ -321,6 +321,20 @@ export async function acknowledgeTeamJoinNotice(id) {
   if (error) console.error('acknowledgeTeamJoinNotice:', error)
   return { error }
 }
+// Multi-Coach Builder: mirrors fetchPendingTeamJoinNotices exactly, but for
+// the assigned coach's own side -- "you've been assigned Station 2" rather
+// than the manager-side notices above. RLS (station_assignment_notices_select)
+// already scopes this to the caller's own assignments.
+export async function fetchPendingStationAssignmentNotices() {
+  const { data, error } = await supabase.from('station_assignment_notices').select('id, station_id, practice_id, team_id, station_name, practice_name, created_at, teams(name)').is('acknowledged_at', null).order('created_at', { ascending: false })
+  if (error) { console.error('fetchPendingStationAssignmentNotices:', error); return [] }
+  return (data || []).map(n => ({ id: n.id, stationId: n.station_id, practiceId: n.practice_id, teamId: n.team_id, teamName: n.teams ? n.teams.name : '', stationName: n.station_name, practiceName: n.practice_name, createdAt: n.created_at }))
+}
+export async function acknowledgeStationAssignmentNotice(id) {
+  const { error } = await supabase.rpc('acknowledge_station_assignment_notice', { p_notice_id: id })
+  if (error) console.error('acknowledgeStationAssignmentNotice:', error)
+  return { error }
+}
 // Personal Home-agenda visibility only -- narrow, self-row-only RPC (see
 // migration comment), not an access-control change.
 export async function setTeamStaffShowOnHome(teamStaffId, show) {
@@ -448,6 +462,9 @@ export async function fetchLibraryData() {
   // Same reasoning again for join notices -- the head coach's own
   // notification that an invite was accepted, directing them to Permissions.
   const pendingTeamJoinNotices = await fetchPendingTeamJoinNotices()
+  // Multi-Coach Builder: the assigned coach's own "you've been assigned a
+  // station" notification, same reasoning as the three above.
+  const pendingStationAssignmentNotices = await fetchPendingStationAssignmentNotices()
   if (drillsRes.error) console.error('fetchLibraryData drills:', drillsRes.error)
   if (assetsRes.error) console.error('fetchLibraryData assets:', assetsRes.error)
 
@@ -472,6 +489,7 @@ export async function fetchLibraryData() {
     pendingTeamDepartures,
     pendingTeamInvites,
     pendingTeamJoinNotices,
+    pendingStationAssignmentNotices,
     profilesById,
     catalogs: (catalogsRes.data || []).map(mapCatalogRow),
   }
@@ -934,6 +952,7 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
       equipment: stationEquipByStation[st.id] || [], playerGear: '',
       assignments: st.assignments || [], groupLabel: st.group_label || '',
       grouping: st.grouping || 'whole', numGroups: st.num_groups || 2,
+      stationUpdatedAt: st.station_updated_at || null, stationUpdatedBy: st.station_updated_by || null,
     }))
   }
   return base
@@ -1187,6 +1206,29 @@ export async function updateStationLead(stationId, { coachId, helperName }) {
   const { error } = await supabase.from('stations').update({ team_staff_id: coachId || null, helper_name: coachId ? null : (helperName || null) }).eq('id', stationId)
   if (error) console.error('updateStationLead:', error)
   return { error }
+}
+// Multi-Coach Builder: the actual concurrency fix (see update_station_content
+// migration comment) -- one atomic per-station RPC an assigned coach (or the
+// head coach) can call instead of a full savePracticeTree pass, so two
+// coaches editing different stations of the same block around the same time
+// never clobber each other. Distinct error shapes so the caller can tell
+// "this station is gone" (STATION_NOT_FOUND) from "you're not assigned to it
+// anymore" (NOT_AUTHORIZED) apart from a generic failure -- both are real,
+// expected states per the handoff's own edge-case section, not exceptions.
+export async function updateStationContent(practiceId, activityId, stationId, { name, description, coachingPoints, libraryId, sublocationId, grouping, numGroups, equipment }) {
+  const { data, error } = await supabase.rpc('update_station_content', {
+    p_practice_id: practiceId, p_activity_id: activityId, p_station_id: stationId,
+    p_name: name || null, p_description: description || null, p_coaching_points: coachingPoints || null,
+    p_library_activity_id: libraryId || null, p_sublocation_id: sublocationId || null,
+    p_grouping: grouping || 'whole', p_num_groups: numGroups || null,
+    p_equipment_asset_ids: (equipment || []).filter(Boolean),
+  })
+  if (error) {
+    console.error('updateStationContent:', error)
+    const msg = error.message || ''
+    return { error, notFound: msg.includes('STATION_NOT_FOUND'), notAuthorized: msg.includes('NOT_AUTHORIZED') }
+  }
+  return { data, error: null }
 }
 // Same single-row assign as updateStationLead, for a plain (non-station)
 // Run of Practice drill -- Practice Setup's per-drill "Unassigned"/coach
@@ -1585,6 +1627,30 @@ export function subscribeToPracticePresence(practiceId, me, onChange) {
     onChange({ coachNames: [...coachNames], anonCount })
   })
   channel.subscribe(status => { if (status === 'SUBSCRIBED') channel.track(me) })
+  return () => { supabase.removeChannel(channel) }
+}
+
+// Multi-Coach Builder: "Coach X is editing Station Y" -- same Supabase
+// Realtime Presence mechanism as subscribeToPracticePresence above (no new
+// table, ephemeral client-to-client state), but keyed per-station rather
+// than per-practice so the head coach's skeleton view can tell which
+// specific station a coach currently has open, not just that someone,
+// somewhere in the practice, does. A separate function/channel rather than
+// extending subscribeToPracticePresence's own aggregation (which already
+// has three working call sites -- PreviewView/CommandScreen/HelperView --
+// flattening every tracked entry into one coachNames set with no per-
+// station grouping) so this doesn't risk changing what those already do.
+export function subscribeToStationPresence(stationId, me, onChange) {
+  const channel = supabase.channel('station_presence_' + stationId, {
+    config: { presence: { key: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()) } }
+  })
+  channel.on('presence', { event: 'sync' }, () => {
+    const raw = channel.presenceState()
+    const coachNames = new Set()
+    Object.values(raw).forEach(entries => entries.forEach(e => { if (e.kind === 'coach' && e.label) coachNames.add(e.label) }))
+    onChange([...coachNames])
+  })
+  channel.subscribe(status => { if (status === 'SUBSCRIBED' && me) channel.track(me) })
   return () => { supabase.removeChannel(channel) }
 }
 

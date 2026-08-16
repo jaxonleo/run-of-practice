@@ -30,7 +30,7 @@ const Ic={
 // opened the live link show up together. `me` is `null` until the
 // caller actually knows who they are (or that they're anonymous); the
 // effect no-ops until both practiceId and me are ready.
-function usePracticePresence(practiceId, me) {
+export function usePracticePresence(practiceId, me) {
   const [presence, setPresence] = useState({ coachNames: [], anonCount: 0 });
   useEffect(() => {
     if (!practiceId || !me) return;
@@ -60,7 +60,7 @@ function SyncBadge({health}){
   </button>);
 }
 
-function PresenceBadge({ coachNames, anonCount, dark }) {
+export function PresenceBadge({ coachNames, anonCount, dark }) {
   if (!coachNames.length && !anonCount) return null;
   const parts = [];
   if (coachNames.length) parts.push(coachNames.join(", "));
