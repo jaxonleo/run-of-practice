@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { uid, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, groupByAttribute } from "../constants.js";
+import { uid, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, groupByAttribute, stationIsPlanned, timeAgo } from "../constants.js";
 import { createAsset, updateAsset, findMissingEquipment, resolveDrillEquipmentForCoach } from "../supabase.js";
 import { Ic } from "../icons.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
@@ -395,6 +395,9 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   const [newEquipIdx,setNewEquipIdx]=useState(null);
   const [newGearIdx,setNewGearIdx]=useState(null);
   const [libraryPickerIdx,setLibraryPickerIdx]=useState(null);
+  // Which station's Delegate picker is open -- same per-station-index
+  // pattern as libraryPickerIdx/helperIdx below, not persisted.
+  const [delegatePickerIdx,setDelegatePickerIdx]=useState(null);
   const [groupByOpen,setGroupByOpen]=useState(false);
   // Purely a UI label, not persisted -- once a coach picks a criterion the
   // button itself should reflect the choice ("Group By...Position") instead
@@ -570,6 +573,11 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
             <span style={{minWidth:0,overflow:"hidden"}}>
               <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:900,color:"var(--green)",letterSpacing:".05em"}}>STATION {si+1}</span>
               {collapsed&&<span style={{display:"block",fontSize:12,color:"var(--black2)",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{st.activityName||st.name||"No drill set yet"}</span>}
+              {/* At-a-glance delegation status, visible even collapsed --
+                  direct feedback: the head coach needs to see whether a
+                  delegated station is actually done, or whether they need
+                  to step in themselves, without opening every station. */}
+              {collapsed&&st.delegatedTo&&<span style={{display:"block",fontSize:11,fontWeight:700,color:stationIsPlanned(st)?"var(--green)":"var(--amber)"}}>{stationIsPlanned(st)?"✓ Planned":"Needs Planning"} · {((team&&team.coaches||[]).find(c=>c.id===st.delegatedTo)||{}).name||"delegated"}</span>}
             </span>
           </button>
           {act.stations.length>1&&<button type="button" onClick={()=>removeStation(si)} style={{background:"none",border:"none",color:"var(--td)",fontSize:12,cursor:"pointer",padding:"2px 6px",flexShrink:0}}>Remove</button>}
@@ -629,6 +637,34 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
             </div>
           </div>}
         </div>
+        {/* Direct feedback: reusing the live-leader Coach field to also mean
+            "who designs this station" was confusing -- no way to tell
+            which of the two you were setting. This is a genuinely separate
+            field (stations.delegated_to) and control, placed right at the
+            top of the station next to Choose from Library since that's the
+            other way a station's content gets filled in. Only
+            can_build_practices-eligible coaches are offered, since that's
+            exactly who update_station_content will actually let write to
+            it -- picking anyone else here would be a silent dead end. */}
+        {team&&<div className="fld"><label className="lbl">Plan This Station</label>
+          {st.delegatedTo?(()=>{
+            const delegate=(team.coaches||[]).find(c=>c.id===st.delegatedTo);
+            const planned=stationIsPlanned(st);
+            return (<div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:8}}>
+              <span style={{fontSize:13,fontWeight:600}}>Delegated to {delegate?delegate.name:"a former coach"}</span>
+              <span style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:planned?"var(--gbg)":"var(--ambg)",color:planned?"var(--green)":"var(--amber)"}}>{planned?"Planned":"Needs Planning"}</span>
+              {st.stationUpdatedAt&&<span style={{fontSize:11,color:"var(--td)"}}>last saved {timeAgo(st.stationUpdatedAt)}</span>}
+              <button type="button" className="btn ghost bxs" onClick={()=>onSt(st.id,{delegatedTo:""})}>Remove</button>
+            </div>);
+          })():delegatePickerIdx===si?<div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
+            {(team.coaches||[]).filter(c=>c.canBuildPractices).map(c=>(
+              <button key={c.id} type="button" onClick={()=>{onSt(st.id,{delegatedTo:c.id});setDelegatePickerIdx(null);}} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:"#fff",color:"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{c.name}</button>
+            ))}
+            <button type="button" className="btn ghost bxs" onClick={()=>setDelegatePickerIdx(null)}>Cancel</button>
+          </div>:(team.coaches||[]).filter(c=>c.canBuildPractices).length===0?
+            <div style={{fontSize:12,color:"var(--td)"}}>No assistant has Share Practice Planning yet -- grant it from the roster's Permissions to delegate a station to them.</div>
+            :<button type="button" className="btn ghost bxs" onClick={()=>setDelegatePickerIdx(si)}>+ Delegate to a Coach</button>}
+        </div>}
         <div className="fld"><label className="lbl">Description</label><AutoTextarea minHeight={40} value={st.description||""} onChange={e=>onSt(st.id,{description:e.target.value})}/></div>
         {/* This is the drill's own internal split (e.g. partners within this
             station), independent of -- and on top of -- which players rotate
@@ -659,31 +695,14 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
             once, which a plain per-station dropdown couldn't catch since
             each station's own field had no idea what any other station had
             picked. */}
-        {/* Multi-Coach Builder: this specific picker (Builder, pre-live) is
-            the one that actually grants write access to the station's own
-            content once saved -- station.team_staff_id is what
-            update_station_content checks the caller against. Narrowed to
-            coaches with canBuildPractices ("Share Practice Planning",
-            unlimited-per-team as of this feature) so assigning someone here
-            always means they can actually come edit it, not a silent dead
-            end. The live/Practice Setup reassignment picker
-            (SetupStationBlockRow, CommandScreen.jsx) is deliberately left
-            unrestricted -- that one is about who physically runs the
-            station during the session, a different, lower-stakes concept
-            that already supports any coach or a freeform helper name. */}
+        {/* Direct feedback: this picker is who leads this station live,
+            full stop -- same field/meaning it's always had, unrestricted
+            to any roster coach. It carries no editing implication; see
+            "Plan This Station" below for delegating who builds this
+            station's own content, a genuinely separate field/concept. */}
         {team&&team.coaches.length>0&&<div className="fld"><label className="lbl">Coach</label>
-          {team.coaches.filter(c=>c.canBuildPractices).length===0
-            ?<div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>No assistant has Share Practice Planning yet -- grant it from the roster's Permissions to make them assignable here.</div>
-            // Direct feedback: it wasn't clear that picking a coach here
-            // does more than the same field has always done (who leads
-            // this station live) -- it now also lets them come build this
-            // station's own drills before the practice, through a
-            // separate screen only they see. Said plainly, right where
-            // the choice is made, rather than left to be inferred from
-            // Permissions' "Share Practice Planning" wording alone.
-            :<div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>Assigning a coach here lets them build this station's own drills, notes, and equipment before practice -- not just lead it live.</div>}
           {!st.helperName&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-            {team.coaches.filter(c=>c.canBuildPractices).map(c=>{
+            {team.coaches.map(c=>{
               const isHere=st.coachId===c.id;
               const elsewhereIdx=act.stations.findIndex((os,oi)=>oi!==si&&os.coachId===c.id);
               const isElsewhere=!isHere&&elsewhereIdx!==-1;

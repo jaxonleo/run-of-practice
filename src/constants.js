@@ -387,6 +387,38 @@ export function menuNeedsToOpenUpward(rect,thresholdPx){
   return (window.innerHeight-rect.bottom)<(thresholdPx||260);
 }
 
+// "Has this station actually been planned" -- shared between Builder's own
+// per-station/per-block indicators (ActivityConfigs.jsx) and App.jsx's
+// block-level "N of M stations planned" summary, so the two never drift
+// out of sync. Deliberately not a bare non-empty-name check: addStation
+// seeds every new station's own `name` with a placeholder ("Station 2"),
+// and saveActivityTree persists that same placeholder as the real DB
+// value for a station nobody ever touched (there's only one `name`
+// column -- the activityName/name split that distinguishes "real" from
+// "default" doesn't survive a save). A station counts as planned if it
+// has a real drill identity (library pick, or a name that isn't just the
+// untouched placeholder) or any other real content, or has ever been
+// saved through the delegate's own update_station_content RPC
+// (stationUpdatedAt) even if only equipment/notes changed.
+export function stationIsPlanned(st){
+  const nm=(st.activityName||st.name||"").trim();
+  return !!(st.libraryId||st.stationUpdatedAt||(st.description||"").trim()||(st.coachingPoints||"").trim()||(st.equipment||[]).length||(nm&&!/^Station \d+$/.test(nm)));
+}
+
+// Shared between Builder's own "Plan This Station" status (ActivityConfigs.jsx)
+// and MyStationBuilder.jsx's own last-saved lines.
+export function timeAgo(iso){
+  if(!iso)return"";
+  const ms=Date.now()-new Date(iso).getTime();
+  const mins=Math.floor(ms/60000);
+  if(mins<1)return"just now";
+  if(mins<60)return mins+(mins===1?" minute ago":" minutes ago");
+  const hrs=Math.floor(mins/60);
+  if(hrs<24)return hrs+(hrs===1?" hour ago":" hours ago");
+  const days=Math.floor(hrs/24);
+  return days+(days===1?" day ago":" days ago");
+}
+
 // ── Goals & Insights: shared attribution/guidance math ──────────────────────
 // These mirror the exact rules the live get_team_goal_report/
 // get_team_goal_trends RPCs already use (see

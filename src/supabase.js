@@ -953,6 +953,10 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
       assignments: st.assignments || [], groupLabel: st.group_label || '',
       grouping: st.grouping || 'whole', numGroups: st.num_groups || 2,
       stationUpdatedAt: st.station_updated_at || null, stationUpdatedBy: st.station_updated_by || null,
+      // Distinct from coachId (who leads this station live) -- who's been
+      // asked to plan its own content. See the delegated_to migration
+      // comment for why these are two separate fields, not one.
+      delegatedTo: st.delegated_to || '',
     }))
   }
   return base
@@ -1133,6 +1137,7 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
           stRow.helper_name = st.coachId ? null : (st.helperName || null)
           stRow.assignments = st.assignments || []
           stRow.group_label = st.groupLabel || null
+          stRow.delegated_to = st.delegatedTo || null
         }
         let stId = st.id
         if (isDbId(stId)) {

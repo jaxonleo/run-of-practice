@@ -42,11 +42,13 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
   // Cancel Practice stays canManage-only, a skeleton/scheduling decision.
   const myCoach=team?(team.coaches||[]).find(c=>c.userId===coachId):null;
   const myTeamStaffId=myCoach?myCoach.id:null;
+  // delegated_to, not coachId (the live leader field -- a different,
+  // lower-stakes concept with no editing implication, direct feedback).
   // canBuildPractices required too, matching update_station_content's own
-  // requirement (20260816020000) -- a coach only set as a station's live
-  // leader (Practice Setup's separate, unrestricted picker) shouldn't see
-  // a "Build My Station" button that every Save would then refuse.
-  const hasMyStation=!canManage&&!!(myTeamStaffId&&myCoach.canBuildPractices&&(practice.activities||[]).some(a=>a.type==="station_block"&&(a.stations||[]).some(st=>st.coachId===myTeamStaffId)));
+  // requirement -- shouldn't be reachable in practice since Builder's own
+  // Delegate picker already only offers eligible coaches, but keeps this
+  // check consistent with the actual RPC gate regardless.
+  const hasMyStation=!canManage&&!!(myTeamStaffId&&myCoach.canBuildPractices&&(practice.activities||[]).some(a=>a.type==="station_block"&&(a.stations||[]).some(st=>st.delegatedTo===myTeamStaffId)));
   const canEdit=canManage||hasMyStation;
   const loc=data.locations.find(l=>l.id===practice.locationId);
   const now=new Date();

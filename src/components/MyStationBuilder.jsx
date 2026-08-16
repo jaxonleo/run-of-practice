@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { AutoTextarea, equipmentPickerAssets, EquipmentPickerPill } from "./ActivityConfigs.jsx";
 import { updateStationContent, subscribeToStationPresence, resolveDrillEquipmentForCoach, findMissingEquipment } from "../supabase.js";
+import { timeAgo } from "../constants.js";
 
 // Multi-Coach Builder handoff, section 5: when a coach who isn't the head
 // coach (and isn't a full skeleton-editing delegate -- see BuilderRoute in
@@ -25,18 +26,6 @@ import { updateStationContent, subscribeToStationPresence, resolveDrillEquipment
 // equipmentPickerAssets, EquipmentPickerPill) and visual language for
 // consistency, not a from-scratch redesign.
 
-function timeAgo(iso) {
-  if (!iso) return "";
-  const ms = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(ms / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return mins + (mins === 1 ? " minute ago" : " minutes ago");
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return hrs + (hrs === 1 ? " hour ago" : " hours ago");
-  const days = Math.floor(hrs / 24);
-  return days + (days === 1 ? " day ago" : " days ago");
-}
-
 function coachNameFor(team, teamStaffId) {
   if (!team || !teamStaffId) return null;
   const c = (team.coaches || []).find(c => c.id === teamStaffId);
@@ -51,13 +40,17 @@ function coachNameFor(team, teamStaffId) {
 // other-station summary cards already use.
 function StationSummaryCard({ station, blockDurationMinutes, team, assetsById }) {
   const equipNames = (station.equipment || []).map(id => assetsById[id] && assetsById[id].name).filter(Boolean);
+  // coachId (who leads this station live), not delegatedTo (who's asked
+  // to plan it) -- these are two distinct fields now, direct feedback.
+  // This card is deliberately read-only either way, so only the live-
+  // leader info is worth surfacing here.
   const leaderName = coachNameFor(team, station.coachId) || station.helperName || null;
   return (<div className="card" style={{ padding: "12px 14px", opacity: .85 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
       <div style={{ fontSize: 14, fontWeight: 700 }}>{station.name || "Untitled station"}</div>
       <div style={{ fontSize: 12, color: "var(--td)", flexShrink: 0 }}>{blockDurationMinutes}m</div>
     </div>
-    {leaderName && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>Coach: {leaderName}</div>}
+    {leaderName && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>Leads: {leaderName}</div>}
     {equipNames.length > 0 && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 4 }}>Equipment: {equipNames.join(", ")}</div>}
     {station.stationUpdatedAt && <div style={{ fontSize: 11, color: "var(--td)", marginTop: 4 }}>Last edited {timeAgo(station.stationUpdatedAt)}{coachNameFor(team, station.stationUpdatedBy) ? " by " + coachNameFor(team, station.stationUpdatedBy) : ""}</div>}
   </div>);
@@ -66,8 +59,8 @@ function StationSummaryCard({ station, blockDurationMinutes, team, assetsById })
 // The editable form for exactly one station. `station`/`activity` are
 // re-derived fresh from `data` on every poll by the parent and may become
 // null (station archived out from under the caller) or non-null-but-
-// reassigned (coachId no longer matches) -- see the handoff's own section 7
-// edge cases. Local draft state is seeded once from the first snapshot this
+// reassigned (delegatedTo no longer matches) -- see the handoff's own
+// section 7 edge cases. Local draft state is seeded once from the first snapshot this
 // component ever receives and never clobbered by a later poll, matching
 // this app's existing "nothing round-trips until Save" Builder convention
 // (constants.js/App.jsx BuilderScreen) -- a background poll refreshing
@@ -95,7 +88,7 @@ function MyStationEditor({ practiceId, activity, station, initialSnapshot, team,
   // 7. Both "not mine anymore" states preserve the draft above (still
   // rendered, read-only) rather than discarding it.
   const stillExists = !!station;
-  const stillMine = stillExists && station.coachId === team.coaches.find(c => c.userId === coachId)?.id;
+  const stillMine = stillExists && station.delegatedTo === team.coaches.find(c => c.userId === coachId)?.id;
 
   const [presentCoachNames, setPresentCoachNames] = useState([]);
   useEffect(() => {
@@ -128,7 +121,7 @@ function MyStationEditor({ practiceId, activity, station, initialSnapshot, team,
     const { error, notFound, notAuthorized } = await updateStationContent(practiceId, activity.id, station.id, draft);
     setSaving(false);
     if (error) {
-      setSaveError(notFound ? "This station was removed from the plan before your save went through." : notAuthorized ? "You're no longer assigned to this station." : "Couldn't save. Try again.");
+      setSaveError(notFound ? "This station was removed from the plan before your save went through." : notAuthorized ? "You're no longer delegated to plan this station." : "Couldn't save. Try again.");
       return;
     }
     setDirty(false);
@@ -144,10 +137,10 @@ function MyStationEditor({ practiceId, activity, station, initialSnapshot, team,
   if (!stillMine) {
     return (<div className="card" style={{ padding: "14px 16px", border: "1.5px solid var(--amber)" }}>
       <div style={{ fontSize: 14, fontWeight: 700, color: "var(--amber)", marginBottom: 6 }}>
-        {stillExists ? "This station is no longer assigned to you" : "This station was removed from the plan"}
+        {stillExists ? "You're no longer delegated to plan this station" : "This station was removed from the plan"}
       </div>
       <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 10 }}>
-        {stillExists ? "The head coach reassigned it to someone else. Your in-progress notes are still here below -- nothing was written to the station." : "The head coach deleted or restructured this part of the plan. Your in-progress notes are still here below -- they were never saved anywhere."}
+        {stillExists ? "The head coach delegated it to someone else. Your in-progress notes are still here below -- nothing was written to the station." : "The head coach deleted or restructured this part of the plan. Your in-progress notes are still here below -- they were never saved anywhere."}
       </div>
       <div style={{ fontSize: 13, background: "var(--s2)", borderRadius: "var(--r)", padding: 10, whiteSpace: "pre-wrap" }}>{draft.name}{draft.name && "\n"}{draft.description}{draft.description && "\n"}{draft.coachingPoints}</div>
       <button type="button" className="btn ghost bxs" style={{ marginTop: 10 }} onClick={copyDraft}>{copied ? "Copied" : "Copy My Notes"}</button>
@@ -232,7 +225,7 @@ export default function MyStationBuilderScreen({ practice, team, data, coachId, 
 
   const blockActs = (practice.activities || []).filter(a => a.type === "station_block");
   const currentMineIds = [];
-  for (const act of blockActs) for (const st of act.stations || []) if (st.coachId === myTeamStaffId) currentMineIds.push(st.id);
+  for (const act of blockActs) for (const st of act.stations || []) if (st.delegatedTo === myTeamStaffId) currentMineIds.push(st.id);
 
   useEffect(() => {
     setOpenStationIds(prev => {
@@ -272,7 +265,7 @@ export default function MyStationBuilderScreen({ practice, team, data, coachId, 
     {[...openStationIds].map(stationId => {
       // Re-derive fresh from the current `data`/`practice` every render --
       // may resolve to null (activity/station gone) or a station whose
-      // coachId no longer matches, both handled inside MyStationEditor.
+      // delegatedTo no longer matches, both handled inside MyStationEditor.
       let activity = null, station = null;
       for (const act of blockActs) { const st = (act.stations || []).find(s => s.id === stationId); if (st) { activity = act; station = st; break; } }
       const initialSnapshot = firstSnapshotsRef.current[stationId] || station || {};

@@ -658,7 +658,7 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
       </div>
     </div></div>}
     {pendingStationNotice && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
-      <div style={{ fontSize: 14, marginBottom: 10 }}>You've been assigned <strong>{pendingStationNotice.stationName || "a station"}</strong> for <strong>{pendingStationNotice.practiceName || "a practice"}</strong> ({pendingStationNotice.teamName}).</div>
+      <div style={{ fontSize: 14, marginBottom: 10 }}>You've been asked to plan <strong>{pendingStationNotice.stationName || "a station"}</strong> for <strong>{pendingStationNotice.practiceName || "a practice"}</strong> ({pendingStationNotice.teamName}).</div>
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn primary bxs" style={{ flex: 1 }} disabled={ackingStationNoticeId === pendingStationNotice.id} onClick={goToMyStation}>Build My Station</button>
         <button className="btn ghost bxs" style={{ flex: 1 }} disabled={ackingStationNoticeId === pendingStationNotice.id} onClick={dismissStationNotice}>Dismiss</button>
