@@ -857,8 +857,15 @@ function BuilderRoute(){
   const editP=editPracticeId?data.practices.find(p=>p.id===editPracticeId):null;
   const teamForEditP=editP?data.teams.find(t=>t.id===editP.teamId):null;
   const canManageThisTeam=teamForEditP?canManageTeamInMode(teamForEditP,coachId,mode):false;
-  const myTeamStaffId=teamForEditP?((teamForEditP.coaches||[]).find(c=>c.userId===coachId)||{}).id:null;
-  const hasStationAssignment=!!(editP&&myTeamStaffId&&(editP.activities||[]).some(a=>a.type==="station_block"&&(a.stations||[]).some(st=>st.coachId===myTeamStaffId)));
+  const myCoachForEditP=teamForEditP?(teamForEditP.coaches||[]).find(c=>c.userId===coachId):null;
+  const myTeamStaffId=myCoachForEditP?myCoachForEditP.id:null;
+  // canBuildPractices required here too, not just a station_id match --
+  // update_station_content itself now refuses a coach who isn't actually
+  // delegated (20260816020000), so routing them into this screen without
+  // that same check would land them somewhere every Save silently fails.
+  // Being set as a station's live leader (a different, unrestricted picker
+  // in Practice Setup) should never alone be enough to reach this screen.
+  const hasStationAssignment=!!(editP&&myTeamStaffId&&myCoachForEditP.canBuildPractices&&(editP.activities||[]).some(a=>a.type==="station_block"&&(a.stations||[]).some(st=>st.coachId===myTeamStaffId)));
 
   if(editP&&teamForEditP&&!canManageThisTeam&&hasStationAssignment){
     return <MyStationBuilderScreen practice={editP} team={teamForEditP} data={data} coachId={coachId} coachLabel={coachName||"Coach"} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} goHome={goHome}/>;

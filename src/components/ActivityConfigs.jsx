@@ -672,7 +672,16 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
             station during the session, a different, lower-stakes concept
             that already supports any coach or a freeform helper name. */}
         {team&&team.coaches.length>0&&<div className="fld"><label className="lbl">Coach</label>
-          {team.coaches.filter(c=>c.canBuildPractices).length===0&&<div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>No assistant has Share Practice Planning yet -- grant it from the roster's Permissions to make them assignable here.</div>}
+          {team.coaches.filter(c=>c.canBuildPractices).length===0
+            ?<div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>No assistant has Share Practice Planning yet -- grant it from the roster's Permissions to make them assignable here.</div>
+            // Direct feedback: it wasn't clear that picking a coach here
+            // does more than the same field has always done (who leads
+            // this station live) -- it now also lets them come build this
+            // station's own drills before the practice, through a
+            // separate screen only they see. Said plainly, right where
+            // the choice is made, rather than left to be inferred from
+            // Permissions' "Share Practice Planning" wording alone.
+            :<div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>Assigning a coach here lets them build this station's own drills, notes, and equipment before practice -- not just lead it live.</div>}
           {!st.helperName&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
             {team.coaches.filter(c=>c.canBuildPractices).map(c=>{
               const isHere=st.coachId===c.id;

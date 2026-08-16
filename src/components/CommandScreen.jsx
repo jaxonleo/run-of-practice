@@ -338,8 +338,8 @@ function EquipmentByArea({equipByArea}){
 // Solo-person pill, readable against the dark backdrop (direct feedback:
 // the old translucent-green player chips were hard to read) -- used for
 // both the coach-leader tap target and the groupings-dialog player list.
-function LeaderTapTarget({label,onTap,disabled}){
-  return (<button type="button" disabled={disabled} onClick={onTap} style={{background:label?"rgba(82,183,136,.22)":"rgba(245,158,11,.18)",border:"1.5px solid "+(label?"#52b788":"#f59e0b"),borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:700,color:label?"#fff":"#fde68a",cursor:disabled?"default":"pointer"}}>Coach: {label||"Unassigned"}</button>);
+function LeaderTapTarget({label,onTap,disabled,title}){
+  return (<button type="button" disabled={disabled} onClick={onTap} title={title} style={{background:label?"rgba(82,183,136,.22)":"rgba(245,158,11,.18)",border:"1.5px solid "+(label?"#52b788":"#f59e0b"),borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:700,color:label?"#fff":"#fde68a",cursor:disabled?"default":"pointer"}}>Coach: {label||"Unassigned"}</button>);
 }
 
 // Reads the real, already-seeded-and-persisted groupings for a drill's own
@@ -530,7 +530,12 @@ function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onV
           {(st.description||st.coachingPoints)&&<Ic.Chev up={expanded}/>}
         </button>
         <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:6,marginBottom:(stLoc||stEquip.length)?8:0}}>
-          <LeaderTapTarget label={label} onTap={()=>onReassignLead(st.id)} disabled={!isController}/>
+          {/* Direct feedback: it wasn't clear that Builder's own Coach
+              picker also grants editing rights, pre-live -- this one,
+              reassigning live, deliberately does not (it's always been
+              just who's physically running the station), so it gets the
+              opposite clarification. */}
+          <LeaderTapTarget label={label} onTap={()=>onReassignLead(st.id)} disabled={!isController} title="Who's leading this station right now -- doesn't change who can edit the plan"/>
           {stLoc&&<span style={{fontSize:12,color:"#52b788",fontWeight:600,marginLeft:2}}>{stLoc}</span>}
         </div>
         {expanded&&(st.description||st.coachingPoints)&&<div style={{marginBottom:stEquip.length?8:0}}>

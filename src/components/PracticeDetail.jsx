@@ -40,8 +40,13 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
   // async "assigned days before, comes back on their own schedule" shape
   // this feature is explicitly built for. Only gates the Edit button --
   // Cancel Practice stays canManage-only, a skeleton/scheduling decision.
-  const myTeamStaffId=team?((team.coaches||[]).find(c=>c.userId===coachId)||{}).id:null;
-  const hasMyStation=!canManage&&!!(myTeamStaffId&&(practice.activities||[]).some(a=>a.type==="station_block"&&(a.stations||[]).some(st=>st.coachId===myTeamStaffId)));
+  const myCoach=team?(team.coaches||[]).find(c=>c.userId===coachId):null;
+  const myTeamStaffId=myCoach?myCoach.id:null;
+  // canBuildPractices required too, matching update_station_content's own
+  // requirement (20260816020000) -- a coach only set as a station's live
+  // leader (Practice Setup's separate, unrestricted picker) shouldn't see
+  // a "Build My Station" button that every Save would then refuse.
+  const hasMyStation=!canManage&&!!(myTeamStaffId&&myCoach.canBuildPractices&&(practice.activities||[]).some(a=>a.type==="station_block"&&(a.stations||[]).some(st=>st.coachId===myTeamStaffId)));
   const canEdit=canManage||hasMyStation;
   const loc=data.locations.find(l=>l.id===practice.locationId);
   const now=new Date();
