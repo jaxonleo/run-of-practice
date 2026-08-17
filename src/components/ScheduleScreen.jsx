@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchPlannedAbsences, fetchPracticeRunStatus, savePracticeTree } from "../supabase.js";
-import { canManageTeamInMode, sumMins, planningState, localDateStr, stripIdsForCopy } from "../constants.js";
+import { canManageTeamInMode, sumMins, planningState, localDateStr, stripIdsForCopy, useBigBrowser } from "../constants.js";
+import { TwoPane } from "./BBShells.jsx";
 import PracticeDetail from "./PracticeDetail.jsx";
 import SeriesWizard from "./SeriesWizard.jsx";
 import SchedulePracticeModal from "./SchedulePracticeModal.jsx";
@@ -69,6 +70,12 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
   const todayStr = localDateStr(now);
   const tomorrowStr = localDateStr(new Date(Date.now() + 864e5));
 
+  // BB layout pass: Month and Agenda side by side instead of a toggle --
+  // both already derive from the same unconditionally-computed
+  // filtered/upcoming/practicesByDate below (no per-mode fetch or side
+  // effect exists to duplicate), so mounting both at once needed no
+  // changes to that data derivation, only to which JSX renders it.
+  const isBB = useBigBrowser();
   const [mode, setMode] = useState("agenda");
   const [teamFilter, setTeamFilter] = useState(new Set());
   const [monthCursor, setMonthCursor] = useState(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -194,60 +201,69 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
       </button>))}
     </div>}
 
-    <div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3, margin: "0 16px 12px" }}>
+    {/* BB layout pass: Month and Agenda render side by side at BB (per the
+        handoff's spec), so the toggle pill that picks between them below is
+        mobile-only -- both views already share the same computed data, no
+        per-mode state to reconcile. */}
+    {!isBB && <div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3, margin: "0 16px 12px" }}>
       {["agenda", "month"].map(m => (<button key={m} onClick={() => setMode(m)} style={{ flex: 1, padding: "8px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: mode === m ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: mode === m ? "var(--black)" : "var(--td)" }}>{m}</button>))}
-    </div>
+    </div>}
 
-    {mode === "agenda" && <div style={{ padding: "0 16px" }}>
-      {groupByDay(upcoming).map(g => (<div key={g.date} style={{ marginBottom: 16 }}>
-        <div className="clbl" style={{ marginBottom: 6 }}>{dayLbl(g.date, todayStr, tomorrowStr)}</div>
-        {g.items.map(p => {
-          const team = teamById(p.teamId), planned = (p.activities || []).length > 0, cancelled = p.status === "cancelled", count = absenceCounts[p.id] || 0;
-          return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer", opacity: cancelled ? .6 : 1 }} onClick={() => openPractice(p)}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-              {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
-              <div className="lim" style={{ minWidth: 0 }}>
-                <div className="lin" style={{ textDecoration: cancelled ? "line-through" : "none" }}>{team ? team.name : "Practice"}</div>
-                <div className="limt">{timeLbl(p)}{!planned && !cancelled && " · Needs plan"}{!cancelled && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{cancelled && " · Cancelled"}{count > 0 && <React.Fragment> · <span style={{ whiteSpace: "nowrap" }}>{count} out</span></React.Fragment>}</div>
+    {(() => {
+      const agendaContent = (<div style={{ padding: "0 16px" }}>
+        {groupByDay(upcoming).map(g => (<div key={g.date} style={{ marginBottom: 16 }}>
+          <div className="clbl" style={{ marginBottom: 6 }}>{dayLbl(g.date, todayStr, tomorrowStr)}</div>
+          {g.items.map(p => {
+            const team = teamById(p.teamId), planned = (p.activities || []).length > 0, cancelled = p.status === "cancelled", count = absenceCounts[p.id] || 0;
+            return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer", opacity: cancelled ? .6 : 1 }} onClick={() => openPractice(p)}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+                {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
+                <div className="lim" style={{ minWidth: 0 }}>
+                  <div className="lin" style={{ textDecoration: cancelled ? "line-through" : "none" }}>{team ? team.name : "Practice"}</div>
+                  <div className="limt">{timeLbl(p)}{!planned && !cancelled && " · Needs plan"}{!cancelled && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{cancelled && " · Cancelled"}{count > 0 && <React.Fragment> · <span style={{ whiteSpace: "nowrap" }}>{count} out</span></React.Fragment>}</div>
+                </div>
               </div>
-            </div>
-            <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>
-          </div>);
-        })}
-      </div>))}
-      {upcoming.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>{canScheduleAny ? "Nothing scheduled. Tap + Practice or + Series above to get started." : "Nothing scheduled yet."}</div>}
-      {/* Direct feedback: history consolidated into Goals & Insights' own
-          History tab -- the agenda's own past-practice list was a second,
-          redundant place to browse the same thing. Past practices are
-          still visible via Month view (below), which already shows a
-          filled/hollow dot and status per day without needing a whole
-          second list here. */}
-    </div>}
+              <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>
+            </div>);
+          })}
+        </div>))}
+        {upcoming.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>{canScheduleAny ? "Nothing scheduled. Tap + Practice or + Series above to get started." : "Nothing scheduled yet."}</div>}
+        {/* Direct feedback: history consolidated into Goals & Insights' own
+            History tab -- the agenda's own past-practice list was a second,
+            redundant place to browse the same thing. Past practices are
+            still visible via Month view (below), which already shows a
+            filled/hollow dot and status per day without needing a whole
+            second list here. */}
+      </div>);
 
-    {mode === "month" && <div style={{ padding: "0 16px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <button className="btn ghost bxs" onClick={() => setMonthCursor(new Date(monthStart.getFullYear(), monthStart.getMonth() - 1, 1))}>&#8249;</button>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 16, fontWeight: 700 }}>{monthStart.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</div>
-        <button className="btn ghost bxs" onClick={() => setMonthCursor(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1))}>&#8250;</button>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, marginBottom: 4 }}>
-        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (<div key={i} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--td)" }}>{d}</div>))}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
-        {days.map((d, i) => {
-          const ds = toDateStr(d);
-          const dayPractices = practicesByDate[ds] || [];
-          const inMonth = d.getMonth() === monthStart.getMonth();
-          return (<div key={i} onClick={() => dayPractices.length && setDaySheetDate(ds)} style={{ aspectRatio: "1", border: "1px solid var(--b)", borderRadius: 6, padding: 3, cursor: dayPractices.length ? "pointer" : "default", opacity: inMonth ? 1 : .35, background: ds === todayStr ? "var(--gbg)" : "#fff" }}>
-            <div style={{ fontSize: 10, color: "var(--td)", marginBottom: 2 }}>{d.getDate()}</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
-              {dayPractices.slice(0, 4).map(p => { const team = teamById(p.teamId); const planned = (p.activities || []).length > 0; const cancelled = p.status === "cancelled"; const color = (team && team.colorPrimary) || "var(--green)"; return (<span key={p.id} style={{ width: 6, height: 6, borderRadius: "50%", background: planned && !cancelled ? color : "transparent", border: "1.5px solid " + (cancelled ? "var(--td)" : color), opacity: cancelled ? .5 : 1 }} />); })}
-            </div>
-          </div>);
-        })}
-      </div>
-      {daySheetDate && <DaySheet date={daySheetDate} practices={(practicesByDate[daySheetDate] || []).sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))} data={data} todayStr={todayStr} runStatus={runStatus} onPick={p => { setDaySheetDate(null); openPractice(p); }} onClose={() => setDaySheetDate(null)} />}
-    </div>}
+      const monthContent = (<div style={{ padding: "0 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <button className="btn ghost bxs" onClick={() => setMonthCursor(new Date(monthStart.getFullYear(), monthStart.getMonth() - 1, 1))}>&#8249;</button>
+          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 16, fontWeight: 700 }}>{monthStart.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</div>
+          <button className="btn ghost bxs" onClick={() => setMonthCursor(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1))}>&#8250;</button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, marginBottom: 4 }}>
+          {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (<div key={i} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--td)" }}>{d}</div>))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
+          {days.map((d, i) => {
+            const ds = toDateStr(d);
+            const dayPractices = practicesByDate[ds] || [];
+            const inMonth = d.getMonth() === monthStart.getMonth();
+            return (<div key={i} onClick={() => dayPractices.length && setDaySheetDate(ds)} style={{ aspectRatio: "1", border: "1px solid var(--b)", borderRadius: 6, padding: 3, cursor: dayPractices.length ? "pointer" : "default", opacity: inMonth ? 1 : .35, background: ds === todayStr ? "var(--gbg)" : "#fff" }}>
+              <div style={{ fontSize: 10, color: "var(--td)", marginBottom: 2 }}>{d.getDate()}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+                {dayPractices.slice(0, 4).map(p => { const team = teamById(p.teamId); const planned = (p.activities || []).length > 0; const cancelled = p.status === "cancelled"; const color = (team && team.colorPrimary) || "var(--green)"; return (<span key={p.id} style={{ width: 6, height: 6, borderRadius: "50%", background: planned && !cancelled ? color : "transparent", border: "1.5px solid " + (cancelled ? "var(--td)" : color), opacity: cancelled ? .5 : 1 }} />); })}
+              </div>
+            </div>);
+          })}
+        </div>
+        {daySheetDate && <DaySheet date={daySheetDate} practices={(practicesByDate[daySheetDate] || []).sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))} data={data} todayStr={todayStr} runStatus={runStatus} onPick={p => { setDaySheetDate(null); openPractice(p); }} onClose={() => setDaySheetDate(null)} />}
+      </div>);
+
+      if (isBB) return <TwoPane left={monthContent} right={agendaContent} />;
+      return mode === "agenda" ? agendaContent : monthContent;
+    })()}
 
     {showWizard && <SeriesWizard data={data} coachId={coachId} mode={appMode} presetTeamId={fixedTeamId} refreshPlanning={refreshPlanning} onClose={() => setShowWizard(false)} onDone={async () => { setShowWizard(false); await refreshPlanning(); }} />}
     {showSingle && <SchedulePracticeModal data={data} coachId={coachId} mode={appMode} presetTeamId={fixedTeamId} refreshPlanning={refreshPlanning} onClose={() => setShowSingle(false)} onDone={async (result, planNow) => { setShowSingle(false); await refreshPlanning(); if (planNow && result) goToBuilder(result.id); }} />}
