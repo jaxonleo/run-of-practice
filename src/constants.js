@@ -1,4 +1,5 @@
 // ── Utility helpers ──────────────────────────────────────────────────────────
+import { useState, useEffect } from "react";
 import { teamLocalToScheduledAt } from "./supabase.js";
 export const uid=()=>Math.random().toString(36).slice(2,9);
 // "Today" must be the viewer's *local calendar day*, not UTC. `toISOString()`
@@ -385,6 +386,28 @@ export function setVisibleComponentTypes(keys){
 // enough room below for the menu's own worst-case height.
 export function menuNeedsToOpenUpward(rect,thresholdPx){
   return (window.innerHeight-rect.bottom)<(thresholdPx||260);
+}
+
+// Big-browser (BB) layout pass (forty-ninth session): the single source of
+// truth for "is this a wide-enough browser to show the desktop arrangement."
+// Every BB conditional in the app derives from this one hook -- never sniff
+// user agent, never check window.innerWidth ad hoc in an individual
+// component, so there is exactly one breakpoint to reason about and change.
+// matchMedia's own change listener (not a resize listener) keeps this
+// correct across a live window resize without a debounce, and without
+// re-running on every pixel of an unrelated height-only resize.
+const BB_QUERY = "(min-width: 1024px)";
+export function useBigBrowser(){
+  const [isBB, setIsBB] = useState(() => typeof window !== "undefined" && window.matchMedia && window.matchMedia(BB_QUERY).matches);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mql = window.matchMedia(BB_QUERY);
+    const onChange = e => setIsBB(e.matches);
+    mql.addEventListener("change", onChange);
+    setIsBB(mql.matches);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return isBB;
 }
 
 // "Has this station actually been planned" -- shared between Builder's own

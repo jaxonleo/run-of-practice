@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { AutoTextarea, equipmentPickerAssets, EquipmentPickerPill } from "./ActivityConfigs.jsx";
 import { updateStationContent, subscribeToStationPresence, resolveDrillEquipmentForCoach, findMissingEquipment } from "../supabase.js";
-import { timeAgo } from "../constants.js";
+import { timeAgo, useBigBrowser } from "../constants.js";
+import { TwoPane } from "./BBShells.jsx";
 
 // Multi-Coach Builder handoff, section 5: when a coach who isn't the head
 // coach (and isn't a full skeleton-editing delegate -- see BuilderRoute in
@@ -212,6 +213,10 @@ export function StationPresenceIndicator({ stationId }) {
 
 export default function MyStationBuilderScreen({ practice, team, data, coachId, coachLabel, refreshPlanning, refreshLibrary, goHome }) {
   const navigate = useNavigate();
+  // BB layout pass: own-station editor left, read-only sibling summary
+  // cards right, via the same TwoPane shell Builder uses -- same
+  // components/props either way, see the per-station render below.
+  const isBB = useBigBrowser();
   const myTeamStaffId = useMemo(() => { const c = (team.coaches || []).find(c => c.userId === coachId); return c ? c.id : null; }, [team, coachId]);
 
   // Every station id this coach has ever had open this session, union-only
@@ -269,18 +274,19 @@ export default function MyStationBuilderScreen({ practice, team, data, coachId, 
       let activity = null, station = null;
       for (const act of blockActs) { const st = (act.stations || []).find(s => s.id === stationId); if (st) { activity = act; station = st; break; } }
       const initialSnapshot = firstSnapshotsRef.current[stationId] || station || {};
+      const editorEl = (<MyStationEditor
+        practiceId={practice.id} activity={activity} station={station} initialSnapshot={initialSnapshot}
+        team={teamWithLoc} coachId={coachId} coachLabel={coachLabel} assets={data.assets}
+        libraryDrills={data.activityLibrary} teamSport={teamSport} refreshLibrary={refreshLibrary}
+      />);
+      const siblingsEl = activity && <div style={{ display: "grid", gap: 8, marginTop: isBB ? 0 : 8 }}>
+        {(activity.stations || []).filter(s => s.id !== stationId).map(s => (
+          <StationSummaryCard key={s.id} station={s} blockDurationMinutes={activity.stationDuration} team={teamWithLoc} assetsById={assetsById} />
+        ))}
+      </div>;
       return (<div key={stationId} style={{ marginBottom: 20 }}>
         {activity && <div style={{ fontSize: 13, fontWeight: 700, color: "var(--td)", marginBottom: 8 }}>{activity.name || "Station Block"}</div>}
-        <MyStationEditor
-          practiceId={practice.id} activity={activity} station={station} initialSnapshot={initialSnapshot}
-          team={teamWithLoc} coachId={coachId} coachLabel={coachLabel} assets={data.assets}
-          libraryDrills={data.activityLibrary} teamSport={teamSport} refreshLibrary={refreshLibrary}
-        />
-        {activity && <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-          {(activity.stations || []).filter(s => s.id !== stationId).map(s => (
-            <StationSummaryCard key={s.id} station={s} blockDurationMinutes={activity.stationDuration} team={teamWithLoc} assetsById={assetsById} />
-          ))}
-        </div>}
+        {isBB ? <TwoPane left={editorEl} right={siblingsEl} /> : <>{editorEl}{siblingsEl}</>}
       </div>);
     })}
     <button type="button" className="btn ghost bmd" onClick={goHome}>Back to Home</button>

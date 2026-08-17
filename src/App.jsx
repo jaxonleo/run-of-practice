@@ -7,7 +7,8 @@ import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned } from "./constants.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser } from "./constants.js";
+import { TwoPane } from "./components/BBShells.jsx";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
@@ -243,6 +244,44 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
   #rop-print-root .no-print{display:none!important;}
   @page{margin:0.5in;}
 }
+
+/* ── Big Browser (BB) layouts (forty-ninth session) ───────────────────────
+   Scoped entirely under .bb (set on .app by Layout.jsx via useBigBrowser(),
+   constants.js) or the new .bb-* shell classes (BBShells.jsx). Nothing
+   above this line is ever edited for BB reasons -- see BUILD-STATUS.md's
+   Working Conventions for why (it's the single most effective guard
+   against a mobile regression from this pass). */
+.bb.app{max-width:none;flex-direction:row;}
+.bb .app-content{flex:1;min-width:0;display:flex;flex-direction:column;height:100%;overflow:hidden;}
+.bb .screen{padding:20px 28px 28px;}
+/* Rail replaces the bottom tab bar at BB: same GLOBAL_TABS array and same
+   active-state checks as the mobile bar (Layout.jsx), just a fixed-width
+   column instead of a fixed-position bottom row. A normal flex child here,
+   not position:fixed -- .app already clips overflow at a fixed 100dvh
+   height, so nothing needs to be pulled out of flow to stay visible. */
+.bb .tabbar{position:static;left:auto;bottom:auto;transform:none;width:88px;max-width:88px;height:100%;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:6px;padding:20px 0 12px;border-top:none;border-right:1px solid var(--b);flex-shrink:0;}
+.bb .ti{flex:0 0 auto;padding:10px 4px;}
+.bb .ti.on::after{content:"";position:absolute;left:0;right:auto;top:14%;bottom:14%;width:3px;height:auto;background:var(--green);border-radius:0 2px 2px 0;}
+.bb .rail-gear{margin-top:auto;}
+/* Live-resume and the join bar must stay reachable at BB, not hidden under
+   the rail or squeezed to a fixed 480px width -- normal content-column
+   children instead of viewport-fixed overlays. */
+.bb .live-resume{position:static;left:auto;bottom:auto;transform:none;width:100%;max-width:none;flex-shrink:0;}
+/* Bottom-sheet overlays (SkillTagPicker, move-pickers, PermissionsModal,
+   etc.) become centered dialogs at BB -- same .movly/.modal components,
+   same open/close state and tryClose guards, style only. */
+.bb .movly{align-items:center;padding:24px;}
+.bb .modal{border-radius:16px;max-width:560px;max-height:82dvh;}
+
+/* Shared shells (BBShells.jsx) -- layout only, no state/logic. */
+.bb-two-pane{display:flex;gap:18px;height:100%;min-height:0;}
+.bb-pane{flex:1;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.bb-centered-page{max-width:820px;margin:0 auto;width:100%;}
+/* Opt-in per screen when it adopts TwoPane at BB, so the screen's own outer
+   container fills .screen's height instead of growing with content -- that
+   is what lets each pane's own overflow-y:auto actually engage instead of
+   .screen scrolling the whole thing as one column. */
+.bb-fill-height{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
 `;
 
 // Shared app state (data, coachId, navigation helpers, etc.) for every route
@@ -915,6 +954,13 @@ function RunOfPracticeMark({rotation}){
 
 function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,coachId,refreshPlanning,refreshLibrary}){
   const navigate=useNavigate();
+  // BB layout pass (forty-ninth session): run of practice left, library
+  // right, as two independently-scrolling panes -- see the TwoPane usage
+  // and stickyBarContent/leftPaneContent/rightPaneContent split below in
+  // this same component's return. Every ref/handler here is unchanged and
+  // shared between both arrangements; only which container each piece
+  // renders into differs.
+  const isBB=useBigBrowser();
   // Development Pulse deep-link (Home widget spec): arriving here via its
   // "Plan N minutes"/"Review Practice Impact" CTA carries
   // location.state.openGoalGuidance -- read once on mount, same one-time
@@ -1489,8 +1535,11 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     findActiveLiveSession(editP.id).then(s=>{if(!cancelled)setIsSessionLive(!!s);});
     return()=>{cancelled=true;};
   },[editP&&editP.id]);
-  return (<div style={{paddingBottom:80}}>
-      <div ref={stickyHeaderRef} style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
+  // BB layout pass: the Save/Run Now bar renders once, at the top of the
+  // page at mobile (unchanged) or at the top of the left pane at BB (per
+  // the handoff's own recommendation) -- same ref, same handlers, same
+  // JSX either way, just placed differently below.
+  const stickyBarContent=(<div ref={stickyHeaderRef} style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
       {/* Back-button audit (2026-07-15): was a hardcoded navigate("/") --
           always dropped you on Home regardless of where you actually came
           from (a team's Plan tab, Schedule, Library...). navigate(-1)
@@ -1534,7 +1583,9 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           <button className="btn primary bsm" onClick={()=>doSaveTpl(tplName)} disabled={!tplName.trim()}>Save Template</button>
         </div>
       </div>}
-      </div>
+      </div>);
+  return (<div className={isBB?"bb-fill-height":undefined} style={isBB?undefined:{paddingBottom:80}}>
+      {!isBB&&stickyBarContent}
       {showScheduleModal&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowScheduleModal(false);}}>
         <div className="modal">
           {!schedSuccess?<>
@@ -1602,7 +1653,14 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           box was 28px wider than every section below it. Moving it inside
           fixes that instead of re-adding padding that would fight the
           black bar's own edge-to-edge look. */}
-      <div style={{padding:"0 14px",position:"relative"}} ref={runOfPracticeOuterRef}>
+      {(()=>{
+      // BB layout pass: everything from here through the end of My Drill
+      // Library below is unchanged JSX/state/handlers -- only the wrapper
+      // differs. At mobile it renders as one column, exactly as before.
+      // At BB it splits into TwoPane's left/right props (run of practice
+      // left, library right), each independently scrollable.
+      const leftPaneContent=(<>
+      {isBB&&stickyBarContent}
       {/* Black header bar, matching Practice Components/My Drill Library
           below -- defaults to collapsed since Team/Location/Start Time
           matter most on first open (or when something's actually wrong),
@@ -1908,6 +1966,8 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       );})}
       </ActivityDndContext>)}
       <div ref={runOfPracticeEndRef} style={{height:14}}/>
+      </>);
+      const rightPaneContent=(<>
       {/* Practice Components -- black bar (matches Practice Details/My
           Drill Library), a caret to collapse the tile row, and a "..."
           that opens the Add/Remove picker for which of
@@ -2015,7 +2075,24 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         </>);
       })()}
       </>)}
-      </div>
+      </>);
+      // Builder's own dirty-tracking/sticky-machinery state (acts, expandedId,
+      // stickyHeaderH, ropHeaderH, the IntersectionObserver, dnd-kit) all
+      // lives in this same component instance regardless of which branch
+      // below renders -- a live window resize across the breakpoint only
+      // changes which JSX shape wraps leftPaneContent/rightPaneContent, it
+      // never remounts BuilderScreen itself, so no draft is ever lost.
+      return isBB?(
+        <div className="bb-fill-height" style={{padding:"0 14px",position:"relative",flex:1,minHeight:0,overflow:"hidden"}} ref={runOfPracticeOuterRef}>
+          <TwoPane left={leftPaneContent} right={rightPaneContent}/>
+        </div>
+      ):(
+        <div style={{padding:"0 14px",position:"relative"}} ref={runOfPracticeOuterRef}>
+          {leftPaneContent}
+          {rightPaneContent}
+        </div>
+      );
+      })()}
 
       {equipmentDialogLib&&<EquipmentMismatchDialog drillName={equipmentDialogLib.name} missing={findMissingEquipment(equipmentDialogLib.equipment,assetsById,ownAssetPool)} context="practice" onAddWithEquipment={()=>resolveAndAdd(equipmentDialogLib,true)} onAddAnyway={()=>resolveAndAdd(equipmentDialogLib,false)} onCancel={()=>setEquipmentDialogLib(null)}/>}
     </div>

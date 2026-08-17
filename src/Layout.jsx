@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Outlet, useNavigate, useParams, useLocation } from "react-router-dom";
 import { Ic } from "./icons.jsx";
-import { canManageTeamInMode } from "./constants.js";
+import { canManageTeamInMode, useBigBrowser } from "./constants.js";
 
 // App shell shared by every authenticated route (ROP-Goals-TeamNav-Handoff.md
 // §4.1-4.2). Context-sensitive tab bar: outside a team it's Home/Library;
@@ -47,6 +47,13 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
   const hideTabBar = location.pathname.startsWith("/run/");
   const isOrgMode = mode && mode.type === "org";
   const [teamMenuOpen, setTeamMenuOpen] = useState(false);
+  // Big Browser (BB) layout pass (forty-ninth session): this one hook is the
+  // only thing anywhere in the app that decides mobile vs BB. See
+  // useBigBrowser (constants.js) and the .bb-scoped rules in App.jsx's CSS
+  // block -- this component only ever branches JSX *arrangement* here, it
+  // never forks the active-tab logic or nav destinations below.
+  const isBB = useBigBrowser();
+  const isSettingsActive = location.pathname.startsWith("/settings");
 
   const team = inTeam ? (data.teams || []).find(t => t.id === teamId) : null;
   // Direct feedback: an assistant coach (view-only on this team) saw the
@@ -68,7 +75,32 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
   const liveTeam = livePractice ? (data.teams || []).find(t => t.id === livePractice.teamId) : null;
 
   return (<div style={{ display: "contents" }}>
-    <div className="app">
+    <div className={"app" + (isBB ? " bb" : "")}>
+      {/* BB rail: the exact same GLOBAL_TABS array and active-state checks
+          the mobile bottom bar uses below, just laid out as a left column
+          instead of a fixed bottom row -- see .bb .tabbar in App.jsx's CSS
+          block. Moved earlier in the DOM so it's the first flex item when
+          .app switches to flex-direction:row at BB; position:fixed at
+          mobile means this move has no visual effect there. */}
+      {!hideTabBar && <nav className={"tabbar" + (isOrgMode ? " org" : "")} style={orgBarStyle}>
+        {GLOBAL_TABS.map(({ id, label, path, I }) => {
+          const active = path === "/" ? (location.pathname === "/" || location.pathname.startsWith("/schedule"))
+            : id === "teams" ? (location.pathname.startsWith(path) || location.pathname.startsWith("/team/"))
+            : location.pathname.startsWith(path);
+          return (<button key={id} className={"ti " + (active ? "on" : "")} onClick={() => navigate(path)}>
+            <I/>{label}
+          </button>);
+        })}
+        {/* BB-only: the gear icon lives on Home's own header at every size
+            (unchanged) -- this is an additional rail affordance so Settings
+            stays reachable without navigating back to Home first, per the
+            handoff's "gear becomes a bottom-of-rail item." Not rendered at
+            all below the breakpoint, so the mobile 3-tab bar is untouched. */}
+        {isBB && <button className={"ti rail-gear " + (isSettingsActive ? "on" : "")} onClick={() => navigate("/settings")}>
+          <Ic.Gear/>Settings
+        </button>}
+      </nav>}
+      <div className="app-content">
       {/* Nav restructure round 2: the old "‹ Teams" link back to the team
           list, sitting above every team-scoped screen, duplicated each
           screen's own Back button (PracticeDetail, PlayerProfile, ...) --
@@ -118,30 +150,10 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
       <div className="screen">
         <Outlet/>
       </div>
-      {!hideTabBar && <nav className={"tabbar" + (isOrgMode ? " org" : "")} style={orgBarStyle}>
-        {GLOBAL_TABS.map(({ id, label, path, I }) => {
-          // A team workspace (/team/:teamId/*) is reachable straight from
-          // Home too, not just the Teams list -- but Teams is still the
-          // tab that conceptually owns it (it's where the team list lives,
-          // and the new back button above always returns there), so it's
-          // the one that should stay lit up rather than leaving all three
-          // dark the whole time you're inside a team.
-          // Direct feedback: the global /schedule route ("My Schedule",
-          // reached from Home's own "My Schedule" button) left every tab
-          // dark, same class of gap as the team-workspace case Teams
-          // already covers below -- counts as Home, the tab it's actually
-          // reached from.
-          const active = path === "/" ? (location.pathname === "/" || location.pathname.startsWith("/schedule"))
-            : id === "teams" ? (location.pathname.startsWith(path) || location.pathname.startsWith("/team/"))
-            : location.pathname.startsWith(path);
-          return (<button key={id} className={"ti " + (active ? "on" : "")} onClick={() => navigate(path)}>
-            <I/>{label}
-          </button>);
-        })}
-      </nav>}
       {liveId && !hideTabBar && <button className="live-resume" onClick={() => goToRun(liveId)}>
         <span className="live"/>Resume Live Practice{liveTeam ? " · " + liveTeam.name : ""}
       </button>}
+      </div>
     </div>
   </div>);
 }
