@@ -265,32 +265,44 @@ export default function DevelopmentPulseCard({ team, nextPractice, canManage, da
 
   if (!team) return null;
 
-  const header = (<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)" }}>Development Pulse</span>
-      {hasNewInsight && <span aria-label="New insight available" title="New insight available" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--red)", display: "inline-block", flexShrink: 0 }} />}
-    </div>
-    <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--black)" }}>{team.name}</span>
-      <button type="button" onClick={toggleCollapsed} aria-expanded={!collapsed} aria-label={collapsed ? "Expand Development Pulse" : "Collapse Development Pulse"} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--td)", padding: 4, display: "flex", alignItems: "center" }}>
-        <Ic_Caret up={!collapsed} />
-      </button>
-    </div>
+  // BB composition fix: this label used to live inside the card's own
+  // padding (unlike Up Next's bare .clbl above its card), which offset the
+  // two cards' top edges when they sit side by side at BB. Pulled out here
+  // to literally reuse the .clbl class Up Next already uses, so the two
+  // labels share identical line metrics -- the team name and collapse
+  // caret move into the card body's own first row instead (teamRow below),
+  // which has far more width to work with than this thin external label
+  // row, where a long team name would otherwise be the thing forcing a
+  // second line and reintroducing the exact misalignment this fixes.
+  const clblRow = (<div className="clbl mb8" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    Development Pulse
+    {hasNewInsight && <span aria-label="New insight available" title="New insight available" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--red)", display: "inline-block", flexShrink: 0 }} />}
+  </div>);
+  const teamRow = (<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: collapsed ? 0 : 8 }}>
+    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--black)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{team.name}</span>
+    <button type="button" onClick={toggleCollapsed} aria-expanded={!collapsed} aria-label={collapsed ? "Expand Development Pulse" : "Collapse Development Pulse"} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--td)", padding: 4, display: "flex", alignItems: "center", flexShrink: 0 }}>
+      <Ic_Caret up={!collapsed} />
+    </button>
   </div>);
 
-  if (!report || !result) return (<div className="card mb10" style={{ padding: "14px 16px" }}>
-    {header}
-    {!collapsed && <div style={{ height: 60 }} />}
-  </div>);
+  if (!report || !result) return (<>
+    {clblRow}
+    <div className="card mb10" style={{ padding: "14px 16px" }}>
+      {teamRow}
+      {!collapsed && <div style={{ height: 60 }} />}
+    </div>
+  </>);
 
   const presented = presentState(result, canManage);
   const teamColor = (team.colorPrimary) || "var(--green)";
 
-  return (<div className="dev-pulse-card card mb10" style={{ padding: 0, overflow: "hidden", position: "relative" }} key={collapsed ? "collapsed" : result.state}>
+  return (<>
+    {clblRow}
+    <div className="dev-pulse-card card mb10" style={{ padding: 0, overflow: "hidden", position: "relative" }} key={collapsed ? "collapsed" : result.state}>
     <style>{PULSE_CSS}</style>
     <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 4, background: teamColor }} />
     <div style={{ padding: "14px 16px 14px 20px" }}>
-      <div style={{ marginBottom: collapsed ? 0 : 8 }}>{header}</div>
+      {teamRow}
 
       {!collapsed && (<>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, marginBottom: 4, color: presented.lowEmphasis ? "var(--td)" : "var(--black)" }}>{presented.headline}</div>
@@ -312,5 +324,6 @@ export default function DevelopmentPulseCard({ team, nextPractice, canManage, da
         {presented.cta && <button className="btn primary bsm bfull" style={{ marginTop: 12 }} onClick={() => onNavigate(presented.cta)}>{presented.cta.label}</button>}
       </>)}
     </div>
-  </div>);
+    </div>
+  </>);
 }

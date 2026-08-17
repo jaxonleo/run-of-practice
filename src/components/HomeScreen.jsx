@@ -6,6 +6,7 @@ import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeam
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
+import { DaySheet } from "./ScheduleScreen.jsx";
 import DevelopmentPulseCard from "./DevelopmentPulseCard.jsx";
 import FuturePracticeGuardModal from "./FuturePracticeGuardModal.jsx";
 
@@ -263,8 +264,48 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
     fetchPracticeRunStatus(ids).then(rs => { setRunStatus(rs); setRunStatusLoaded(true); });
   }, [agendaIdsKey]);
 
+  // This Week at a Glance: Sun-Sat calendar week containing today, matching
+  // Month view's own week-start convention (gridStart.setDate(-getDay()))
+  // so the two stay mentally consistent. Reuses data.practices directly,
+  // not upcomingCandidates -- a day earlier this week that's already
+  // happened still belongs in "this week," the same way Month view's own
+  // dots keep showing past days, not just upcomingCandidates' today-forward
+  // window (which also caps at 20 and would silently truncate a busy week).
+  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+  const weekDates = Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return localDateStr(d); });
+  const weekPracticesByDate = {};
+  for (const d of weekDates) weekPracticesByDate[d] = [];
+  for (const p of data.practices) if (weekPracticesByDate[p.date]) weekPracticesByDate[p.date].push(p);
+  const weekPracticeIdsKey = JSON.stringify(weekDates.flatMap(d => weekPracticesByDate[d].map(p => p.id)));
+  // Separate from the hero/Upcoming-Practices runStatus above -- that one
+  // is scoped to upcomingCandidates (today-forward only), but the glance
+  // strip's own DaySheet needs Completed/Started status for past days in
+  // the week too, which upcomingCandidates never covers.
+  const [weekRunStatus, setWeekRunStatus] = useState({});
+  useEffect(() => {
+    const ids = weekDates.flatMap(d => weekPracticesByDate[d].map(p => p.id));
+    if (!ids.length) { setWeekRunStatus({}); return; }
+    let cancelled = false;
+    fetchPracticeRunStatus(ids).then(rs => { if (!cancelled) setWeekRunStatus(rs); });
+    return () => { cancelled = true; };
+  }, [weekPracticeIdsKey]);
+  const [glanceDate, setGlanceDate] = useState(null);
+
   const openPractice = p => {
     if (ran(p) && isPlanned(p)) setHistoryPractice(p);
+    else setViewPractice(p);
+  };
+  // Separate from openPractice above: that one only ever sees agendaWindow
+  // rows (today-forward, via upcomingCandidates), so checking the
+  // upcoming-only `runStatus` for "was this completed" was always enough.
+  // The glance strip's DaySheet can pick a past day within the current
+  // week, which `runStatus` never covers -- mirrors ScheduleScreen's own
+  // openPractice, which already has to handle exactly this (any day,
+  // past or future), by also treating a past date as historical even when
+  // no explicit "completed" status ever got recorded for it.
+  const openWeekPractice = p => {
+    const historical = p.date < todayStr || weekRunStatus[p.id] === "completed";
+    if (historical && p.status !== "cancelled" && isPlanned(p)) setHistoryPractice(p);
     else setViewPractice(p);
   };
   const runAgainFrom = async practice => {
@@ -716,6 +757,48 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
     </div>
   </div>);
 
+  // BB composition: this strip renders full-width, above Up Next AND
+  // Development Pulse (see the isBB branch below), never inside Up Next's
+  // own column -- putting it there first pushed Up Next's card lower than
+  // Development Pulse's, reintroducing exactly the misalignment the .clbl
+  // pull-out above (DevelopmentPulseCard.jsx) fixes. At mobile there's
+  // nothing beside Up Next to misalign against, so it sits directly above
+  // the Up Next card there instead, no different treatment needed.
+  //
+  // Dots reuse Month view's own per-practice rule (ScheduleScreen.jsx) --
+  // one dot per practice, colored by that team's own colorPrimary, filled
+  // if planned, hollow ring if not, muted if cancelled -- capped at 2
+  // (Month view caps at 4, but its grid cells are far wider than this
+  // single 7-across row's cells) with a "+N" past that. Tapping a day
+  // opens the exact same DaySheet Month view's own dots open, not a
+  // second, parallel day-list -- Up Next's own card never changes, since
+  // its buttons are wired to the one real, time-gated next practice.
+  const weekGlanceContent = (data.teams.length > 0 && <div style={{ marginBottom: 16 }}>
+    <div className="clbl mb8">This Week</div>
+    <div style={{ display: "flex", gap: 4 }}>
+      {weekDates.map(d => {
+        const dayPractices = (weekPracticesByDate[d] || []).slice().sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""));
+        const isToday = d === todayStr;
+        const dow = new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" }).slice(0, 3).toUpperCase();
+        const dnum = Number(d.slice(8, 10));
+        const visible = dayPractices.slice(0, 2);
+        const overflow = dayPractices.length - visible.length;
+        return (<button key={d} onClick={() => setGlanceDate(d)} style={{ flex: 1, minWidth: 0, textAlign: "center", background: isToday ? "var(--s2)" : "none", border: "1px solid " + (isToday ? "var(--b)" : "transparent"), borderRadius: 7, padding: "5px 2px 4px", cursor: "pointer", font: "inherit" }}>
+          <span style={{ display: "block", fontSize: 9, fontWeight: 700, color: "var(--td)", letterSpacing: ".04em", marginBottom: 3 }}>{dow}</span>
+          <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--black)", marginBottom: 3 }}>{dnum}</span>
+          <span style={{ display: "flex", gap: 2, alignItems: "center", justifyContent: "center", height: 6 }}>
+            {visible.length === 0 && <span style={{ display: "block", width: 6, height: 6, borderRadius: "50%", background: "transparent", border: "1.3px solid transparent" }} />}
+            {visible.map(p => {
+              const team = teamById(p.teamId), planned = isPlanned(p), cancelled = isCancelled(p), color = (team && team.colorPrimary) || "var(--green)";
+              return (<span key={p.id} style={{ display: "block", width: 6, height: 6, borderRadius: "50%", background: planned && !cancelled ? color : "transparent", border: "1.3px solid " + (cancelled ? "var(--td)" : color), opacity: cancelled ? .5 : 1, flexShrink: 0 }} />);
+            })}
+            {overflow > 0 && <span style={{ fontSize: 8, fontWeight: 700, color: "var(--td)", lineHeight: 1 }}>+{overflow}</span>}
+          </span>
+        </button>);
+      })}
+    </div>
+  </div>);
+
   const heroContent = (!runStatusLoaded && upcomingCandidates.length > 0) ? (
     <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px", color: "var(--td)", fontSize: 14 }}>Loading...</div>
   ) : (<>
@@ -863,6 +946,7 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
     {showFeedback && <FeedbackModal coachId={coachId} coachEmail={coachEmail} onClose={() => setShowFeedback(false)} />}
     {isBB ? (<>
       <div style={{ padding: "0 16px" }}>{yourTeamsContent}</div>
+      <div style={{ padding: "0 16px" }}>{weekGlanceContent}</div>
       <TwoPane
         left={<div style={{ padding: "0 16px" }}>{heroContent}{upcomingContent}{bottomRowContent}</div>}
         right={<div style={{ padding: "0 16px" }}>{gettingStartedContent}{noticesContent}{orgRollupContent}{devPulseContent}</div>}
@@ -873,6 +957,7 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
       {orgRollupContent}
       <div style={{ padding: "0 16px" }}>
         {yourTeamsContent}
+        {weekGlanceContent}
         {heroContent}
         {devPulseContent}
         {upcomingContent}
@@ -880,5 +965,6 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
       </div>
     </>)}
     {showAbsencePicker && <AbsencePicker data={data} coachId={coachId} mode="pickPlayerThenPractices" onClose={() => { setShowAbsencePicker(false); refreshAbsenceCounts(); }} />}
+    {glanceDate && <DaySheet date={glanceDate} practices={(weekPracticesByDate[glanceDate] || []).slice().sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))} data={data} todayStr={todayStr} runStatus={weekRunStatus} onPick={p => { setGlanceDate(null); openWeekPractice(p); }} onClose={() => setGlanceDate(null)} />}
   </div>);
 }

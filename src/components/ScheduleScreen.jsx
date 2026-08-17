@@ -27,7 +27,9 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 };
 
-function DaySheet({ date, practices, data, todayStr, runStatus, onPick, onClose }) {
+// Exported so Home's This Week glance strip can open the exact same day
+// list Month view's own dots open, instead of a second, parallel one.
+export function DaySheet({ date, practices, data, todayStr, runStatus, onPick, onClose }) {
   const teamById = id => data.teams.find(t => t.id === id);
   return (<div className="movly" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="modal">
