@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useBlocker, useLocation, useNavigate } from "react-router-dom";
-import { canManageTeamInMode, localDateStr, stripIdsForCopy, summarizeCategoryTrend, calculateGoalGapGuidance, TREND_FLAT_THRESHOLD_PCT, classifyDurationVariance } from "../constants.js";
+import { canManageTeamInMode, localDateStr, stripIdsForCopy, summarizeCategoryTrend, calculateGoalGapGuidance, TREND_FLAT_THRESHOLD_PCT, classifyDurationVariance, useBigBrowser } from "../constants.js";
+import { TwoPane } from "./BBShells.jsx";
 import {
   fetchTeamGoals, setTeamGoals, updateGoalsWindowWeeks,
   fetchTeamGoalReport, fetchTeamGoalTrends, fetchTeamSessionHistory, fetchSessionActivityLog, fetchSessionExecutionScorecard, fetchNotesForPractice, archiveNote,
@@ -852,7 +853,7 @@ function GoalTrendCard({ cat }) {
 // get_team_goal_report's forward-looking Planned bucket (see
 // GoalTrendCard's own comment for why that mix produced a real, confusing
 // mismatch in live verification).
-function TrendsView({ teamId, team, canManage }) {
+function TrendsView({ teamId, team, canManage, isBB }) {
   const [trends, setTrends] = useState(null);
   useEffect(() => { setTrends(null); fetchTeamGoalTrends(teamId).then(setTrends); }, [teamId]);
 
@@ -864,9 +865,15 @@ function TrendsView({ teamId, team, canManage }) {
   </div>);
   if (!trends.has_any_completed_sessions) return (<div className="empty"><div className="emtx">Run a practice live to begin building actual-time trends.</div></div>);
 
+  // BB layout pass: a 2-up grid instead of one stacked column. GoalTrendCard
+  // itself is unchanged -- the inline WeeklyTrendChart SVG already scales
+  // its width to whatever container it's given (viewBox + width:100%,
+  // fixed pixel height), confirmed live rather than assumed.
   return (<div>
     <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 12 }}>Compared with the team's current goals.</div>
-    {categories.map(cat => (<GoalTrendCard key={cat.skill_category_id} cat={cat} />))}
+    <div className={isBB ? "bb-trend-grid" : undefined}>
+      {categories.map(cat => (<GoalTrendCard key={cat.skill_category_id} cat={cat} />))}
+    </div>
   </div>);
 }
 
@@ -958,6 +965,11 @@ function NextPracticeGuidance({ team, teamId, data, report, canManage, coachId }
 // Goals + Insights tab (handoff §5). Ties together the editor, glance view,
 // and promoted History list/detail for one team.
 export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mode, refreshTeams, goToRun, refreshPlanning }) {
+  // BB layout pass: Overview's glance view + Next Practice Guidance side by
+  // side, Trends' cards in a 2-up grid, and History as list-left/detail-
+  // right master-detail instead of a full-screen swap -- see the render
+  // below for how each is assembled per isBB.
+  const isBB = useBigBrowser();
   const team = data.teams.find(t => t.id === teamId);
   // canManageTeamInMode, not bare isHeadCoach -- a director overseeing an
   // org team should be able to set goals/exclude sessions/archive notes
@@ -1029,13 +1041,21 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
   if (!team) return null;
   if (goals === null || report === null || history === null) return (<div style={{ padding: "40px 0", textAlign: "center", color: "var(--td)" }}>Loading...</div>);
 
-  if (openSession) {
-    const practice = data.practices.find(p => p.id === openSession.practice_id);
-    return <SessionHistoryDetail session={openSession} practice={practice} team={team} data={data} canManage={canManage} coachId={coachId} goToRun={goToRun} refreshPlanning={refreshPlanning}
+  // BB layout pass: at mobile, opening a session still fully replaces this
+  // screen (unchanged). At BB, the detail renders beside the list instead
+  // (master-detail, below) -- this early return only fires for the mobile
+  // full-pane-swap case now. SessionHistoryDetail itself, its
+  // mark-notes-viewed-on-open effect, and its setSubViewBack registration
+  // are completely unchanged either way -- only which container renders it
+  // differs.
+  const openSessionPractice = openSession ? data.practices.find(p => p.id === openSession.practice_id) : null;
+  const sessionDetailEl = openSession && (
+    <SessionHistoryDetail session={openSession} practice={openSessionPractice} team={team} data={data} canManage={canManage} coachId={coachId} goToRun={goToRun} refreshPlanning={refreshPlanning}
       onBack={() => setOpenSessionId(null)}
       onChanged={() => { refreshAll(); }}
-      setSubViewBack={setSubViewBack} />;
-  }
+      setSubViewBack={setSubViewBack} />
+  );
+  if (openSession && !isBB) return sessionDetailEl;
 
   // No own page header/title here -- the active "Goals & Insights" top tab
   // (Layout.jsx's team-workspace tab row) already says where you are, same
@@ -1047,16 +1067,34 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
     <GoalsSubnav view={view} setView={setView} anyUnviewed={canManage && anyUnviewed} />
     {view === "overview" && (<>
       {canManage && <GoalsEditor teamId={teamId} team={team} data={data} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
-      <GlanceView report={report} emphasizeUntagged={emphasizeUntagged} team={team} teamId={teamId} canManage={canManage} onReviewUntaggedDrills={goToUntaggedDrills} allDrillsTagged={allDrillsTagged} refreshReport={refreshReport} refreshTeams={refreshTeams} />
-      <NextPracticeGuidance team={team} teamId={teamId} data={data} report={report} canManage={canManage} coachId={coachId} />
+      {isBB ? (
+        <TwoPane
+          left={<GlanceView report={report} emphasizeUntagged={emphasizeUntagged} team={team} teamId={teamId} canManage={canManage} onReviewUntaggedDrills={goToUntaggedDrills} allDrillsTagged={allDrillsTagged} refreshReport={refreshReport} refreshTeams={refreshTeams} />}
+          right={<NextPracticeGuidance team={team} teamId={teamId} data={data} report={report} canManage={canManage} coachId={coachId} />}
+        />
+      ) : (<>
+        <GlanceView report={report} emphasizeUntagged={emphasizeUntagged} team={team} teamId={teamId} canManage={canManage} onReviewUntaggedDrills={goToUntaggedDrills} allDrillsTagged={allDrillsTagged} refreshReport={refreshReport} refreshTeams={refreshTeams} />
+        <NextPracticeGuidance team={team} teamId={teamId} data={data} report={report} canManage={canManage} coachId={coachId} />
+      </>)}
     </>)}
-    {view === "trends" && <TrendsView teamId={teamId} team={team} canManage={canManage} />}
-    {view === "history" && (<>
+    {view === "trends" && <TrendsView teamId={teamId} team={team} canManage={canManage} isBB={isBB} />}
+    {view === "history" && (isBB ? (
+      <TwoPane
+        left={<>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+            <div className="clbl" style={{ marginBottom: 0 }}>History</div>
+            {canManage && anyUnviewed && <button className="btn ghost bxs" onClick={markAllViewed}>Mark all as viewed</button>}
+          </div>
+          <HistoryList history={history} data={data} canManage={canManage} onOpen={s => setOpenSessionId(s.session_id)} />
+        </>}
+        right={openSession ? sessionDetailEl : <div className="empty"><div className="emtx">Select a practice from the list to see its details.</div></div>}
+      />
+    ) : (<>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
         <div className="clbl" style={{ marginBottom: 0 }}>History</div>
         {canManage && anyUnviewed && <button className="btn ghost bxs" onClick={markAllViewed}>Mark all as viewed</button>}
       </div>
       <HistoryList history={history} data={data} canManage={canManage} onOpen={s => setOpenSessionId(s.session_id)} />
-    </>)}
+    </>))}
   </div>);
 }

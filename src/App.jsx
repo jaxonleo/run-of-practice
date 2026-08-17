@@ -286,6 +286,10 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
    grid (2-3 columns depending on width) instead of one narrow column. */
 .bb-teams-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
 .bb-teams-grid .li{margin-bottom:0;}
+/* Goals & Insights Trends at BB: GoalTrendCards in a fixed 2-up grid
+   (not auto-fill -- the handoff's own spec calls for exactly 2 columns). */
+.bb-trend-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.bb-trend-grid .card{margin-bottom:0;}
 `;
 
 // Shared app state (data, coachId, navigation helpers, etc.) for every route
