@@ -2108,6 +2108,13 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
 // input form in place; everything else (skill notes, Mark Out) stays live
 // underneath since those already save as you go.
 function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachId,canManage,onBack}){
+  // BB layout pass: a width cap on this full-screen detail view -- just a
+  // plain className on the root div below. This hook is unconditional and
+  // has no dependency on anything else in this component, so it can't
+  // interact with the useBlocker/setSubViewBack effects further down
+  // already documented as infinite-loop-risky in BUILD-STATUS.md's own
+  // Gotchas -- nothing about them changes here.
+  const isBB=useBigBrowser();
   const team=data.teams.find(t=>t.id===teamInit.id)||teamInit;
   const player=team.players.find(p=>p.id===playerInit.id)||playerInit;
   const [markingOut,setMarkingOut]=useState(false);
@@ -2230,7 +2237,7 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   };
   const throwsLabel=((HAND_FIELDS_BY_SPORT[team.sport]||[]).find(hf=>hf.key==="throws")||{}).label||"Throws";
 
-  return (<div style={{paddingBottom:80}}>
+  return (<div className={isBB?"bb-centered-page":undefined} style={{paddingBottom:80}}>
     <div className="row mb10" style={{justifyContent:"space-between",alignItems:"flex-start"}}>
       <div style={{flex:1,minWidth:0}}>
         {!canManage?(<>
@@ -2319,6 +2326,10 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
 }
 
 function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibrary,mode}){
+  // BB layout pass: a width cap (CenteredPage's own .bb-centered-page
+  // class) on the list, same treatment as PlayerProfile below -- no
+  // permission-toggle/deep-link/staleness logic touched.
+  const isBB=useBigBrowser();
   const [teamId,setTeamId]=useState(fixedTeamId||(data.teams[0]?data.teams[0].id:""));
   useEffect(()=>{
     if(fixedTeamId){if(teamId!==fixedTeamId)setTeamId(fixedTeamId);return;}
@@ -2395,7 +2406,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
     return sort.dir==="asc"?(av>bv?1:av<bv?-1:0):(av<bv?1:av>bv?-1:0);
   }):[];
   if(viewPlayer)return(<PlayerProfile player={viewPlayer} team={team} data={data} refreshTeams={refreshTeams} coachId={coachId} canManage={canManage} onBack={()=>setViewPlayer(null)}/>);
-  return (<div style={{paddingBottom:80}} onClick={()=>setOpenMenu(null)}>
+  return (<div className={isBB?"bb-centered-page":undefined} style={{paddingBottom:80}} onClick={()=>setOpenMenu(null)}>
     {!fixedTeamId&&(<div className="sechdr mb8">
       <div>{data.teams.length>1&&<select className="sel" style={{maxWidth:200}} value={teamId} onChange={e=>setTeamId(e.target.value)}>{data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>}</div>
       <button className="btn primary bsm" onClick={e=>{e.stopPropagation();openModal("addTeam");}}>+ Team</button>
