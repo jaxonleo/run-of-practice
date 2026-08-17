@@ -853,13 +853,19 @@ function TeamEquipmentRoute(){
   const {data,coachId,openModal,refreshLibrary,mode}=useAppCtx();
   const team=data.teams.find(t=>t.id===teamId);
   const isOrgMode=mode&&mode.type==="org";
+  // BB layout pass: a width cap on this route's own wrapper, same
+  // .bb-centered-page treatment as Library's Equipment tab -- EquipmentTab
+  // itself is a shared component (reused by both call sites) and manages
+  // no outer wrapper of its own, so the cap is applied here at the route
+  // level rather than inside the shared component.
+  const isBB=useBigBrowser();
   // Per-team Equipment tab is Coach-mode only now -- Org mode manages
   // equipment centrally from Club Library's own Equipment tab instead (see
   // Layout.jsx's teamWorkspaceTabs). A direct link/back-nav into this route
   // while in Org mode has nowhere useful to land, so bounce to Schedule.
   useEffect(()=>{if(!team||isOrgMode)navigate(isOrgMode?`/team/${teamId}/schedule`:"/teams");},[team,isOrgMode,teamId,navigate]);
   if(!team||isOrgMode)return null;
-  return (<div style={{padding:"16px 16px calc(var(--tab) + 20px)"}}>
+  return (<div className={isBB?"bb-centered-page":undefined} style={{padding:"16px 16px calc(var(--tab) + 20px)"}}>
     <EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} sportFilter={team.sport} mode={mode}/>
   </div>);
 }
