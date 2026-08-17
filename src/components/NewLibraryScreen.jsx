@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { uid, sumMins, localDateStr, planningState, teamsForMode, menuNeedsToOpenUpward } from "../constants.js";
+import { uid, sumMins, localDateStr, planningState, teamsForMode, menuNeedsToOpenUpward, useBigBrowser } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
 import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport } from "../supabase.js";
@@ -885,6 +885,14 @@ function SchedulePracticePicker({data,onPick,onClose}){
 // SkillsTab's comment above). The old window.__ropLibTab global was set
 // here but never read anywhere -- deleted, not migrated.
 export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,refreshLibrary,coachId,refreshPlanning,mode}){
+  // BB layout pass: a width cap (CenteredPage's own .bb-centered-page
+  // class, applied directly here rather than importing the component --
+  // nothing else about this screen's layout changes) instead of a real
+  // multi-column grid. Drills shares ActivityDndContext/SortableActivityRow
+  // with Builder, whose verticalListSortingStrategy would fight a grid --
+  // per the handoff's own fallback, keep this single-column-but-wider
+  // rather than touch shared dnd-kit config for a grid nicety.
+  const isBB = useBigBrowser();
   const isOrgMode = mode && mode.type === "org";
   // Same "so it looks like their org" treatment as the org-mode bottom tab
   // bar (Layout.jsx) -- a colored accent bar under the title, using the
@@ -1178,8 +1186,8 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
     setEditingTpl({id:uid(),name:newTplNameDraft.trim(),activities:[],durMin:0});
     setNewTplPrompt(false);
   };
-  if(editingTpl)return (<div style={{padding:"0 16px 80px"}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>goToBuilder(null,tplId)} onRunNow={goToRun}/></div>);
-  return (<div style={{paddingBottom:80}}>
+  if(editingTpl)return (<div className={isBB?"bb-centered-page":undefined} style={{padding:"0 16px 80px"}}><TemplateWorkspace data={data} template={editingTpl} openModal={openModal} coachId={coachId} refreshLibrary={refreshLibrary} refreshPlanning={refreshPlanning} onBack={()=>setEditingTpl(null)} onStartFromTemplate={tplId=>goToBuilder(null,tplId)} onRunNow={goToRun}/></div>);
+  return (<div className={isBB?"bb-centered-page":undefined} style={{paddingBottom:80}}>
     <div style={{padding:"20px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>{isOrgMode?"Club Library":"Library"}</div>
