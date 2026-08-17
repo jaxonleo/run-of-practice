@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway, getGettingStartedHidden, setGettingStartedHidden, menuNeedsToOpenUpward } from "../constants.js";
+import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway, getGettingStartedHidden, setGettingStartedHidden, menuNeedsToOpenUpward, useBigBrowser } from "../constants.js";
+import { TwoPane } from "./BBShells.jsx";
 import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, acknowledgeStationAssignmentNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchActiveLiveSessions, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
@@ -132,6 +133,10 @@ const dayLbl = (dateStr, todayStr, tomorrowStr) => {
 
 export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRun, goToSchedule, goToTeam, goToSettings, coachId, coachName, coachEmail, refreshPlanning, refreshTeams, refreshLibrary, mode, setMode }) {
   const navigate = useNavigate();
+  // BB layout pass: two-column dashboard at BB (left: hero + Upcoming
+  // Practices; right: Getting Started + notification cards + Development
+  // Pulse) -- see the named *Content consts and final return below.
+  const isBB = useBigBrowser();
   const isOrgMode = mode && mode.type === "org";
   const activeOrg = isOrgMode ? (data.myOrgs || []).find(o => o.id === mode.orgId) : null;
   const now = new Date();
@@ -573,7 +578,7 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   if (historyPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><HistoryViewer data={data} practice={historyPractice} onRunAgain={() => runAgainFrom(historyPractice)} onBack={() => setHistoryPractice(null)} coachId={coachId} refreshPlanning={refreshPlanning} /></div>);
   if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning} onBack={() => setViewPractice(null)} mode={mode} /></div>);
 
-  return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}>
+  const joinBarContent = (<>
     {joinableLiveSessions.map(s => (<button key={s.sessionId} onClick={() => goToRun(s.practiceId)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 16px", background: "var(--green)", color: "#fff", border: "none", borderBottom: "1px solid rgba(255,255,255,.15)", cursor: "pointer", fontFamily: "Barlow Condensed,sans-serif" }}>
       <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff", flexShrink: 0 }} />
       {/* setupConfirmedAt distinguishes a real running practice from one
@@ -584,44 +589,45 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
       <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: ".02em" }}>{s.setupConfirmedAt ? "Live practice" : "Practice setup"} for {s.team.name}</span>
       <span style={{ fontSize: 13, fontWeight: 900, textTransform: "uppercase", textDecoration: "underline", marginLeft: 4 }}>Join</span>
     </button>))}
-    <div style={{ padding: "20px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-      <div>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{greeting},</div>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, color: (isOrgMode && activeOrg && activeOrg.color) || "var(--green)", lineHeight: 1, display: "flex", alignItems: "center", gap: 8 }}>
-          {isOrgMode && activeOrg && activeOrg.color && <span style={{ width: 14, height: 14, borderRadius: "50%", background: activeOrg.color, flexShrink: 0 }} />}
-          {isOrgMode ? (activeOrg ? activeOrg.name : "Organization") : coachName}
-        </div>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{ position: "relative" }}>
-          <button onClick={() => setShowHelpMenu(s => !s)} style={{ position: "relative", background: "var(--s2)", border: "1.5px solid var(--b)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, color: "var(--green)" }}>
-            ?
-          </button>
-          {/* Getting Started moved out of this menu entirely -- it's now a
-              persistent card on Home itself (see GettingStartedCard below),
-              so the green dot nudging you toward this menu for it is gone
-              too. FAQs replaces it here (task: only Send Feedback / FAQs). */}
-          {showHelpMenu && <div className="mini-menu" style={{ minWidth: 170 }}>
-            <button className="mm-item" onClick={() => { setShowHelpMenu(false); navigate("/faq"); }}>FAQs</button>
-            <button className="mm-item" onClick={() => { setShowHelpMenu(false); setShowFeedback(true); }}>Send Feedback</button>
-          </div>}
-        </div>
-        <button onClick={goToSettings} aria-label="Settings" style={{ background: "var(--s2)", border: "1.5px solid var(--b)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, color: "var(--tm)" }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1.03 1.56V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1.11-1.56 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.56-1.03H3a2 2 0 110-4h.09a1.7 1.7 0 001.56-1.11 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34h.08A1.7 1.7 0 0010.12 3.6V3a2 2 0 114 0v.09a1.7 1.7 0 001.03 1.56 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87v.08c.26.63.87 1.05 1.56 1.03H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.51 1.03z"/></svg>
-        </button>
+  </>);
+  const headerContent = (<div style={{ padding: "20px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <div>
+      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{greeting},</div>
+      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, color: (isOrgMode && activeOrg && activeOrg.color) || "var(--green)", lineHeight: 1, display: "flex", alignItems: "center", gap: 8 }}>
+        {isOrgMode && activeOrg && activeOrg.color && <span style={{ width: 14, height: 14, borderRadius: "50%", background: activeOrg.color, flexShrink: 0 }} />}
+        {isOrgMode ? (activeOrg ? activeOrg.name : "Organization") : coachName}
       </div>
     </div>
-    {myOrgs.length > 0 && <div style={{ padding: "0 16px 12px" }}>
-      <div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3 }}>
-        <button onClick={() => setMode({ type: "coach" })} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: !isOrgMode ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: !isOrgMode ? "var(--black)" : "var(--td)" }}>Coach Mode</button>
-        <button onClick={switchToOrgMode} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: isOrgMode ? "var(--green)" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: isOrgMode ? "#fff" : "var(--td)" }}>Organization Mode</button>
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ position: "relative" }}>
+        <button onClick={() => setShowHelpMenu(s => !s)} style={{ position: "relative", background: "var(--s2)", border: "1.5px solid var(--b)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, color: "var(--green)" }}>
+          ?
+        </button>
+        {/* Getting Started moved out of this menu entirely -- it's now a
+            persistent card on Home itself (see GettingStartedCard below),
+            so the green dot nudging you toward this menu for it is gone
+            too. FAQs replaces it here (task: only Send Feedback / FAQs). */}
+        {showHelpMenu && <div className="mini-menu" style={{ minWidth: 170 }}>
+          <button className="mm-item" onClick={() => { setShowHelpMenu(false); navigate("/faq"); }}>FAQs</button>
+          <button className="mm-item" onClick={() => { setShowHelpMenu(false); setShowFeedback(true); }}>Send Feedback</button>
+        </div>}
       </div>
-      {showOrgPicker && <div className="card" style={{ marginTop: 6, padding: 8 }}>
-        {myOrgs.map(org => (<button key={org.id} className="mm-item" style={{ width: "100%", textAlign: "left" }} onClick={() => pickOrg(org.id)}>{org.name}</button>))}
-      </div>}
+      <button onClick={goToSettings} aria-label="Settings" style={{ background: "var(--s2)", border: "1.5px solid var(--b)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, color: "var(--tm)" }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1.03 1.56V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1.11-1.56 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.56-1.03H3a2 2 0 110-4h.09a1.7 1.7 0 001.56-1.11 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34h.08A1.7 1.7 0 0010.12 3.6V3a2 2 0 114 0v.09a1.7 1.7 0 001.03 1.56 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87v.08c.26.63.87 1.05 1.56 1.03H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.51 1.03z"/></svg>
+      </button>
+    </div>
+  </div>);
+  const modeToggleContent = (myOrgs.length > 0 && <div style={{ padding: "0 16px 12px" }}>
+    <div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3 }}>
+      <button onClick={() => setMode({ type: "coach" })} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: !isOrgMode ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: !isOrgMode ? "var(--black)" : "var(--td)" }}>Coach Mode</button>
+      <button onClick={switchToOrgMode} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: isOrgMode ? "var(--green)" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: isOrgMode ? "#fff" : "var(--td)" }}>Organization Mode</button>
+    </div>
+    {showOrgPicker && <div className="card" style={{ marginTop: 6, padding: 8 }}>
+      {myOrgs.map(org => (<button key={org.id} className="mm-item" style={{ width: "100%", textAlign: "left" }} onClick={() => pickOrg(org.id)}>{org.name}</button>))}
     </div>}
-    {!checklistDone && !gettingStartedHidden && <GettingStartedCard data={data} hasCompleted={hasCompleted} coachId={coachId} mode={mode} goToBuilder={goToBuilder} goToSchedule={goToSchedule} navigate={navigate} onHide={() => { setGettingStartedHidden(coachId, true); setGettingStartedHiddenState(true); }} />}
-    {showFeedback && <FeedbackModal coachId={coachId} coachEmail={coachEmail} onClose={() => setShowFeedback(false)} />}
+  </div>);
+  const gettingStartedContent = (!checklistDone && !gettingStartedHidden && <GettingStartedCard data={data} hasCompleted={hasCompleted} coachId={coachId} mode={mode} goToBuilder={goToBuilder} goToSchedule={goToSchedule} navigate={navigate} onHide={() => { setGettingStartedHidden(coachId, true); setGettingStartedHiddenState(true); }} />);
+  const noticesContent = (<>
     {showWelcome && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 14, marginBottom: 10 }}>You've been added to <strong>{pendingWelcome.team.name}</strong> by {adderName}.</div>
       <div style={{ display: "flex", gap: 8 }}>
@@ -668,180 +674,211 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
       <div style={{ fontSize: 14, marginBottom: 10 }}>A practice note from <strong>{unviewedNoteTeam.name}</strong>'s history hasn't been reviewed yet.</div>
       <button className="btn primary bxs bfull" onClick={() => navigate("/team/" + unviewedNoteTeam.id + "/goals", { state: { openGoalsView: "history" } })}>Review Practice History</button>
     </div></div>}
+  </>);
 
-    {/* Org Members management (add a member, cancel a pending invite) moved
-        to the Teams tab's Organization section -- per direct feedback, Home
-        isn't the right long-term place for this as membership grows. Home
-        keeps just the at-a-glance rollup. */}
-    {isOrgMode && <div style={{ padding: "0 16px 16px" }}>
-      <div className="clbl mb8">Weekly Live Practices</div>
-      <div className="card" style={{ padding: 12 }}>
-        {rollup.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>No live practices run yet.</div>}
-        {rollup.length > 0 && <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 60 }}>
-          {rollup.map(w => (<div key={w.wk} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
-            <div style={{ width: "100%", background: "var(--green)", borderRadius: 3, height: Math.max(2, (w.live_practices / maxRun) * 52) }} />
-            <div style={{ fontSize: 9, color: "var(--td)", marginTop: 2 }}>{w.live_practices}</div>
-          </div>))}
-        </div>}
-      </div>
+  // Org Members management (add a member, cancel a pending invite) moved
+  // to the Teams tab's Organization section -- per direct feedback, Home
+  // isn't the right long-term place for this as membership grows. Home
+  // keeps just the at-a-glance rollup.
+  const orgRollupContent = (isOrgMode && <div style={{ padding: "0 16px 16px" }}>
+    <div className="clbl mb8">Weekly Live Practices</div>
+    <div className="card" style={{ padding: 12 }}>
+      {rollup.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>No live practices run yet.</div>}
+      {rollup.length > 0 && <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 60 }}>
+        {rollup.map(w => (<div key={w.wk} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
+          <div style={{ width: "100%", background: "var(--green)", borderRadius: 3, height: Math.max(2, (w.live_practices / maxRun) * 52) }} />
+          <div style={{ fontSize: 9, color: "var(--td)", marginTop: 2 }}>{w.live_practices}</div>
+        </div>))}
+      </div>}
+    </div>
+  </div>);
+
+  // Your Teams quick-jump (2026-07-2x): a per-team row lived here once
+  // before, styled as pills, and got removed per direct feedback --
+  // pills read as an in-place filter control, not "leave this page."
+  // Brought back deliberately card-styled instead (matching the
+  // outgoing Last Practice cards' own look, which never had that
+  // confusion) so it reads as navigation, not filtering.
+  const yourTeamsContent = (data.teams.length > 0 && <div style={{ marginBottom: 16 }}>
+    <div className="clbl mb8">{isOrgMode ? "Org Teams" : "Your Teams"}</div>
+    <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
+      {data.teams.map(team => (<div key={team.id} className="card" style={{ flexShrink: 0, minWidth: 140, cursor: "pointer", borderLeft: "4px solid " + (team.colorPrimary || "transparent"), padding: "10px 12px" }} onClick={() => goToTeam(team.id)}>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700, whiteSpace: "nowrap" }}>{team.name}</div>
+        <div style={{ fontSize: 11, color: "var(--td)" }}>{team.sport}</div>
+        {/* Org name shown here (Coach mode only) so a coach juggling
+            personal teams and org teams together can tell which is
+            which at a glance -- Org mode already says the org's name
+            in the greeting header above, so repeating it per-card there
+            would just be noise. */}
+        {!isOrgMode && team.organizationName && <div style={{ fontSize: 10, color: "var(--td)", marginTop: 2 }}>{team.organizationName}</div>}
+        {!isOrgMode && <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--td)", marginTop: 2 }}>{myTeamRole(team, coachId)}</div>}
+      </div>))}
+    </div>
+  </div>);
+
+  const heroContent = (!runStatusLoaded && upcomingCandidates.length > 0) ? (
+    <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px", color: "var(--td)", fontSize: 14 }}>Loading...</div>
+  ) : (<>
+    {!nextPractice && nextCancelledPractice && (() => {
+      const team = teamById(nextCancelledPractice.teamId);
+      return (<div className="card" style={{ marginBottom: 16, borderColor: "var(--b)" }}>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)", marginBottom: 6 }}>{dayLbl(nextCancelledPractice.date, todayStr, tomorrowStr)}{nextCancelledPractice.startTime ? " · " + timeLbl(nextCancelledPractice) : ""} · Cancelled</div>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1, marginBottom: 4, color: "var(--td)", textDecoration: "line-through" }}>{team ? team.name : "Practice"}</div>
+        <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>This practice was cancelled -- nothing else is coming up yet.</div>
+        <button className="btn outline blg bfull" onClick={() => setViewPractice(nextCancelledPractice)}>View Practice</button>
+      </div>);
+    })()}
+    {!nextPractice && !nextCancelledPractice && <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px" }}>
+      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{data.teams.length === 0 ? "Set up your practice schedule" : "Nothing on the schedule"}</div>
+      <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 16 }}>{!canManageAnyTeam ? "Nothing planned yet." : data.teams.length === 0 ? "Add a team, then set up a recurring schedule to get started." : "Build a practice or set up a recurring schedule."}</div>
+      {canManageAnyTeam && <div style={{ display: "flex", gap: 8 }}>
+        <button className="btn primary bmd" style={{ flex: 1 }} onClick={() => goToBuilder(null)}>+ Build a Practice</button>
+        <button className="btn outline bmd" style={{ flex: 1 }} onClick={goToSchedule}>Set Up Schedule</button>
+      </div>}
     </div>}
 
-    <div style={{ padding: "0 16px" }}>
-      {/* Your Teams quick-jump (2026-07-2x): a per-team row lived here once
-          before, styled as pills, and got removed per direct feedback --
-          pills read as an in-place filter control, not "leave this page."
-          Brought back deliberately card-styled instead (matching the
-          outgoing Last Practice cards' own look, which never had that
-          confusion) so it reads as navigation, not filtering. */}
-      {data.teams.length > 0 && <div style={{ marginBottom: 16 }}>
-        <div className="clbl mb8">{isOrgMode ? "Org Teams" : "Your Teams"}</div>
-        <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
-          {data.teams.map(team => (<div key={team.id} className="card" style={{ flexShrink: 0, minWidth: 140, cursor: "pointer", borderLeft: "4px solid " + (team.colorPrimary || "transparent"), padding: "10px 12px" }} onClick={() => goToTeam(team.id)}>
-            <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700, whiteSpace: "nowrap" }}>{team.name}</div>
-            <div style={{ fontSize: 11, color: "var(--td)" }}>{team.sport}</div>
-            {/* Org name shown here (Coach mode only) so a coach juggling
-                personal teams and org teams together can tell which is
-                which at a glance -- Org mode already says the org's name
-                in the greeting header above, so repeating it per-card there
-                would just be noise. */}
-            {!isOrgMode && team.organizationName && <div style={{ fontSize: 10, color: "var(--td)", marginTop: 2 }}>{team.organizationName}</div>}
-            {!isOrgMode && <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--td)", marginTop: 2 }}>{myTeamRole(team, coachId)}</div>}
-          </div>))}
+    {nextPractice && (() => {
+      const team = teamById(nextPractice.teamId), loc = locById(nextPractice.locationId);
+      const planned = isPlanned(nextPractice), soon = isSoonOrLive(nextPractice, team);
+      const canManage = canManageTeamInMode(team, coachId, mode);
+      const count = absenceCounts[nextPractice.id] || 0;
+      const headcount = team ? Math.max(0, team.players.length - count) : null;
+      // "Up Next" names what this card actually is -- the single soonest
+      // practice -- distinct from the "Upcoming Practices" list further
+      // down, which covers the whole week.
+      return (<><div className="clbl mb8">Up Next</div>
+      <div className="card" style={{ marginBottom: 16, borderColor: soon ? "var(--green)" : "var(--b)", borderWidth: soon ? 2 : 1.5 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+          {team && team.colorPrimary && <span style={{ width: 10, height: 10, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
+          <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)" }}>{dayLbl(nextPractice.date, todayStr, tomorrowStr)}{nextPractice.startTime ? " · " + timeLbl(nextPractice) : ""}</span>
         </div>
-      </div>}
-
-      {(!runStatusLoaded && upcomingCandidates.length > 0) ? (
-        <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px", color: "var(--td)", fontSize: 14 }}>Loading...</div>
-      ) : (<>
-      {!nextPractice && nextCancelledPractice && (() => {
-        const team = teamById(nextCancelledPractice.teamId);
-        return (<div className="card" style={{ marginBottom: 16, borderColor: "var(--b)" }}>
-          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)", marginBottom: 6 }}>{dayLbl(nextCancelledPractice.date, todayStr, tomorrowStr)}{nextCancelledPractice.startTime ? " · " + timeLbl(nextCancelledPractice) : ""} · Cancelled</div>
-          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1, marginBottom: 4, color: "var(--td)", textDecoration: "line-through" }}>{team ? team.name : "Practice"}</div>
-          <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>This practice was cancelled -- nothing else is coming up yet.</div>
-          <button className="btn outline blg bfull" onClick={() => setViewPractice(nextCancelledPractice)}>View Practice</button>
-        </div>);
-      })()}
-      {!nextPractice && !nextCancelledPractice && <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px" }}>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{data.teams.length === 0 ? "Set up your practice schedule" : "Nothing on the schedule"}</div>
-        <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 16 }}>{!canManageAnyTeam ? "Nothing planned yet." : data.teams.length === 0 ? "Add a team, then set up a recurring schedule to get started." : "Build a practice or set up a recurring schedule."}</div>
-        {canManageAnyTeam && <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn primary bmd" style={{ flex: 1 }} onClick={() => goToBuilder(null)}>+ Build a Practice</button>
-          <button className="btn outline bmd" style={{ flex: 1 }} onClick={goToSchedule}>Set Up Schedule</button>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1, marginBottom: 4 }}>{team ? team.name : "Practice"}</div>
+        <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>
+          {loc ? loc.name : "Location TBD"}
+          {headcount !== null && <span> · {headcount} of {team.players.length} expected</span>}
+          {planningState(nextPractice) && <span> · <PlanPill practice={nextPractice} /></span>}
+        </div>
+        {/* .blg, not .bxl -- matches the planned-state buttons below
+            (already sized down from bxl for the same overflow reason
+            documented there); bxl here just made this one button read
+            taller than every other button on the screen for no reason. */}
+        {!planned && canManage && <button className="btn primary blg bfull" onClick={() => goToBuilder(nextPractice.id)}>Plan Practice</button>}
+        {!planned && !canManage && <div className="btn outline blg bfull" style={{ textAlign: "center", cursor: "default" }}>Not planned yet</div>}
+        {/* "Practice Setup" as a distinct button/label is gone (direct
+            feedback: it showed for a practice over a week away, where
+            jumping straight into pre-live setup makes no sense) --
+            always either "Join Practice" (a session already exists,
+            regardless of scheduled time) or "Start Practice →". Tapping
+            Start more than 2 hours before the real scheduled time no
+            longer silently jumps into that practice's own live session
+            (the exact bug that left a still-upcoming practice reading as
+            already completed) -- it opens the 3-choice guard below
+            instead. Sized down from bxl to blg and forced minWidth:0 on
+            both -- two bxl buttons (nowrap text, big padding) never
+            actually fit side by side on a phone-width screen: flex items
+            default to min-width:auto, so flex-shrink couldn't shrink
+            either below its own text width and the row overflowed the
+            viewport. */}
+        {planned && <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn outline blg" style={{ flex: 1, minWidth: 0 }} onClick={() => setViewPractice(nextPractice)}>Review Plan</button>
+          <button className="btn primary blg" style={{ flex: 1, minWidth: 0 }} onClick={() => isSessionLive ? goToRun(nextPractice.id) : (soon ? goToRun(nextPractice.id) : setShowFutureGuard(true))}>{isSessionLive ? "Join Practice" : "Start Practice →"}</button>
         </div>}
-      </div>}
+        {showFutureGuard && <FuturePracticeGuardModal practice={nextPractice} team={team} onCancel={() => setShowFutureGuard(false)} onRunAsNew={() => runAsNewFromGuard(nextPractice)} onRunNow={() => { setShowFutureGuard(false); goToRun(nextPractice.id); }} />}
+      </div></>);
+    })()}
+  </>);
 
-      {nextPractice && (() => {
-        const team = teamById(nextPractice.teamId), loc = locById(nextPractice.locationId);
-        const planned = isPlanned(nextPractice), soon = isSoonOrLive(nextPractice, team);
-        const canManage = canManageTeamInMode(team, coachId, mode);
-        const count = absenceCounts[nextPractice.id] || 0;
-        const headcount = team ? Math.max(0, team.players.length - count) : null;
-        // "Up Next" names what this card actually is -- the single soonest
-        // practice -- distinct from the "Upcoming Practices" list further
-        // down, which covers the whole week.
-        return (<><div className="clbl mb8">Up Next</div>
-        <div className="card" style={{ marginBottom: 16, borderColor: soon ? "var(--green)" : "var(--b)", borderWidth: soon ? 2 : 1.5 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            {team && team.colorPrimary && <span style={{ width: 10, height: 10, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
-            <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)" }}>{dayLbl(nextPractice.date, todayStr, tomorrowStr)}{nextPractice.startTime ? " · " + timeLbl(nextPractice) : ""}</span>
+  // Development Pulse: Coach mode only, directly beneath the hero and
+  // above everything else, per the spec. Not rendered in Org mode --
+  // a director-facing cross-team version is explicitly a future,
+  // separate widget, never this card reused with a random team.
+  const devPulseContent = (<>
+    {!isOrgMode && focusTeam && <DevelopmentPulseCard team={focusTeam} nextPractice={nextPractice} canManage={focusTeamCanManage} data={data} coachId={coachId} hasSportCategories={focusTeamHasCategories} isLiveNow={focusTeamIsLiveNow} onNavigate={developmentPulseNavigate} />}
+    {/* Direct feedback: an assistant/helper with no head-coached team
+        anywhere used to just see nothing here (headCoachTeams.length===0
+        means focusTeam is always null for them) -- no explanation why the
+        widget they see other coaches use is simply missing. Prompts them
+        toward the one thing that would actually unlock it, same "Create a
+        team" entry point Getting Started's own first step uses. */}
+    {!isOrgMode && !focusTeam && headCoachTeams.length === 0 && <div className="card" style={{ marginBottom: 16, padding: "14px 16px" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)", marginBottom: 6 }}>Development Pulse</div>
+      <div style={{ fontSize: 14, color: "var(--black2)", marginBottom: 12, lineHeight: 1.5 }}>Development Pulse tracks how a team's practices compare to its goals over time -- it's for teams you head-coach. Create a team to start seeing it.</div>
+      <button className="btn outline bmd bfull" onClick={() => navigate("/teams")}>Create a Team</button>
+    </div>}
+  </>);
+
+  // Direct feedback: the "N practices in the next 14 days need a plan"
+  // nudge is gone -- Upcoming Practices already shows the coach's next
+  // 4 practices (planned or not, "Needs plan" called out inline per
+  // row below) and My Schedule covers the rest; a second surface
+  // saying the same thing was redundant.
+  const upcomingContent = (<>
+    <div className="sechdr" style={{ marginBottom: 8 }}><span className="sectitle">Upcoming Practices</span><button className="btn ghost bxs" onClick={goToSchedule}>My Schedule</button></div>
+    {agendaWindow.length === 0 && <div style={{ padding: "16px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>Nothing scheduled.</div>}
+    {agendaWindow.map(p => {
+      // agendaWindow already excludes completed practices, so no "· Completed"
+      // badge branch is needed here (unlike the old 14-day list).
+      const team = teamById(p.teamId), loc = locById(p.locationId), planned = isPlanned(p), count = absenceCounts[p.id] || 0;
+      return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer" }} onClick={() => openPractice(p)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+          {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
+          <div className="lim" style={{ minWidth: 0 }}>
+            <div className="lin">{team ? team.name : "Practice"}</div>
+            {/* count>0 branch wraps "N out" in its own nowrap span -- found
+                live wrapping mid-phrase ("1" ending one line, "out"
+                starting the next), same fix as PlanPill's "0/60 min". */}
+            <div className="limt">{dayLbl(p.date, todayStr, tomorrowStr)}{p.startTime ? " · " + timeLbl(p) : ""}{loc ? " · " + loc.name : ""}{!planned && " · Needs plan"}{planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{count > 0 && <React.Fragment> · <span style={{ whiteSpace: "nowrap" }}>{count} out</span></React.Fragment>}</div>
           </div>
-          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1, marginBottom: 4 }}>{team ? team.name : "Practice"}</div>
-          <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>
-            {loc ? loc.name : "Location TBD"}
-            {headcount !== null && <span> · {headcount} of {team.players.length} expected</span>}
-            {planningState(nextPractice) && <span> · <PlanPill practice={nextPractice} /></span>}
-          </div>
-          {/* .blg, not .bxl -- matches the planned-state buttons below
-              (already sized down from bxl for the same overflow reason
-              documented there); bxl here just made this one button read
-              taller than every other button on the screen for no reason. */}
-          {!planned && canManage && <button className="btn primary blg bfull" onClick={() => goToBuilder(nextPractice.id)}>Plan Practice</button>}
-          {!planned && !canManage && <div className="btn outline blg bfull" style={{ textAlign: "center", cursor: "default" }}>Not planned yet</div>}
-          {/* "Practice Setup" as a distinct button/label is gone (direct
-              feedback: it showed for a practice over a week away, where
-              jumping straight into pre-live setup makes no sense) --
-              always either "Join Practice" (a session already exists,
-              regardless of scheduled time) or "Start Practice →". Tapping
-              Start more than 2 hours before the real scheduled time no
-              longer silently jumps into that practice's own live session
-              (the exact bug that left a still-upcoming practice reading as
-              already completed) -- it opens the 3-choice guard below
-              instead. Sized down from bxl to blg and forced minWidth:0 on
-              both -- two bxl buttons (nowrap text, big padding) never
-              actually fit side by side on a phone-width screen: flex items
-              default to min-width:auto, so flex-shrink couldn't shrink
-              either below its own text width and the row overflowed the
-              viewport. */}
-          {planned && <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn outline blg" style={{ flex: 1, minWidth: 0 }} onClick={() => setViewPractice(nextPractice)}>Review Plan</button>
-            <button className="btn primary blg" style={{ flex: 1, minWidth: 0 }} onClick={() => isSessionLive ? goToRun(nextPractice.id) : (soon ? goToRun(nextPractice.id) : setShowFutureGuard(true))}>{isSessionLive ? "Join Practice" : "Start Practice →"}</button>
+        </div>
+        <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+          <button className="ell-btn" onClick={e => {
+            e.stopPropagation();
+            if (practiceMenuId === p.id) { setPracticeMenuId(null); return; }
+            setPracticeMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(), 120));
+            setPracticeMenuId(p.id);
+          }}><span /><span /><span /></button>
+          {practiceMenuId === p.id && <div className="mini-menu" style={practiceMenuUp ? { right: 0, minWidth: 140, top: "auto", bottom: "calc(100% - 4px)" } : { right: 0, minWidth: 140 }}>
+            <button className="mm-item" onClick={() => { setPracticeMenuId(null); goToBuilder(p.id); }}>Edit</button>
+            <button className="mm-item mm-danger" onClick={() => { delPractice(p.id); setPracticeMenuId(null); }}>Delete</button>
           </div>}
-          {showFutureGuard && <FuturePracticeGuardModal practice={nextPractice} team={team} onCancel={() => setShowFutureGuard(false)} onRunAsNew={() => runAsNewFromGuard(nextPractice)} onRunNow={() => { setShowFutureGuard(false); goToRun(nextPractice.id); }} />}
-        </div></>);
-      })()}
+        </div>
+      </div>);
+    })}
+  </>);
 
-      {/* Development Pulse: Coach mode only, directly beneath the hero and
-          above everything else, per the spec. Not rendered in Org mode --
-          a director-facing cross-team version is explicitly a future,
-          separate widget, never this card reused with a random team. */}
-      {!isOrgMode && focusTeam && <DevelopmentPulseCard team={focusTeam} nextPractice={nextPractice} canManage={focusTeamCanManage} data={data} coachId={coachId} hasSportCategories={focusTeamHasCategories} isLiveNow={focusTeamIsLiveNow} onNavigate={developmentPulseNavigate} />}
-      {/* Direct feedback: an assistant/helper with no head-coached team
-          anywhere used to just see nothing here (headCoachTeams.length===0
-          means focusTeam is always null for them) -- no explanation why the
-          widget they see other coaches use is simply missing. Prompts them
-          toward the one thing that would actually unlock it, same "Create a
-          team" entry point Getting Started's own first step uses. */}
-      {!isOrgMode && !focusTeam && headCoachTeams.length === 0 && <div className="card" style={{ marginBottom: 16, padding: "14px 16px" }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)", marginBottom: 6 }}>Development Pulse</div>
-        <div style={{ fontSize: 14, color: "var(--black2)", marginBottom: 12, lineHeight: 1.5 }}>Development Pulse tracks how a team's practices compare to its goals over time -- it's for teams you head-coach. Create a team to start seeing it.</div>
-        <button className="btn outline bmd bfull" onClick={() => navigate("/teams")}>Create a Team</button>
-      </div>}
+  const bottomRowContent = (<div style={{ marginTop: 20, display: "flex", gap: 8 }}>
+    {canManageAnyTeam && <button className="btn outline bmd" style={{ flex: 1 }} onClick={() => goToBuilder(null)}>+ Practice</button>}
+    <button className="btn ghost bmd" style={{ flex: 1 }} onClick={() => setShowAbsencePicker(true)}>Player Out</button>
+  </div>);
 
-      {/* Direct feedback: the "N practices in the next 14 days need a plan"
-          nudge is gone -- Upcoming Practices already shows the coach's next
-          4 practices (planned or not, "Needs plan" called out inline per
-          row below) and My Schedule covers the rest; a second surface
-          saying the same thing was redundant. */}
-      <div className="sechdr" style={{ marginBottom: 8 }}><span className="sectitle">Upcoming Practices</span><button className="btn ghost bxs" onClick={goToSchedule}>My Schedule</button></div>
-      {agendaWindow.length === 0 && <div style={{ padding: "16px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>Nothing scheduled.</div>}
-      {agendaWindow.map(p => {
-        // agendaWindow already excludes completed practices, so no "· Completed"
-        // badge branch is needed here (unlike the old 14-day list).
-        const team = teamById(p.teamId), loc = locById(p.locationId), planned = isPlanned(p), count = absenceCounts[p.id] || 0;
-        return (<div key={p.id} className="li" style={{ marginBottom: 6, cursor: "pointer" }} onClick={() => openPractice(p)}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-            {team && team.colorPrimary && <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
-            <div className="lim" style={{ minWidth: 0 }}>
-              <div className="lin">{team ? team.name : "Practice"}</div>
-              {/* count>0 branch wraps "N out" in its own nowrap span -- found
-                  live wrapping mid-phrase ("1" ending one line, "out"
-                  starting the next), same fix as PlanPill's "0/60 min". */}
-              <div className="limt">{dayLbl(p.date, todayStr, tomorrowStr)}{p.startTime ? " · " + timeLbl(p) : ""}{loc ? " · " + loc.name : ""}{!planned && " · Needs plan"}{planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{count > 0 && <React.Fragment> · <span style={{ whiteSpace: "nowrap" }}>{count} out</span></React.Fragment>}</div>
-            </div>
-          </div>
-          <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
-            <button className="ell-btn" onClick={e => {
-              e.stopPropagation();
-              if (practiceMenuId === p.id) { setPracticeMenuId(null); return; }
-              setPracticeMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(), 120));
-              setPracticeMenuId(p.id);
-            }}><span /><span /><span /></button>
-            {practiceMenuId === p.id && <div className="mini-menu" style={practiceMenuUp ? { right: 0, minWidth: 140, top: "auto", bottom: "calc(100% - 4px)" } : { right: 0, minWidth: 140 }}>
-              <button className="mm-item" onClick={() => { setPracticeMenuId(null); goToBuilder(p.id); }}>Edit</button>
-              <button className="mm-item mm-danger" onClick={() => { delPractice(p.id); setPracticeMenuId(null); }}>Delete</button>
-            </div>}
-          </div>
-        </div>);
-      })}
-      </>)}
-
-      <div style={{ marginTop: 20, display: "flex", gap: 8 }}>
-        {canManageAnyTeam && <button className="btn outline bmd" style={{ flex: 1 }} onClick={() => goToBuilder(null)}>+ Practice</button>}
-        <button className="btn ghost bmd" style={{ flex: 1 }} onClick={() => setShowAbsencePicker(true)}>Player Out</button>
+  // BB layout pass: two-column dashboard at BB (left: hero + Upcoming
+  // Practices; right: Getting Started + notification cards + Development
+  // Pulse), per the handoff's own spec -- join bar/header/mode toggle stay
+  // full width above both, same as they already were at mobile. Every
+  // piece above is unchanged JSX/state/handlers; only the wrapper differs.
+  return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}>
+    {joinBarContent}
+    {headerContent}
+    {modeToggleContent}
+    {showFeedback && <FeedbackModal coachId={coachId} coachEmail={coachEmail} onClose={() => setShowFeedback(false)} />}
+    {isBB ? (<>
+      <div style={{ padding: "0 16px" }}>{yourTeamsContent}</div>
+      <TwoPane
+        left={<div style={{ padding: "0 16px" }}>{heroContent}{upcomingContent}{bottomRowContent}</div>}
+        right={<div style={{ padding: "0 16px" }}>{gettingStartedContent}{noticesContent}{orgRollupContent}{devPulseContent}</div>}
+      />
+    </>) : (<>
+      {gettingStartedContent}
+      {noticesContent}
+      {orgRollupContent}
+      <div style={{ padding: "0 16px" }}>
+        {yourTeamsContent}
+        {heroContent}
+        {devPulseContent}
+        {upcomingContent}
+        {bottomRowContent}
       </div>
-    </div>
-
+    </>)}
     {showAbsencePicker && <AbsencePicker data={data} coachId={coachId} mode="pickPlayerThenPractices" onClose={() => { setShowAbsencePicker(false); refreshAbsenceCounts(); }} />}
   </div>);
 }
