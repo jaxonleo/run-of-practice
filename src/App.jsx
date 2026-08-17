@@ -282,6 +282,10 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
    is what lets each pane's own overflow-y:auto actually engage instead of
    .screen scrolling the whole thing as one column. */
 .bb-fill-height{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+/* Teams list at BB: same .li/.lin/.limt cards, arranged as a reflowing
+   grid (2-3 columns depending on width) instead of one narrow column. */
+.bb-teams-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+.bb-teams-grid .li{margin-bottom:0;}
 `;
 
 // Shared app state (data, coachId, navigation helpers, etc.) for every route

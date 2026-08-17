@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { fetchOrgMembers, fetchOrgSentInvites, orgInviteCoach, cancelOrgInvite, updateOrganization, setOrgMemberRole, removeOrgMember, ORG_ROLE_LABELS } from "../supabase.js";
-import { SPORTS, TEAM_COLORS, myTeamRole, menuNeedsToOpenUpward } from "../constants.js";
+import { SPORTS, TEAM_COLORS, myTeamRole, menuNeedsToOpenUpward, useBigBrowser } from "../constants.js";
 
 // Org details (Jax's ask): the Teams list itself just shows a tappable
 // org card now, no inline Edit/Add-Member buttons -- everything lives one
@@ -173,6 +173,10 @@ function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
 // list carried the only + Team button, and that list is gone (2026-07-15
 // settings restructure), so this became team creation's one entry point.
 export default function TeamsListScreen({ data, goToTeam, openModal, mode, refreshLibrary, coachId }) {
+  // BB layout pass: a card grid instead of a single-column list. Same
+  // rows/props/handlers either way -- only the container's own display
+  // (block column vs. grid) and each row's own bottom margin differ.
+  const isBB = useBigBrowser();
   const teams = data.teams || [];
   const isOrgMode = mode && mode.type === "org";
   const activeOrg = isOrgMode ? (data.myOrgs || []).find(o => o.id === mode.orgId) : null;
@@ -204,7 +208,8 @@ export default function TeamsListScreen({ data, goToTeam, openModal, mode, refre
     </div>}
     <div style={{ padding: "0 16px" }}>
       {teams.length === 0 && <div className="empty"><div className="emtx">{isOrgMode ? "No teams in this org yet. Tap + Team to get started." : "No teams yet. Tap + Team to get started."}</div></div>}
-      {teams.map(t => (<div key={t.id} className="li tap" style={{ marginBottom: 8, borderLeft: "4px solid " + (t.colorPrimary || "transparent") }} onClick={() => goToTeam(t.id)}>
+      <div className={isBB ? "bb-teams-grid" : undefined}>
+      {teams.map(t => (<div key={t.id} className="li tap" style={{ marginBottom: isBB ? 0 : 8, borderLeft: "4px solid " + (t.colorPrimary || "transparent") }} onClick={() => goToTeam(t.id)}>
         <div className="lim">
           <div className="lin">{t.name}</div>
           <div className="limt">{t.sport} · {t.players.length} player{t.players.length === 1 ? "" : "s"}{!isOrgMode && t.organizationName ? " · " + t.organizationName : ""}</div>
@@ -216,6 +221,7 @@ export default function TeamsListScreen({ data, goToTeam, openModal, mode, refre
         </div>
         <span style={{ color: "var(--green)", fontSize: 22 }}>&#8250;</span>
       </div>))}
+      </div>
     </div>
   </div>);
 }
