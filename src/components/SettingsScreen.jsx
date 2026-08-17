@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { checkIsAdmin, listAdmins, grantAdmin, revokeAdmin, createOrganization, orgInviteCoach, leaveTeam, setTeamStaffShowOnHome } from "../supabase.js";
-import { myTeamRole, AUDIO_CUES, getAudioCuePref, setAudioCuePref, getVoiceURIPref, setVoiceURIPref, loadVoices, resolveDefaultVoice, setGettingStartedHidden } from "../constants.js";
+import { myTeamRole, AUDIO_CUES, getAudioCuePref, setAudioCuePref, getVoiceURIPref, setVoiceURIPref, loadVoices, resolveDefaultVoice, setGettingStartedHidden, useBigBrowser } from "../constants.js";
 import { ConsultationRequestForm } from "./LegalPages.jsx";
 
 // Settings hub (nav restructure, 2026-07-15; narrowed again in the Library
@@ -267,6 +267,10 @@ function AdminsSection({}){
 }
 
 export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams,profile,coachEmail,saveName,onSignOut,onDeactivate,setMode}){
+  // BB layout pass: a width cap, same .bb-centered-page treatment as
+  // Library/Roster -- this screen is already genuinely single-column
+  // (Locations/Equipment/Skill Tags moved to Library), nothing else changes.
+  const isBB=useBigBrowser();
   const navigate=useNavigate();
   const location=useLocation();
   // null = the top-level list; otherwise which section is drilled into.
@@ -312,7 +316,7 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
   const BackRow=()=>(<div style={{padding:"12px 14px 0"}}><button className="btn ghost bxs" onClick={()=>setSection(null)}>&#8249; Settings</button></div>);
   const titles={account:"Account",assignments:"My Team Assignments",admins:"Admins",audio:"Live Practice Audio"};
 
-  if(section)return(<div style={{paddingBottom:80}}>
+  if(section)return(<div className={isBB?"bb-centered-page":undefined} style={{paddingBottom:80}}>
     <BackRow/>
     <div style={{padding:"12px 16px 0"}}>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,marginBottom:14}}>{titles[section]}</div>
@@ -323,7 +327,7 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
     </div>
   </div>);
 
-  return(<div style={{paddingBottom:80}}>
+  return(<div className={isBB?"bb-centered-page":undefined} style={{paddingBottom:80}}>
     {/* Back-button audit (2026-07-15): Settings is reached via a gear icon,
         not a tab, so unlike Home/Teams/Library it isn't a navigable root --
         it needs its own explicit way out instead of relying on the coach to

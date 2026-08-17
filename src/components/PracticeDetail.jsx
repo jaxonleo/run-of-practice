@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { findOrCreatePreviewToken, cancelPractice, restorePractice, fetchPlannedAbsences, findActiveLiveSession, savePracticeTree } from "../supabase.js";
-import { canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, isMoreThanTwoHoursAway } from "../constants.js";
+import { canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, isMoreThanTwoHoursAway, useBigBrowser } from "../constants.js";
+import { TwoPane } from "./BBShells.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
 import FuturePracticeGuardModal from "./FuturePracticeGuardModal.jsx";
@@ -16,6 +17,13 @@ function PlanPill({ practice, total }) {
 }
 
 export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack,coachId,refreshPlanning,setSubViewBack,mode}){
+  // BB layout pass: header/actions/equipment-summary left, Run Order right
+  // -- see headerContent/runOrderContent in the return below. The print
+  // subtree (PracticePlanPrint, #rop-print-root) is a separate conditionally
+  // -mounted overlay untouched by this, and the existing @media print rule
+  // is already scoped entirely to that id with no app-class selectors
+  // inside it, so it stays isolated regardless of which layout is active.
+  const isBB=useBigBrowser();
   // Nav restructure round 3: reached from a team-scoped Schedule tab
   // registers with Layout's colored bar instead of rendering its own
   // inline Back button; reached from Home (no colored bar there) keeps
@@ -139,9 +147,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
     setShowFutureGuard(false);
     if(saved)goToRun(saved.id);
   };
-  return (<div style={{paddingBottom:80}}>
-    {!setSubViewBack&&<div style={{padding:"12px 14px 0",display:"flex",alignItems:"center",gap:8}}><button className="btn ghost bxs" onClick={onBack}>Back</button></div>}
-    <div style={{padding:"12px 16px 0"}}>
+  const headerContent=(<>
       {isCancelled&&<div className="card" style={{marginBottom:12,background:"var(--s2)",textAlign:"center"}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,color:"var(--td)",marginBottom:8}}>This practice was cancelled</div>
         <button className="btn outline bsm" onClick={doRestore}>Restore</button>
@@ -214,6 +220,8 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--amber)",marginBottom:6}}>Equipment Needed</div>
         {allEquip.map(e=>(<div key={e.id} style={{fontSize:14,color:e.acquired?"var(--black)":"var(--red)",fontWeight:e.acquired?400:700,marginBottom:2}}>· {e.name}{!e.acquired&&<span style={{fontSize:11,marginLeft:6}}>NOT ACQUIRED</span>}</div>))}
       </div>}
+  </>);
+  const runOrderContent=(<>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Run Order</div>
       {(practice.activities||[]).map((a,i)=>{
         const isExp=expandedId===a.id;
@@ -273,7 +281,17 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
           </div>}
         </div>);
       })}
-    </div>
+  </>);
+  return (<div style={{paddingBottom:80}}>
+    {!setSubViewBack&&<div style={{padding:"12px 14px 0",display:"flex",alignItems:"center",gap:8}}><button className="btn ghost bxs" onClick={onBack}>Back</button></div>}
+    {isBB?(
+      <TwoPane
+        left={<div style={{padding:"12px 16px 0"}}>{headerContent}</div>}
+        right={<div style={{padding:"12px 16px 0"}}>{runOrderContent}</div>}
+      />
+    ):(
+      <div style={{padding:"12px 16px 0"}}>{headerContent}{runOrderContent}</div>
+    )}
     {showAbsencePicker&&<AbsencePicker data={data} coachId={coachId} mode="pickPlayersForPractice" practice={practice} team={team} onClose={()=>{setShowAbsencePicker(false);refreshAbsences();}}/>}
     {showPrint&&<PracticePlanPrint practice={practice} team={team} loc={loc} data={data} onClose={()=>setShowPrint(false)}/>}
   </div>);
