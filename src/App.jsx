@@ -1120,21 +1120,33 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const runOfPracticeStartRef=useRef(null);
   const runOfPracticeEndRef=useRef(null);
   const [runOfPracticeH,setRunOfPracticeH]=useState(0);
-  useEffect(()=>{
-    const outer=runOfPracticeOuterRef.current;
+  const recomputeRunOfPracticeH=useCallback(()=>{
     const start=runOfPracticeStartRef.current;
     const end=runOfPracticeEndRef.current;
-    if(!outer||!start||!end)return;
-    const recompute=()=>{
-      const sRect=start.getBoundingClientRect();
-      const eRect=end.getBoundingClientRect();
-      setRunOfPracticeH(Math.max(0,eRect.bottom-sRect.top));
-    };
-    recompute();
-    const ro=new ResizeObserver(recompute);
+    if(!start||!end)return;
+    const sRect=start.getBoundingClientRect();
+    const eRect=end.getBoundingClientRect();
+    setRunOfPracticeH(Math.max(0,eRect.bottom-sRect.top));
+  },[]);
+  useEffect(()=>{
+    const outer=runOfPracticeOuterRef.current;
+    if(!outer)return;
+    recomputeRunOfPracticeH();
+    const ro=new ResizeObserver(recomputeRunOfPracticeH);
     ro.observe(outer);
     return()=>ro.disconnect();
-  },[]);
+  },[recomputeRunOfPracticeH]);
+  // BB bug found live (Jax, post-ship): at BB, runOfPracticeOuterRef is the
+  // flex-constrained wrapper around the whole TwoPane (flex:1, overflow:
+  // hidden) so it fills its own parent's fixed height and never resizes on
+  // its own as drills are added inside the independently-scrolling left
+  // pane -- the ResizeObserver above only ever fires once, at mount, and
+  // the green backdrop height then goes stale. Mobile never hit this: its
+  // outer wrapper is a normal block that grows with content in-flow, so
+  // the same observer already recomputes correctly there. Recomputing
+  // whenever the practice's own content-affecting state changes covers BB
+  // without touching mobile's existing resize-driven path at all.
+  useEffect(()=>{recomputeRunOfPracticeH();},[acts,expandedId,recomputeRunOfPracticeH]);
   // Direct feedback, two rounds: a prior session added an actual
   // scrollIntoView() here to fix "the last-added drill should be frozen at
   // the top" -- but forcing the whole page to jump back up to the Run of
