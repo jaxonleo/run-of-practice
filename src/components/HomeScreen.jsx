@@ -161,12 +161,42 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   // already scopes results to whichever practices this coach can access
   // at all, so no team filter is needed here.
   const [liveSessions, setLiveSessions] = useState([]);
+  // Direct feedback after a real incident: a plain setInterval(poll,20000)
+  // keeps firing on a fixed cadence no matter what -- backgrounded tab,
+  // already-slow backend, previous call still pending, none of it matters,
+  // it just adds another request every 20s regardless. That's exactly the
+  // shape that turned a slow moment into hours of exhausted PostgREST
+  // threads (see BUILD-STATUS Gotchas): every open tab kept polling this
+  // plus abandon_stale_live_sessions on top of an already-struggling
+  // backend, compounding rather than backing off. Fixed three ways: never
+  // start a new poll while the last one is still in flight, skip polling
+  // entirely while the tab is hidden (an immediate poll on regaining focus
+  // covers "missed one while backgrounded" instead), and widen the delay
+  // before the next attempt whenever one takes unusually long -- a real
+  // signal the backend is struggling, without needing fetchActiveLive
+  // Sessions itself to report failure (it deliberately swallows its own
+  // errors and always resolves, per its own doc comment).
   useEffect(() => {
-    let cancelled = false;
-    const poll = () => fetchActiveLiveSessions().then(rows => { if (!cancelled) setLiveSessions(rows); });
-    poll();
-    const iv = setInterval(poll, 20000);
-    return () => { cancelled = true; clearInterval(iv); };
+    let cancelled = false, inFlight = false, timer = null;
+    const BASE_DELAY = 20000, SLOW_THRESHOLD_MS = 5000, MAX_DELAY = 5 * 60000;
+    const schedule = delay => { timer = setTimeout(runPoll, delay); };
+    const runPoll = () => {
+      if (cancelled || inFlight) return;
+      if (document.visibilityState !== "visible") { schedule(BASE_DELAY); return; }
+      inFlight = true;
+      const startedAt = Date.now();
+      fetchActiveLiveSessions().then(rows => {
+        inFlight = false;
+        if (cancelled) return;
+        setLiveSessions(rows);
+        const tookMs = Date.now() - startedAt;
+        schedule(tookMs > SLOW_THRESHOLD_MS ? Math.min(BASE_DELAY * 4, MAX_DELAY) : BASE_DELAY);
+      });
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") { clearTimeout(timer); runPoll(); } };
+    document.addEventListener("visibilitychange", onVisible);
+    runPoll();
+    return () => { cancelled = true; clearTimeout(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, []);
   // allTeams, not the show_on_home-scoped data.teams this screen otherwise
   // uses everywhere else -- a coach still needs to know a practice is
