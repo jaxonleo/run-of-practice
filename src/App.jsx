@@ -52,6 +52,7 @@ html,body{height:100%;-webkit-tap-highlight-color:transparent;touch-action:manip
 }
 body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;font-size:15px;}
 .app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;overflow:hidden;}
+.app-content{flex:1;min-width:0;display:flex;flex-direction:column;height:100%;overflow:hidden;}
 .screen{flex:1;overflow-y:auto;overflow-x:hidden;padding:14px 14px calc(var(--tab)+80px);scrollbar-width:none;}
 .screen::-webkit-scrollbar{display:none;}
 .tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;height:var(--tab);background:var(--s1);border-top:1px solid var(--b);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom,0);}
@@ -252,7 +253,6 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
    Working Conventions for why (it's the single most effective guard
    against a mobile regression from this pass). */
 .bb.app{max-width:none;flex-direction:row;}
-.bb .app-content{flex:1;min-width:0;display:flex;flex-direction:column;height:100%;overflow:hidden;}
 .bb .screen{padding:20px 28px 28px;}
 /* Rail replaces the bottom tab bar at BB: same GLOBAL_TABS array and same
    active-state checks as the mobile bar (Layout.jsx), just a fixed-width
