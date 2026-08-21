@@ -856,43 +856,18 @@ export async function fetchLocations() {
     sublocations: (subsRes.data || []).filter(s => s.location_id === l.id).map(s => ({ id: s.id, name: s.name })),
   }))
 }
-// Real bug, found live: .insert(...).select().single() (asking PostgREST
-// for the row back via Prefer: return=representation) fails RLS on this
-// specific table -- 42501 "new row violates row-level security policy for
-// table locations" -- even though the exact same insert with no .select()
-// succeeds, and a follow-up SELECT on the just-created row (same
-// transaction) correctly sees it. Root cause traced to can_access_location
-// (backing locations_select_access, the policy RETURNING triggers): unlike
-// every sibling owner-scoped table's SELECT policy (assets_select_access
-// included), it doesn't read the row's own columns directly -- it takes
-// just the id and re-queries `from locations where id=...` inside a
-// wrapped function, which apparently doesn't reliably see a row this same
-// INSERT statement just created when evaluated as part of that statement's
-// own RETURNING check. Confirmed via supabase db query --linked, isolating
-// each piece: the INSERT policy's own check (can_manage_owned) is fine:
-// the SELECT policy is what actually rejects the RETURNING result.
-// Real fix is a migration (give can_access_location the row's columns
-// directly, matching assets_select_access's own pattern, instead of a
-// self-referencing subquery) -- flagged, not applied here, since that
-// touches a live production RLS policy and deserves its own explicit
-// go-ahead. This sidesteps it without touching the database at all:
-// generate the id client-side and skip .select() entirely, so the insert
-// never needs PostgREST to hand a row back in the first place.
 export async function createLocation(ownerUserId, name) {
-  const id = crypto.randomUUID()
-  const { error } = await supabase.from('locations').insert({ id, owner_user_id: ownerUserId, name })
+  const { data, error } = await supabase.from('locations').insert({ owner_user_id: ownerUserId, name }).select().single()
   if (error) console.error('createLocation:', error)
-  return { data: error ? null : { id, name, ownerUserId, sublocations: [] }, error }
+  return { data: data ? { id: data.id, name: data.name, ownerUserId: data.owner_user_id, sublocations: [] } : null, error }
 }
 // Org-owned counterpart -- locations_insert_manage's RLS (can_manage_owned)
 // already permits a director inserting with organization_id set directly,
-// no RPC needed, same as createOrganization. Same RETURNING workaround as
-// createLocation above -- same underlying RLS gap, same table.
+// no RPC needed, same as createOrganization.
 export async function createOrgLocation(organizationId, name) {
-  const id = crypto.randomUUID()
-  const { error } = await supabase.from('locations').insert({ id, organization_id: organizationId, name })
+  const { data, error } = await supabase.from('locations').insert({ organization_id: organizationId, name }).select().single()
   if (error) console.error('createOrgLocation:', error)
-  return { data: error ? null : { id, name, organizationId, sublocations: [] }, error }
+  return { data: data ? { id: data.id, name: data.name, organizationId: data.organization_id, sublocations: [] } : null, error }
 }
 export async function updateLocation(id, name) {
   const { error } = await supabase.from('locations').update({ name }).eq('id', id)
