@@ -36,6 +36,10 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
   // modal -- not window.confirm -- matching that same .movly/.modal/
   // mtitle/brow shape here rather than inventing a third pattern.
   const [confirmDeleteSub,setConfirmDeleteSub]=useState(null);
+  // The location's own Delete had the identical gap (fixed for areas
+  // above, then visibly inconsistent right next to it) -- same fix,
+  // same shape, own state since it deletes a different kind of row.
+  const [confirmDeleteLoc,setConfirmDeleteLoc]=useState(null);
   const isOrgMode=mode&&mode.type==="org";
   const locations=(data.locations||[]).filter(l=>isOrgMode?l.organizationId===mode.orgId:l.ownerUserId===coachId);
   const addPayload=isOrgMode?{organizationId:mode.orgId}:undefined;
@@ -43,6 +47,12 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
     const sl=confirmDeleteSub;
     setConfirmDeleteSub(null);
     await archiveSublocation(sl.id);
+    await refreshPlanning();
+  };
+  const doDeleteLoc=async()=>{
+    const loc=confirmDeleteLoc;
+    setConfirmDeleteLoc(null);
+    await archiveLocation(loc.id);
     await refreshPlanning();
   };
   return(<div onClick={()=>{setMenu(null);setSubMenu(null);}}>
@@ -64,7 +74,7 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
       </div>
       {menu===loc.id&&<div className="mini-menu" style={menuUp?{right:8,top:"auto",bottom:"calc(100% - 4px)"}:{right:8,top:44}}>
         <button className="mm-item" onClick={e=>{e.stopPropagation();setMenu(null);openModal("editLocation",{location:loc});}}>Edit</button>
-        <button className="mm-item mm-danger" onClick={async e=>{e.stopPropagation();setMenu(null);await archiveLocation(loc.id);await refreshPlanning();}}>Delete</button>
+        <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setMenu(null);setConfirmDeleteLoc(loc);}}>Delete</button>
       </div>}
       <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
         {/* The ellipsis used to sit as a separate button next to the badge,
@@ -95,6 +105,13 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
         <div className="mtitle">Delete {confirmDeleteSub.name}?</div>
         <div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This removes the area from the location. Cannot be undone.</div>
         <div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDeleteSub(null)}>Cancel</button><button className="btn danger bmd" onClick={doDeleteSub}>Delete</button></div>
+      </div>
+    </div>}
+    {confirmDeleteLoc&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setConfirmDeleteLoc(null);}}>
+      <div className="modal">
+        <div className="mtitle">Delete {confirmDeleteLoc.name}?</div>
+        <div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This removes the location, and any areas at it, from your library. Cannot be undone.</div>
+        <div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDeleteLoc(null)}>Cancel</button><button className="btn danger bmd" onClick={doDeleteLoc}>Delete</button></div>
       </div>
     </div>}
   </div>);
