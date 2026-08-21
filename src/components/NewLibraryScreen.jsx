@@ -30,9 +30,21 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
   // the same outer click-anywhere-closes-menus handler.
   const [subMenu,setSubMenu]=useState(null);
   const [subMenuUp,setSubMenuUp]=useState(false);
+  // Direct feedback: deleting an area used to archive it the instant
+  // "Delete" was tapped, unlike every other delete in this app (roster
+  // Remove, template Delete, ...), which all confirm first via a real
+  // modal -- not window.confirm -- matching that same .movly/.modal/
+  // mtitle/brow shape here rather than inventing a third pattern.
+  const [confirmDeleteSub,setConfirmDeleteSub]=useState(null);
   const isOrgMode=mode&&mode.type==="org";
   const locations=(data.locations||[]).filter(l=>isOrgMode?l.organizationId===mode.orgId:l.ownerUserId===coachId);
   const addPayload=isOrgMode?{organizationId:mode.orgId}:undefined;
+  const doDeleteSub=async()=>{
+    const sl=confirmDeleteSub;
+    setConfirmDeleteSub(null);
+    await archiveSublocation(sl.id);
+    await refreshPlanning();
+  };
   return(<div onClick={()=>{setMenu(null);setSubMenu(null);}}>
     <div className="sechdr mb10"><span className="sectitle">{locations.length} Locations</span><button className="btn primary bsm" onClick={()=>openModal("addLocation",addPayload)}>+ Add</button></div>
     {locations.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No locations yet.</div>}
@@ -40,7 +52,7 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
         <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{loc.name}</span>
         <div className="row">
-          <button className="btn ghost bxs" onClick={()=>openModal("addSublocation",{locationId:loc.id})}>+ Area</button>
+          <button className="btn ghost bxs" onClick={()=>openModal("addSublocation",{location:loc})}>+ Area</button>
           <button className="ell-btn" onClick={e=>{
             e.stopPropagation();
             if(menu===loc.id){setMenu(null);return;}
@@ -55,9 +67,15 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
         <button className="mm-item mm-danger" onClick={async e=>{e.stopPropagation();setMenu(null);await archiveLocation(loc.id);await refreshPlanning();}}>Delete</button>
       </div>}
       <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-        {loc.sublocations.map(sl=>(<div key={sl.id} style={{position:"relative",display:"inline-flex",alignItems:"center"}}>
-          <span className="bdg bs">{sl.name}</span>
-          <button className="ell-btn" style={{padding:"2px 2px 2px 4px"}} onClick={e=>{
+        {/* The ellipsis used to sit as a separate button next to the badge,
+            outside its border -- looked disconnected from the area it
+            belonged to. It's the badge itself now: name + dots share one
+            bordered pill (still position:relative so its own .mini-menu
+            anchors here, not the whole card, when several areas wrap onto
+            the same row). */}
+        {loc.sublocations.map(sl=>(<div key={sl.id} className="bdg bs" style={{position:"relative",paddingRight:2,gap:2}}>
+          <span>{sl.name}</span>
+          <button className="ell-btn" style={{padding:"2px"}} onClick={e=>{
             e.stopPropagation();
             if(subMenu===sl.id){setSubMenu(null);return;}
             setMenu(null);
@@ -65,13 +83,20 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
             setSubMenu(sl.id);
           }}><span/><span/><span/></button>
           {subMenu===sl.id&&<div className="mini-menu" style={subMenuUp?{right:0,top:"auto",bottom:"calc(100% - 4px)"}:{right:0,top:"100%"}}>
-            <button className="mm-item" onClick={e=>{e.stopPropagation();setSubMenu(null);openModal("editSublocation",{sublocation:sl});}}>Edit</button>
-            <button className="mm-item mm-danger" onClick={async e=>{e.stopPropagation();setSubMenu(null);await archiveSublocation(sl.id);await refreshPlanning();}}>Delete</button>
+            <button className="mm-item" onClick={e=>{e.stopPropagation();setSubMenu(null);openModal("editSublocation",{sublocation:sl,location:loc});}}>Edit</button>
+            <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setSubMenu(null);setConfirmDeleteSub(sl);}}>Delete</button>
           </div>}
         </div>))}
         {!loc.sublocations.length&&<span style={{fontSize:12,color:"var(--td)"}}>No areas yet</span>}
       </div>
     </div>))}
+    {confirmDeleteSub&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setConfirmDeleteSub(null);}}>
+      <div className="modal">
+        <div className="mtitle">Delete {confirmDeleteSub.name}?</div>
+        <div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This removes the area from the location. Cannot be undone.</div>
+        <div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDeleteSub(null)}>Cancel</button><button className="btn danger bmd" onClick={doDeleteSub}>Delete</button></div>
+      </div>
+    </div>}
   </div>);
 }
 

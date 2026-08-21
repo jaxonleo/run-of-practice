@@ -195,6 +195,12 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
   const isPublicLibraryAdd=modal.type==="addActivity"&&modal.payload&&modal.payload.isPublicLibrary;
   const location=modal.type==="editLocation"?modal.payload.location:null;
   const sublocation=modal.type==="editSublocation"?modal.payload.sublocation:null;
+  // Direct feedback: adding/editing an area with no sense of which location
+  // it belongs to (or what's already there) made a duplicate name an easy
+  // mistake -- both addSublocation and editSublocation now carry the full
+  // location object (not just its id) so the modal can show "for {name}"
+  // plus the location's other existing areas as a quick dedupe check.
+  const sublocationLocation=(modal.type==="addSublocation"||modal.type==="editSublocation")?modal.payload.location:null;
   const editTeamData=modal.type==="editTeam"?modal.payload.team:null;
   const asset=modal.type==="editAsset"?modal.payload.asset:null;
   const coach=modal.type==="editCoach"?modal.payload.coach:null;
@@ -282,7 +288,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
       await refreshPlanning();
     }
     if(t==="editLocation"){if(!f.name)return;await updateLocation(p.location.id,f.name);await refreshPlanning();}
-    if(t==="addSublocation"){if(!f.name)return;await createSublocation(p.locationId,f.name);await refreshPlanning();}
+    if(t==="addSublocation"){if(!f.name)return;await createSublocation(p.location.id,f.name);await refreshPlanning();}
     if(t==="editSublocation"){if(!f.name)return;await updateSublocation(p.sublocation.id,f.name);await refreshPlanning();}
     if(t==="addAsset"){if(!f.name)return;await createAsset(coachId,{name:f.name,type:f.assetType||"team",sport:f.assetSport||"General"});await refreshLibrary();}
     if(t==="editAsset"){if(!f.name)return;await updateAsset(p.asset.id,{name:f.name,sport:f.sport||"General"});await setAssetLocations(p.asset.id,f.locationIds||[]);await refreshLibrary();}
@@ -337,7 +343,16 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
       <div className="modal">
         <div className="mhandle"/>
         <div className="mtitle">{addedCoachInfo?"Invite Sent":(TITLES[modal.type]||"Add")}</div>
+        {sublocationLocation&&<div style={{fontSize:13,color:"var(--td)",marginTop:-8,marginBottom:12}}>for {sublocationLocation.name}</div>}
         {addedCoachInfo&&<div className="fld"><div style={{fontSize:14,lineHeight:1.5}}>{addedCoachInfo.name} will get an email at {addedCoachInfo.email} to accept or decline. You can see the status of this invite on your Coaches screen.</div></div>}
+        {sublocationLocation&&(()=>{
+          const others=(sublocationLocation.sublocations||[]).filter(s=>!sublocation||s.id!==sublocation.id);
+          return (<div className="fld"><label className="lbl">Other areas here</label>
+            {others.length===0
+              ?<div style={{fontSize:13,color:"var(--td)"}}>None yet -- this is the first.</div>
+              :<div style={{display:"flex",flexWrap:"wrap",gap:6}}>{others.map(s=>(<span key={s.id} className="bdg bs">{s.name}</span>))}</div>}
+          </div>);
+        })()}
         {!addedCoachInfo&&modal.type==="addTeam"&&(<div><div className="fld"><label className="lbl">Team Name</label><input className="inp" autoFocus placeholder="e.g. Peoria Eagles 10U" onChange={e=>set("name",e.target.value)}/></div>
           <div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||""} onChange={e=>{set("sport",e.target.value);lastSportRef.current=e.target.value;}}>{(modal.payload&&modal.payload.orgSports&&modal.payload.orgSports.length?modal.payload.orgSports:SPORTS).map(s=><option key={s}>{s}</option>)}</select></div>
           <div className="fld">
