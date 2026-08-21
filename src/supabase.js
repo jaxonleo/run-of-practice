@@ -884,6 +884,16 @@ export async function createSublocation(locationId, name) {
   if (error) console.error('createSublocation:', error)
   return { error }
 }
+export async function updateSublocation(id, name) {
+  const { error } = await supabase.from('sublocations').update({ name }).eq('id', id)
+  if (error) console.error('updateSublocation:', error)
+  return { error }
+}
+export async function archiveSublocation(id) {
+  const { error } = await supabase.from('sublocations').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  if (error) console.error('archiveSublocation:', error)
+  return { error }
+}
 
 // ── Practice / template trees ─────────────────────────────────────────────────
 // Both practices and templates share the same activities-tree shape used

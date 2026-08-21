@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { uid, TEAM_COLORS, nextTeamColor, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "../constants.js";
-import { createTeam, orgCreateTeam, updateTeam, archiveTeam, setTeamLocations, createPlayer, inviteTeamStaff, updateStaff, editTeamInvite, createAsset, updateAsset, setAssetLocations, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, createSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
+import { createTeam, orgCreateTeam, updateTeam, archiveTeam, setTeamLocations, createPlayer, inviteTeamStaff, updateStaff, editTeamInvite, createAsset, updateAsset, setAssetLocations, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, createSublocation, updateSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
 import { AutoTextarea, EquipmentPickerPill, equipmentPickerAssets } from "./ActivityConfigs.jsx";
 import { LocationChips } from "./NewLibraryScreen.jsx";
 
@@ -194,6 +194,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
   // sport (spec §2.2). Recomputed on every render since f.sport is state.
   const isPublicLibraryAdd=modal.type==="addActivity"&&modal.payload&&modal.payload.isPublicLibrary;
   const location=modal.type==="editLocation"?modal.payload.location:null;
+  const sublocation=modal.type==="editSublocation"?modal.payload.sublocation:null;
   const editTeamData=modal.type==="editTeam"?modal.payload.team:null;
   const asset=modal.type==="editAsset"?modal.payload.asset:null;
   const coach=modal.type==="editCoach"?modal.payload.coach:null;
@@ -215,6 +216,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
       };
     }
     if(location)return{name:location.name};
+    if(sublocation)return{name:sublocation.name};
     if(asset)return{name:asset.name,sport:asset.sport||"General",locationIds:asset.locationIds||[]};
     if(coach)return{name:coach.name,role:coach.role||"Assistant Coach",inviteEmail:coach.inviteEmail||""};
     if(editingInvite)return{name:editingInvite.name,role:editingInvite.role||"Assistant Coach",inviteEmail:editingInvite.email||""};
@@ -281,6 +283,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
     }
     if(t==="editLocation"){if(!f.name)return;await updateLocation(p.location.id,f.name);await refreshPlanning();}
     if(t==="addSublocation"){if(!f.name)return;await createSublocation(p.locationId,f.name);await refreshPlanning();}
+    if(t==="editSublocation"){if(!f.name)return;await updateSublocation(p.sublocation.id,f.name);await refreshPlanning();}
     if(t==="addAsset"){if(!f.name)return;await createAsset(coachId,{name:f.name,type:f.assetType||"team",sport:f.assetSport||"General"});await refreshLibrary();}
     if(t==="editAsset"){if(!f.name)return;await updateAsset(p.asset.id,{name:f.name,sport:f.sport||"General"});await setAssetLocations(p.asset.id,f.locationIds||[]);await refreshLibrary();}
     // Real gap found: the equipment/gear inputs are plain uncontrolled text
@@ -329,7 +332,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
     if(t==="addCoach"){setAddedCoachInfo({name:f.name,email:f.inviteEmail});}else{closeModal();}
     }finally{savingRef.current=false;setSaving(false);}
   };
-  const TITLES={addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",addCoach:"Add Coach",editCoach:"Edit Coach",editInvite:"Edit Invite",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
+  const TITLES={addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",addCoach:"Add Coach",editCoach:"Edit Coach",editInvite:"Edit Invite",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",editSublocation:"Edit Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
   return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget)closeModal();}}>
       <div className="modal">
         <div className="mhandle"/>
@@ -370,7 +373,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
             {!(coach&&coach.userId)&&<div className="fld"><label className="lbl">Invite Email</label><input className="inp" type="email" placeholder="Needed to send the invite and link their account" value={f.inviteEmail||""} onChange={e=>set("inviteEmail",e.target.value)}/></div>}
           </div>
         )}
-        {(modal.type==="addLocation"||modal.type==="editLocation"||modal.type==="addSublocation")&&(<div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
+        {(modal.type==="addLocation"||modal.type==="editLocation"||modal.type==="addSublocation"||modal.type==="editSublocation")&&(<div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
         )}
         {(modal.type==="addAsset"||modal.type==="editAsset")&&(<div>
             <div className="fld"><label className="lbl">Equipment Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>

@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { uid, sumMins, localDateStr, planningState, teamsForMode, menuNeedsToOpenUpward, useBigBrowser } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
-import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport } from "../supabase.js";
+import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, archiveSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport } from "../supabase.js";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 import DrillInsightsView from "./DrillInsightsView.jsx";
 
@@ -24,10 +24,16 @@ const Ic_Lock=()=><svg width="12" height="12" viewBox="0 0 12 12" fill="none" st
 export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
   const [menu,setMenu]=useState(null);
   const [menuUp,setMenuUp]=useState(false);
+  // Areas (sublocations) get their own menu state, keyed by the area's own
+  // id -- distinct from `menu` above (keyed by location id) so opening one
+  // never gets confused with the other, and both are cleared together by
+  // the same outer click-anywhere-closes-menus handler.
+  const [subMenu,setSubMenu]=useState(null);
+  const [subMenuUp,setSubMenuUp]=useState(false);
   const isOrgMode=mode&&mode.type==="org";
   const locations=(data.locations||[]).filter(l=>isOrgMode?l.organizationId===mode.orgId:l.ownerUserId===coachId);
   const addPayload=isOrgMode?{organizationId:mode.orgId}:undefined;
-  return(<div onClick={()=>setMenu(null)}>
+  return(<div onClick={()=>{setMenu(null);setSubMenu(null);}}>
     <div className="sechdr mb10"><span className="sectitle">{locations.length} Locations</span><button className="btn primary bsm" onClick={()=>openModal("addLocation",addPayload)}>+ Add</button></div>
     {locations.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No locations yet.</div>}
     {locations.map(loc=>(<div key={loc.id} className="card" style={{position:"relative",marginBottom:10}}>
@@ -38,6 +44,7 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
           <button className="ell-btn" onClick={e=>{
             e.stopPropagation();
             if(menu===loc.id){setMenu(null);return;}
+            setSubMenu(null);
             setMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));
             setMenu(loc.id);
           }}><span/><span/><span/></button>
@@ -48,7 +55,20 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
         <button className="mm-item mm-danger" onClick={async e=>{e.stopPropagation();setMenu(null);await archiveLocation(loc.id);await refreshPlanning();}}>Delete</button>
       </div>}
       <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-        {loc.sublocations.map(sl=>(<span key={sl.id} className="bdg bs">{sl.name}</span>))}
+        {loc.sublocations.map(sl=>(<div key={sl.id} style={{position:"relative",display:"inline-flex",alignItems:"center"}}>
+          <span className="bdg bs">{sl.name}</span>
+          <button className="ell-btn" style={{padding:"2px 2px 2px 4px"}} onClick={e=>{
+            e.stopPropagation();
+            if(subMenu===sl.id){setSubMenu(null);return;}
+            setMenu(null);
+            setSubMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));
+            setSubMenu(sl.id);
+          }}><span/><span/><span/></button>
+          {subMenu===sl.id&&<div className="mini-menu" style={subMenuUp?{right:0,top:"auto",bottom:"calc(100% - 4px)"}:{right:0,top:"100%"}}>
+            <button className="mm-item" onClick={e=>{e.stopPropagation();setSubMenu(null);openModal("editSublocation",{sublocation:sl});}}>Edit</button>
+            <button className="mm-item mm-danger" onClick={async e=>{e.stopPropagation();setSubMenu(null);await archiveSublocation(sl.id);await refreshPlanning();}}>Delete</button>
+          </div>}
+        </div>))}
         {!loc.sublocations.length&&<span style={{fontSize:12,color:"var(--td)"}}>No areas yet</span>}
       </div>
     </div>))}
