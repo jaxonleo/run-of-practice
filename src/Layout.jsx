@@ -32,11 +32,18 @@ const GLOBAL_TABS = [
 // edit the same org-owned rows. Builder's picker already surfaces the right
 // equipment for a given team/location regardless of mode (see
 // ownedOrOrgAtLoc in ActivityConfigs.jsx), so nothing is lost by dropping it.
-const teamWorkspaceTabs = (teamId, isOrgMode) => [
+// Delegated Planning spec: Goals & Insights is hidden entirely (not just
+// disabled) for a rostered member who is neither the head coach nor a
+// build-delegate -- canViewGoals mirrors the server-side
+// can_view_goals_for_team check exactly (can_manage_team OR
+// can_build_practice_for_team), computed by the caller from team.coaches
+// since Layout has no RPC access of its own. This is UI-only; the actual
+// authorization boundary is server-side (get_team_goal_report etc.).
+const teamWorkspaceTabs = (teamId, isOrgMode, canViewGoals) => [
   { id: "schedule", label: "Schedule", path: `/team/${teamId}/schedule` },
   { id: "roster", label: "Roster", path: `/team/${teamId}/roster` },
   ...(isOrgMode ? [] : [{ id: "equipment", label: "Equipment", path: `/team/${teamId}/equipment` }]),
-  { id: "goals", label: "Goals & Insights", path: `/team/${teamId}/goals` },
+  ...(canViewGoals ? [{ id: "goals", label: "Goals & Insights", path: `/team/${teamId}/goals` }] : []),
 ];
 
 export default function Layout({ data, liveId, goToRun, mode, openModal, subViewBack, coachId }) {
@@ -62,7 +69,9 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
   // Gated on the same canManageTeamInMode check the rest of the app already
   // uses for Add Coach/Player, +Practice, etc.
   const canManageThisTeam = !!(team && canManageTeamInMode(team, coachId, mode));
-  const workspaceTabs = inTeam ? teamWorkspaceTabs(teamId, isOrgMode) : [];
+  const myCoach = team ? (team.coaches || []).find(c => c.userId === coachId) : null;
+  const canViewGoals = canManageThisTeam || !!(myCoach && myCoach.canBuildPractices);
+  const workspaceTabs = inTeam ? teamWorkspaceTabs(teamId, isOrgMode, canViewGoals) : [];
   // Org color (Jax's ask: "so when they're logged in to their org it looks
   // like their org") -- falls back to the plain .tabbar.org green when the
   // org hasn't picked one. Inline style wins over the CSS class's

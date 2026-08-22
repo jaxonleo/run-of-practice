@@ -435,6 +435,12 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
   // the closure identity changes.
   const onBackRef = useRef(onBack);
   useEffect(() => { onBackRef.current = onBack; });
+  // Delegated Planning spec: Run Now follows build access (head coach or a
+  // delegate), Save as Template is head-coach-only regardless of
+  // delegation -- same team.coaches lookup PracticeDetail.jsx/App.jsx
+  // already use for the equivalent check.
+  const myCoach = team ? (team.coaches || []).find(c => c.userId === coachId) : null;
+  const canBuildPractices = !!(myCoach && myCoach.canBuildPractices);
   useEffect(() => {
     if (!setSubViewBack) return;
     setSubViewBack({ onBack: () => onBackRef.current() });
@@ -561,6 +567,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
     const { error } = await saveTemplateTree(coachId, null, {
       name: tplNameInput, sport, teamId: practice.teamId,
       activities: stripIdsForCopy(practice.activities),
+      sourcePracticeId: practice.id,
     });
     setSavingTpl(false);
     // Direct feedback: a coach hit this and had no way to tell us (or
@@ -603,13 +610,15 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
         Template -- same look/actions HistoryViewer (Schedule/Home's own
         past-practice screen) already had, brought into this, the one
         canonical History view. */}
-    {goToRun && <button className="btn primary bmd bfull" style={{ marginBottom: 8 }} onClick={runNowFrom} disabled={runningNow}>{runningNow ? "Starting..." : "Run Now"}</button>}
-    {showTplInput && <div style={{ marginBottom: 8 }}>
+    {goToRun && (canManage || canBuildPractices) && <button className="btn primary bmd bfull" style={{ marginBottom: 8 }} onClick={runNowFrom} disabled={runningNow}>{runningNow ? "Starting..." : "Run Now"}</button>}
+    {/* Save as Template is an ownership-level action -- head coach only,
+        regardless of delegated build access (Delegated Planning spec §6). */}
+    {canManage && showTplInput && <div style={{ marginBottom: 8 }}>
       <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder={(team ? team.name : "Practice") + " Template"} value={tplNameInput} onChange={e => { setTplNameInput(e.target.value); if (tplError) setTplError(""); }} onKeyDown={e => e.key === "Enter" && handleSaveAsTpl()} /></div>
       {tplError && <div style={{ fontSize: 12, color: "var(--red)", marginBottom: 6 }}>{tplError}</div>}
       <div className="brow"><button className="btn ghost bsm" onClick={() => setShowTplInput(false)}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsTpl} disabled={!tplNameInput.trim() || savingTpl}>{savingTpl ? "Saving..." : "Save"}</button></div>
     </div>}
-    {!showTplInput && <button className="btn ghost bmd bfull" style={{ marginBottom: 8 }} onClick={() => setShowTplInput(true)}>{tplSaved ? "Saved as Template" : "Save as Template"}</button>}
+    {canManage && !showTplInput && <button className="btn ghost bmd bfull" style={{ marginBottom: 8 }} onClick={() => setShowTplInput(true)}>{tplSaved ? "Saved as Template" : "Save as Template"}</button>}
     <button className="btn outline bsm bfull" style={{ marginBottom: 16 }} onClick={() => setShowPrint(true)}>Print / Export PDF</button>
 
     {/* Direct feedback: Planned vs. Actual moved up to lead the page --

@@ -6,7 +6,7 @@ import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
-import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession } from "./supabase.js";
+import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser } from "./constants.js";
 import { TwoPane } from "./components/BBShells.jsx";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
@@ -19,6 +19,7 @@ import ScheduleScreen from "./components/ScheduleScreen.jsx";
 import AbsencePicker from "./components/AbsencePicker.jsx";
 import PermissionsModal from "./components/PermissionsModal.jsx";
 import EquipmentMismatchDialog from "./components/EquipmentMismatchDialog.jsx";
+import PrivateDrillWarningDialog from "./components/PrivateDrillWarningDialog.jsx";
 import BuilderGoalGuidance from "./components/BuilderGoalGuidance.jsx";
 import LandingPage from "./components/LandingPage.jsx";
 import { TermsPage, PrivacyPage, FAQPage } from "./components/LegalPages.jsx";
@@ -879,8 +880,15 @@ function TeamGoalsRoute(){
   const navigate=useNavigate();
   const {data,coachId,setSubViewBack,mode,refreshTeams,goToRun,refreshPlanning}=useAppCtx();
   const team=data.teams.find(t=>t.id===teamId);
-  useEffect(()=>{if(!team)navigate("/teams");},[team,navigate]);
-  if(!team)return null;
+  // Delegated Planning spec: a non-delegated assistant/helper must not
+  // reach Goals & Insights even via a direct URL, not just have the nav
+  // item hidden -- UI-only defense in depth (get_team_goal_report and
+  // every sibling RPC already enforce the real can_view_goals_for_team
+  // check server-side regardless of whether this guard fires).
+  const myCoach=team?(team.coaches||[]).find(c=>c.userId===coachId):null;
+  const canViewGoals=!!(team&&(canManageTeamInMode(team,coachId,mode)||(myCoach&&myCoach.canBuildPractices)));
+  useEffect(()=>{if(!team)navigate("/teams");else if(!canViewGoals)navigate(`/team/${teamId}/schedule`);},[team,canViewGoals,teamId,navigate]);
+  if(!team||!canViewGoals)return null;
   return (<div style={{padding:"16px 16px calc(var(--tab) + 20px)"}}>
     <GoalsScreen data={data} teamId={teamId} coachId={coachId} setSubViewBack={setSubViewBack} mode={mode} refreshTeams={refreshTeams} goToRun={goToRun} refreshPlanning={refreshPlanning}/>
   </div>);
@@ -1458,7 +1466,23 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const assetsById=Object.fromEntries((data.assets||[]).map(a=>[a.id,a]));
   const ownAssetPool=(data.assets||[]).filter(a=>a.ownerUserId===coachId);
   const [equipmentDialogLib,setEquipmentDialogLib]=useState(null);
+  // Private-drill disclosure (Delegated Planning spec §3): fetched once per
+  // mount, not part of `data` (this app's bulk-loaded blob) since it's a
+  // one-off per-user flag nothing else needs. Defaults to "not dismissed"
+  // until the fetch resolves, matching this file's own fail-safe convention
+  // elsewhere (show the check, don't silently skip it on a slow load).
+  const [privateWarningDismissed,setPrivateWarningDismissed]=useState(false);
+  useEffect(()=>{fetchPrivateDrillWarningDismissed(coachId).then(setPrivateWarningDismissed);},[coachId]);
+  const [privateWarningLib,setPrivateWarningLib]=useState(null);
   const addActChecked=lib=>{
+    if(lib.isPrivate&&!privateWarningDismissed){setPrivateWarningLib(lib);return;}
+    const missing=findMissingEquipment(lib.equipment,assetsById,ownAssetPool);
+    if(missing.length===0){addAct(lib);return;}
+    setEquipmentDialogLib(lib);
+  };
+  const addActAfterPrivateWarning=()=>{
+    const lib=privateWarningLib;
+    setPrivateWarningLib(null);
     const missing=findMissingEquipment(lib.equipment,assetsById,ownAssetPool);
     if(missing.length===0){addAct(lib);return;}
     setEquipmentDialogLib(lib);
@@ -2121,6 +2145,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       })()}
 
       {equipmentDialogLib&&<EquipmentMismatchDialog drillName={equipmentDialogLib.name} missing={findMissingEquipment(equipmentDialogLib.equipment,assetsById,ownAssetPool)} context="practice" onAddWithEquipment={()=>resolveAndAdd(equipmentDialogLib,true)} onAddAnyway={()=>resolveAndAdd(equipmentDialogLib,false)} onCancel={()=>setEquipmentDialogLib(null)}/>}
+      {privateWarningLib&&<PrivateDrillWarningDialog drillName={privateWarningLib.name} onAdd={addActAfterPrivateWarning} onCancel={()=>setPrivateWarningLib(null)} onDismissForever={async()=>{setPrivateWarningDismissed(true);await setPrivateDrillWarningDismissed(coachId,true);}}/>}
     </div>
   );
 }

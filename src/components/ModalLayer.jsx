@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { uid, TEAM_COLORS, nextTeamColor, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "../constants.js";
-import { createTeam, orgCreateTeam, updateTeam, archiveTeam, setTeamLocations, createPlayer, inviteTeamStaff, updateStaff, editTeamInvite, createAsset, updateAsset, setAssetLocations, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, createSublocation, updateSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
+import { createTeam, orgCreateTeam, updateTeam, archiveTeam, setTeamLocations, createPlayer, inviteTeamStaff, updateStaff, editTeamInvite, createAsset, updateAsset, setAssetLocations, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, setLocationTeamAvailability, createSublocation, updateSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
 import { AutoTextarea, EquipmentPickerPill, equipmentPickerAssets } from "./ActivityConfigs.jsx";
 import { LocationChips } from "./NewLibraryScreen.jsx";
 
@@ -221,7 +221,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
         skillTagIds:Array.isArray(activity.skillTagIds)?activity.skillTagIds:[],
       };
     }
-    if(location)return{name:location.name};
+    if(location)return{name:location.name,availableToTeamPlanners:!!location.availableToTeamPlanners};
     if(sublocation)return{name:sublocation.name};
     if(asset)return{name:asset.name,sport:asset.sport||"General",locationIds:asset.locationIds||[]};
     if(coach)return{name:coach.name,role:coach.role||"Assistant Coach",inviteEmail:coach.inviteEmail||""};
@@ -287,7 +287,15 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
       else await createLocation(coachId,f.name);
       await refreshPlanning();
     }
-    if(t==="editLocation"){if(!f.name)return;await updateLocation(p.location.id,f.name);await refreshPlanning();}
+    if(t==="editLocation"){
+      if(!f.name)return;
+      await updateLocation(p.location.id,f.name);
+      // Org-owned locations are already team-wide visible/usable via
+      // can_access_owned -- this toggle (and set_location_team_availability's
+      // own RLS) only ever applies to a coach's personal locations.
+      if(!p.location.organizationId&&f.availableToTeamPlanners!==!!p.location.availableToTeamPlanners)await setLocationTeamAvailability(p.location.id,f.availableToTeamPlanners);
+      await refreshPlanning();
+    }
     if(t==="addSublocation"){if(!f.name)return;await createSublocation(p.location.id,f.name);await refreshPlanning();}
     if(t==="editSublocation"){if(!f.name)return;await updateSublocation(p.sublocation.id,f.name);await refreshPlanning();}
     if(t==="addAsset"){if(!f.name)return;await createAsset(coachId,{name:f.name,type:f.assetType||"team",sport:f.assetSport||"General"});await refreshLibrary();}
@@ -389,6 +397,18 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
           </div>
         )}
         {(modal.type==="addLocation"||modal.type==="editLocation"||modal.type==="addSublocation"||modal.type==="editSublocation")&&(<div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
+        )}
+        {/* Delegated Planning spec (Section 4): using this location in one
+            shared practice never implies future planning access -- this is
+            the separate, explicit opt-in, personal locations only (an
+            org-owned location is already team-wide via can_access_owned). */}
+        {modal.type==="editLocation"&&!location.organizationId&&(<label className="fld" style={{display:"flex",alignItems:"flex-start",gap:8,cursor:"pointer"}}>
+            <input type="checkbox" style={{marginTop:3}} checked={!!f.availableToTeamPlanners} onChange={e=>set("availableToTeamPlanners",e.target.checked)}/>
+            <span>
+              <div className="lbl" style={{marginBottom:2}}>Available to this team's planners</div>
+              <div style={{fontSize:12,color:"var(--td)"}}>Lets a coach you've delegated practice-building to pick this location for future practices, not just see it on a practice you've already scheduled here.</div>
+            </span>
+          </label>
         )}
         {(modal.type==="addAsset"||modal.type==="editAsset")&&(<div>
             <div className="fld"><label className="lbl">Equipment Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>

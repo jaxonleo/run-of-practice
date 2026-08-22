@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { uid, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, groupByAttribute, stationIsPlanned, timeAgo } from "../constants.js";
-import { createAsset, updateAsset, findMissingEquipment, resolveDrillEquipmentForCoach } from "../supabase.js";
+import { createAsset, updateAsset, findMissingEquipment, resolveDrillEquipmentForCoach, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed } from "../supabase.js";
 import { Ic } from "../icons.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
+import PrivateDrillWarningDialog from "./PrivateDrillWarningDialog.jsx";
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -475,7 +476,22 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   const assetsById=Object.fromEntries((assets||[]).map(a=>[a.id,a]));
   const ownAssetPool=(assets||[]).filter(a=>a.ownerUserId===coachId);
   const [equipDialog,setEquipDialog]=useState(null); // {si, lib}
+  // Private-drill disclosure (Delegated Planning spec §3) -- same gate as
+  // Builder's own drill-add, applied here too since a station's "Choose
+  // from Library" is a second, independent way a private drill can land in
+  // a shared practice.
+  const [privateWarningDismissed,setPrivateWarningDismissed]=useState(false);
+  useEffect(()=>{fetchPrivateDrillWarningDismissed(coachId).then(setPrivateWarningDismissed);},[coachId]);
+  const [privateWarning,setPrivateWarning]=useState(null); // {si, lib}
   const chooseFromLibrary=(si,lib)=>{
+    if(lib.isPrivate&&!privateWarningDismissed){setPrivateWarning({si,lib});return;}
+    const missing=findMissingEquipment(lib.equipment,assetsById,ownAssetPool);
+    if(missing.length===0){applyLibraryChoice(si,lib);return;}
+    setEquipDialog({si,lib});
+  };
+  const chooseFromLibraryAfterPrivateWarning=()=>{
+    const {si,lib}=privateWarning;
+    setPrivateWarning(null);
     const missing=findMissingEquipment(lib.equipment,assetsById,ownAssetPool);
     if(missing.length===0){applyLibraryChoice(si,lib);return;}
     setEquipDialog({si,lib});
@@ -784,5 +800,6 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
     <button type="button" className="btn outline bsm bfull mb8" onClick={addStation}>+ Add Station</button>
     <button className="btn ghost bsm bfull mt4" onClick={onDone}>Done</button>
     {equipDialog&&<EquipmentMismatchDialog drillName={equipDialog.lib.name} missing={findMissingEquipment(equipDialog.lib.equipment,assetsById,ownAssetPool)} context="practice" onAddWithEquipment={()=>resolveAndChoose(true)} onAddAnyway={()=>resolveAndChoose(false)} onCancel={()=>setEquipDialog(null)}/>}
+    {privateWarning&&<PrivateDrillWarningDialog drillName={privateWarning.lib.name} onAdd={chooseFromLibraryAfterPrivateWarning} onCancel={()=>setPrivateWarning(null)} onDismissForever={async()=>{setPrivateWarningDismissed(true);await setPrivateDrillWarningDismissed(coachId,true);}}/>}
   </div>);
 }

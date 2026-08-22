@@ -58,7 +58,14 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
   // check consistent with the actual RPC gate regardless.
   const hasMyStation=!canManage&&!!(myTeamStaffId&&myCoach.canBuildPractices&&(practice.activities||[]).some(a=>a.type==="station_block"&&(a.stations||[]).some(st=>st.delegatedTo===myTeamStaffId)));
   const canEdit=canManage||hasMyStation;
-  const loc=data.locations.find(l=>l.id===practice.locationId);
+  // Falls back to the practice's own location snapshot (Delegated Planning
+  // spec: history must survive the source location being archived/deleted
+  // -- data.locations is fetched non-archived-only, so a live lookup alone
+  // silently blanks out an old practice's location the moment it's
+  // archived) -- sublocations stays empty on the fallback since areas are
+  // snapshotted per-activity/station instead, see subName below.
+  const loc=data.locations.find(l=>l.id===practice.locationId)
+    ||(practice.locationNameSnapshot?{name:practice.locationNameSnapshot,address:practice.locationAddressSnapshot,sublocations:[]}:null);
   const now=new Date();
   const todayStr=localDateStr(now);
   const isPast=practice.date&&practice.date<todayStr;
@@ -83,7 +90,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
   const resolveEquip=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?{id:a.id,name:a.name,acquired:a.acquired!==false}:null;}).filter(Boolean);
   const EquipList=({items,sep})=>items.map((e,i)=>(<span key={e.id} style={{color:e.acquired?"inherit":"var(--red)",fontWeight:e.acquired?"inherit":700}}>{e.name}{!e.acquired&&" (not acquired)"}{i<items.length-1?(sep||", "):""}</span>));
   const allEquip=[...new Map((practice.activities||[]).flatMap(a=>{if(a.type==="station_block")return(a.stations||[]).flatMap(st=>resolveEquip(st.equipment));return resolveEquip(a.equipment);}).map(e=>[e.id,e])).values()];
-  const subName=id=>{const l=loc&&loc.sublocations.find(s=>s.id===id);return l?l.name:null;};
+  const subName=(id,snap)=>{const l=loc&&loc.sublocations.find(s=>s.id===id);return l?l.name:(snap||null);};
   const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
   const refreshAbsences=()=>{
     fetchPlannedAbsences([practice.id]).then(rows=>{
@@ -241,9 +248,9 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
           </div>
           {isExp&&<div style={{padding:"10px 12px",borderTop:"1px solid var(--b)",background:"#fff"}}>
             {a.type==="activity"&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
-              {(subName(a.sublocationId)||coachName(a.coachId))&&<div style={{fontSize:13}}>
-                {subName(a.sublocationId)&&<span style={{fontWeight:600,color:"var(--green2)"}}>{subName(a.sublocationId)}</span>}
-                {subName(a.sublocationId)&&coachName(a.coachId)&&<span style={{color:"var(--td)"}}> · </span>}
+              {(subName(a.sublocationId,a.sublocationNameSnapshot)||coachName(a.coachId))&&<div style={{fontSize:13}}>
+                {subName(a.sublocationId,a.sublocationNameSnapshot)&&<span style={{fontWeight:600,color:"var(--green2)"}}>{subName(a.sublocationId,a.sublocationNameSnapshot)}</span>}
+                {subName(a.sublocationId,a.sublocationNameSnapshot)&&coachName(a.coachId)&&<span style={{color:"var(--td)"}}> · </span>}
                 {coachName(a.coachId)&&<span style={{color:"var(--td)"}}>Coach: {coachName(a.coachId)}</span>}
               </div>}
               {a.description&&<div style={{fontSize:13,color:"var(--black)",lineHeight:1.5}}>{a.description}</div>}
@@ -264,9 +271,9 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
                 const stEquip=resolveEquip(st.equipment);
                 return(<div key={st.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--s2)"}}>
                   <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:"var(--green)",marginBottom:4}}>Station {si+1}{st.activityName?" · "+st.activityName:""}</div>
-                  {(coachName(st.coachId)||subName(st.sublocationId))&&<div style={{fontSize:12,marginBottom:3}}>
-                    {subName(st.sublocationId)&&<span style={{fontWeight:600,color:"var(--green2)"}}>{subName(st.sublocationId)}</span>}
-                    {subName(st.sublocationId)&&coachName(st.coachId)&&<span style={{color:"var(--td)"}}> · </span>}
+                  {(coachName(st.coachId)||subName(st.sublocationId,st.sublocationNameSnapshot))&&<div style={{fontSize:12,marginBottom:3}}>
+                    {subName(st.sublocationId,st.sublocationNameSnapshot)&&<span style={{fontWeight:600,color:"var(--green2)"}}>{subName(st.sublocationId,st.sublocationNameSnapshot)}</span>}
+                    {subName(st.sublocationId,st.sublocationNameSnapshot)&&coachName(st.coachId)&&<span style={{color:"var(--td)"}}> · </span>}
                     {coachName(st.coachId)&&<span style={{color:"var(--td)"}}>Coach: {coachName(st.coachId)}</span>}
                   </div>}
                   {st.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:8,marginBottom:4}}>

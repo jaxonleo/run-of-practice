@@ -41,6 +41,22 @@ export async function updateOwnProfile(userId, { firstName, lastName }) {
   if (error) console.error('updateOwnProfile:', error)
   return { error }
 }
+// Private-drill disclosure dismissal (Delegated Planning spec, Section 3) --
+// user-level, not per-drill, and stored on profiles rather than localStorage
+// so it follows the coach across devices, unlike this app's existing
+// localStorage-only dismissal conventions (Development Pulse's collapse
+// state, etc.), which are fine for a per-device UI preference but not for a
+// disclosure a coach may reasonably expect to have already dismissed once.
+export async function fetchPrivateDrillWarningDismissed(userId) {
+  const { data, error } = await supabase.from('profiles').select('dismissed_private_drill_warning').eq('id', userId).maybeSingle()
+  if (error) { console.error('fetchPrivateDrillWarningDismissed:', error); return false }
+  return !!(data && data.dismissed_private_drill_warning)
+}
+export async function setPrivateDrillWarningDismissed(userId, dismissed) {
+  const { error } = await supabase.from('profiles').update({ dismissed_private_drill_warning: dismissed }).eq('id', userId)
+  if (error) console.error('setPrivateDrillWarningDismissed:', error)
+  return { error }
+}
 
 // Soft, reversible account close -- data stays intact, coach just vanishes
 // from teammates' rosters until they sign back in.
@@ -853,8 +869,20 @@ export async function fetchLocations() {
   if (locsRes.error) console.error('fetchLocations:', locsRes.error)
   return (locsRes.data || []).map(l => ({
     id: l.id, name: l.name, organizationId: l.organization_id, ownerUserId: l.owner_user_id,
+    availableToTeamPlanners: !!l.available_to_team_planners,
     sublocations: (subsRes.data || []).filter(s => s.location_id === l.id).map(s => ({ id: s.id, name: s.name })),
   }))
+}
+// Delegated Planning spec (Section 4): using a coach-owned location in one
+// shared practice must not, by itself, make it reusable for a delegate's
+// future planning -- that's this separate, explicit opt-in. Owner-only
+// (set_location_team_availability's own RLS check); org-owned locations
+// never need this since can_use_location_for_team already falls back to
+// can_access_location for those.
+export async function setLocationTeamAvailability(locationId, available) {
+  const { error } = await supabase.rpc('set_location_team_availability', { p_location_id: locationId, p_available: available })
+  if (error) console.error('setLocationTeamAvailability:', error)
+  return { error }
 }
 export async function createLocation(ownerUserId, name) {
   const { data, error } = await supabase.from('locations').insert({ owner_user_id: ownerUserId, name }).select().single()
@@ -941,6 +969,7 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
     grouping: a.grouping || 'whole', numGroups: a.num_groups || 2,
     groupAssignments: a.group_assignments || null,
     coachId: a.team_staff_id || '', helperName: a.helper_name || '', sublocationId: a.sublocation_id || '',
+    sublocationNameSnapshot: a.sublocation_name_snapshot || null,
     libraryId: a.library_activity_id || null,
     equipment: equipByAct[a.id] || [],
   }
@@ -957,6 +986,7 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
     base.stations = stations.map(st => ({
       id: st.id, name: st.name || '', activityName: st.name || '',
       coachId: st.team_staff_id || '', helperName: st.helper_name || '', sublocationId: st.sublocation_id || '',
+      sublocationNameSnapshot: st.sublocation_name_snapshot || null,
       description: st.description || '',
       coachingPoints: st.coaching_points || '', libraryId: st.library_activity_id || null,
       equipment: stationEquipByStation[st.id] || [], playerGear: '',
@@ -1014,6 +1044,7 @@ export async function fetchPracticesFull(teamId) {
     const activities = (actsByPractice[p.id] || []).map(a => mapActivityRow(a, equipByAct, itemsByAct, blocksByAct, stationsByBlock, stationEquipByStation))
     return {
       id: p.id, teamId: p.team_id, locationId: p.location_id || '', sublocationId: p.sublocation_id || '',
+      locationNameSnapshot: p.location_name_snapshot || null, locationAddressSnapshot: p.location_address_snapshot || null,
       date, startTime, status: p.status, scheduledDurationMinutes: p.scheduled_duration_minutes || null,
       prePracticeNotes: p.pre_practice_notes ?? null,
       seriesId: p.series_id || null, durMin: sumMinsLocal(activities), activities,
@@ -1075,6 +1106,36 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
   const keepActIds = new Set()
   const errors = []
 
+  // Practice-history durability (Delegated Planning spec, Edge Case F):
+  // practice_activities/stations get a one-time-per-save snapshot of the
+  // source drill's current tags and area name, so Goals & Insights
+  // attribution and display survive the source drill/sublocation later
+  // being deleted -- teamScoped is only true for practices (never
+  // templates, which don't have these columns and don't feed Goals &
+  // Insights). Batched once per save rather than per-row.
+  let tagSnapshotByLibraryId = {}
+  let subNameById = {}
+  if (teamScoped) {
+    const libraryIds = new Set()
+    const sublocationIds = new Set()
+    for (const act of activities) {
+      if (act.libraryId) libraryIds.add(act.libraryId)
+      if (act.sublocationId) sublocationIds.add(act.sublocationId)
+      for (const st of (act.stations || [])) {
+        if (st.libraryId) libraryIds.add(st.libraryId)
+        if (st.sublocationId) sublocationIds.add(st.sublocationId)
+      }
+    }
+    if (libraryIds.size) {
+      const { data: tagRows } = await supabase.from('drill_tags').select('activity_library_id,skill_tag_id').in('activity_library_id', Array.from(libraryIds))
+      for (const r of (tagRows || [])) (tagSnapshotByLibraryId[r.activity_library_id] ||= []).push(r.skill_tag_id)
+    }
+    if (sublocationIds.size) {
+      const { data: subRows } = await supabase.from('sublocations').select('id,name').in('id', Array.from(sublocationIds))
+      for (const r of (subRows || [])) subNameById[r.id] = r.name
+    }
+  }
+
   for (let i = 0; i < activities.length; i++) {
     const act = activities[i]
     const row = {
@@ -1087,7 +1148,11 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
       library_activity_id: act.libraryId || null,
       sublocation_id: act.sublocationId || null,
     }
-    if (teamScoped) { row.team_staff_id = act.coachId || null; row.helper_name = act.coachId ? null : (act.helperName || null) }
+    if (teamScoped) {
+      row.team_staff_id = act.coachId || null; row.helper_name = act.coachId ? null : (act.helperName || null)
+      row.tag_snapshot = act.libraryId ? (tagSnapshotByLibraryId[act.libraryId] || null) : null
+      row.sublocation_name_snapshot = act.sublocationId ? (subNameById[act.sublocationId] || null) : null
+    }
 
     let actId = act.id
     if (isDbId(actId)) {
@@ -1148,6 +1213,8 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
           stRow.assignments = st.assignments || []
           stRow.group_label = st.groupLabel || null
           stRow.delegated_to = st.delegatedTo || null
+          stRow.tag_snapshot = st.libraryId ? (tagSnapshotByLibraryId[st.libraryId] || null) : null
+          stRow.sublocation_name_snapshot = st.sublocationId ? (subNameById[st.sublocationId] || null) : null
         }
         let stId = st.id
         if (isDbId(stId)) {
@@ -1188,6 +1255,20 @@ export async function savePracticeTree(existingId, { teamId, locationId, subloca
     scheduled_at: teamLocalToScheduledAt(date, startTime, timezone), status: date ? 'scheduled' : 'draft',
     scheduled_duration_minutes: scheduledDurationMinutes || null,
     pre_practice_notes: prePracticeNotes === undefined ? null : prePracticeNotes,
+  }
+  // Copy the location's current name/address in alongside the live FK
+  // (Delegated Planning spec: a historical practice must keep showing its
+  // location even after the source is archived/deleted -- PracticeDetail's
+  // own location lookup already breaks today once a location is archived,
+  // since it's filtered out of the non-archived locations list entirely).
+  // Only re-stamped while the practice is still being actively saved
+  // through this path, which stops once it's run -- exactly the point
+  // durability starts to matter.
+  if (locationId) {
+    const { data: loc } = await supabase.from('locations').select('name,address').eq('id', locationId).maybeSingle()
+    if (loc) { row.location_name_snapshot = loc.name; row.location_address_snapshot = loc.address || null }
+  } else {
+    row.location_name_snapshot = null; row.location_address_snapshot = null
   }
   if (coachId) row.last_edited_by = coachId
   let practiceId = existingId
@@ -1441,8 +1522,16 @@ export async function fetchTemplatesFull() {
     }
   })
 }
-export async function saveTemplateTree(ownerUserId, existingId, { name, sport, locationId, teamId, prePracticeNotes, activities }) {
+export async function saveTemplateTree(ownerUserId, existingId, { name, sport, locationId, teamId, prePracticeNotes, activities, sourcePracticeId }) {
   const row = { name, sport: sport || 'General', location_id: locationId || null, default_team_id: teamId || null, pre_practice_notes: prePracticeNotes === undefined ? null : prePracticeNotes }
+  // Save as Template is head-coach-only when it's converting a real
+  // historical team practice (Delegated Planning spec Section 6) --
+  // source_practice_id is the lineage pointer templates_insert_manage's
+  // RLS actually checks can_manage_team against. Only ever set by the two
+  // "Save as Template from History" call sites; Library's own from-scratch
+  // Create Template flow and Builder's unsaved-draft-to-template flow both
+  // leave it null, since neither has (or needs) an existing practices row.
+  if (sourcePracticeId) row.source_practice_id = sourcePracticeId
   let tplId = existingId
   if (isDbId(tplId)) {
     await supabase.from('templates').update(row).eq('id', tplId)

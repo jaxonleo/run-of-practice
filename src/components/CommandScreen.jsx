@@ -779,10 +779,19 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
   const [savingTpl,setSavingTpl]=useState(false);
   const [expandedId,setExpandedId]=useState(null);
   const team=data.teams.find(t=>t.id===practice.teamId)||null;
-  const loc=data.locations.find(l=>l.id===practice.locationId)||null;
+  // Falls back to the practice's own snapshot once the source location is
+  // archived (see PracticeDetail.jsx's identical fallback and its comment).
+  const loc=data.locations.find(l=>l.id===practice.locationId)
+    ||(practice.locationNameSnapshot?{name:practice.locationNameSnapshot,address:practice.locationAddressSnapshot,sublocations:[]}:null);
+  // Delegated Planning spec: Run Again follows build access (head coach or
+  // a delegate), Save as Template is head-coach-only regardless of
+  // delegation -- same shape as GoalsScreen.jsx's SessionHistoryDetail.
+  const canManage=!!(team&&isHeadCoach(team,coachId));
+  const myCoach=team?(team.coaches||[]).find(c=>c.userId===coachId):null;
+  const canBuildPractices=!!(myCoach&&myCoach.canBuildPractices);
   const fmtDate=ds=>new Date(ds+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"});
   const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
-  const subName=id=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:null;};
+  const subName=(id,snap)=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:(snap||null);};
   const pnames=ids=>(ids||[]).map(id=>{const p=team&&team.players.find(p=>p.id===id);return p?p.firstName:null;}).filter(Boolean).join(", ");
   const equipNames=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean).join(", ");
   const [tplNameInput,setTplNameInput]=useState("");
@@ -816,6 +825,7 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
     const {error}=await saveTemplateTree(coachId,null,{
       name:tplNameInput,sport,teamId:practice.teamId,
       activities:stripIdsForCopy(practice.activities),
+      sourcePracticeId:practice.id,
     });
     setSavingTpl(false);
     // Real, specific errors (RLS rejection, etc.) were being masked behind
@@ -880,7 +890,7 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
               <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
               <div style={{fontSize:13,lineHeight:1.5}}>{act.coachingPoints}</div>
             </div>}
-            {subName(act.sublocationId)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Location: </span>{subName(act.sublocationId)}</div>}
+            {subName(act.sublocationId,act.sublocationNameSnapshot)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Location: </span>{subName(act.sublocationId,act.sublocationNameSnapshot)}</div>}
             {equipNames(act.equipment)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Equipment: </span>{equipNames(act.equipment)}</div>}
             {act.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Player Gear: </span>{act.playerGear}</div>}
             {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Grouping: </span>{act.grouping==="partners"?"Partners":act.numGroups+" Groups"}</div>}
@@ -900,7 +910,7 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:4}}>
                   {coachName(st.coachId)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Coach: </span>{coachName(st.coachId)}</div>}
-                  {subName(st.sublocationId)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Area: </span>{subName(st.sublocationId)}</div>}
+                  {subName(st.sublocationId,st.sublocationNameSnapshot)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Area: </span>{subName(st.sublocationId,st.sublocationNameSnapshot)}</div>}
                   {st.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:8,marginTop:2}}>
                     <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
                     <div style={{fontSize:13,lineHeight:1.5}}>{st.coachingPoints}</div>
@@ -923,15 +933,15 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,marginBottom:8}}>End of Practice Notes</div>
       <NotesList notes={generalNotes}/>
     </div>}
-    <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--b)"}}>
+    {(canManage||canBuildPractices)&&<div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--b)"}}>
       <button className="btn primary bxl bfull" style={{marginBottom:8}} onClick={onRunAgain}>Run Again</button>
-      {showTplInput&&<div>
+      {canManage&&showTplInput&&<div>
         <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder={(team?team.name:"Practice")+" Template"} value={tplNameInput} onChange={e=>{setTplNameInput(e.target.value);if(tplError)setTplError("");}} onKeyDown={e=>e.key==="Enter"&&handleSaveAsTpl()}/></div>
         {tplError&&<div style={{fontSize:12,color:"var(--red)",marginBottom:6}}>{tplError}</div>}
         <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowTplInput(false)}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsTpl} disabled={!tplNameInput.trim()||savingTpl}>{savingTpl?"Saving...":"Save"}</button></div>
       </div>}
-      {!showTplInput&&<button className="btn ghost bmd bfull" onClick={()=>setShowTplInput(true)}>{tplSaved?"Saved as Template":"Save as Template"}</button>}
-    </div>
+      {canManage&&!showTplInput&&<button className="btn ghost bmd bfull" onClick={()=>setShowTplInput(true)}>{tplSaved?"Saved as Template":"Save as Template"}</button>}
+    </div>}
     {showPrint&&<PracticePlanPrint practice={practice} team={team} loc={loc} data={data} onClose={()=>setShowPrint(false)}/>}
   </div>);
 }
