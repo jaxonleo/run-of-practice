@@ -6,7 +6,8 @@
 // do (see BUILD-STATUS.md's "no client-side inserts loop" convention, which
 // governs product features, not this).
 //
-// Usage: SUPABASE_SERVICE_ROLE_KEY=... node scripts/import-public-library.mjs
+// Usage: PROJECT_REF=<ref> SUPABASE_SERVICE_ROLE_KEY=... node scripts/import-public-library.mjs
+// PROJECT_REF defaults to production; pass the staging ref to (re)seed staging instead.
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -15,7 +16,8 @@ import { dirname, join } from 'node:path'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
 
-const SUPABASE_URL = 'https://bepoojcbizxhqadrytjq.supabase.co'
+const PROJECT_REF = process.env.PROJECT_REF || 'bepoojcbizxhqadrytjq'
+const SUPABASE_URL = `https://${PROJECT_REF}.supabase.co`
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 if (!SERVICE_ROLE_KEY) {
   console.error('SUPABASE_SERVICE_ROLE_KEY is required in the environment.')
@@ -45,7 +47,7 @@ async function resolveTag(sport, tagString) {
   const category = tagString.slice(0, idx)
   const name = tagString.slice(idx + 2)
   const { data: cat, error: catErr } = await supabase.from('skill_categories')
-    .select('id').eq('sport', sport).eq('name', category).maybeSingle()
+    .select('id').eq('sport', sport).eq('name', category).limit(1).maybeSingle()
   if (catErr) throw catErr
   if (!cat) { console.warn(`  ! no skill_category "${sport}: ${category}"`); return null }
   const { data: tag, error: tagErr } = await supabase.from('skill_tags')
