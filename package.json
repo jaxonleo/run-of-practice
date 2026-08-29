@@ -30,6 +30,8 @@
     "check": "vite build --mode development 2>&1 | grep -E 'error|Error|ERROR' || echo 'BUILD OK'",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:dump": "bash scripts/db_dump.sh"
+    "db:dump": "bash scripts/db_dump.sh",
+    "db:push:staging": "bash scripts/db_push_staging.sh",
+    "db:push:prod": "bash scripts/db_push_prod.sh"
   }
 }
