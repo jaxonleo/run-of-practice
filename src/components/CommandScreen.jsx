@@ -2347,6 +2347,20 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     });
   }):null;
 
+  // What runs after this whole station block finishes. Surfaced inside the
+  // block's own screens (intro, rotations, transition) -- direct feedback:
+  // the bottom-of-screen "Up Next" queue is buried under every station card
+  // during a block, so a coach mid-rotation couldn't see what's next in the
+  // run of practice without a long scroll. This is the same liveActs slice
+  // that queue uses, shown up top where the coach is actually looking.
+  const afterBlock=isBlock?liveActs.slice(idx+1):[];
+  const AfterBlockLine=({dark})=>afterBlock.length===0?null:(
+    <div style={{fontSize:12,color:dark?"#8fa89b":"var(--td)",marginTop:10}}>
+      After this block: <span style={{color:dark?"#fff":"var(--black)",fontWeight:700}}>{actLabel(afterBlock[0])}</span>
+      {afterBlock.length>1&&<span> · then {actLabel(afterBlock[1])}</span>}
+    </div>
+  );
+
   // ── Timer: derived from timestamps, only ticks locally while running ───────
   useEffect(()=>{
     if(!running)return;
@@ -3604,7 +3618,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           no rotation offset to account for yet. */}
       {isBlock&&inBlockIntro&&cur.stations&&<div style={{background:"#0d1512",borderRadius:"var(--r)",padding:"14px 12px",marginBottom:4}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b",marginBottom:4}}>Get everyone to their station</div>
-        {isController&&<div style={{fontSize:11,color:"#8fa89b",marginBottom:8}}>{movePlayer?"Tap the dashed spot in another station to move them there.":"Tap a player to move them."}</div>}
+        <AfterBlockLine dark/>
+        {isController&&<div style={{fontSize:11,color:"#8fa89b",marginBottom:8,marginTop:8}}>{movePlayer?"Tap the dashed spot in another station to move them there.":"Tap a player to move them."}</div>}
         {cur.stations.map((st,i)=>{
           const{equipment:stEquip,playerGear:stGear}=splitEquipFor(st.equipment,data);
           const assignments=liveGroups?(liveGroups[i]||[]):[];
@@ -3687,6 +3702,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
               reveals, not something to see at a glance across every station
               at once. */}
           <div style={{fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+cur.stations.length+" · Tap a station to focus":"Tap a station to focus"}</div>
+          <AfterBlockLine/>
           {rotatedStations.map((st,i)=>{
             const{equipment:equipNames,playerGear:gearNames}=splitEquipFor(st.equipment,data);
             return (<div key={st.id} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
@@ -3766,6 +3782,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           coaching" moment. */}
       {isBlock&&inTrans&&rotatedStations&&<div style={{background:"#0d1512",borderRadius:"var(--r)",padding:"14px 12px",marginBottom:4}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"#f87171",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Rotate Now</div>
+        <AfterBlockLine dark/>
         {/* Direct feedback: a coach scanning card-by-card for "who's coming
             to my station" had to piece the whole rotation together in their
             head -- one summary line up top, the fixed area sequence every
