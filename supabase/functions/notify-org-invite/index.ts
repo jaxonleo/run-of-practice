@@ -19,6 +19,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { renderEmailHtml, articleFor } from '../_shared/emailTemplate.ts'
+import { sendEmail } from '../_shared/sendEmail.ts'
 
 const ROLE_LABELS: Record<string, string> = { director: 'Director', admin: 'Admin' }
 
@@ -67,22 +68,14 @@ Deno.serve(async (req) => {
     signInEmail: invite.email,
   })
 
-  const resendRes = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${Deno.env.get('RESEND_API_KEY')}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: 'Run of Practice <noreply@runofpractice.com>',
-      to: [invite.email],
-      subject: `You've been invited to help lead ${orgName} on Run of Practice`,
-      html,
-    }),
+  const sendResult = await sendEmail({
+    to: invite.email,
+    subject: `You've been invited to help lead ${orgName} on Run of Practice`,
+    html,
   })
 
-  if (!resendRes.ok) {
-    console.error('resend send failed', resendRes.status, await resendRes.text())
+  if (!sendResult.ok) {
+    console.error('email send failed', sendResult.error)
     return new Response('send failed', { status: 502 })
   }
 
