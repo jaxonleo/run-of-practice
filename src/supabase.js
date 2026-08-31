@@ -400,10 +400,16 @@ export async function fetchPracticeRunStatus(practiceIds) {
   if (!practiceIds || !practiceIds.length) return {}
   const { data, error } = await supabase.from('practice_live_sessions').select('practice_id,status').in('practice_id', practiceIds)
   if (error) { console.error('fetchPracticeRunStatus:', error); return {} }
+  // Precedence when a practice has several sessions over time: a real finish
+  // beats an in-progress run, which beats an aborted one. 'abandoned' is
+  // surfaced as its own value (not folded into 'started') so callers can
+  // tell an aborted practice apart -- Home uses it to drop an aborted
+  // practice from its upcoming list (see HomeScreen's agenda filter).
+  const rank = { completed: 3, started: 2, abandoned: 1 }
   const out = {}
   for (const row of data || []) {
-    if (row.status === 'completed') out[row.practice_id] = 'completed'
-    else if (out[row.practice_id] !== 'completed') out[row.practice_id] = 'started'
+    const s = row.status === 'completed' ? 'completed' : row.status === 'abandoned' ? 'abandoned' : 'started'
+    if (!out[row.practice_id] || rank[s] > rank[out[row.practice_id]]) out[row.practice_id] = s
   }
   return out
 }

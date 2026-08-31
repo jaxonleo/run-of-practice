@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea, menuNeedsToOpenUpward } from "../constants.js";
-import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
+import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, fetchPracticeRunStatus, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
@@ -284,6 +284,14 @@ function leaderLabel(act,team){
 // -- shared here so Practice Setup's own per-row start/end times read
 // identically to what a coach would see on a printed sheet.
 function fmtClock(d){return d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});}
+// A nameless activity (a one-off never given a name, or an unexpected data
+// shape) used to render as an empty row in every "Up Next"/Overview list.
+// Always resolve to something readable.
+function actLabel(a){
+  if(!a)return"Activity";
+  if(a.type==="station_block")return a.name||"Station Block";
+  return a.name||(a.type==="checklist"?"Checklist":"Activity");
+}
 function equipNamesFor(ids,data){
   return (Array.isArray(ids)?ids:[]).map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?{name:a.name,acquired:a.acquired!==false,type:a.type}:null;}).filter(Boolean);
 }
@@ -295,11 +303,20 @@ function splitEquipFor(ids,data){
   const all=equipNamesFor(ids,data);
   return {equipment:all.filter(e=>e.type!=="player"),playerGear:all.filter(e=>e.type==="player")};
 }
+// Solid-fill pills so they stay legible on any background. The old
+// translucent amber-on-amber version read fine on the dark Practice Setup
+// screen but was nearly invisible during a live drill/station (bright-yellow
+// text on a light-yellow wash over a white background). Solid fill plus
+// high-contrast text works on both. Team equipment is amber, player gear a
+// deeper orange so the two read apart at a glance; "not acquired" overrides
+// either to solid red.
+const PILL_BASE={borderRadius:20,padding:"2px 9px",fontSize:11,fontWeight:700};
+const PILL_MISSING={...PILL_BASE,background:"#dc2626",border:"1px solid #b91c1c",color:"#fff"};
 function EquipPill({e}){
-  return <span style={e.acquired===false?{background:"rgba(220,38,38,.22)",border:"1px solid rgba(248,113,113,.7)",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#fecaca",fontWeight:700}:{background:"rgba(202,138,4,.22)",border:"1px solid rgba(253,224,71,.5)",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#fde047",fontWeight:700}}>{e.name}{e.acquired===false&&" · not acquired"}</span>;
+  return <span style={e.acquired===false?PILL_MISSING:{...PILL_BASE,background:"#fbbf24",border:"1px solid #d97706",color:"#422006"}}>{e.name}{e.acquired===false&&" · not acquired"}</span>;
 }
 function PlayerGearPill({e}){
-  return <span style={e.acquired===false?{background:"rgba(220,38,38,.22)",border:"1px solid rgba(248,113,113,.7)",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#fecaca",fontWeight:700}:{background:"rgba(234,88,12,.22)",border:"1px solid rgba(253,186,116,.6)",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#fdba74",fontWeight:700}}>{e.name}{e.acquired===false&&" · not acquired"}</span>;
+  return <span style={e.acquired===false?PILL_MISSING:{...PILL_BASE,background:"#c2410c",border:"1px solid #9a3412",color:"#ffedd5"}}>{e.name}{e.acquired===false&&" · not acquired"}</span>;
 }
 // Equipment and player gear rendered as two clearly-labeled groups instead
 // of one merged list, so a coach glancing at the screen can tell "bring
@@ -637,7 +654,23 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
     ?(a.stations||[]).map(st=>({equipment:equipNamesFor(st.equipment,data),locationName:(loc&&loc.sublocations.find(s=>s.id===st.sublocationId)||{}).name}))
     :[{equipment:equipNamesFor(a.equipment,data),locationName:(loc&&loc.sublocations.find(s=>s.id===a.sublocationId)||{}).name}]
   );
-  const equipByArea=groupEquipmentByArea(equipItemsForNeeded);
+  // Team equipment and player gear are shown as two separate sections
+  // (direct feedback): team equipment first, grouped by Area -- what to haul
+  // to each spot before anyone arrives -- then player gear beneath it as a
+  // plain deduped list, since gear isn't area-specific, players just need to
+  // have brought it. equipNamesFor carries each asset's own `type`.
+  const teamEquipItemsForNeeded=equipItemsForNeeded.map(it=>({...it,equipment:(it.equipment||[]).filter(e=>e&&e.type!=="player")}));
+  const equipByArea=groupEquipmentByArea(teamEquipItemsForNeeded);
+  const playerGearNeeded=(()=>{
+    const m=new Map();
+    for(const it of equipItemsForNeeded)for(const e of (it.equipment||[])){
+      if(!e||e.type!=="player"||!e.name)continue;
+      const prev=m.get(e.name);
+      if(!prev)m.set(e.name,{name:e.name,acquired:e.acquired!==false});
+      else if(e.acquired===false)prev.acquired=false;
+    }
+    return [...m.values()];
+  })();
   const presentPlayers=team?team.players.filter(p=>present.has(p.id)):[];
   const shareSetupLink=async()=>{
     if(sharing||!practice)return;
@@ -745,9 +778,17 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
           </button>))}
         </div>)}
       </>}
-      {equipByArea.length>0&&<div style={{marginTop:24}}>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#555",marginBottom:10}}>Equipment Needed</div>
-        <EquipmentByArea equipByArea={equipByArea}/>
+      {(equipByArea.length>0||playerGearNeeded.length>0)&&<div style={{marginTop:24}}>
+        {equipByArea.length>0&&<>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#555",marginBottom:10}}>Team Equipment Needed</div>
+          <EquipmentByArea equipByArea={equipByArea}/>
+        </>}
+        {playerGearNeeded.length>0&&<div style={{marginTop:equipByArea.length>0?18:0}}>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#555",marginBottom:10}}>Player Gear Needed</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {playerGearNeeded.map((e,i)=>(<PlayerGearPill key={i} e={e}/>))}
+          </div>
+        </div>}
       </div>}
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#555",marginTop:24,marginBottom:12}}>Run of Practice · {totalMins}min</div>
       {acts.map((act,i)=>act.type==="station_block"
@@ -806,6 +847,12 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
   // scheduled time, for a practice run early/late relative to its plan.
   const [actualStart,setActualStart]=useState(null);
   useEffect(()=>{fetchPracticeActualStart(practice.id).then(setActualStart);},[practice.id]);
+  // A practice reached here whose best session ended in an abort (never a
+  // completed run) is called out plainly -- otherwise this screen reads
+  // exactly like a normal completed-practice recap. Goals & Insights'
+  // Practice History already labels these "Abandoned"; this matches it.
+  const [runStat,setRunStat]=useState(null);
+  useEffect(()=>{fetchPracticeRunStatus([practice.id]).then(m=>setRunStat(m[practice.id]||null));},[practice.id]);
   const notesForActivity=activityId=>practiceNotes.filter(n=>n.practiceActivityId===activityId&&!n.stationId);
   const notesForStation=stationId=>practiceNotes.filter(n=>n.stationId===stationId);
   const generalNotes=practiceNotes.filter(n=>!n.practiceActivityId);
@@ -853,6 +900,7 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
         <div className="limt">{actualStart?new Date(actualStart).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"})+" at "+new Date(actualStart).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}):fmtDate(practice.date)+(practice.startTime?" at "+practice.startTime:"")}{loc?" · "+loc.name:""}</div>
       </div>
     </div>
+    {runStat==="abandoned"&&<div style={{background:"var(--ambg)",border:"1.5px solid var(--ambb)",borderRadius:"var(--r)",padding:"8px 12px",marginBottom:12,fontSize:12,color:"var(--amber)",fontWeight:600}}>This practice was aborted before it finished. It doesn't count as a completed run.</div>}
     {/* Print/PDF export used to only exist on PracticeDetail, which a
         past/run practice never routes to (ScheduleScreen sends those here
         instead) -- so a coach who forgot to print beforehand had no way
@@ -1494,7 +1542,7 @@ function HelperView({token}){
   const upcomingMins=a=>a.type==="station_block"?(a.station_count||0)*Math.round((a.station_duration_seconds||0)/60)+Math.max(0,(a.station_count||0)-1)*(a.rotate!==false?Math.round((a.transition_duration_seconds||0)/60):0):(a.duration_minutes||0);
   const playerName=pid=>{const p=roster.find(p=>p.id===pid);return p?(p.jersey_number?"#"+p.jersey_number+" ":"")+p.first_name:null;};
   const toPreviewItem=a=>({
-    name:a.type==="station_block"?(a.name||"Station Block"):a.name,
+    name:actLabel(a),
     durationMins:upcomingMins(a),
     locationName:a.sublocation_name||"",
     equipmentNames:(a.equipment||[]).map(e=>e.name),
@@ -1571,7 +1619,7 @@ function HelperView({token}){
         const isCur=a.id===session.current_practice_activity_id;
         const isPast=curPosition>=0&&a.position<curPosition;
         return(<button key={a.id||i} type="button" onClick={()=>setPreviewUpcoming(toPreviewItem(a))} style={{display:"flex",alignItems:"center",width:"100%",border:"none",background:isCur?"var(--gbg)":"none",cursor:"pointer",textAlign:"left",padding:"8px 14px",borderBottom:"1px solid var(--b)",opacity:isPast?0.5:1}}>
-          <div style={{flex:1,fontSize:14,color:isCur?"var(--green)":isPast?"var(--td)":"var(--black)",textDecoration:isPast?"line-through":"none"}}>{isCur?">> ":""}{a.type==="station_block"?(a.name||"Station Block"):a.name}</div>
+          <div style={{flex:1,fontSize:14,color:isCur?"var(--green)":isPast?"var(--td)":"var(--black)",textDecoration:isPast?"line-through":"none"}}>{isCur?">> ":""}{actLabel(a)}</div>
           <span className="bdg bs">{upcomingMins(a)}m</span>
         </button>);
       })}
@@ -1734,7 +1782,7 @@ function HelperView({token}){
         <div className="cc-queue-hdr"><span className="cc-queue-hdr-label">Up Next</span><span className="cc-queue-hdr-line"/></div>
         <div className="cc-queue" style={{maxHeight:220,overflowY:"auto"}}>
           {upcoming.map((a,i)=>(<button key={i} type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={()=>setPreviewUpcoming(toPreviewItem(a))}>
-            <span style={{fontSize:14,color:"var(--black2)"}}>{a.type==="station_block"?(a.name||"Station Block"):a.name}</span>
+            <span style={{fontSize:14,color:"var(--black2)"}}>{actLabel(a)}</span>
             <span className="bdg bs">{upcomingMins(a)}m</span>
           </button>))}
         </div>
@@ -2284,7 +2332,20 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const practiceStart=session?new Date(session.created_at).getTime():null;
   const schedDelta=(practiceStart&&practice&&practice.startTime&&practice.durMin)?(Math.floor((Date.now()-practiceStart)/60000)-completedMins-Math.floor(elapsed/60)):null;
   const n=isBlock&&cur.stations?cur.stations.length:1;
-  const rotatedStations=isBlock&&cur.stations&&liveGroups?cur.stations.map((st,i)=>{const srcIdx=(i-stIdx%n+n)%n;return Object.assign({},st,{assignments:liveGroups[srcIdx]||[],groupLabel:(liveGroupLabels&&liveGroupLabels[srcIdx])||""});}):null;
+  // Falls back to the plan's own station rotation when liveGroups hasn't
+  // populated yet (a slow or failed fetchLatestGroups round trip) instead of
+  // collapsing to null. A null here blanked the entire station coaching view
+  // and its "Up Next" mid-practice -- a repeat offender -- with nothing on
+  // screen until a retry happened to land. The live groups swap in as soon
+  // as they resolve.
+  const rotatedStations=isBlock&&cur.stations?cur.stations.map((st,i)=>{
+    const srcIdx=(i-stIdx%n+n)%n;
+    const planSrc=cur.stations[srcIdx]||st;
+    return Object.assign({},st,{
+      assignments:(liveGroups&&liveGroups[srcIdx])||planSrc.assignments||[],
+      groupLabel:(liveGroups&&liveGroupLabels&&liveGroupLabels[srcIdx])||planSrc.groupLabel||"",
+    });
+  }):null;
 
   // ── Timer: derived from timestamps, only ticks locally while running ───────
   useEffect(()=>{
@@ -3446,7 +3507,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         </div>);
       })()}
       {liveActs.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--b)",background:i===idx?"var(--gbg)":"#fff",cursor:isController?"pointer":"default",opacity:i<idx?0.5:1}} onClick={()=>{if(isController)jumpTo(i);}}>
-        <div style={{flex:1,fontSize:14,color:i===idx?"var(--green)":i<idx?"var(--td)":"var(--black)",textDecoration:i<idx?"line-through":"none"}}>{i===idx?">> ":""}{a.type==="station_block"?(a.name||"Station Block"):a.name}</div>
+        <div style={{flex:1,fontSize:14,color:i===idx?"var(--green)":i<idx?"var(--td)":"var(--black)",textDecoration:i<idx?"line-through":"none"}}>{i===idx?">> ":""}{actLabel(a)}</div>
         <span className="bs bdg" style={{fontSize:11}}>{a.type==="station_block"?(a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
       </div>))}
       <div style={{padding:"8px 14px"}}><button className="btn ghost bxs" onClick={()=>setShowROS(false)}>Close</button></div>
@@ -3767,14 +3828,14 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           let liveStationGroups=null;
           if(a.type==="station_block"&&session)liveStationGroups=await fetchLatestGroups(session.id,a.id);
           setPreviewUpcoming({
-            name:a.type==="station_block"?(a.name||"Station Block"):a.name,
+            name:actLabel(a),
             durationMins:a.type==="station_block"?(a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*a.transitionDuration):a.duration,
             locationName:subName(a.sublocationId)||"",
             equipmentNames:(Array.isArray(a.equipment)?a.equipment:[]).map(id=>{const x=(data.assets||[]).find(x=>x.id===id);return x?x.name:null;}).filter(Boolean),
             stations:a.type==="station_block"?a.stations.map((st,si)=>({name:st.name||"",locationName:subName(st.sublocationId)||"",coachName:leaderLabel(st,team),equipmentNames:(Array.isArray(st.equipment)?st.equipment:[]).map(id=>{const x=(data.assets||[]).find(x=>x.id===id);return x?x.name:null;}).filter(Boolean),playerNames:((liveStationGroups&&liveStationGroups.length)?(liveStationGroups[si]||[]):(st.assignments||[])).map(pid=>{const p=team&&team.players.find(p=>p.id===pid);return p?(p.jersey?"#"+p.jersey+" ":"")+p.firstName:null;}).filter(Boolean)})):[],
           });
         }}>
-          <span style={{fontSize:14,color:"var(--td)"}}>{a.type==="station_block"?(a.name||"Station Block"):a.name}</span>
+          <span style={{fontSize:14,color:"var(--td)"}}>{actLabel(a)}</span>
           <span className="bdg bs">{a.type==="station_block"?(a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
         </button>))}
         </div>

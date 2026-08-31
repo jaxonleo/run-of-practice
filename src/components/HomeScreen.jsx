@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway, getGettingStartedHidden, setGettingStartedHidden, menuNeedsToOpenUpward, useBigBrowser } from "../constants.js";
+import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway, practiceScheduledMs, getGettingStartedHidden, setGettingStartedHidden, menuNeedsToOpenUpward, useBigBrowser } from "../constants.js";
 import { TwoPane } from "./BBShells.jsx";
 import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, acknowledgeStationAssignmentNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchActiveLiveSessions, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
@@ -261,6 +261,20 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   // Same date-agnostic run signal as ScheduleScreen -- a practice run
   // earlier today shouldn't still read as upcoming until midnight.
   const ran = p => runStatus[p.id] === "completed";
+  // An aborted run drops a practice from the upcoming list the same way a
+  // completed one does -- with one exception: a *scheduled* practice still
+  // within 90 minutes of its start time, which a coach could realistically
+  // still start for real (aborted the wrong practice, or a false start they
+  // mean to redo). Anything else that was aborted -- an ad-hoc run, or a
+  // scheduled slot now well past -- stays hidden.
+  const NINETY_MIN_MS = 90 * 60 * 1000;
+  const abortedButStillStartable = p => {
+    if (runStatus[p.id] !== "abandoned") return false;
+    if (p.status !== "scheduled") return false;
+    const ms = practiceScheduledMs(p, teamById(p.teamId));
+    return ms !== null && Date.now() - ms < NINETY_MIN_MS;
+  };
+  const doneForUpcoming = p => ran(p) || (runStatus[p.id] === "abandoned" && !abortedButStillStartable(p));
 
   const active = data.practices.filter(p => !isCancelled(p));
   // Direct feedback: "Upcoming Practices" should always show the coach's
@@ -275,7 +289,7 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   // Completed practices leave the list entirely (handoff §4.3) -- Home used
   // to only badge them "· Completed" inline; Schedule already excludes them
   // from its "upcoming" bucket the same way.
-  const agendaWindow = upcomingCandidates.filter(p => !ran(p)).slice(0, 4);
+  const agendaWindow = upcomingCandidates.filter(p => !doneForUpcoming(p)).slice(0, 4);
 
   const agendaIdsKey = JSON.stringify(upcomingCandidates.map(p => p.id));
   const refreshAbsenceCounts = () => {
@@ -461,11 +475,12 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   const focusTeam = focusTeamDataReady && focusTeamId ? teamById(focusTeamId) : null;
   const focusTeamCanManage = focusTeam ? canManageTeamInMode(focusTeam, coachId, mode) : false;
   const focusTeamHasCategories = focusTeam ? (data.skillCategories || []).some(c => c.sport === focusTeam.sport && !c.archived_at) : false;
-  // A live-in-progress (or abandoned-but-not-completed) session for the
-  // next practice withholds it from projection -- fetchPracticeRunStatus's
-  // 'started' bucket already covers both, matching the spec's "do not
+  // A live-in-progress or aborted-but-not-completed session for the next
+  // practice withholds it from projection, matching the spec's "do not
   // project the actively running practice from its stale planned state."
-  const focusTeamIsLiveNow = !!(nextPractice && focusTeamId === nextPractice.teamId && runStatus[nextPractice.id] === "started");
+  // fetchPracticeRunStatus now reports 'started' and 'abandoned' as separate
+  // values, so both are checked here rather than relying on one merged bucket.
+  const focusTeamIsLiveNow = !!(nextPractice && focusTeamId === nextPractice.teamId && (runStatus[nextPractice.id] === "started" || runStatus[nextPractice.id] === "abandoned"));
   const developmentPulseNavigate = cta => {
     if (!cta) return;
     if (cta.kind === "goals_overview") navigate("/team/" + focusTeamId + "/goals");
