@@ -1,12 +1,4 @@
 import './sentry.js'
-
-// TEMPORARY, for verifying Sentry source map uploads land correctly on a
-// real deployed bundle rather than injected/eval'd test code -- remove
-// once confirmed (see §6.1 verification in BUILD-STATUS Session Log).
-window.__ropSentryTest = function ropDeliberateTestError() {
-  throw new Error('ROP_DELIBERATE_SENTRY_TEST_REAL_BUNDLE_20260831')
-}
-
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
