@@ -3,12 +3,10 @@
 // across email clients; everything inline since most clients strip <style>
 // blocks. Colors/type match the app's own CSS vars (App.jsx's --green/
 // --black/--td) -- no web-font loading (unreliable in email), just a
-// system-font stack that reads close enough to the in-app look.
-// "Prettier, in the free version" (Jax's ask) -- this is hand-written
-// HTML/CSS, which Resend's free tier already sends as-is; no paid
-// template-builder product involved. Header icon is the real PWA icon
-// (public/icon-512.png), already public via the Vercel deploy at
-// runofpractice.com -- a plain <img src> pointed at it costs nothing.
+// system-font stack that reads close enough to the in-app look. Header
+// icon is the real PWA icon (public/icon-512.png), already public via the
+// Vercel deploy at runofpractice.com -- a plain <img src> pointed at it
+// costs nothing.
 // CTA button links to /?signin=1, not just "/" -- App.jsx's AuthedShell
 // reads that query param and jumps straight to AuthScreen, skipping the
 // marketing landing page a signed-out recipient would otherwise have to
