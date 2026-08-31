@@ -1,4 +1,5 @@
 import React from "react";
+import * as Sentry from "@sentry/react";
 
 // Inline styles only, deliberately -- this must render correctly even if
 // the crash happened before App's own useEffect had a chance to inject the
@@ -13,6 +14,11 @@ export default class ErrorBoundary extends React.Component {
   }
   componentDidCatch(error, info) {
     console.error("ErrorBoundary caught:", error, info);
+    // A React render error caught here never becomes an unhandled global
+    // error, so Sentry's own automatic capture never sees it -- has to be
+    // reported explicitly. No-ops safely if VITE_SENTRY_DSN was never set
+    // (src/sentry.js never called Sentry.init in that case).
+    Sentry.captureException(error, { extra: { componentStack: info?.componentStack } });
   }
   render() {
     if (!this.state.error) return this.props.children;
