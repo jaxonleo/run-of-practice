@@ -202,7 +202,15 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .cc-prog-bar{height:100%;background:var(--green);transition:width .5s linear;}
 .cc-prog-bar.over{background:var(--red);}
 .cc-controls{padding:6px 14px;display:flex;gap:8px;flex-shrink:0;}
-.cc-body{flex:1;overflow-y:auto;padding:0 14px 8px;display:flex;flex-direction:column;gap:10px;}
+.cc-body{flex:1;min-height:0;overflow-y:auto;padding:0 14px 8px;display:flex;flex-direction:column;gap:10px;}
+/* Real bug (mobile only): .cc-body is a flex column that's meant to scroll,
+   but its children default to flex-shrink:1 -- so on a short viewport with a
+   tall station block open, the browser compressed the children to fit
+   instead of scrolling, collapsing the last one ("Up Next") to just its
+   border with no room for its rows. Desktop viewports were tall enough to
+   never hit it. Pinning every direct child to its natural height forces the
+   scroll onto .cc-body where it belongs. */
+.cc-body>*{flex-shrink:0;}
 .cc-focus{background:var(--gbg);border:1.5px solid var(--gb);border-radius:var(--r);padding:14px;}
 .cc-focus-lbl{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--green2);margin-bottom:6px;}
 .cc-focus-txt{font-size:17px;font-weight:600;color:var(--black);line-height:1.5;}
