@@ -198,6 +198,11 @@ function DurStepper({value,min,onChange,step}){
 
 export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,coachId,refreshLibrary,libraryDrills,skillTags}){
   const [newGearOpen,setNewGearOpen]=useState(false);
+  // Synchronous guard for the inline "Add new equipment" buttons -- createAsset
+  // + refreshLibrary is slow enough that an impatient coach taps several
+  // times and gets duplicate assets (see ModalLayer's teamAddRef and the
+  // reentrancy Gotcha).
+  const equipAddRef=useRef(false);
   // act itself never carries a sport (practice/template activities don't
   // have their own sport column) -- sportProp is the team's sport (Builder)
   // or the template's own Sport field (TemplateWorkspace), threaded down by
@@ -229,12 +234,16 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
   const addInline=async(inputId,type,gearSport)=>{
     const el=document.getElementById(inputId);
     if(!el||!el.value.trim())return;
+    if(equipAddRef.current)return;
+    equipAddRef.current=true;
     const nm=el.value.trim();
-    const {data:newAsset}=await createAsset(coachId,{name:nm,type,sport:type==="player"?gearSport:sport});
-    if(newAsset)onChange({equipment:[...equip,newAsset.id]});
     el.value="";
-    if(refreshLibrary)await refreshLibrary();
-    if(type==="player")setNewGearOpen(false);
+    try{
+      const {data:newAsset}=await createAsset(coachId,{name:nm,type,sport:type==="player"?gearSport:sport});
+      if(newAsset)onChange({equipment:[...equip,newAsset.id]});
+      if(refreshLibrary)await refreshLibrary();
+      if(type==="player")setNewGearOpen(false);
+    }finally{equipAddRef.current=false;}
   };
   return (<div>
     <div className="fld"><label className="lbl">Name</label><input className="inp" value={act.name} onChange={e=>onChange({name:e.target.value})}/></div>
@@ -415,6 +424,23 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   // tapping it again lets them change it.
   const [groupByLabel,setGroupByLabel]=useState("");
   const [helperIdx,setHelperIdx]=useState(null);
+  // Synchronous guard for the inline "Add" equipment/gear buttons -- same
+  // slow-round-trip burst-click dupe as ModalLayer's teamAddRef.
+  const equipAddRef=useRef(false);
+  const addStationAsset=async(inputId,type,st)=>{
+    const el=document.getElementById(inputId);
+    if(!el||!el.value.trim())return;
+    if(equipAddRef.current)return;
+    equipAddRef.current=true;
+    const nm=el.value.trim();
+    el.value="";
+    const stEquip=Array.isArray(st.equipment)?st.equipment:[];
+    try{
+      const {data:newAsset}=await createAsset(coachId,{name:nm,type,sport});
+      if(newAsset)onSt(st.id,{equipment:[...stEquip,newAsset.id]});
+      if(refreshLibrary)await refreshLibrary();
+    }finally{equipAddRef.current=false;setNewEquipIdx(null);setNewGearIdx(null);}
+  };
   // Per-station collapse -- a station block with several fully-configured
   // stations got very long to scroll through. Collapsing one down to just
   // its number + drill name (manual, no auto-collapse) lets a coach shrink
@@ -761,7 +787,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
           </div>
           {newEquipIdx===si?<div style={{display:"flex",gap:6}}>
             <input className="inp" style={{flex:1}} placeholder="Equipment name..." id={"new-st-equip-"+si} autoFocus/>
-            <button type="button" className="btn ghost bxs" onClick={async()=>{const el=document.getElementById("new-st-equip-"+si);if(!el||!el.value.trim())return;const nm=el.value.trim();const {data:newAsset}=await createAsset(coachId,{name:nm,type:"team",sport});if(newAsset)onSt(st.id,{equipment:[...stEquip,newAsset.id]});el.value="";if(refreshLibrary)await refreshLibrary();setNewEquipIdx(null);}}>Add</button>
+            <button type="button" className="btn ghost bxs" onClick={()=>addStationAsset("new-st-equip-"+si,"team",st)}>Add</button>
             <button type="button" className="btn ghost bxs" onClick={()=>setNewEquipIdx(null)}>✕</button>
           </div>:<button type="button" className="btn ghost bxs" onClick={()=>setNewEquipIdx(si)}>+ New</button>}
         </div>
@@ -771,7 +797,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
           </div>
           {newGearIdx===si?<div style={{display:"flex",gap:6}}>
             <input className="inp" style={{flex:1}} placeholder="Gear name..." id={"new-st-gear-"+si} autoFocus/>
-            <button type="button" className="btn ghost bxs" onClick={async()=>{const el=document.getElementById("new-st-gear-"+si);if(!el||!el.value.trim())return;const nm=el.value.trim();const {data:newAsset}=await createAsset(coachId,{name:nm,type:"player",sport});if(newAsset)onSt(st.id,{equipment:[...stEquip,newAsset.id]});el.value="";if(refreshLibrary)await refreshLibrary();setNewGearIdx(null);}}>Add</button>
+            <button type="button" className="btn ghost bxs" onClick={()=>addStationAsset("new-st-gear-"+si,"player",st)}>Add</button>
             <button type="button" className="btn ghost bxs" onClick={()=>setNewGearIdx(null)}>✕</button>
           </div>:<button type="button" className="btn ghost bxs" onClick={()=>setNewGearIdx(si)}>+ New Gear</button>}
         </div>}
