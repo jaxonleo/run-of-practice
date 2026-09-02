@@ -434,7 +434,7 @@ const OLD_TO_EQUIP_TYPE = { team: 'team_equipment', player: 'player_gear' }
 // locationIds empty = travels everywhere (no location restriction); one or
 // more = only available at those locations.
 function mapAssetRow(a, locationsByAsset) {
-  return { id: a.id, name: a.name, type: EQUIP_TYPE_TO_OLD[a.type] || a.type, sport: a.sport, organizationId: a.organization_id, ownerUserId: a.owner_user_id, sourceCatalogId: a.source_catalog_id, locationIds: (locationsByAsset && locationsByAsset[a.id]) || [], acquired: a.acquired !== false }
+  return { id: a.id, name: a.name, type: EQUIP_TYPE_TO_OLD[a.type] || a.type, sport: a.sport, organizationId: a.organization_id, ownerUserId: a.owner_user_id, sourceCatalogId: a.source_catalog_id, locationIds: (locationsByAsset && locationsByAsset[a.id]) || [], acquired: a.acquired !== false, availableToTeamPlanners: !!a.available_to_team_planners }
 }
 function mapSkillTagRow(t) {
   return { id: t.id, categoryId: t.category_id, scope: t.scope, organizationId: t.organization_id, ownerUserId: t.owner_user_id, name: t.name }
@@ -564,6 +564,16 @@ export async function archiveAsset(id) {
   if (error) console.error('archiveAsset:', error)
   return { error }
 }
+// Same shape as setLocationTeamAvailability: an owner-only opt-in that lets
+// this coach's own equipment be picked (and linked) by a delegate planning
+// for a team they're both on. Off by default -- a coach's equipment is not
+// exposed to co-coaches just because they share a roster. Owner-only is
+// enforced inside set_asset_team_availability itself.
+export async function setAssetTeamAvailability(assetId, available) {
+  const { error } = await supabase.rpc('set_asset_team_availability', { p_asset_id: assetId, p_available: available })
+  if (error) console.error('setAssetTeamAvailability:', error)
+  return { error }
+}
 
 export async function createSkillTag(ownerUserId, { categoryId, name }) {
   const { data, error } = await supabase.from('skill_tags').insert({ category_id: categoryId, scope: 'coach', owner_user_id: ownerUserId, name }).select().single()
@@ -651,21 +661,28 @@ async function syncDrillTags(drillId, tagIds) {
   return {}
 }
 
-async function nextDrillPosition(ownerUserId) {
-  const { data } = await supabase.from('activity_library').select('position').eq('owner_user_id', ownerUserId).order('position', { ascending: false }).limit(1)
-  return data && data.length ? data[0].position + 1 : 0
-}
+// One atomic RPC -- the activity_library row plus every equipment and tag
+// link in a single transaction -- instead of insert-then-sync-then-sync.
+// The old path committed the drill row first, so an RLS rejection on an
+// equipment link (e.g. an asset the coach can see but not link) left an
+// orphan row behind and the modal, still open on a generic error, retried
+// straight into a duplicate. A real production report ended with ~5
+// near-identical rows. See 20260901000100_atomic_drill_write.sql.
 export async function createDrill(ownerUserId, { name, sport, duration, description, coachingPoints, grouping, numGroups, equipment, skillTagIds }) {
-  const position = await nextDrillPosition(ownerUserId)
-  const { data, error } = await supabase.from('activity_library').insert({
-    owner_user_id: ownerUserId, name, sport: sport || 'General', duration_minutes: duration || null,
-    description: description || null, coaching_points: coachingPoints || null,
-    grouping: grouping || 'whole', num_groups: numGroups || null, position,
-  }).select().single()
+  const { data, error } = await supabase.rpc('create_drill_with_equipment', {
+    p_owner_user_id: ownerUserId,
+    p_name: name,
+    p_sport: sport || 'General',
+    p_duration_minutes: duration || null,
+    p_description: description || null,
+    p_coaching_points: coachingPoints || null,
+    p_grouping: grouping || 'whole',
+    p_num_groups: numGroups || null,
+    p_equipment_asset_ids: (equipment || []).filter(Boolean),
+    p_skill_tag_ids: (skillTagIds || []).filter(Boolean),
+  })
   if (error) { console.error('createDrill:', error); return { error } }
-  if (equipment && equipment.length) { const r = await syncDrillEquipment(data.id, equipment); if (r.error) return { data, error: r.error } }
-  if (skillTagIds && skillTagIds.length) { const r = await syncDrillTags(data.id, skillTagIds); if (r.error) return { data, error: r.error } }
-  return { data }
+  return { data: { id: data } }
 }
 // Drag-to-reorder needs an arbitrary move (index 0 to index 5), not just an
 // adjacent swap -- orderedIds is the full new order for whatever subset was
@@ -686,15 +703,24 @@ export async function setDrillPrivate(id, isPrivate) {
   if (error) console.error('setDrillPrivate:', error)
   return { error }
 }
+// Atomic counterpart to createDrill (see 20260901000100). A null/undefined
+// equipment or skillTagIds arg means "leave that relation untouched" --
+// same contract the old syncDrill* branches had via `if (equipment)` --
+// while any array (including an empty one) is the full desired set.
 export async function updateDrill(id, { name, sport, duration, description, coachingPoints, grouping, numGroups, equipment, skillTagIds }) {
-  const { error } = await supabase.from('activity_library').update({
-    name, sport: sport || 'General', duration_minutes: duration || null,
-    description: description || null, coaching_points: coachingPoints || null,
-    grouping: grouping || 'whole', num_groups: numGroups || null,
-  }).eq('id', id)
+  const { error } = await supabase.rpc('update_drill_with_equipment', {
+    p_drill_id: id,
+    p_name: name,
+    p_sport: sport || 'General',
+    p_duration_minutes: duration || null,
+    p_description: description || null,
+    p_coaching_points: coachingPoints || null,
+    p_grouping: grouping || 'whole',
+    p_num_groups: numGroups || null,
+    p_equipment_asset_ids: equipment == null ? null : equipment.filter(Boolean),
+    p_skill_tag_ids: skillTagIds == null ? null : skillTagIds.filter(Boolean),
+  })
   if (error) { console.error('updateDrill:', error); return { error } }
-  if (equipment) { const r = await syncDrillEquipment(id, equipment); if (r.error) return { error: r.error } }
-  if (skillTagIds) { const r = await syncDrillTags(id, skillTagIds); if (r.error) return { error: r.error } }
   return {}
 }
 export async function archiveDrill(id) {

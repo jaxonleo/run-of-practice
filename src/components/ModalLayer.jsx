@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { uid, TEAM_COLORS, nextTeamColor, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "../constants.js";
-import { createTeam, orgCreateTeam, updateTeam, archiveTeam, setTeamLocations, createPlayer, inviteTeamStaff, updateStaff, editTeamInvite, createAsset, updateAsset, setAssetLocations, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, setLocationTeamAvailability, createSublocation, updateSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
+import { createTeam, orgCreateTeam, updateTeam, archiveTeam, setTeamLocations, createPlayer, inviteTeamStaff, updateStaff, editTeamInvite, createAsset, updateAsset, setAssetLocations, setAssetTeamAvailability, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, setLocationTeamAvailability, createSublocation, updateSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
 import { AutoTextarea, EquipmentPickerPill, equipmentPickerAssets } from "./ActivityConfigs.jsx";
 import { LocationChips } from "./NewLibraryScreen.jsx";
 
@@ -223,7 +223,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
     }
     if(location)return{name:location.name,availableToTeamPlanners:!!location.availableToTeamPlanners};
     if(sublocation)return{name:sublocation.name};
-    if(asset)return{name:asset.name,sport:asset.sport||"General",locationIds:asset.locationIds||[]};
+    if(asset)return{name:asset.name,sport:asset.sport||"General",locationIds:asset.locationIds||[],availableToTeamPlanners:!!asset.availableToTeamPlanners};
     if(coach)return{name:coach.name,role:coach.role||"Assistant Coach",inviteEmail:coach.inviteEmail||""};
     if(editingInvite)return{name:editingInvite.name,role:editingInvite.role||"Assistant Coach",inviteEmail:editingInvite.email||""};
     if(editTeamData)return{name:editTeamData.name,sport:editTeamData.sport||"Basketball",colorPrimary:editTeamData.colorPrimary||"",locationIds:editTeamData.locationIds||[]};
@@ -299,7 +299,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
     if(t==="addSublocation"){if(!f.name)return;await createSublocation(p.location.id,f.name);await refreshPlanning();}
     if(t==="editSublocation"){if(!f.name)return;await updateSublocation(p.sublocation.id,f.name);await refreshPlanning();}
     if(t==="addAsset"){if(!f.name)return;await createAsset(coachId,{name:f.name,type:f.assetType||"team",sport:f.assetSport||"General"});await refreshLibrary();}
-    if(t==="editAsset"){if(!f.name)return;await updateAsset(p.asset.id,{name:f.name,sport:f.sport||"General"});await setAssetLocations(p.asset.id,f.locationIds||[]);await refreshLibrary();}
+    if(t==="editAsset"){if(!f.name)return;await updateAsset(p.asset.id,{name:f.name,sport:f.sport||"General"});await setAssetLocations(p.asset.id,f.locationIds||[]);if(!p.asset.organizationId&&p.asset.ownerUserId===coachId&&f.availableToTeamPlanners!==!!p.asset.availableToTeamPlanners)await setAssetTeamAvailability(p.asset.id,f.availableToTeamPlanners);await refreshLibrary();}
     // Real gap found: the equipment/gear inputs are plain uncontrolled text
     // fields read only by their own "Add" button (addInline, above) -- a
     // coach who types a name and then taps Save without ever clicking Add
@@ -338,11 +338,14 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
       res=activity.sourceCatalogId?await updateCatalogDrill(p.activity.id,payload):await updateDrill(p.activity.id,payload);
       await refreshLibrary();
     }
-    // addActivity/editActivity are the only callers that populate `res` --
-    // a failed drill/tag/equipment write (e.g. an RLS rejection) used to
-    // close the modal silently, same as a successful save, so the user had
-    // no way to tell their change hadn't actually persisted.
-    if(res&&res.error){setSaveError("Something went wrong saving. Try again.");return;}
+    // addActivity/editActivity are the only callers that populate `res`.
+    // createDrill/updateDrill now go through an atomic RPC
+    // (create_drill_with_equipment / update_drill_with_equipment), so a
+    // failure here means nothing at all was written -- no partial drill
+    // row, so retrying can't produce a duplicate the way the old
+    // insert-then-link path did. Surface the real Postgres/RLS message
+    // rather than a canned one.
+    if(res&&res.error){setSaveError((res.error.message||"Something went wrong")+". Nothing was saved -- adjust and try again.");return;}
     if(t==="addCoach"){setAddedCoachInfo({name:f.name,email:f.inviteEmail});}else{closeModal();}
     }finally{savingRef.current=false;setSaving(false);}
   };
@@ -419,6 +422,17 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
                 </select>
               </div>
               <LocationChips locations={(data.locations||[]).filter(l=>asset.organizationId?l.organizationId===asset.organizationId:l.ownerUserId===coachId)} selectedIds={f.locationIds||[]} onToggle={id=>set("locationIds",(f.locationIds||[]).includes(id)?(f.locationIds||[]).filter(x=>x!==id):[...(f.locationIds||[]),id])}/>
+              {/* Same explicit opt-in as a location's: seeing this equipment
+                  on a practice you share never implies a delegate can pick
+                  it for their own planning. Personal equipment only -- org-
+                  owned is already team-wide via can_access_asset_owned. */}
+              {!asset.organizationId&&asset.ownerUserId===coachId&&(<label className="fld" style={{display:"flex",alignItems:"flex-start",gap:8,cursor:"pointer"}}>
+                <input type="checkbox" style={{marginTop:3}} checked={!!f.availableToTeamPlanners} onChange={e=>set("availableToTeamPlanners",e.target.checked)}/>
+                <span>
+                  <div className="lbl" style={{marginBottom:2}}>Available to your teams' planners</div>
+                  <div style={{fontSize:12,color:"var(--td)"}}>Lets a coach you've delegated practice-building to use this equipment when planning, and add it to their own library. Off means it stays yours.</div>
+                </span>
+              </label>)}
             </>}
           </div>
         )}
@@ -478,17 +492,22 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
                 el.value="";
                 await refreshLibrary();
               };
-              // Catalog drills may only use that SAME catalog's own equipment
-              // (RLS: can_link_asset_to_activity) -- a personal/org drill's
-              // picker excludes catalog-owned assets the same way, since
-              // linking them would be rejected server-side anyway.
-              // Own equipment sorted first, then org/team-shared -- RLS
-              // (can_access_asset_owned) already unions own+org+team-scoped
-              // assets into data.assets, this just orders the picker per
-              // handoff Sec 3.6.
-              const ownFirst=(a,b)=>(a.ownerUserId===coachId?0:1)-(b.ownerUserId===coachId?0:1);
-              const teamAssetsPool=(data.assets||[]).filter(a=>a.type==="team"&&(a.sport===drillSport||a.sport==="General")&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId)).sort(ownFirst);
-              const playerAssetsPool=(data.assets||[]).filter(a=>a.type==="player"&&(a.sport===drillSport||a.sport==="General")&&(catalogId?a.sourceCatalogId===catalogId:!a.sourceCatalogId)).sort(ownFirst);
+              // The picker only ever offers equipment the drill can actually
+              // link: for a catalog drill that's the same catalog's own
+              // assets; for a coach's own drill it's strictly the coach's
+              // own equipment. It used to filter the whole RLS-visible
+              // data.assets by type/sport only -- which, since
+              // assets_select_access was widened to expose a teammate's
+              // equipment in shared contexts, let a coach select another
+              // coach's asset onto a drill in their own library, then hit an
+              // RLS rejection on save (activity_library_equipment ->
+              // can_link_asset_to_activity). To use a teammate's shared
+              // equipment, add it to your own library first (the section
+              // below), same "copy, don't reference" rule shared drills use.
+              const isCatalog=!!catalogId;
+              const poolFor=type=>(data.assets||[]).filter(a=>a.type===type&&(a.sport===drillSport||a.sport==="General")&&(isCatalog?a.sourceCatalogId===catalogId:(a.ownerUserId===coachId&&!a.sourceCatalogId)));
+              const teamAssetsPool=poolFor("team");
+              const playerAssetsPool=poolFor("player");
               // equipmentPickerAssets, not the bare pool -- a coach can't
               // newly pick equipment they don't own onto a drill (only
               // remove it, or keep whatever's already linked, e.g. from
@@ -496,6 +515,28 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
               // own comment in ActivityConfigs.jsx.
               const teamAssets=equipmentPickerAssets(teamAssetsPool,f.equipment,data.assets,a=>a.type==="team");
               const playerAssets=equipmentPickerAssets(playerAssetsPool,f.equipment,data.assets,a=>a.type==="player");
+              // Equipment a teammate has explicitly shared with their teams'
+              // planners (assets.available_to_team_planners) that this coach
+              // doesn't already have an equivalent of by name. One tap copies
+              // it into the coach's own library (createAsset) and links the
+              // new row -- never the teammate's asset id directly.
+              const ownedKey=a=>(a.name||"").trim().toLowerCase()+"|"+a.type;
+              const ownedKeys=new Set((data.assets||[]).filter(a=>a.ownerUserId===coachId).map(ownedKey));
+              const sharedFor=type=>isCatalog?[]:(data.assets||[]).filter(a=>a.type===type&&a.availableToTeamPlanners&&a.ownerUserId&&a.ownerUserId!==coachId&&!a.organizationId&&!a.sourceCatalogId&&(a.sport===drillSport||a.sport==="General")&&!ownedKeys.has(ownedKey(a))&&!(f.equipment||[]).includes(a.id));
+              const sharedTeam=sharedFor("team");
+              const sharedPlayer=sharedFor("player");
+              const addFromTeam=async a=>{
+                const {data:mine}=await createAsset(coachId,{name:a.name,sport:a.sport,type:a.type});
+                if(mine){set("equipment",[...(f.equipment||[]),mine.id]);await refreshLibrary();}
+              };
+              const TeamShareRow=({items})=>items.length===0?null:(
+                <div style={{marginTop:6}}>
+                  <div style={{fontSize:11,color:"var(--td)",marginBottom:4}}>From your teams (adds to your library):</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                    {items.map(a=>(<button key={a.id} type="button" onClick={()=>addFromTeam(a)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px dashed var(--green2)",background:"var(--gbg)",color:"var(--green2)",fontSize:13,cursor:"pointer"}}>+ {a.name}</button>))}
+                  </div>
+                </div>
+              );
               return(<div>
                 <div className="fld"><label className="lbl">Team Equipment</label>
                   <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
@@ -506,6 +547,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
                     <input className="inp" placeholder="Add new equipment..." id="new-equip-inp" style={{flex:1}}/>
                     <button type="button" className="btn ghost bxs" onClick={()=>addInline("new-equip-inp","team")}>Add</button>
                   </div>
+                  <TeamShareRow items={sharedTeam}/>
                 </div>
                 <div className="fld"><label className="lbl">Player Gear Needed</label>
                   <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
@@ -516,6 +558,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
                     <input className="inp" placeholder="e.g. Batting Helmet" id="new-gear-inp" style={{flex:1}}/>
                     <button type="button" className="btn ghost bxs" onClick={()=>addInline("new-gear-inp","player")}>Add</button>
                   </div>
+                  <TeamShareRow items={sharedPlayer}/>
                 </div>
               </div>);
             })()}

@@ -123,10 +123,19 @@ export function AutoTextarea({className,value,onChange,style,minHeight,...rest})
 // Without this, every asset visible under RLS for *any* org the coach
 // belongs to showed up regardless of team/location -- the same class of
 // leak already fixed once this session in EquipmentTab's Team-tab view.
+//
+// Builder/MyStationBuilder only (team is set): also a teammate's own
+// equipment they've explicitly opted in for this team's planners
+// (assets.available_to_team_planners). can_link_asset_to_practice_activity
+// / can_link_asset_to_station accept it, and a practice is team-scoped so
+// there's no "copy, don't reference" concern the way a library drill or a
+// (cross-team-reusable) template has -- which is why this branch is gated
+// on `team` being present at all (TemplateWorkspace passes team={null}).
 function ownedOrOrgAtLoc(a,coachId,team,loc){
   if(a.ownerUserId&&a.ownerUserId===coachId)return true;
   const orgId=team&&team.organizationId;
   if(orgId&&a.organizationId===orgId&&loc&&Array.isArray(a.locationIds)&&a.locationIds.includes(loc.id))return true;
+  if(team&&a.availableToTeamPlanners&&a.ownerUserId&&a.ownerUserId!==coachId&&Array.isArray(team.coaches)&&team.coaches.some(c=>c.userId===a.ownerUserId))return true;
   return false;
 }
 
