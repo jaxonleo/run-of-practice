@@ -58,8 +58,11 @@ export default defineConfig({
         // into its own chunk means a returning visitor's browser can keep
         // it cached across deploys instead of re-downloading react/
         // react-dom/react-router-dom/supabase-js every time app code ships.
+        // @sentry/react is here too now that it carries the replay + tracing
+        // integrations (~70KB gz) -- no reason to re-download that on every
+        // app-only deploy.
         manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js'],
+          vendor: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js', '@sentry/react'],
         },
       },
     },

@@ -6,6 +6,7 @@ import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
+import { setSentryUser } from "./sentry.js";
 import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser } from "./constants.js";
 import { TwoPane } from "./components/BBShells.jsx";
@@ -454,6 +455,13 @@ export default function App(){
     return ()=>sub.unsubscribe();
   },[]);
   const coachId=session?session.user.id:null;
+  // Tie every Sentry error/replay/trace to the signed-in coach (cleared on
+  // sign-out). session is undefined while loading -- only act on a resolved
+  // value.
+  useEffect(()=>{
+    if(session===undefined)return;
+    setSentryUser(session?session.user:null);
+  },[session]);
   // Real-usage feedback: silently clearing deactivated_at on sign-in (no
   // prompt at all) was surprising -- a coach signed back in, went to check
   // something else, and only later realized their account had quietly come
