@@ -243,6 +243,14 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
   const [saving,setSaving]=useState(false);
   const [saveError,setSaveError]=useState("");
   const savingRef=useRef(false);
+  // Equipment-add buttons in the drill editor ("From your teams" copy-in and
+  // the inline "Add new equipment" field): the createAsset + refreshLibrary
+  // round trip is slow enough that a coach taps several times before it
+  // responds, and each tap was creating another copy. Same shape as
+  // savingRef -- a synchronous ref blocks the burst; teamAddBusyId drives
+  // the disabled/"Adding..." UI on the "From your teams" pills.
+  const teamAddRef=useRef(false);
+  const [teamAddBusyId,setTeamAddBusyId]=useState(null);
   const [addedCoachInfo,setAddedCoachInfo]=useState(null);
   const [staffSuggestions,setStaffSuggestions]=useState([]);
   useEffect(()=>{
@@ -484,13 +492,17 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
               const addInline=async(inputId,type)=>{
                 const el=document.getElementById(inputId);
                 if(!el||!el.value.trim())return;
+                if(teamAddRef.current)return;
+                teamAddRef.current=true;
                 const nm=el.value.trim();
-                const {data:newAsset}=catalogId
-                  ?await createCatalogAsset(catalogId,{name:nm,type,sport:drillSport})
-                  :await createAsset(coachId,{name:nm,type,sport:drillSport});
-                if(newAsset)set("equipment",[...(f.equipment||[]),newAsset.id]);
                 el.value="";
-                await refreshLibrary();
+                try{
+                  const {data:newAsset}=catalogId
+                    ?await createCatalogAsset(catalogId,{name:nm,type,sport:drillSport})
+                    :await createAsset(coachId,{name:nm,type,sport:drillSport});
+                  if(newAsset)set("equipment",[...(f.equipment||[]),newAsset.id]);
+                  await refreshLibrary();
+                }finally{teamAddRef.current=false;}
               };
               // The picker only ever offers equipment the drill can actually
               // link: for a catalog drill that's the same catalog's own
@@ -526,14 +538,24 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
               const sharedTeam=sharedFor("team");
               const sharedPlayer=sharedFor("player");
               const addFromTeam=async a=>{
-                const {data:mine}=await createAsset(coachId,{name:a.name,sport:a.sport,type:a.type});
-                if(mine){set("equipment",[...(f.equipment||[]),mine.id]);await refreshLibrary();}
+                if(teamAddRef.current)return;
+                teamAddRef.current=true;
+                setTeamAddBusyId(a.id);
+                try{
+                  const {data:mine}=await createAsset(coachId,{name:a.name,sport:a.sport,type:a.type});
+                  if(mine){set("equipment",[...(f.equipment||[]),mine.id]);await refreshLibrary();}
+                }finally{
+                  teamAddRef.current=false;
+                  setTeamAddBusyId(null);
+                }
               };
               const TeamShareRow=({items})=>items.length===0?null:(
                 <div style={{marginTop:6}}>
                   <div style={{fontSize:11,color:"var(--td)",marginBottom:4}}>From your teams (adds to your library):</div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                    {items.map(a=>(<button key={a.id} type="button" onClick={()=>addFromTeam(a)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px dashed var(--green2)",background:"var(--gbg)",color:"var(--green2)",fontSize:13,cursor:"pointer"}}>+ {a.name}</button>))}
+                    {items.map(a=>{const busy=teamAddBusyId===a.id;const anyBusy=!!teamAddBusyId;return(
+                      <button key={a.id} type="button" disabled={anyBusy} onClick={()=>addFromTeam(a)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px dashed var(--green2)",background:"var(--gbg)",color:"var(--green2)",fontSize:13,cursor:anyBusy?"default":"pointer",opacity:anyBusy&&!busy?.5:1}}>{busy?"Adding...":"+ "+a.name}</button>
+                    );})}
                   </div>
                 </div>
               );
