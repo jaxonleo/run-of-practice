@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea, menuNeedsToOpenUpward } from "../constants.js";
 import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, fetchPracticeRunStatus, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
+import { SkillTagPicker } from "./ModalLayer.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
 
@@ -3242,7 +3243,12 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(!drill||drill.ownerUserId!==coachId||drill.sourceCatalogId)return null;
     return (drill.skillTagIds&&drill.skillTagIds.length)?null:drill;
   };
-  const availableSkillTags=(data.skillTags||[]).filter(t=>t.scope==="global"||(t.scope==="coach"&&t.ownerUserId===coachId)||(t.scope==="org"&&team&&t.organizationId===team.organizationId));
+  // The live-view tag picker reuses Library's own category-grouped
+  // SkillTagPicker (search + "add a new tag in this category"), so it just
+  // needs to know whether this sport has any categories at all to fall
+  // back on a plain message when it doesn't.
+  const tagPickerSport=(team&&team.sport)||"General";
+  const tagPickerHasCategories=(data.skillCategories||[]).some(c=>c.sport===tagPickerSport&&!c.archived_at);
   const openTagPicker=libraryId=>{setTagPickerLibraryId(libraryId);setTagPickerSel([]);};
   const saveTagPicker=async()=>{
     if(!tagPickerLibraryId||!tagPickerSel.length)return;
@@ -3750,13 +3756,15 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           <div className="mhandle"/>
           <div className="mtitle">Add a Skill Tag</div>
           <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>This updates the drill in your library, so it's tagged going forward too.</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
-            {availableSkillTags.map(t=>{
-              const on=tagPickerSel.includes(t.id);
-              return(<button key={t.id} type="button" onClick={()=>setTagPickerSel(s=>on?s.filter(id=>id!==t.id):[...s,t.id])} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:on?"var(--green)":"var(--s1)",color:on?"#fff":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{t.name}</button>);
-            })}
-            {availableSkillTags.length===0&&<div style={{fontSize:13,color:"var(--td)"}}>No skill tags yet -- add one from Library first.</div>}
-          </div>
+          {/* Reuses Library's own SkillTagPicker so the tags come grouped by
+              skill category (not one flat uncategorized wall) and the coach
+              can add a new tag inside any category right here, mid-practice,
+              exactly like the drill editor. initialOpen jumps straight to
+              the grouped picker sheet since the coach already tapped the
+              "tap to add one" reminder to get here. */}
+          {tagPickerHasCategories
+            ?<div style={{marginBottom:14}}><SkillTagPicker data={data} coachId={coachId} sport={tagPickerSport} selectedIds={tagPickerSel} onChange={setTagPickerSel} refreshLibrary={refreshLibrary} initialOpen/></div>
+            :<div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>No skill categories exist for {tagPickerSport} yet -- add one from Library first.</div>}
           <button className="btn primary bmd bfull mb8" disabled={!tagPickerSel.length||tagPickerSaving} onClick={saveTagPicker}>{tagPickerSaving?"Saving...":"Save"}</button>
           <button className="btn ghost bmd bfull" onClick={()=>setTagPickerLibraryId(null)}>Cancel</button>
         </div>

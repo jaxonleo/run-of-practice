@@ -68,8 +68,11 @@ function useVisualViewportHeight(){
 // catalogId set = editing/adding a public-catalog drill -- spec §2.4, these
 // may only carry scope='global' tags (never a personal/org one that would
 // be invisible to other viewers), and new tags added here go global too.
-function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshLibrary,catalogId}){
-  const [open,setOpen]=useState(false);
+// initialOpen = jump straight to the category-grouped picker sheet on mount
+// (the live-practice "No skill tag yet -- tap to add one" reminder in
+// CommandScreen uses this so the coach doesn't have to tap a second time).
+export function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshLibrary,catalogId,initialOpen}){
+  const [open,setOpen]=useState(!!initialOpen);
   const [search,setSearch]=useState("");
   const [newTagCategoryId,setNewTagCategoryId]=useState("");
   const vpHeight=useVisualViewportHeight();
@@ -358,7 +361,14 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
     }finally{savingRef.current=false;setSaving(false);}
   };
   const TITLES={addTeam:"New Team",editTeam:"Edit Team",addPlayer:"Add Player",addCoach:"Add Coach",editCoach:"Edit Coach",editInvite:"Edit Invite",addLocation:"Add Location",editLocation:"Edit Location",addSublocation:"Add Area",editSublocation:"Edit Area",addAsset:"Add Equipment",editAsset:"Edit Equipment",addActivity:"New Drill",editActivity:"Edit Drill"};
-  return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget)closeModal();}}>
+  // Opened from Builder's "+ New Activity": on a big browser this slides in
+  // as a right-hand work panel (matching the station "Choose from Library"
+  // flow) so the Run of Practice stays visible-but-dimmed on the left,
+  // rather than a dialog floating over the seam between the two panes. On a
+  // phone, and everywhere else this modal is used, it stays a normal
+  // centered/bottom-sheet dialog -- see the .movly-right rules in App.jsx.
+  const asRightPanel=(modal.type==="addActivity"||modal.type==="editActivity")&&modal.payload&&modal.payload.fromBuilder;
+  return (<div className={"movly"+(asRightPanel?" movly-right":"")} onClick={e=>{if(e.target===e.currentTarget)closeModal();}}>
       <div className="modal">
         <div className="mhandle"/>
         <div className="mtitle">{addedCoachInfo?"Invite Sent":(TITLES[modal.type]||"Add")}</div>

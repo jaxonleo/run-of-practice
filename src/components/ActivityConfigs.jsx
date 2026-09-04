@@ -643,7 +643,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
               a real full-screen popup (same movly/modal overlay pattern
               used elsewhere) gives the whole viewport to browse instead of
               a small scrolling box. */}
-          {libraryPickerIdx===si&&<div className="movly" style={{zIndex:300}} onClick={e=>{if(e.target===e.currentTarget)setLibraryPickerIdx(null);}}>
+          {libraryPickerIdx===si&&<div className="movly movly-right" style={{zIndex:300}} onClick={e=>{if(e.target===e.currentTarget)setLibraryPickerIdx(null);}}>
             <div className="modal" style={{maxHeight:"85vh",display:"flex",flexDirection:"column",padding:"20px 0 0"}}>
               <div className="mhandle"/>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",marginBottom:12}}>

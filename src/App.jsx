@@ -278,14 +278,47 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
    children instead of viewport-fixed overlays. */
 .bb .live-resume{position:static;left:auto;bottom:auto;transform:none;width:100%;max-width:none;flex-shrink:0;}
 /* Bottom-sheet overlays (SkillTagPicker, move-pickers, PermissionsModal,
-   etc.) become centered dialogs at BB -- same .movly/.modal components,
-   same open/close state and tryClose guards, style only. */
-.bb .movly{align-items:center;padding:24px;}
-.bb .modal{border-radius:16px;max-width:560px;max-height:82dvh;}
+   New Drill, Add Coach, etc.) become centered dialogs on a big browser --
+   same .movly/.modal components, same open/close state and tryClose guards,
+   style only. Keyed to the raw viewport width, NOT the .bb class, because
+   several overlays (ModalLayer, AuthScreen's own sheet) render OUTSIDE the
+   .app.bb subtree -- .bb-scoped rules never reached them, so on desktop
+   they stayed glued to the bottom of the window. The breakpoint is the
+   exact one useBigBrowser() uses, so nothing inside .app.bb changes. */
+@media (min-width:1024px){
+  .movly{align-items:center;padding:24px;}
+  .modal{border-radius:16px;max-width:560px;max-height:82dvh;}
+  /* Builder's "choose a drill" / "new drill" flows: rather than a dialog
+     floating over the seam between the two panes (covering part of the Run
+     of Practice AND part of the library, aligned to neither), slide in from
+     the right as a work panel roughly the width of the right pane. The Run
+     of Practice stays where it is on the left, just dimmed by the panel's
+     own backdrop -- "navigation work on the right, ROP still visible." */
+  .movly-right{justify-content:flex-end;align-items:stretch;padding:0;background:rgba(17,23,20,.42);}
+  /* width lines the panel's left edge up with the right pane's left edge:
+     rail (88) + .screen padding (28) + half the pane gap (~9) ~= 52px of
+     chrome to the left of that edge, so the panel is (viewport / 2) minus
+     that. Clamped so it stays usable on a 1024 screen and doesn't get
+     absurdly wide on an ultrawide one. */
+  .movly-right>.modal{width:clamp(440px,calc(50vw - 52px),760px);max-width:none!important;height:100%!important;max-height:100%!important;border-radius:0!important;border:none;border-left:1px solid var(--b);box-shadow:-16px 0 48px rgba(0,0,0,.18);}
+  .movly-right>.modal>.mhandle{display:none;}
+  /* Sign-in screen: on a phone the white card is a bottom sheet under a
+     tall hero; on a desktop that reads as "stuck to the bottom of the
+     window." Lift it into a centered, fully-rounded card instead. */
+  .auth-wrap{justify-content:center;align-items:center;}
+  .auth-hero{flex:0 0 auto!important;padding:0 24px 24px!important;}
+  .auth-sheet{max-width:400px;width:100%;border-radius:20px!important;padding:32px 28px 36px!important;box-shadow:0 24px 64px rgba(0,0,0,.4);}
+  .auth-sheet .mhandle-auth{display:none;}
+}
 
 /* Shared shells (BBShells.jsx) -- layout only, no state/logic. */
 .bb-two-pane{display:flex;gap:18px;height:100%;min-height:0;}
-.bb-pane{flex:1;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+/* padding-right keeps the pane's scrollbar clear of its content. Without
+   it the left pane's (overlay) scrollbar floated over the right edge of
+   the green Run of Practice backdrop, which is pinned to the pane's own
+   right edge. scrollbar-gutter:stable covers browsers with classic
+   scrollbars so the reserved space stays consistent. */
+.bb-pane{flex:1;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:12px;scrollbar-gutter:stable;scrollbar-width:thin;}
 .bb-centered-page{max-width:820px;margin:0 auto;width:100%;}
 /* Opt-in per screen when it adopts TwoPane at BB, so the screen's own outer
    container fills .screen's height instead of growing with content -- that
@@ -356,17 +389,17 @@ function AuthScreen({onBack}){
     }
     // onAuthStateChange picks up the new session automatically.
   };
-  return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
+  return (<div className="auth-wrap" style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
     {onBack&&<button onClick={onBack} style={{position:"absolute",top:16,left:16,background:"rgba(255,255,255,.08)",border:"none",borderRadius:"50%",width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#fff",fontSize:18,zIndex:10}}>&#8249;</button>}
-    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
+    <div className="auth-hero" style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
       <div style={{width:96,height:96,borderRadius:22,overflow:"hidden",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
         <img src="/apple-touch-icon.png" style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Run of Practice"/>
       </div>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:38,fontWeight:900,color:"#fff",letterSpacing:"-.01em",lineHeight:1,marginBottom:6,textAlign:"center"}}>Run of Practice</div>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:600,letterSpacing:".12em",textTransform:"uppercase",color:"var(--green)",textAlign:"center"}}>Organize. Execute. Elevate.</div>
     </div>
-    <div style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
-      <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
+    <div className="auth-sheet" style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
+      <div className="mhandle-auth" style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
       {!sent&&<div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Welcome, Coach</div>
         <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Enter your email. We'll send you a sign-in code.</div>
@@ -402,15 +435,15 @@ function NameScreen({onSave}){
     await onSave(firstName.trim(),lastName.trim());
     setSaving(false);
   };
-  return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
-    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
+  return (<div className="auth-wrap" style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
+    <div className="auth-hero" style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
       <div style={{width:96,height:96,borderRadius:22,overflow:"hidden",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
         <img src="/apple-touch-icon.png" style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Run of Practice"/>
       </div>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,color:"#fff",letterSpacing:"-.01em",lineHeight:1,marginBottom:6,textAlign:"center"}}>What should we call you?</div>
     </div>
-    <div style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
-      <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
+    <div className="auth-sheet" style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
+      <div className="mhandle-auth" style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
       <div className="fld mb10">
         <label className="lbl">First name*</label>
         <input className="inp" autoFocus type="text" placeholder="Alex" value={firstName} onChange={e=>setFirstName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")save();}}/>
@@ -1143,6 +1176,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const runOfPracticeOuterRef=useRef(null);
   const runOfPracticeStartRef=useRef(null);
   const runOfPracticeEndRef=useRef(null);
+  const leftPaneInnerRef=useRef(null);
   const [runOfPracticeH,setRunOfPracticeH]=useState(0);
   const recomputeRunOfPracticeH=useCallback(()=>{
     const start=runOfPracticeStartRef.current;
@@ -1150,7 +1184,20 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     if(!start||!end)return;
     const sRect=start.getBoundingClientRect();
     const eRect=end.getBoundingClientRect();
-    setRunOfPracticeH(Math.max(0,eRect.bottom-sRect.top));
+    let h=Math.max(0,eRect.bottom-sRect.top);
+    // At BB the Run of Practice is a whole scroll pane to itself with
+    // nothing below it -- so the green should always reach at least the
+    // bottom of the visible pane (no white gap under a short practice) and,
+    // when a station block is expanded, still cover all of it (the row
+    // content is measured start->end, which already includes the expanded
+    // config). Floor the height at "distance from the green's top edge to
+    // the pane's bottom edge."
+    const pane=start.closest(".bb-pane");
+    if(pane){
+      const pRect=pane.getBoundingClientRect();
+      h=Math.max(h,pRect.bottom-sRect.top);
+    }
+    setRunOfPracticeH(h);
   },[]);
   useEffect(()=>{
     const outer=runOfPracticeOuterRef.current;
@@ -1171,6 +1218,22 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // whenever the practice's own content-affecting state changes covers BB
   // without touching mobile's existing resize-driven path at all.
   useEffect(()=>{recomputeRunOfPracticeH();},[acts,expandedId,recomputeRunOfPracticeH]);
+  // A station block expanded inline grows and shrinks (its own collapsed
+  // stations, the description textarea, the drill picker) without touching
+  // acts/expandedId, so neither effect above fires. At BB the left pane's
+  // inner content wrapper does grow with all of that -- observe it directly
+  // so the green keeps up. Also recompute on pane scroll, since the
+  // "reach the pane bottom" floor is measured relative to the viewport.
+  useEffect(()=>{
+    const inner=leftPaneInnerRef.current;
+    if(!inner)return;
+    const ro=new ResizeObserver(recomputeRunOfPracticeH);
+    ro.observe(inner);
+    const pane=inner.closest(".bb-pane");
+    const onScroll=()=>recomputeRunOfPracticeH();
+    if(pane)pane.addEventListener("scroll",onScroll,{passive:true});
+    return()=>{ro.disconnect();if(pane)pane.removeEventListener("scroll",onScroll);};
+  },[recomputeRunOfPracticeH]);
   // Direct feedback, two rounds: a prior session added an actual
   // scrollIntoView() here to fix "the last-added drill should be frozen at
   // the top" -- but forcing the whole page to jump back up to the Run of
@@ -1889,7 +1952,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         </>}
       </div>
       {acts.length===0&&(<div style={{position:"relative",zIndex:1,textAlign:"center",padding:"8px 22px 18px"}}>
-          <div style={{fontSize:13,color:"rgba(255,255,255,.9)",lineHeight:1.7,marginBottom:teamTemplates.length?10:0}}>Nothing added yet.<br/>Add activities below to begin building your Run of Practice.</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,.9)",lineHeight:1.7,marginBottom:teamTemplates.length?10:0}}>Nothing added yet.<br/>Add activities {isBB?"from the right":"below"} to begin building your Run of Practice.</div>
           {teamTemplates.length>0&&<button className="btn bsm" style={{background:"#fff",color:"var(--green)"}} onClick={()=>setShowTplPicker(true)}>Start with a Template</button>}
         </div>
       )}
@@ -2083,7 +2146,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         ):(
           <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flex:1}}>My Library</span>
         )}
-        {libSource==="mine"&&<button className="btn bxs" style={{background:"rgba(255,255,255,.16)",color:"#fff"}} onClick={()=>openModal("addActivity")}>+ New Activity</button>}
+        {libSource==="mine"&&<button className="btn bxs" style={{background:"rgba(255,255,255,.16)",color:"#fff"}} onClick={()=>openModal("addActivity",{fromBuilder:true})}>+ New Activity</button>}
         <button type="button" onClick={()=>setMyDrillsOpen(o=>!o)} aria-label={myDrillsOpen?"Collapse My Drill Library":"Expand My Drill Library"} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",padding:6,display:"flex",alignItems:"center"}}><Ic.Chev up={myDrillsOpen}/></button>
       </div>
       {myDrillsOpen&&(<>
@@ -2150,7 +2213,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       // never remounts BuilderScreen itself, so no draft is ever lost.
       return isBB?(
         <div className="bb-fill-height" style={{padding:"0 14px",position:"relative",flex:1,minHeight:0,overflow:"hidden"}} ref={runOfPracticeOuterRef}>
-          <TwoPane left={leftPaneContent} right={rightPaneContent}/>
+          <TwoPane left={<div ref={leftPaneInnerRef}>{leftPaneContent}</div>} right={rightPaneContent}/>
         </div>
       ):(
         <div style={{padding:"0 14px",position:"relative"}} ref={runOfPracticeOuterRef}>
