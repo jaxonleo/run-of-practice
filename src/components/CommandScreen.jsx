@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea, menuNeedsToOpenUpward } from "../constants.js";
-import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, fetchPracticeRunStatus, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
+import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea, menuNeedsToOpenUpward, SCRIMMAGE_FIELD_SLOTS, generateScrimmageBoard, repairScrimmageBoard, summarizeScrimmageFairness, scrimmagePlayerRotation } from "../constants.js";
+import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, saveSessionScrimmageBoard, fetchLatestScrimmageBoard, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, fetchPracticeRunStatus, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
 import { SkillTagPicker } from "./ModalLayer.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
@@ -566,6 +566,170 @@ function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onV
   </div>);
 }
 
+// ── Scrimmage: shared board rendering + Practice Setup row ─────────────────
+// One read-only card renderer shared by Practice Setup, the live board, and
+// HelperView. `assignee(a)` turns an {player_id}|{team_staff_id}|
+// {helper_name}|null cell into a display string. `dark` = the near-black
+// live/setup palette; light otherwise. `onlyIdx` renders a single
+// half-inning (live "Now"); otherwise the whole board.
+function ScrimmageBoardView({board,cfg,assignee,dark,onlyIdx,onSlotTap,picked,currentIdx}){
+  const label=(cfg&&cfg.roundLabel)||"Half-Inning";
+  const fieldSlots=(cfg&&cfg.slots)||[...SCRIMMAGE_FIELD_SLOTS];
+  const hasP=fieldSlots.includes("P"),hasC=fieldSlots.includes("C");
+  const other=fieldSlots.filter(s=>s!=="P"&&s!=="C");
+  const roles=(cfg&&cfg.coachRoles)||[];
+  const c=dark?{card:"rgba(255,255,255,.05)",bd:"rgba(255,255,255,.12)",txt:"#fff",dim:"#8fa89b",accent:"#52b788"}
+              :{card:"var(--s1)",bd:"var(--b)",txt:"var(--black)",dim:"var(--td)",accent:"var(--green)"};
+  const rows=onlyIdx!=null?[[onlyIdx,board[onlyIdx]]].filter(x=>x[1]):board.map((rd,i)=>[i,rd]);
+  const cell=(ri,slot,txt,big)=>{
+    const isPicked=picked&&picked.round===ri&&picked.slot===slot;
+    const isTarget=picked&&picked.round===ri&&!isPicked;
+    return (<span key={slot} onClick={onSlotTap?()=>onSlotTap(ri,slot):undefined}
+      style={{cursor:onSlotTap?"pointer":"default",padding:"2px 6px",borderRadius:6,fontSize:big?14:12,
+        background:isPicked?c.accent:isTarget?(dark?"rgba(82,183,136,.2)":"var(--gbg)"):undefined,
+        color:isPicked?"#fff":undefined,fontWeight:big?700:400,display:"inline-block"}}>
+      {txt||<span style={{color:c.dim}}>Open</span>}</span>);
+  };
+  return (<div>
+    {rows.map(([ri,rd])=>{
+      const slots=rd.slots||{};
+      const hitters=Object.keys(slots).filter(k=>/^H\d+$/.test(k)).sort((a,b)=>parseInt(a.slice(1))-parseInt(b.slice(1)));
+      const P=assignee(slots.P),C=assignee(slots.C);
+      return (<div key={ri} id={"scrim-live-round-"+ri} style={{border:"1.5px solid "+(ri===currentIdx?c.accent:c.bd),borderRadius:10,padding:"10px 12px",marginBottom:8,background:c.card}}>
+        <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:6}}>
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontWeight:900,color:c.accent}}>{label} {ri+1}</span>
+          <span style={{fontSize:12,color:c.dim}}>
+            {hasP&&<>P: {cell(ri,"P",P,true)}</>}
+            {hasP&&hasC&&<span style={{margin:"0 4px"}}>·</span>}
+            {hasC&&<>C: {cell(ri,"C",C,true)}</>}
+            {!hasP&&<span style={{color:c.dim}}>Coach Pitch</span>}
+          </span>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"2px 10px"}}>
+          {other.map(s=>(<div key={s} style={{fontSize:12,color:c.txt}}><span style={{color:c.dim,fontFamily:"DM Mono,monospace",marginRight:4}}>{s}</span>{cell(ri,s,assignee(slots[s]))}</div>))}
+        </div>
+        {hitters.length>0&&<div style={{marginTop:6,fontSize:12,color:c.txt}}>
+          <span style={{color:c.dim,fontWeight:700}}>Hitting{cfg&&cfg.absPerHitter?" ("+cfg.absPerHitter+" ABs each)":""}: </span>
+          {hitters.map((k,i)=><React.Fragment key={k}>{cell(ri,k,assignee(slots[k]))}{i<hitters.length-1?", ":""}</React.Fragment>)}
+        </div>}
+        {roles.length>0&&<div style={{marginTop:6,fontSize:11,color:c.dim}}>
+          {roles.map(r=>r.label+": "+(assignee((rd.coachRoles||{})[r.id])||"Open")).join("  ·  ")}
+        </div>}
+      </div>);
+    })}
+  </div>);
+}
+
+// Practice Setup's scrimmage block row (sibling of SetupStationBlockRow).
+// Status pill + Repair / Regenerate All + coach-role assignment. Writes go
+// to session_scrimmage_boards (never the plan), same as station
+// reassignment at setup writes session_groups.
+function SetupScrimmageRow({act,team,data,session,coachId,isController,presentIds,timeRange}){
+  const [expanded,setExpanded]=useState(false);
+  const [sessionBoard,setSessionBoard]=useState(undefined); // undefined=loading
+  const [warnings,setWarnings]=useState([]);
+  const [busy,setBusy]=useState(false);
+  const busyRef=useRef(false);
+  const cfg=act.scrimmageConfig||{};
+  const roster=(team&&team.players)||[];
+  const label=(cfg.roundLabel||"Half-Inning");
+  const presentSet=presentIds||new Set();
+  useEffect(()=>{
+    if(!session){setSessionBoard(null);return;}
+    let live=true;
+    fetchLatestScrimmageBoard(session.id,act.id).then(b=>{if(live)setSessionBoard(b);});
+    return()=>{live=false;};
+  },[session&&session.id,act.id]);
+  const board=sessionBoard||act.scrimmageRounds||null;
+  const rosterById=Object.fromEntries(roster.map(p=>[p.id,p]));
+  const staffById=Object.fromEntries(((team&&team.coaches)||[]).map(c=>[c.id,c]));
+  const assignee=a=>{
+    if(!a)return null;
+    if(a.player_id){const p=rosterById[a.player_id];return p?(p.jersey?"#"+p.jersey+" ":"")+p.firstName:"Player";}
+    if(a.team_staff_id){const c=staffById[a.team_staff_id];return c?c.name:"Coach";}
+    if(a.helper_name)return a.helper_name;
+    return null;
+  };
+  const genInput=rounds=>({
+    players:roster.filter(p=>presentSet.has(p.id)&&!((cfg.locks||{})[p.id]||{}).sitOut)
+      .map(p=>({id:p.id,name:((p.firstName||"")+" "+(p.lastName||"")).trim()||p.firstName,positions:p.positions||[],locks:(cfg.locks||{})[p.id]||{}})),
+    rounds:rounds||cfg.rounds||(board?board.length:10),
+    slots:cfg.slots||[...SCRIMMAGE_FIELD_SLOTS],
+    hittersPerRound:cfg.hittersPerRound==null?"auto":cfg.hittersPerRound,
+    catcherHold:cfg.catcherHold||2,pitcherRoundsMax:cfg.pitcherRoundsMax||1,
+    seed:cfg.seed||"scrimmage",
+  });
+  const status=(()=>{
+    if(!board)return{key:"none",label:"Not generated",color:"#f59e0b"};
+    const assigned=new Set();
+    board.forEach(rd=>Object.values(rd.slots||{}).forEach(a=>{if(a&&a.player_id)assigned.add(a.player_id);}));
+    const absentAssigned=[...assigned].filter(id=>!presentSet.has(id));
+    const presentUnassigned=[...presentSet].filter(id=>!assigned.has(id)&&!((cfg.locks||{})[id]||{}).sitOut);
+    if(absentAssigned.length||presentUnassigned.length)return{key:"repair",label:"Needs repair",color:"#f59e0b"};
+    return{key:"ready",label:"Ready",color:"#52b788"};
+  })();
+  const persist=async withRoles=>{
+    if(!session)return;
+    await saveSessionScrimmageBoard(session.id,act.id,coachId,withRoles);
+    setSessionBoard(withRoles);
+  };
+  const doRepair=async()=>{
+    if(!board||busyRef.current)return;
+    busyRef.current=true;setBusy(true);
+    try{
+      const {board:b,warnings:w}=repairScrimmageBoard(genInput(board.length),board.map(rd=>({slots:Object.assign({},rd.slots),coachRoles:rd.coachRoles})));
+      await persist(b.map((rd,i)=>({slots:rd.slots,coachRoles:(board[i]&&board[i].coachRoles)||{}})));
+      setWarnings(w);
+    }finally{busyRef.current=false;setBusy(false);}
+  };
+  const doRegenerate=async()=>{
+    if(busyRef.current)return;
+    busyRef.current=true;setBusy(true);
+    try{
+      const {board:b,warnings:w}=generateScrimmageBoard(Object.assign(genInput(cfg.rounds),{seed:uid()}));
+      const roleMap=(board&&board[0]&&board[0].coachRoles)||{};
+      await persist(b.map(rd=>({slots:rd.slots,coachRoles:Object.assign({},roleMap)})));
+      setWarnings(w);
+    }finally{busyRef.current=false;setBusy(false);}
+  };
+  const setRoleAssignee=async(roleId,a)=>{
+    if(!board)return;
+    await persist(board.map(rd=>({slots:rd.slots,coachRoles:Object.assign({},rd.coachRoles,{[roleId]:a})})));
+  };
+  return (<div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"12px 14px",marginBottom:8}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+      <button type="button" onClick={()=>setExpanded(e=>!e)} style={{background:"none",border:"none",padding:0,textAlign:"left",cursor:"pointer",flex:1,minWidth:0,display:"flex",alignItems:"center",gap:6,color:"#52b788"}}>
+        <span style={{fontSize:15,fontWeight:700,color:"#fff"}}>{act.name||"Scrimmage"}</span>
+        <Ic.Chev up={expanded}/>
+      </button>
+      <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:20,background:"rgba(255,255,255,.08)",color:status.color}}>{status.label}</span>
+    </div>
+    <div style={{fontSize:12,color:"#8fa89b",marginTop:6}}>{(cfg.rounds||0)+" "+label.toLowerCase()+"s · "+(act.duration||0)+" min"}{timeRange&&" · "+fmtClock(timeRange.start)+"–"+fmtClock(timeRange.end)}</div>
+    {isController&&session&&<div style={{display:"flex",gap:6,marginTop:10}}>
+      <button type="button" className="btn bxs" style={{flex:1,background:status.key==="repair"?"#52b788":"rgba(255,255,255,.1)",color:"#fff",border:"none"}} disabled={busy||!board} onClick={doRepair}>{busy?"...":"Repair"}</button>
+      <button type="button" className="btn ghost bxs" style={{flex:1,background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} disabled={busy} onClick={doRegenerate}>{board?"Regenerate All":"Generate"}</button>
+    </div>}
+    {(warnings||[]).length>0&&<div style={{marginTop:8}}>{warnings.map((w,i)=>(<div key={i} style={{fontSize:11,color:"#f59e0b",marginBottom:2}}>{w}</div>))}</div>}
+    {expanded&&<div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,.08)"}}>
+      {(cfg.coachRoles||[]).length>0&&<div style={{marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"#8fa89b",marginBottom:6}}>Coach Roles</div>
+        {(cfg.coachRoles||[]).map(r=>{
+          const cur=(board&&board[0]&&board[0].coachRoles&&board[0].coachRoles[r.id])||null;
+          return (<div key={r.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <span style={{fontSize:13,color:"#fff",flex:1}}>{r.label}</span>
+            {isController?<select className="sel" style={{maxWidth:170}} value={cur&&cur.team_staff_id||""} onChange={e=>setRoleAssignee(r.id,e.target.value?{team_staff_id:e.target.value}:null)}>
+              <option value="">Unassigned</option>
+              {((team&&team.coaches)||[]).map(c=>(<option key={c.id} value={c.id}>{c.name}</option>))}
+            </select>:<span style={{fontSize:13,color:"#8fa89b"}}>{assignee(cur)||"Unassigned"}</span>}
+          </div>);
+        })}
+      </div>}
+      {board?<div style={{maxHeight:360,overflowY:"auto"}}><ScrimmageBoardView board={board} cfg={cfg} assignee={assignee} dark/></div>
+        :<div style={{fontSize:12,color:"#666"}}>Not generated yet. Tap Generate.</div>}
+    </div>}
+  </div>);
+}
+
 // The fresh, pre-live "Practice Setup" stage (not the mid-practice
 // "Attendance" quick-update, which stays the plain light AttendanceScreen
 // below) -- direct feedback: this should be a black screen a coach can
@@ -794,6 +958,8 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#555",marginTop:24,marginBottom:12}}>Run of Practice · {totalMins}min</div>
       {acts.map((act,i)=>act.type==="station_block"
         ?<SetupStationBlockRow key={act.id} act={act} loc={loc} data={data} team={team} isController={isController} onReassignLead={onReassignLead} onViewGroupings={setGroupingsFor} timeRange={timeRanges[i]}/>
+        :act.type==="scrimmage"
+        ?<SetupScrimmageRow key={act.id} act={act} team={team} data={data} session={session} coachId={coachId} isController={isController} presentIds={present} timeRange={timeRanges[i]}/>
         :<SetupActivityRow key={act.id} act={act} loc={loc} data={data} team={team} isController={isController} onReassignActivityLead={onReassignActivityLead} onViewGroupings={setGroupingsFor} timeRange={timeRanges[i]}/>
       )}
     </div>
@@ -1479,6 +1645,11 @@ function HelperView({token}){
   const cur=valid?session.current_activity:null;
   const isBlock=cur&&cur.type==="station_block";
   const isCl=cur&&cur.type==="checklist";
+  const isScrim=cur&&cur.type==="scrimmage";
+  const scrim=isScrim?(cur.scrimmage||null):null;
+  const scrimCfg=scrim?(scrim.config||{}):null;
+  const scrimBoard=scrim?(scrim.rounds||[]):null;
+  const scrimRoundIdx=scrim?(scrim.round_idx||0):0;
   const blockRotate=isBlock&&cur.rotate!==false;
   const inTrans=valid?!!session.in_transition:false;
   const inBlockIntro=valid?!!session.in_block_intro:false;
@@ -1486,7 +1657,14 @@ function HelperView({token}){
   const stations=(valid&&session.stations)||[];
   const groups=(valid&&session.groups)||[];
   const n=stations.length||1;
-  const phaseSecs=isBlock?(inBlockIntro?(cur.transition_duration_seconds||120):(blockRotate&&inTrans?(cur.transition_duration_seconds||0):(cur.station_duration_seconds||0))):(cur?(cur.duration_minutes||0)*60:0);
+  const scrimHelperAssignee=a=>{
+    if(!a)return null;
+    if(a.player_id){const p=((valid&&session.roster)||[]).find(x=>x.id===a.player_id);return p?(p.jersey_number?"#"+p.jersey_number+" ":"")+p.first_name+" "+(p.last_initial||""):null;}
+    if(a.team_staff_id){return((valid&&session.scrimmage_staff)||{})[a.team_staff_id]||"Coach";}
+    if(a.helper_name)return a.helper_name;
+    return null;
+  };
+  const phaseSecs=isScrim?(inBlockIntro?45:(cur.duration_minutes||0)*60):isBlock?(inBlockIntro?(cur.transition_duration_seconds||120):(blockRotate&&inTrans?(cur.transition_duration_seconds||0):(cur.station_duration_seconds||0))):(cur?(cur.duration_minutes||0)*60:0);
   const elapsed=valid?computeHelperElapsed(session,now):0;
   const rem=phaseSecs-elapsed;
   const prog=phaseSecs>0?Math.min(1,elapsed/phaseSecs):0;
@@ -1522,7 +1700,9 @@ function HelperView({token}){
   // round X" -- the number changing is the rotation, not the station
   // count. Static blocks (no rotation at all) get their own label too,
   // instead of the generic "Station Block".
-  const phaseLabel=isBlock?(inBlockIntro?"INTRODUCE STATIONS":blockRotate?(inTrans?"TRANSITION":"ROTATION "+(stIdx+1)+" of "+n):"STATION BREAKOUTS"):((cur&&cur.name)||"").toUpperCase();
+  const phaseLabel=isScrim
+    ?(inBlockIntro?"GET TO YOUR SPOTS":((scrimCfg&&scrimCfg.roundLabel||"HALF-INNING").toUpperCase()+" "+(scrimRoundIdx+1)+" OF "+((scrimBoard&&scrimBoard.length)||0)))
+    :isBlock?(inBlockIntro?"INTRODUCE STATIONS":blockRotate?(inTrans?"TRANSITION":"ROTATION "+(stIdx+1)+" of "+n):"STATION BREAKOUTS"):((cur&&cur.name)||"").toUpperCase();
   const roster=session.roster||[];
   const mentionRoster=roster.map(p=>({id:p.id,displayName:(p.jersey_number?"#"+p.jersey_number+" ":"")+p.first_name+" "+p.last_initial+"."}));
   const submitHelperNote=async(body,taggedIds,endOfPractice,authorLabel)=>{
@@ -1631,7 +1811,19 @@ function HelperView({token}){
     <div className="cc-prog"><div className={"cc-prog-bar"+(elapsed>phaseSecs?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div>
     <div className="cc-body">
       {isCl&&cur&&<div className="cc-focus"><div className="cc-focus-lbl">{cur.name}</div>{(cur.items||[]).map(it=>(<div key={it.id} className="cl-item"><div className="cl-check"/><div className="cl-text">{it.text}</div></div>))}</div>}
-      {!isBlock&&!isCl&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {isScrim&&cur&&scrimBoard&&scrimBoard.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900}}>
+          {inBlockIntro?("Get to your "+((scrimCfg&&scrimCfg.roundLabel||"Half-Inning").toLowerCase())+" 1 positions"):((scrimCfg&&scrimCfg.roundLabel||"Half-Inning")+" "+(scrimRoundIdx+1)+" of "+scrimBoard.length)}
+        </div>
+        <ScrimmageBoardView board={scrimBoard} cfg={scrimCfg} assignee={scrimHelperAssignee} onlyIdx={inBlockIntro?0:scrimRoundIdx}/>
+        {!inBlockIntro&&scrimRoundIdx<scrimBoard.length-1&&(()=>{
+          const nx=scrimBoard[scrimRoundIdx+1];if(!nx)return null;
+          const P=scrimHelperAssignee(nx.slots.P),C=scrimHelperAssignee(nx.slots.C);
+          const hitters=Object.keys(nx.slots).filter(k=>/^H\d+$/.test(k)).map(k=>scrimHelperAssignee(nx.slots[k])).filter(Boolean);
+          return <div style={{fontSize:12,color:"var(--td)",borderTop:"1px solid var(--b)",paddingTop:8}}><strong>Next {(scrimCfg&&scrimCfg.roundLabel||"Half-Inning").toLowerCase()}:</strong> P {P||"Open"} · C {C||"Open"} · Hitting {hitters.join(", ")}</div>;
+        })()}
+      </div>}
+      {!isBlock&&!isCl&&!isScrim&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
         {cur.description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
           <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{cur.description}</div>
@@ -2071,6 +2263,12 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const [coachPresentIds,setCoachPresentIds]=useState(new Set());
   const [showAtt,setShowAtt]=useState(false);
   const [liveGroups,setLiveGroups]=useState(null);
+  // Live scrimmage board: the latest session_scrimmage_boards override for
+  // the current scrimmage activity (falls back to the plan's rounds). Also
+  // re-fetched on a short interval so a Practice Setup Repair or another
+  // coach's live edit lands on this screen without a reload.
+  const [liveScrimBoard,setLiveScrimBoard]=useState(null);
+  const [scrimPicked,setScrimPicked]=useState(null); // {round,slot} pick-up-and-drop
   // Parallel to liveGroups, index-for-index -- which "Group By..." label (if
   // any) applies to that group. Seeded from the station's saved groupLabel
   // whenever groups load from the plan, but wiped to blank the moment a
@@ -2253,6 +2451,9 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const isBlock=cur&&cur.type==="station_block";
   const blockRotate=isBlock&&cur.rotate!==false;
   const isCl=cur&&cur.type==="checklist";
+  const isScrim=cur&&cur.type==="scrimmage";
+  const scrimCfg=isScrim?(cur.scrimmageConfig||{}):null;
+  const scrimRoundIdx=session?(session.scrimmage_round_idx||0):0;
   const stIdx=session?session.current_rotation_number||0:0;
   const inTrans=session?!!session.in_transition:false;
   const inBlockIntro=session?!!session.in_block_intro:false;
@@ -2322,10 +2523,29 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       setShowAudioPrompt(true);
     }
   },[stage,session&&session.id]);
-  const phaseSecs=isBlock?(inBlockIntro?(cur.transitionDuration||2)*60:blockRotate&&inTrans?cur.transitionDuration*60:cur.stationDuration*60):(cur?actSecs(cur):0);
+  const phaseSecs=isScrim
+    ?(inBlockIntro?45:actSecs(cur))
+    :isBlock?(inBlockIntro?(cur.transitionDuration||2)*60:blockRotate&&inTrans?cur.transitionDuration*60:cur.stationDuration*60):(cur?actSecs(cur):0);
   const isOver=elapsed>phaseSecs;
   const rem=phaseSecs-elapsed;
   const prog=phaseSecs>0?Math.min(1,elapsed/phaseSecs):0;
+  useEffect(()=>{
+    if(!isScrim||!session||!cur){setLiveScrimBoard(null);return;}
+    let live=true;
+    const load=()=>fetchLatestScrimmageBoard(session.id,cur.id).then(b=>{if(live&&b)setLiveScrimBoard(b);});
+    load();
+    const iv=setInterval(load,7000);
+    return()=>{live=false;clearInterval(iv);};
+  },[isScrim,session&&session.id,cur&&cur.id]);
+  const scrimBoard=isScrim?(liveScrimBoard||(cur&&cur.scrimmageRounds)||null):null;
+  const scrimRoundCount=scrimBoard?scrimBoard.length:(scrimCfg?(scrimCfg.rounds||0):0);
+  const scrimAssignee=useCallback(a=>{
+    if(!a)return null;
+    if(a.player_id){const p=team&&team.players.find(x=>x.id===a.player_id);return p?(p.jersey?"#"+p.jersey+" ":"")+p.firstName:"Player";}
+    if(a.team_staff_id){const c=team&&team.coaches.find(x=>x.id===a.team_staff_id);return c?c.name:"Coach";}
+    if(a.helper_name)return a.helper_name;
+    return null;
+  },[team]);
   const urg=rem<=30&&rem>0&&running;
   const pCount=presentIds.size;
   const pTotal=team?team.players.length:0;
@@ -2990,10 +3210,11 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     spoken.current={};buzzedRef.current=false;warnedRef.current=false;transitionAdvancedRef.current=false;
     const firstAct=liveActs[0]||null;
     const firstIsBlock=firstAct&&firstAct.type==="station_block";
+    const firstIsScrim=firstAct&&firstAct.type==="scrimmage";
     // The session already exists by the time Practice Setup's confirm
     // button is reachable (created the moment anyone landed here -- see
     // the mount effect above), so this is always an update, never a create.
-    const sessionRow=await writeSession({current_practice_activity_id:firstAct?firstAct.id:null,current_rotation_number:0,in_transition:false,in_block_intro:!!firstIsBlock,current_phase_started_at:new Date().toISOString(),paused_at:null,total_paused_seconds:0,status:"active",setup_confirmed_at:new Date().toISOString()});
+    const sessionRow=await writeSession({current_practice_activity_id:firstAct?firstAct.id:null,current_rotation_number:0,scrimmage_round_idx:0,in_transition:false,in_block_intro:!!(firstIsBlock||firstIsScrim),current_phase_started_at:new Date().toISOString(),paused_at:null,total_paused_seconds:0,status:"active",setup_confirmed_at:new Date().toISOString()});
     if(!sessionRow)return;
     submitOperation(sessionRow.id,coachId,"start_practice");
     const allPlayerIds=team?team.players.map(p=>p.id):[];
@@ -3028,16 +3249,27 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       if(blockRotate&&!inTrans&&cur.transitionDuration>0&&stIdx<cur.stations.length-1){await transitionTo({in_transition:true},null);return;}
       if(blockRotate&&stIdx<cur.stations.length-1){const ns=stIdx+1;await transitionTo({current_rotation_number:ns,in_transition:false},cur,ns);return;}
     }
+    if(isScrim){
+      // The scrimmage intro screen and each half-inning are steps within the
+      // one execution unit -- no per-round logging (section 5.3), so
+      // transitionTo is passed no activity here.
+      if(inBlockIntro){await transitionTo({in_block_intro:false},null);return;}
+      if(scrimRoundIdx<scrimRoundCount-1){await transitionTo({scrimmage_round_idx:scrimRoundIdx+1},null);return;}
+    }
     if(idx<liveActs.length-1){
       const ni=idx+1;const nextAct=liveActs[ni];const nextIsBlock=nextAct.type==="station_block";
-      await transitionTo({current_practice_activity_id:nextAct.id,current_rotation_number:0,in_transition:false,in_block_intro:nextIsBlock},nextIsBlock?null:nextAct,0);
+      const nextIsScrim=nextAct.type==="scrimmage";
+      // A scrimmage is one leaf execution unit (section 5.3), so it opens a
+      // single activity-log row the moment it is entered -- pass nextAct
+      // (not null) even though it also starts on the intro screen.
+      await transitionTo({current_practice_activity_id:nextAct.id,current_rotation_number:0,scrimmage_round_idx:0,in_transition:false,in_block_intro:nextIsBlock||nextIsScrim},nextIsBlock?null:nextAct,0);
     }else{
       await closeCurrentLog();
       await writeSession({status:"completed",ended_at:new Date().toISOString(),paused_at:null});
       setEndReason("completed");
       setStage("end");
     }
-  },[session,cur,isBlock,inBlockIntro,blockRotate,inTrans,stIdx,idx,liveActs,coachId,transitionTo,writeSession,closeCurrentLog]);
+  },[session,cur,isBlock,inBlockIntro,blockRotate,inTrans,stIdx,isScrim,scrimRoundIdx,scrimRoundCount,idx,liveActs,coachId,transitionTo,writeSession,closeCurrentLog]);
 
   // Direct feedback: a coach calling "rotate" shouldn't also have to tap
   // Next to actually start the next station's timer -- the transition
@@ -3076,26 +3308,28 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   // phase change either effect could fire from.
   useEffect(()=>{
     if(!isController)return;
-    if(!(isBlock&&inBlockIntro))return;
+    if(!((isBlock||isScrim)&&inBlockIntro))return;
     if(!(elapsed>=phaseSecs&&phaseSecs>0&&running))return;
     if(transitionAdvancedRef.current)return;
     transitionAdvancedRef.current=true;
     advance();
-  },[isController,isBlock,inBlockIntro,elapsed,phaseSecs,running,advance]);
+  },[isController,isBlock,isScrim,inBlockIntro,elapsed,phaseSecs,running,advance]);
 
   const goBack=useCallback(async()=>{
     if(!session||!cur)return;
     submitOperation(session.id,coachId,"go_back");
     if(isBlock&&inTrans){await transitionTo({in_transition:false},cur,stIdx);return;}
     if(isBlock&&stIdx>0){const ns=stIdx-1;await transitionTo({current_rotation_number:ns,in_transition:false},cur,ns);return;}
-    if(idx>0){const pi=idx-1;const prevAct=liveActs[pi];await transitionTo({current_practice_activity_id:prevAct.id,current_rotation_number:0,in_transition:false,in_block_intro:false},prevAct,0);}
-  },[session,cur,isBlock,inTrans,stIdx,idx,liveActs,coachId,transitionTo]);
+    if(isScrim&&!inBlockIntro&&scrimRoundIdx>0){await transitionTo({scrimmage_round_idx:scrimRoundIdx-1},null);return;}
+    if(idx>0){const pi=idx-1;const prevAct=liveActs[pi];const pB=prevAct.type==="station_block",pS=prevAct.type==="scrimmage";await transitionTo({current_practice_activity_id:prevAct.id,current_rotation_number:0,scrimmage_round_idx:0,in_transition:false,in_block_intro:pB||pS},pB?null:prevAct,0);}
+  },[session,cur,isBlock,isScrim,inTrans,inBlockIntro,stIdx,scrimRoundIdx,idx,liveActs,coachId,transitionTo]);
 
   const jumpTo=useCallback(async(i)=>{
     if(!session)return;
     const target=liveActs[i];if(!target)return;
     submitOperation(session.id,coachId,"jump_to");
-    await transitionTo({current_practice_activity_id:target.id,current_rotation_number:0,in_transition:false,in_block_intro:false},target,0);
+    const tB=target.type==="station_block",tS=target.type==="scrimmage";
+    await transitionTo({current_practice_activity_id:target.id,current_rotation_number:0,scrimmage_round_idx:0,in_transition:false,in_block_intro:tB||tS},tB?null:target,0);
     setShowROS(false);
   },[session,liveActs,coachId,transitionTo]);
 
@@ -3353,9 +3587,10 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         const freshActs=freshPractice?freshPractice.activities:[];
         const firstAct=freshActs[0]||null;
         const firstIsBlock=firstAct&&firstAct.type==="station_block";
+        const firstIsScrim=firstAct&&firstAct.type==="scrimmage";
         if(session){
           await closeCurrentLog();
-          const updated=await writeSession({current_practice_activity_id:firstAct?firstAct.id:null,current_rotation_number:0,in_transition:false,in_block_intro:!!firstIsBlock,current_phase_started_at:new Date().toISOString(),paused_at:new Date().toISOString(),total_paused_seconds:0});
+          const updated=await writeSession({current_practice_activity_id:firstAct?firstAct.id:null,current_rotation_number:0,scrimmage_round_idx:0,in_transition:false,in_block_intro:!!(firstIsBlock||firstIsScrim),current_phase_started_at:new Date().toISOString(),paused_at:new Date().toISOString(),total_paused_seconds:0});
           if(updated&&firstAct&&!firstIsBlock)await openLogFor(updated.id,{practiceActivityId:firstAct.id},[...presentIds]);
         }
         spoken.current={};buzzedRef.current=false;warnedRef.current=false;transitionAdvancedRef.current=false;
@@ -3425,7 +3660,9 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
 
   if(!cur)return null;
 
-  const phaseLabel=isBlock?(inBlockIntro?"INTRODUCE STATIONS":blockRotate?(inTrans?"TRANSITION":"ROTATION "+(stIdx+1)+" of "+cur.stations.length):"STATION BREAKOUTS"):((cur&&cur.name)||"").toUpperCase();
+  const phaseLabel=isScrim
+    ?(inBlockIntro?"GET TO YOUR SPOTS":((scrimCfg.roundLabel||"HALF-INNING").toUpperCase()+" "+(scrimRoundIdx+1)+" OF "+scrimRoundCount))
+    :isBlock?(inBlockIntro?"INTRODUCE STATIONS":blockRotate?(inTrans?"TRANSITION":"ROTATION "+(stIdx+1)+" of "+cur.stations.length):"STATION BREAKOUTS"):((cur&&cur.name)||"").toUpperCase();
   const schedBadge=schedDelta===null?null:(Math.abs(schedDelta)<1?<span style={{background:"var(--gbg)",color:"var(--green)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>On time</span>:schedDelta>0?<span style={{background:"var(--ambg)",color:"var(--amber)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>+{schedDelta}m behind</span>:<span style={{background:"var(--gbg)",color:"var(--green)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>{Math.abs(schedDelta)}m ahead</span>);
 
   return (<div className="ccs">
@@ -3558,7 +3795,41 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         </div>))}
         {cur.notes&&<div style={{fontSize:13,color:"var(--black2)",marginTop:8,fontStyle:"italic"}}>{cur.notes}</div>}
       </div>}
-      {!isBlock&&!isCl&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {isScrim&&cur&&scrimBoard&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {inBlockIntro&&<div style={{background:"#0d1512",borderRadius:"var(--r)",padding:"14px 12px",marginBottom:4}}>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b",marginBottom:8}}>Get everyone to their {(scrimCfg.roundLabel||"Half-Inning").toLowerCase()} 1 positions</div>
+          <ScrimmageBoardView board={scrimBoard} cfg={scrimCfg} assignee={scrimAssignee} dark onlyIdx={0}/>
+        </div>}
+        {!inBlockIntro&&<>
+          <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between"}}>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900}}>{(scrimCfg.roundLabel||"Half-Inning")} {scrimRoundIdx+1} of {scrimRoundCount}</div>
+            {isController&&<div style={{display:"flex",gap:6}}>
+              <button className="btn ghost bxs" disabled={scrimRoundIdx===0} onClick={goBack}>◀ Back</button>
+              <button className="btn ghost bxs" disabled={scrimRoundIdx>=scrimRoundCount-1} onClick={advance}>Next ▶</button>
+            </div>}
+          </div>
+          <ScrimmageBoardView board={scrimBoard} cfg={scrimCfg} assignee={scrimAssignee} onlyIdx={scrimRoundIdx} picked={scrimPicked} onSlotTap={isController?(ri,slot)=>{
+            setScrimPicked(p=>{
+              if(!p)return{round:ri,slot};
+              if(p.slot===slot)return null;
+              const rounds=scrimBoard.map(rd=>({slots:Object.assign({},rd.slots),coachRoles:rd.coachRoles}));
+              const a=rounds[ri].slots[p.slot]||null,b=rounds[ri].slots[slot]||null;
+              rounds[ri].slots[p.slot]=b;rounds[ri].slots[slot]=a;
+              setLiveScrimBoard(rounds);
+              if(session)saveSessionScrimmageBoard(session.id,cur.id,coachId,rounds);
+              return null;
+            });
+          }:undefined}/>
+          {scrimPicked&&<div style={{fontSize:11,color:"var(--green2)"}}>Tap another slot in this {(scrimCfg.roundLabel||"half-inning").toLowerCase()} to swap, or the same slot to cancel.</div>}
+          {scrimRoundIdx<scrimRoundCount-1&&(()=>{
+            const nx=scrimBoard[scrimRoundIdx+1];if(!nx)return null;
+            const P=scrimAssignee(nx.slots.P),C=scrimAssignee(nx.slots.C);
+            const hitters=Object.keys(nx.slots).filter(k=>/^H\d+$/.test(k)).map(k=>scrimAssignee(nx.slots[k])).filter(Boolean);
+            return <div style={{fontSize:12,color:"var(--td)",borderTop:"1px solid var(--b)",paddingTop:8}}><strong>Next {(scrimCfg.roundLabel||"Half-Inning").toLowerCase()}:</strong> P {P||"Open"} · C {C||"Open"} · Hitting {hitters.join(", ")}</div>;
+          })()}
+        </>}
+      </div>}
+      {!isBlock&&!isCl&&!isScrim&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
         {cur.description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
           <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{cur.description}</div>
