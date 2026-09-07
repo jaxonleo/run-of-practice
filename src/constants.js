@@ -517,6 +517,21 @@ export function categoryMinutesForPracticeActivities(activities,activityLibraryB
       });
       return;
     }
+    if(act.type==="scrimmage"){
+      // Not a library drill -- its tags live on the config, and (section 8)
+      // it counts toward the denominator like any timed activity.
+      const dur=act.duration||0;
+      totalMinutes+=dur;
+      const tagIds=(act.scrimmageConfig&&act.scrimmageConfig.skillTagIds)||[];
+      if(tagIds.length){
+        const perTag=dur/tagIds.length;
+        tagIds.forEach(tagId=>{
+          const catId=skillTagsById[tagId]&&skillTagsById[tagId].categoryId;
+          if(catId)byCategory[catId]=(byCategory[catId]||0)+perTag;
+        });
+      }
+      return;
+    }
     const dur=act.duration||0;
     totalMinutes+=dur;
     addTaggedMinutes(act.libraryId,dur,byCategory,activityLibraryById,skillTagsById);
@@ -835,9 +850,13 @@ export const SCRIMMAGE_FIELD_SLOTS=["P","C","1B","2B","3B","SS","LF","CF","RF"];
 const SCRIMMAGE_SLOT_KEEP_PRIORITY=["P","C","SS","2B","3B","1B","LF","CF","RF"];
 const SCRIMMAGE_OF_SLOTS=["LF","CF","RF"];
 
-export function buildDefaultScrimmageConfig(durationMinutes,perRoundMinutes){
+// Per-half-inning minutes the duration<->count link preserves once a coach
+// edits either field directly (section 3.2). 60 / 6 = 10 half-innings.
+export const SCRIMMAGE_DEFAULT_ROUND_MINUTES=6;
+
+export function buildDefaultScrimmageConfig(durationMinutes,perRoundMinutes,skillTagIds){
   const dur=durationMinutes||60;
-  const per=perRoundMinutes||6;
+  const per=perRoundMinutes||SCRIMMAGE_DEFAULT_ROUND_MINUTES;
   return {
     format:"everyone_rotates",
     rounds:Math.max(1,Math.round(dur/per)),
@@ -850,8 +869,29 @@ export function buildDefaultScrimmageConfig(durationMinutes,perRoundMinutes){
     perRoundTimer:false,
     coachRoles:[],
     locks:{},
+    skillTagIds:skillTagIds||[],
     seed:uid(),
   };
+}
+
+// section 8: a scrimmage "counts a little toward every area". Default tag
+// selection is the first tag alphabetically (scope='global') in every
+// category for the team's sport, so the even-split covers hitting,
+// fielding, pitching, base running, and so on. Softball has no categories
+// today -> returns [] and the block stays untagged (the existing untagged
+// path handles it). `skillCategories` / `skillTags` come straight from
+// `data`; each category is { id, name, sport }, each tag { id, name,
+// categoryId, scope }.
+export function defaultScrimmageTagIds(skillCategories,skillTags,sport){
+  const cats=(skillCategories||[]).filter(c=>c.sport===sport);
+  const out=[];
+  cats.forEach(cat=>{
+    const inCat=(skillTags||[])
+      .filter(t=>t.categoryId===cat.id&&(t.scope==null||t.scope==="global"))
+      .sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+    if(inCat.length)out.push(inCat[0].id);
+  });
+  return out;
 }
 
 // Small deterministic string-seeded PRNG (FNV-1a hash -> mulberry32) so the
