@@ -9,11 +9,20 @@
 // dev with nothing set in .env) means this quietly no-ops rather than
 // erroring -- Sentry.init requires a dsn to do anything, and every capture
 // call becomes a no-op without one.
+//
+// Also gated on import.meta.env.PROD so a local `vite dev` server never
+// reports: even with a real DSN in .env (the dev server loads it so it can
+// point at staging), a `vite dev` build has PROD=false, while every
+// `vite build` -- production AND Vercel preview / staging deploys -- has
+// PROD=true and still reports (tagged by environment). This stops the
+// "2 new alerts" noise from a developer's own machine (e.g. a stale-HMR
+// ReferenceError caught mid-edit) landing in the same project's alert rules
+// as real production errors.
 import * as Sentry from '@sentry/react'
 
 const dsn = import.meta.env.VITE_SENTRY_DSN
 
-if (dsn) {
+if (dsn && import.meta.env.PROD) {
   Sentry.init({
     dsn,
     environment: import.meta.env.VITE_ENVIRONMENT || 'development',
@@ -56,9 +65,10 @@ if (dsn) {
 
 // Called from App.jsx's auth effect so every subsequent error, replay, and
 // trace is tied to a real coach -- "someone hit this" becomes "coach X hit
-// this at 7:42, reach out." Pass null on sign-out to clear it. No-ops when
-// Sentry was never initialized (no DSN).
+// this at 7:42, reach out." Pass null on sign-out to clear it. No-ops
+// whenever Sentry.init above was skipped (no DSN, or a local dev build).
+const sentryEnabled = !!dsn && import.meta.env.PROD
 export function setSentryUser(user) {
-  if (!dsn) return
+  if (!sentryEnabled) return
   Sentry.setUser(user ? { id: user.id, email: user.email } : null)
 }
