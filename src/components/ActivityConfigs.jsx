@@ -1,5 +1,8 @@
-import React, { useState, useRef, useEffect } from "react";
-import { uid, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, groupByAttribute, stationIsPlanned, timeAgo } from "../constants.js";
+import React, { useState, useRef, useEffect, useMemo } from "react";
+import { uid, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, groupByAttribute, stationIsPlanned, timeAgo,
+  SCRIMMAGE_FIELD_SLOTS, SCRIMMAGE_DEFAULT_ROUND_MINUTES, generateScrimmageBoard, repairScrimmageBoard,
+  summarizeScrimmageFairness, scrimmagePlayerRotation, buildDefaultScrimmageConfig } from "../constants.js";
+import { SkillTagPicker } from "./ModalLayer.jsx";
 import { createAsset, updateAsset, findMissingEquipment, resolveDrillEquipmentForCoach, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed } from "../supabase.js";
 import { Ic } from "../icons.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
@@ -837,4 +840,441 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
     {equipDialog&&<EquipmentMismatchDialog drillName={equipDialog.lib.name} missing={findMissingEquipment(equipDialog.lib.equipment,assetsById,ownAssetPool)} context="practice" onAddWithEquipment={()=>resolveAndChoose(true)} onAddAnyway={()=>resolveAndChoose(false)} onCancel={()=>setEquipDialog(null)}/>}
     {privateWarning&&<PrivateDrillWarningDialog drillName={privateWarning.lib.name} onAdd={chooseFromLibraryAfterPrivateWarning} onCancel={()=>setPrivateWarning(null)} onDismissForever={async()=>{setPrivateWarningDismissed(true);await setPrivateDrillWarningDismissed(coachId,true);}}/>}
   </div>);
+}
+
+// ── ScrimmageConfig (ROP-Scrimmage-Handoff.md section 3.2 - 3.6) ────────────
+// One primary path (name, duration/half-innings, format, Generate, the
+// board) and two collapsed disclosures (Round rules, Coach roles). A
+// first-time coach never opens a disclosure and still gets sensible
+// defaults. `team` is null in the template editor -- config only, no board.
+function CountStepper({value,min,max,onChange,suffix}){
+  const mn=min==null?1:min;
+  return (<div style={{display:"flex",alignItems:"center",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",overflow:"hidden",background:"#fff"}}>
+    <button type="button" onClick={()=>onChange(Math.max(mn,value-1))} style={{width:40,height:40,border:"none",background:"var(--s2)",color:"var(--black2)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0}}>-</button>
+    <div style={{flex:1,textAlign:"center",fontFamily:"DM Mono,monospace",fontSize:15,fontWeight:600,color:"var(--black)"}}>{value}{suffix||""}</div>
+    <button type="button" onClick={()=>onChange(max!=null?Math.min(max,value+1):value+1)} style={{width:40,height:40,border:"none",background:"var(--s2)",color:"var(--black2)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0}}>+</button>
+  </div>);
+}
+
+const SCRIMMAGE_DEFAULT_ROLES=["Umpire","1B Coach","3B Coach","Dugout"];
+
+export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId,refreshLibrary,absentPlayerIds,isBB}){
+  const cfg=act.scrimmageConfig||buildDefaultScrimmageConfig(act.duration||60,SCRIMMAGE_DEFAULT_ROUND_MINUTES);
+  const board=Array.isArray(act.scrimmageRounds)?act.scrimmageRounds:null;
+  const label=cfg.roundLabel||"Half-Inning";
+  const outIds=absentPlayerIds||new Set();
+  const roster=(team&&team.players)||[];
+  const pool=useMemo(()=>roster.filter(p=>!outIds.has(p.id)&&!((cfg.locks||{})[p.id]||{}).sitOut).slice().sort((a,b)=>(a.firstName||"").localeCompare(b.firstName||"")),[roster,outIds,cfg.locks]);
+
+  const [rulesOpen,setRulesOpen]=useState(false);
+  const [rolesOpen,setRolesOpen]=useState(false);
+  const [confirmRegen,setConfirmRegen]=useState(false);
+  const [rotationPlayerId,setRotationPlayerId]=useState(null);
+  const [lockPlayerId,setLockPlayerId]=useState(null);
+  const [picked,setPicked]=useState(null); // {round, slot} for pick-up-and-drop
+  const [jumpRound,setJumpRound]=useState(null);
+
+  const setCfg=patch=>onChange({scrimmageConfig:Object.assign({},cfg,patch)});
+
+  // Duration <-> half-inning count stay linked both ways. Once the coach
+  // edits either directly the per-round minutes ratio is what's preserved,
+  // never a hardcoded 6.
+  const perRound=Math.max(1,Math.round((act.duration||60)/Math.max(1,cfg.rounds)));
+  const setDuration=mins=>{
+    const rounds=Math.max(1,Math.round(mins/perRound));
+    onChange({duration:mins,scrimmageConfig:Object.assign({},cfg,{rounds})});
+  };
+  const setRounds=n=>{
+    const rounds=Math.max(1,n);
+    onChange({duration:rounds*perRound,scrimmageConfig:Object.assign({},cfg,{rounds})});
+  };
+
+  const genInput=(rounds)=>({
+    players:pool.map(p=>({id:p.id,name:((p.firstName||"")+" "+(p.lastName||"")).trim()||p.firstName,positions:p.positions||[],locks:(cfg.locks||{})[p.id]||{}})),
+    rounds:rounds||cfg.rounds,
+    slots:cfg.slots||[...SCRIMMAGE_FIELD_SLOTS],
+    hittersPerRound:cfg.hittersPerRound==null?"auto":cfg.hittersPerRound,
+    catcherHold:cfg.catcherHold||2,
+    pitcherRoundsMax:cfg.pitcherRoundsMax||1,
+    seed:cfg.seed||uid(),
+  });
+  const rolesAssignMap=()=>{
+    const m={};(cfg.coachRoles||[]).forEach(r=>{m[r.id]=(cfg.roleAssignees||{})[r.id]||null;});return m;
+  };
+  const [warnings,setWarnings]=useState([]);
+  const runGenerate=(seed)=>{
+    const s=seed||uid();
+    const {board:b,warnings:w}=generateScrimmageBoard(Object.assign(genInput(),{seed:s}));
+    const roleMap=rolesAssignMap();
+    onChange({scrimmageConfig:Object.assign({},cfg,{seed:s}),scrimmageRounds:b.map(rd=>({slots:rd.slots,coachRoles:Object.assign({},roleMap)}))});
+    setWarnings(w);
+    setConfirmRegen(false);
+  };
+  const runRepairFull=()=>{
+    if(!board)return;
+    const {board:b,warnings:w}=repairScrimmageBoard(genInput(board.length),board.map(rd=>({slots:Object.assign({},rd.slots)})));
+    onChange({scrimmageRounds:b.map((rd,i)=>({slots:rd.slots,coachRoles:(board[i]&&board[i].coachRoles)||rolesAssignMap()}))});
+    setWarnings(w);
+  };
+  const addHalfInning=()=>{
+    const next=(board||[]).concat([{slots:{}}]);
+    const {board:b,warnings:w}=repairScrimmageBoard(genInput(next.length),next.map(rd=>({slots:Object.assign({},rd.slots)})));
+    onChange({duration:(cfg.rounds+1)*perRound,scrimmageConfig:Object.assign({},cfg,{rounds:cfg.rounds+1}),scrimmageRounds:b.map((rd,i)=>({slots:rd.slots,coachRoles:(board&&board[i]&&board[i].coachRoles)||rolesAssignMap()}))});
+    setWarnings(w);
+  };
+  const removeHalfInning=idx=>{
+    if(!board||board.length<=1)return;
+    const nb=board.filter((_,i)=>i!==idx);
+    onChange({duration:nb.length*perRound,scrimmageConfig:Object.assign({},cfg,{rounds:nb.length}),scrimmageRounds:nb});
+  };
+
+  // ── pick-up-and-drop swap within one round ───────────────────────────────
+  const activeSlotsForRound=()=>{
+    const fs=(cfg.slots||[...SCRIMMAGE_FIELD_SLOTS]).slice();
+    const hitN=Math.max(1,(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")?(pool.length-fs.length):cfg.hittersPerRound);
+    for(let i=1;i<=Math.max(hitN,1);i++)fs.push("H"+i);
+    return fs;
+  };
+  const slotOccupant=(ri,slot)=>{
+    const a=board&&board[ri]&&board[ri].slots[slot];
+    return a||null;
+  };
+  const assigneeLabel=a=>{
+    if(!a)return null;
+    if(a.player_id){const p=roster.find(x=>x.id===a.player_id);return p?(p.jersey?"#"+p.jersey+" ":"")+p.firstName:"Player";}
+    if(a.team_staff_id){const c=((team&&team.coaches)||[]).find(x=>x.id===a.team_staff_id);return c?c.name:"Coach";}
+    if(a.helper_name)return a.helper_name;
+    return null;
+  };
+  const doSwap=(ri,slot)=>{
+    if(!picked){setPicked({round:ri,slot});return;}
+    if(picked.round!==ri){setPicked({round:ri,slot});return;} // swaps are within a round only
+    if(picked.slot===slot){setPicked(null);return;} // tap again to cancel
+    const rounds=board.map(rd=>({slots:Object.assign({},rd.slots),coachRoles:rd.coachRoles}));
+    const a=rounds[ri].slots[picked.slot]||null;
+    const b2=rounds[ri].slots[slot]||null;
+    rounds[ri].slots[picked.slot]=b2;
+    rounds[ri].slots[slot]=a;
+    // keep hitter keys contiguous is not required here (fixed key set), but
+    // a null in a hitter slot is fine -- renders as Open.
+    onChange({scrimmageRounds:rounds});
+    setPicked(null);
+  };
+
+  // ── locks ───────────────────────────────────────────────────────────────
+  const playerLock=pid=>(cfg.locks||{})[pid]||{};
+  const setPlayerLock=(pid,patch)=>{
+    const locks=Object.assign({},cfg.locks||{});
+    const cur=Object.assign({},locks[pid]||{},patch);
+    const empty=!cur.position&&!cur.noHit&&!cur.noPitch&&!cur.noCatch&&!cur.sitOut;
+    if(empty)delete locks[pid];else locks[pid]=cur;
+    setCfg({locks});
+  };
+
+  // ── coach roles ─────────────────────────────────────────────────────────
+  const addRole=lbl=>{
+    const roles=(cfg.coachRoles||[]).concat([{id:uid(),label:lbl}]);
+    setCfg({coachRoles:roles});
+  };
+  const removeRole=id=>{
+    const roles=(cfg.coachRoles||[]).filter(r=>r.id!==id);
+    const ra=Object.assign({},cfg.roleAssignees||{});delete ra[id];
+    setCfg({coachRoles:roles,roleAssignees:ra});
+  };
+  const setRoleAssignee=(id,a)=>{
+    const ra=Object.assign({},cfg.roleAssignees||{});ra[id]=a;
+    setCfg({roleAssignees:ra});
+    if(board){onChange({scrimmageRounds:board.map(rd=>({slots:rd.slots,coachRoles:Object.assign({},rd.coachRoles,{[id]:a})}))});}
+  };
+
+  const fairness=board?summarizeScrimmageFairness(board,genInput().players):null;
+  const warnPlayerIds=new Set();
+  (warnings||[]).forEach(w=>pool.forEach(p=>{const nm=((p.firstName||"")+" "+(p.lastName||"")).trim();if(nm&&w.includes(nm))warnPlayerIds.add(p.id);}));
+
+  // scroll a card into view when a rotation-sheet line is tapped
+  useEffect(()=>{
+    if(jumpRound==null)return;
+    const el=document.getElementById("scrim-card-"+act.id+"-"+jumpRound);
+    if(el)el.scrollIntoView({behavior:"smooth",block:"center"});
+    setJumpRound(null);
+  },[jumpRound,act.id]);
+
+  const FIELD_ALL=[...SCRIMMAGE_FIELD_SLOTS];
+  const activeFieldSlots=cfg.slots||FIELD_ALL;
+
+  return (<div>
+    {/* 1. Block Name */}
+    <div className="fld"><label className="lbl">Block Name</label>
+      <input className="inp" value={act.name||""} placeholder="Scrimmage" onChange={e=>onChange({name:e.target.value})} onFocus={e=>e.target.select()}/>
+    </div>
+
+    {/* 2. Duration + Half-Innings (linked both ways) */}
+    <div className="g2">
+      <div className="fld"><label className="lbl">Duration (min)</label>
+        <CountStepper value={act.duration||60} min={6} onChange={setDuration}/>
+      </div>
+      <div className="fld"><label className="lbl">{label}s</label>
+        <CountStepper value={cfg.rounds} min={1} max={40} onChange={setRounds}/>
+      </div>
+    </div>
+
+    {/* 3. Format pill row -- one option today, shown so the coach sees what
+        they got and a future second format has a home. */}
+    <div className="fld"><label className="lbl">Format</label>
+      <div style={{display:"flex",gap:6}}>
+        <span style={{padding:"8px 14px",borderRadius:20,background:"var(--green)",color:"#fff",fontSize:13,fontWeight:700}}>Everyone Rotates</span>
+      </div>
+      <div style={{fontSize:11,color:"var(--td)",marginTop:4}}>Every player rotates through positions and at-bats evenly. No second team needed.</div>
+    </div>
+
+    {/* 4. Generate / Regenerate */}
+    {team&&<div className="fld">
+      {!board&&<>
+        <div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>Tap Generate to build the rotation from each player's positions. You can adjust anything after.</div>
+        <button type="button" className="btn primary bmd bfull" onClick={()=>runGenerate(cfg.seed)}>Generate</button>
+      </>}
+      {board&&!confirmRegen&&<button type="button" className="btn outline bmd bfull" onClick={()=>setConfirmRegen(true)}>Regenerate</button>}
+      {board&&confirmRegen&&<div style={{border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:12}}>
+        <div style={{fontSize:13,marginBottom:10}}>This reshuffles every {label.toLowerCase()}. Locks are kept.</div>
+        <div className="brow"><button type="button" className="btn ghost bsm" style={{flex:1}} onClick={()=>setConfirmRegen(false)}>Never Mind</button>
+        <button type="button" className="btn primary bsm" style={{flex:1}} onClick={()=>runGenerate(uid())}>Regenerate</button></div>
+      </div>}
+    </div>}
+    {!team&&<div style={{fontSize:12,color:"var(--td)",padding:"8px 0"}}>The rotation board is built once this template is used for a real practice.</div>}
+
+    {/* warnings */}
+    {board&&(warnings||[]).length>0&&<div style={{background:"var(--ambg)",border:"1.5px solid var(--amber)",borderRadius:"var(--r)",padding:"10px 12px",marginBottom:10}}>
+      {warnings.map((w,i)=>(<div key={i} style={{fontSize:12,color:"#92400e",marginBottom:i<warnings.length-1?4:0}}>{w}</div>))}
+    </div>}
+
+    {/* 5. Board */}
+    {board&&<div className="fld">
+      {/* player strip */}
+      <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
+        {pool.map(p=>{
+          const lk=playerLock(p.id);
+          const locked=lk.position||lk.noHit||lk.noPitch||lk.noCatch;
+          return (<button key={p.id} type="button" onClick={()=>setRotationPlayerId(p.id)} style={{padding:"5px 9px",borderRadius:14,border:"1.5px solid var(--b)",background:"var(--s1)",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:3}}>
+            {p.jersey?<span style={{fontFamily:"DM Mono,monospace",fontSize:10}}>#{p.jersey}</span>:null}{p.firstName}
+            {locked&&<span title="Has a lock" style={{color:"var(--green)"}}>&#128274;</span>}
+            {warnPlayerIds.has(p.id)&&<span style={{width:6,height:6,borderRadius:"50%",background:"var(--red)"}}/>}
+          </button>);
+        })}
+      </div>
+      {/* fairness badges */}
+      {fairness&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+        <span className="bdg bs" style={{background:fairness.hits.even?"var(--gbg)":"var(--ambg)",color:fairness.hits.even?"var(--green)":"var(--amber)"}}>
+          {fairness.hits.even?"Hits: even":"Hits: uneven ("+fairness.hits.lowNames.slice(0,3).join(", ")+" "+fairness.hits.min+", others "+fairness.hits.max+")"}
+        </span>
+        <span className="bdg bs">Pitch: {fairness.pitch.used} of {fairness.pitch.eligible} pitchers used</span>
+        <span className="bdg bs">Catch: {fairness.catch.count} catchers, ~{fairness.catch.roundsEach} {label.toLowerCase()}s each</span>
+      </div>}
+
+      {/* rounds */}
+      <div className={isBB?"scrim-board-bb":undefined} style={isBB?{overflowX:"auto"}:undefined}>
+        {isBB?(
+          <table style={{borderCollapse:"collapse",width:"100%",fontSize:12}}>
+            <thead><tr>
+              <th style={{position:"sticky",left:0,background:"#fff",textAlign:"left",padding:"6px 8px",borderBottom:"2px solid var(--b)"}}>{label}</th>
+              {activeSlotsForRound().map(s=>(<th key={s} style={{padding:"6px 8px",borderBottom:"2px solid var(--b)",whiteSpace:"nowrap"}}>{/^H\d+$/.test(s)?"Bat "+s.slice(1):s}</th>))}
+            </tr></thead>
+            <tbody>
+              {board.map((rd,ri)=>(<tr key={ri} id={"scrim-card-"+act.id+"-"+ri}>
+                <td style={{position:"sticky",left:0,background:"#fff",fontWeight:700,padding:"6px 8px",borderBottom:"1px solid var(--b)",whiteSpace:"nowrap"}}>{label} {ri+1}
+                  <button type="button" onClick={()=>removeHalfInning(ri)} title="Delete" style={{marginLeft:6,background:"none",border:"none",color:"var(--td)",cursor:"pointer"}}>&#128465;</button>
+                </td>
+                {activeSlotsForRound().map(s=>{
+                  const a=slotOccupant(ri,s);
+                  const isPicked=picked&&picked.round===ri&&picked.slot===s;
+                  const isTarget=picked&&picked.round===ri&&!isPicked;
+                  return (<td key={s} onClick={()=>doSwap(ri,s)} style={{padding:"5px 8px",borderBottom:"1px solid var(--b)",cursor:"pointer",whiteSpace:"nowrap",background:isPicked?"var(--green)":isTarget?"var(--gbg)":undefined,color:isPicked?"#fff":undefined}}>
+                    {assigneeLabel(a)||<span style={{color:"var(--td)"}}>Open</span>}
+                  </td>);
+                })}
+              </tr>))}
+            </tbody>
+          </table>
+        ):(
+          board.map((rd,ri)=>{
+            const P=assigneeLabel(rd.slots.P), C=assigneeLabel(rd.slots.C);
+            const hitters=Object.keys(rd.slots).filter(k=>/^H\d+$/.test(k)).sort((a,b)=>parseInt(a.slice(1))-parseInt(b.slice(1)));
+            const otherSlots=(cfg.slots||FIELD_ALL).filter(s=>s!=="P"&&s!=="C");
+            return (<div key={ri} id={"scrim-card-"+act.id+"-"+ri} style={{border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 12px",marginBottom:8,background:"var(--s1)"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                <span style={{fontFamily:"Barlow Condensed,sans-serif",fontWeight:900,color:"var(--green)"}}>{label} {ri+1}</span>
+                <button type="button" onClick={()=>removeHalfInning(ri)} title={"Delete "+label.toLowerCase()} style={{background:"none",border:"none",color:"var(--td)",fontSize:12,cursor:"pointer"}}>Delete</button>
+              </div>
+              <div style={{fontSize:13,marginBottom:6}}>
+                <span onClick={()=>doSwap(ri,"P")} style={{cursor:"pointer",fontWeight:600,padding:"2px 6px",borderRadius:6,background:picked&&picked.round===ri&&picked.slot==="P"?"var(--green)":picked&&picked.round===ri?"var(--gbg)":undefined,color:picked&&picked.round===ri&&picked.slot==="P"?"#fff":undefined}}>P: {(cfg.slots||FIELD_ALL).includes("P")?(P||"Open"):"Coach Pitch"}</span>
+                <span style={{margin:"0 4px",color:"var(--td)"}}>&middot;</span>
+                <span onClick={()=>doSwap(ri,"C")} style={{cursor:"pointer",fontWeight:600,padding:"2px 6px",borderRadius:6,background:picked&&picked.round===ri&&picked.slot==="C"?"var(--green)":picked&&picked.round===ri?"var(--gbg)":undefined,color:picked&&picked.round===ri&&picked.slot==="C"?"#fff":undefined}}>C: {(cfg.slots||FIELD_ALL).includes("C")?(C||"Open"):"n/a"}</span>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"3px 10px"}}>
+                {otherSlots.map(s=>{
+                  const a=slotOccupant(ri,s);
+                  const isPicked=picked&&picked.round===ri&&picked.slot===s;
+                  const isTarget=picked&&picked.round===ri&&!isPicked;
+                  return (<div key={s} onClick={()=>doSwap(ri,s)} style={{fontSize:12,cursor:"pointer",padding:"3px 6px",borderRadius:6,background:isPicked?"var(--green)":isTarget?"var(--gbg)":undefined,color:isPicked?"#fff":undefined}}>
+                    <span style={{color:isPicked?"rgba(255,255,255,.8)":"var(--td)",fontFamily:"DM Mono,monospace",marginRight:4}}>{s}</span>{assigneeLabel(a)||"Open"}
+                  </div>);
+                })}
+              </div>
+              {hitters.length>0&&<div style={{marginTop:6,fontSize:12}}>
+                <span style={{color:"var(--td)",fontWeight:700}}>Hitting ({cfg.absPerHitter||2} ABs each): </span>
+                {hitters.map((k,i)=>{
+                  const a=slotOccupant(ri,k);
+                  const isPicked=picked&&picked.round===ri&&picked.slot===k;
+                  const isTarget=picked&&picked.round===ri&&!isPicked;
+                  return (<span key={k} onClick={()=>doSwap(ri,k)} style={{cursor:"pointer",padding:"2px 6px",borderRadius:6,marginRight:4,background:isPicked?"var(--green)":isTarget?"var(--gbg)":undefined,color:isPicked?"#fff":undefined}}>{assigneeLabel(a)||"Open"}{i<hitters.length-1?",":""}</span>);
+                })}
+              </div>}
+              {(cfg.coachRoles||[]).length>0&&<div style={{marginTop:6,fontSize:11,color:"var(--td)"}}>
+                {(cfg.coachRoles||[]).map(r=>r.label+": "+(assigneeLabel((rd.coachRoles||{})[r.id])||"Open")).join("  ·  ")}
+              </div>}
+            </div>);
+          })
+        )}
+      </div>
+      {picked&&<div style={{fontSize:11,color:"var(--green2)",marginBottom:6}}>Tap another slot in the same {label.toLowerCase()} to swap, or tap the same slot to cancel.</div>}
+      <button type="button" className="btn ghost bsm bfull" onClick={addHalfInning}>+ Add {label}</button>
+    </div>}
+
+    {/* 6. Round rules disclosure */}
+    <div className="fld">
+      <button type="button" onClick={()=>setRulesOpen(o=>!o)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13}}>
+        Round rules <Ic.Chev up={rulesOpen}/>
+      </button>
+      {rulesOpen&&<div style={{border:"1.5px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)",padding:"12px"}}>
+        <div className="fld"><label className="lbl">Hitters per {label.toLowerCase()}</label>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <button type="button" className="btn ghost bxs" style={{background:(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")?"var(--green)":undefined,color:(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")?"#fff":undefined}} onClick={()=>setCfg({hittersPerRound:"auto"})}>Auto</button>
+            {typeof cfg.hittersPerRound==="number"&&<CountStepper value={cfg.hittersPerRound} min={1} max={12} onChange={n=>setCfg({hittersPerRound:n})}/>}
+            {(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")&&<button type="button" className="btn ghost bxs" onClick={()=>setCfg({hittersPerRound:Math.max(1,pool.length-(cfg.slots||FIELD_ALL).length)})}>Pin a number</button>}
+          </div>
+        </div>
+        <div className="fld"><label className="lbl">At-bats per hitter</label>
+          <CountStepper value={cfg.absPerHitter||2} min={1} max={6} onChange={n=>setCfg({absPerHitter:n})}/>
+          <div style={{fontSize:11,color:"var(--td)",marginTop:2}}>Shown on the board and the live view. Not enforced by the generator.</div>
+        </div>
+        <div className="fld"><label className="lbl">Catcher holds (consecutive {label.toLowerCase()}s)</label>
+          <CountStepper value={cfg.catcherHold||2} min={1} max={Math.max(1,cfg.rounds)} onChange={n=>setCfg({catcherHold:n})}/>
+        </div>
+        <div className="fld"><label className="lbl">Pitcher {label.toLowerCase()}s per player</label>
+          <CountStepper value={cfg.pitcherRoundsMax||1} min={1} max={Math.max(1,cfg.rounds)} onChange={n=>setCfg({pitcherRoundsMax:n})}/>
+        </div>
+        <div className="fld"><label className="lbl">Fielding slots</label>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+            {FIELD_ALL.map(s=>{
+              const on=activeFieldSlots.includes(s);
+              return (<button key={s} type="button" onClick={()=>{
+                const next=on?activeFieldSlots.filter(x=>x!==s):FIELD_ALL.filter(x=>activeFieldSlots.includes(x)||x===s);
+                setCfg({slots:next});
+              }} style={{padding:"5px 10px",borderRadius:14,border:"1.5px solid "+(on?"var(--green)":"var(--b)"),background:on?"var(--green)":"var(--s1)",color:on?"#fff":"var(--black)",fontSize:12,cursor:"pointer"}}>{s}</button>);
+            })}
+          </div>
+          <div style={{fontSize:11,color:"var(--td)",marginTop:3}}>Turn P off for coach pitch. Turn outfield spots off for a small roster.</div>
+        </div>
+        <div className="fld"><label className="lbl">{label} label</label>
+          <input className="inp" value={cfg.roundLabel||"Half-Inning"} onChange={e=>setCfg({roundLabel:e.target.value})} onFocus={e=>e.target.select()}/>
+        </div>
+        {data&&<div className="fld"><label className="lbl">Skill tags</label>
+          <SkillTagPicker data={data} coachId={coachId} sport={teamSport||"General"} selectedIds={cfg.skillTagIds||[]} onChange={ids=>setCfg({skillTagIds:ids})} refreshLibrary={refreshLibrary}/>
+          <div style={{fontSize:11,color:"var(--td)",marginTop:3}}>A scrimmage counts a little toward every area. Remove tags to focus it.</div>
+        </div>}
+      </div>}
+    </div>
+
+    {/* 7. Coach roles disclosure */}
+    {team&&<div className="fld">
+      <button type="button" onClick={()=>setRolesOpen(o=>!o)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13}}>
+        Coach roles <Ic.Chev up={rolesOpen}/>
+      </button>
+      {rolesOpen&&<div style={{border:"1.5px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)",padding:"12px"}}>
+        <div style={{fontSize:11,color:"var(--td)",marginBottom:8}}>Optional here. Practice Setup is the usual place to decide who umpires.</div>
+        {(cfg.coachRoles||[]).map(r=>{
+          const a=(cfg.roleAssignees||{})[r.id]||null;
+          return (<div key={r.id} style={{marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <span style={{fontWeight:600,fontSize:13,flex:1}}>{r.label}</span>
+              <button type="button" className="btn ghost bxs" onClick={()=>removeRole(r.id)}>Remove</button>
+            </div>
+            <RoleAssigneePicker team={team} value={a} onChange={v=>setRoleAssignee(r.id,v)}/>
+          </div>);
+        })}
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
+          {SCRIMMAGE_DEFAULT_ROLES.filter(l=>!(cfg.coachRoles||[]).some(r=>r.label===l)).map(l=>(
+            <button key={l} type="button" className="btn ghost bxs" onClick={()=>addRole(l)}>+ {l}</button>
+          ))}
+          <AddCustomRole onAdd={addRole}/>
+        </div>
+      </div>}
+    </div>}
+
+    <button type="button" className="btn ghost bsm bfull mt8" onClick={onDone}>Done</button>
+
+    {/* player rotation sheet */}
+    {rotationPlayerId&&(()=>{
+      const p=roster.find(x=>x.id===rotationPlayerId);
+      if(!p)return null;
+      const rot=board?scrimmagePlayerRotation(board,rotationPlayerId):{timeline:[],counts:{},holds:[]};
+      const lk=playerLock(rotationPlayerId);
+      return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setRotationPlayerId(null);setLockPlayerId(null);}}}>
+        <div className="modal">
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900}}>{p.firstName} {p.lastName||""} {p.jersey?<span style={{color:"var(--td)"}}>#{p.jersey}</span>:null}</div>
+          <div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>{(p.positions||[]).join(" · ")||"No positions set"}</div>
+          {/* lock controls */}
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+            <select className="sel" style={{maxWidth:150}} value={lk.position||""} onChange={e=>setPlayerLock(rotationPlayerId,{position:e.target.value||undefined})}>
+              <option value="">Lock to position...</option>
+              {activeFieldSlots.map(s=>(<option key={s} value={s}>{s} every {label.toLowerCase()}</option>))}
+            </select>
+            {[["noHit","Never hits"],["noPitch","Never pitches"],["noCatch","Never catches"],["sitOut","Sit out this scrimmage"]].map(([k,lbl])=>(
+              <button key={k} type="button" onClick={()=>setPlayerLock(rotationPlayerId,{[k]:!lk[k]||undefined})} style={{padding:"5px 10px",borderRadius:14,border:"1.5px solid "+(lk[k]?"var(--green)":"var(--b)"),background:lk[k]?"var(--green)":"var(--s1)",color:lk[k]?"#fff":"var(--black)",fontSize:12,cursor:"pointer"}}>{lbl}</button>
+            ))}
+          </div>
+          {board&&<>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
+              {Object.keys(rot.counts).map(k=>(<span key={k} className="bdg bs">{k==="Hit"?"Hit":k} {rot.counts[k]}</span>))}
+            </div>
+            <div style={{maxHeight:220,overflowY:"auto",border:"1px solid var(--b)",borderRadius:"var(--r)"}}>
+              {rot.timeline.map((t,i)=>{
+                const inHold=rot.holds.some(([a,b2])=>i>=a&&i<=b2);
+                return (<div key={i} onClick={()=>{setRotationPlayerId(null);setJumpRound(t.round);}} style={{padding:"7px 10px",borderBottom:i<rot.timeline.length-1?"1px solid var(--b)":"none",fontSize:13,cursor:"pointer",borderLeft:inHold?"3px solid var(--green)":"3px solid transparent"}}>
+                  {label} {t.round+1}: <strong>{t.slot||"Sitting"}</strong>
+                </div>);
+              })}
+            </div>
+          </>}
+          <button type="button" className="btn ghost bsm bfull mt10" onClick={()=>setRotationPlayerId(null)}>Close</button>
+        </div>
+      </div>);
+    })()}
+  </div>);
+}
+
+function RoleAssigneePicker({team,value,onChange}){
+  const [helper,setHelper]=useState(value&&value.helper_name?value.helper_name:"");
+  const [mode,setMode]=useState(value&&value.helper_name?"helper":"coach");
+  return (<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+    {mode==="coach"?<>
+      <select className="sel" style={{flex:1,minWidth:140}} value={value&&value.team_staff_id||""} onChange={e=>onChange(e.target.value?{team_staff_id:e.target.value}:null)}>
+        <option value="">Unassigned</option>
+        {(team.coaches||[]).map(c=>(<option key={c.id} value={c.id}>{c.name}</option>))}
+      </select>
+      <button type="button" className="btn ghost bxs" onClick={()=>{setMode("helper");onChange(null);}}>Helper instead</button>
+    </>:<>
+      <input className="inp" style={{flex:1,minWidth:140}} placeholder="Helper's name" value={helper} onChange={e=>{setHelper(e.target.value);onChange(e.target.value?{helper_name:e.target.value}:null);}}/>
+      <button type="button" className="btn ghost bxs" onClick={()=>{setMode("coach");setHelper("");onChange(null);}}>Coach instead</button>
+    </>}
+  </div>);
+}
+
+function AddCustomRole({onAdd}){
+  const [open,setOpen]=useState(false);
+  const [v,setV]=useState("");
+  if(!open)return <button type="button" className="btn ghost bxs" onClick={()=>setOpen(true)}>+ Custom role</button>;
+  return (<span style={{display:"inline-flex",gap:4}}>
+    <input className="inp" style={{width:120}} autoFocus value={v} onChange={e=>setV(e.target.value)} placeholder="Role name" onKeyDown={e=>{if(e.key==="Enter"&&v.trim()){onAdd(v.trim());setV("");setOpen(false);}}}/>
+    <button type="button" className="btn ghost bxs" onClick={()=>{if(v.trim()){onAdd(v.trim());setV("");}setOpen(false);}}>Add</button>
+  </span>);
 }

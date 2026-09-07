@@ -8,11 +8,11 @@ import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { setSentryUser } from "./sentry.js";
 import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser } from "./constants.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES } from "./constants.js";
 import { TwoPane } from "./components/BBShells.jsx";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
-import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
+import { ActConfig, ChecklistConfig, StationConfig, ScrimmageConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView, usePracticePresence, PresenceBadge } from "./components/CommandScreen.jsx";
 import MyStationBuilderScreen, { StationPresenceIndicator } from "./components/MyStationBuilder.jsx";
 import HomeScreen from "./components/HomeScreen.jsx";
@@ -1591,10 +1591,18 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // just two of PRACTICE_COMPONENT_TYPES, all sharing this one path.
   // station_block is the one non-checklist kind, so it just delegates to
   // addBlock (which already handles its own hand-rotation bump).
+  const addScrimmage=()=>{
+    const tagIds=defaultScrimmageTagIds(data.skillCategories,data.skillTags,teamSport);
+    const cfg=buildDefaultScrimmageConfig(60,SCRIMMAGE_DEFAULT_ROUND_MINUTES,tagIds);
+    const a={id:uid(),type:"scrimmage",name:"Scrimmage",duration:60,coachId:"",sublocationId:"",equipment:[],scrimmageConfig:cfg,scrimmageRounds:null};
+    setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
+    setHandRotation(r=>r+360);
+  };
   const addComponentType=key=>{
     const type=PRACTICE_COMPONENT_TYPES.find(t=>t.key===key);
     if(!type)return;
     if(type.kind==="station_block"){addBlock();return;}
+    if(type.kind==="scrimmage"){addScrimmage();return;}
     const a={id:uid(),type:"checklist",name:type.defaultName,duration:type.defaultDuration,assignments:defaultAssignIds,coachId:headCoachId,items:[],notes:""};
     setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
     setHandRotation(r=>r+360);
@@ -1753,12 +1761,12 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         <div className="modal">
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>Add/Remove Practice Components</div>
           <div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>Choose which of these show as one-tap buttons below. You can change this anytime.</div>
-          {PRACTICE_COMPONENT_TYPES.map(t=>{
+          {PRACTICE_COMPONENT_TYPES.filter(t=>t.key!=="scrimmage"||sportSupportsScrimmage(teamSport)).map(t=>{
             const on=visibleTypeKeys.includes(t.key);
             return (<div key={t.key} className="li tap" style={{marginBottom:8}} onClick={()=>toggleComponentType(t.key)}>
               <div className="lim">
                 <div className="lin">{t.label}</div>
-                <div className="limt">{t.kind==="station_block"?"2+ stations":t.defaultDuration+" min"}</div>
+                <div className="limt">{t.kind==="station_block"?"2+ stations":t.kind==="scrimmage"?"Everyone rotates positions and at-bats":t.defaultDuration+" min"}</div>
               </div>
               <span style={{width:22,height:22,borderRadius:"50%",border:"2px solid "+(on?"var(--green)":"var(--b)"),background:on?"var(--green)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{on&&<Ic.Check/>}</span>
             </div>);
@@ -2022,7 +2030,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                 {dragHandle}
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {act.type==="station_block"?(act.name||"Station Block"):act.name}
+                    {act.type==="station_block"?(act.name||"Station Block"):act.type==="scrimmage"?(act.name||"Scrimmage"):act.name}
                     {/* Direct feedback: a coach should be able to tell at a
                         glance who's leading a drill without expanding it --
                         same coach-or-typed-helper-name label the Practice
@@ -2030,7 +2038,13 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                         row here instead of its own section. */}
                     {act.type==="activity"&&<span style={{fontWeight:400,color:"var(--td)"}}> · {act.coachId?((team&&team.coaches.find(c=>c.id===act.coachId))||{}).name||"Unassigned":(act.helperName||"Unassigned")}</span>}
                   </div>
-                  {act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m
+                  {act.type==="scrimmage"?<div className="limt">{(()=>{
+                    const c=act.scrimmageConfig||{};
+                    const lbl=(c.roundLabel||"Half-Inning").toLowerCase();
+                    const players=(team&&team.players||[]).filter(p=>!absentPlayerIds.has(p.id)).length;
+                    return (c.rounds||0)+" "+lbl+"s · "+(act.duration||0)+" min · "+players+" players"+(act.scrimmageRounds?"":" · Not generated");
+                  })()}</div>:
+                  act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m
                     {/* Only shown once this block actually has a station
                         delegated to someone -- pure noise for the far more
                         common single-owner block, where "planned" isn't a
@@ -2088,6 +2102,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                     {act.stations.filter(s=>s.delegatedTo).map(s=><StationPresenceIndicator key={s.id} stationId={s.id}/>)}
                   </div>}
                   {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} libraryDrills={sourceFilteredLib} librarySources={librarySources} libSource={libSource} setLibSource={setLibSource} skillTags={data.skillTags} absentPlayerIds={absentPlayerIds}/>}
+                  {act.type==="scrimmage"&&<ScrimmageConfig act={act} team={team} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} data={data} coachId={coachId} refreshLibrary={refreshLibrary} absentPlayerIds={absentPlayerIds} isBB={isBB}/>}
                 </div>
               )}
             </div>
@@ -2118,9 +2133,9 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       {componentsOpen&&(<>
         {visibleTypeKeys.length===0&&<div style={{fontSize:13,color:"var(--td)",textAlign:"center",padding:"12px 0",marginBottom:8}}>No quick-add types selected. Tap the ⋯ above to choose some.</div>}
         {visibleTypeKeys.length>0&&<div className="g2" style={{marginBottom:14}}>
-          {PRACTICE_COMPONENT_TYPES.filter(t=>visibleTypeKeys.includes(t.key)).map(t=>(
+          {PRACTICE_COMPONENT_TYPES.filter(t=>visibleTypeKeys.includes(t.key)).filter(t=>t.key!=="scrimmage"||sportSupportsScrimmage(teamSport)).map(t=>(
             <div key={t.key} className="li tap" style={{marginBottom:0}} onClick={()=>addComponentType(t.key)}>
-              <div className="lim"><div className="lin">{t.label}</div><div className="limt">{t.kind==="station_block"?"2+ stations":t.defaultDuration+" min"}</div></div>
+              <div className="lim"><div className="lin">{t.label}</div><div className="limt">{t.kind==="station_block"?"2+ stations":t.kind==="scrimmage"?"Everyone rotates":t.defaultDuration+" min"}</div></div>
               <span style={{color:"var(--green)",fontSize:18,fontWeight:700,flexShrink:0}}>+</span>
             </div>
           ))}

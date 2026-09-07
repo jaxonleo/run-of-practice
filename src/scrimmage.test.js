@@ -25,7 +25,7 @@ function mkRoster(n, opts = {}) {
     if (i >= pitchers && i < pitchers + catchers) pos.push('C')
     pos.push(infield[i % 4])
     pos.push(infield[(i + 2) % 4]) // a second, different infield spot
-    if (!pos.includes('P')) pos.push('OF') // utility players cover the outfield too
+    pos.push('OF') // a real 10U roster: nearly every kid has outfield on file
     return { id: 'p' + i, name: 'Player ' + i, positions: [...new Set(pos)] }
   })
 }
@@ -92,6 +92,20 @@ describe('generateScrimmageBoard - core invariants', () => {
       assertEligibleFielders(a.board, players, FIELD)
     })
   }
+
+  it('a full roster (more players than slots) leaves no field slot Open', () => {
+    // With exactly players === slots, auto still forces one hitter, so one
+    // field slot is legitimately Open -- that case is covered separately.
+    for (const n of [11, 13, 16]) {
+      const players = mkRoster(n)
+      const { board } = generateScrimmageBoard({ players, rounds: 10, slots: FIELD, hittersPerRound: 'auto', catcherHold: 2, pitcherRoundsMax: 1, seed: 'noopen-' + n })
+      board.forEach((rd, ri) => FIELD.forEach(s => {
+        // P/C may be Open if the roster genuinely has no eligible pitcher/catcher;
+        // this fixture always has some, and the rest must never be Open.
+        expect(rd.slots[s], `n=${n} round ${ri} slot ${s} Open`).not.toBe(null)
+      }))
+    }
+  })
 
   it('a different seed produces a different board', () => {
     const players = mkRoster(13)

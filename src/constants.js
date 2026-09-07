@@ -904,6 +904,31 @@ function scrimmageRng(seed){
 
 function scrimmagePlayerById(players,id){return players.find(p=>p.id===id)||null;}
 
+// Max bipartite matching (Kuhn's augmenting paths) between a set of players
+// and a set of fielding slots, edge = player eligible for slot. Small n (a
+// roster and <=9 slots), so the simple O(V*E) form is fine.
+// scrimmageMatchAssign returns { slotIndex: playerIndex } for a maximum
+// matching; scrimmageMaxMatch is just its size.
+function scrimmageMatchAssign(playerList,slots){
+  const slotOf={}; // playerIndex -> slotIndex
+  const tryKuhn=(slotIdx,visited)=>{
+    for(let pi=0;pi<playerList.length;pi++){
+      if(visited.has(pi))continue;
+      if(!scrimmageEligibleForSlot(playerList[pi],slots[slotIdx]))continue;
+      visited.add(pi);
+      if(slotOf[pi]===undefined||tryKuhn(slotOf[pi],visited)){slotOf[pi]=slotIdx;return true;}
+    }
+    return false;
+  };
+  for(let si=0;si<slots.length;si++)tryKuhn(si,new Set());
+  const bySlot={};
+  Object.keys(slotOf).forEach(pi=>{bySlot[slotOf[pi]]=Number(pi);});
+  return bySlot;
+}
+function scrimmageMaxMatch(playerList,slots){
+  return Object.keys(scrimmageMatchAssign(playerList,slots)).length;
+}
+
 // Eligibility from the profile's position chips (section 3.3):
 //   P -> can pitch, C -> can catch, 1B/2B/3B/SS literal, IF -> any infield,
 //   OF -> LF/CF/RF. A player with no positions set is eligible for every slot
@@ -1023,36 +1048,43 @@ function scrimmageBuildBoard(cfg){
     const batOrder=fieldPool.slice().sort((a,b)=>
       (hitCount[a.id]-hitCount[b.id])||(lastHitRound[a.id]-lastHitRound[b.id])||(rand()-0.5));
     const batters=[];
-    const stillFieldable=new Set(fieldPool.map(p=>p.id));
-    const slotCoverable=s=>[...stillFieldable].some(id=>scrimmageEligibleForSlot(scrimmagePlayerById(players,id),s));
+    const batterIds=new Set();
+    // A batter can only be taken out of the fielding pool if the remaining
+    // fielders can still cover every open field slot with a distinct player
+    // (a real bipartite matching, not just "some eligible player exists for
+    // each slot" -- that weaker check let two outfielders both bat and
+    // leave RF Open even on a full roster).
     for(const p of batOrder){
       if(batters.length>=targetHitters)break;
       if(p.locks&&p.locks.noHit)continue;
-      stillFieldable.delete(p.id);
-      if(openFieldSlots.every(slotCoverable)){batters.push(p);}
-      else{stillFieldable.add(p.id);}
+      const remainingFielders=fieldPool.filter(x=>x.id!==p.id&&!batterIds.has(x.id));
+      const cover=scrimmageMaxMatch(remainingFielders,openFieldSlots);
+      if(cover>=Math.min(openFieldSlots.length,remainingFielders.length)){
+        batters.push(p);batterIds.add(p.id);
+      }
     }
-    const batterIds=new Set(batters.map(p=>p.id));
 
-    // 5. fill fielding slots from the non-batters, most-constrained slot
-    //    first so an inflexible player still lands their one real position.
-    const fielders=fieldPool.filter(p=>!batterIds.has(p.id));
-    const remainingSlots=openFieldSlots.slice();
-    while(remainingSlots.length){
-      remainingSlots.sort((a,b)=>{
-        const ca=fielders.filter(p=>!used.has(p.id)&&scrimmageEligibleForSlot(p,a)).length;
-        const cb=fielders.filter(p=>!used.has(p.id)&&scrimmageEligibleForSlot(p,b)).length;
-        return ca-cb || SCRIMMAGE_SLOT_KEEP_PRIORITY.indexOf(a)-SCRIMMAGE_SLOT_KEEP_PRIORITY.indexOf(b);
-      });
-      const s=remainingSlots.shift();
-      const cands=fielders.filter(p=>!used.has(p.id)&&scrimmageEligibleForSlot(p,s));
-      if(!cands.length){round.slots[s]=null;continue;}
-      cands.sort((a,b)=>scrimmageFieldScore(a,s,slotCount,hitCount,prevRoundSlot,rand)-scrimmageFieldScore(b,s,slotCount,hitCount,prevRoundSlot,rand));
-      const chosen=cands[0];
+    // 5. fill fielding slots from the non-batters via a real max bipartite
+    //    matching, so a slot never goes Open while a valid distinct-player
+    //    assignment exists. The fielder list is seeded-shuffled AND then
+    //    ordered by the fairness score for each slot's most-constrained
+    //    resolution, so different rounds/retries produce different valid
+    //    assignments and a player does not sit in one position every round
+    //    (position-spread variance is also one of the retry-loop's ranking
+    //    keys). Nothing here can create an Open slot the matching could
+    //    have avoided.
+    const fielders=fieldPool.filter(p=>!batterIds.has(p.id))
+      .map(p=>[p,scrimmageFieldScore(p,"1B",slotCount,hitCount,prevRoundSlot,rand)+rand()])
+      .sort((a,b)=>a[1]-b[1]).map(x=>x[0]);
+    const bySlot=scrimmageMatchAssign(fielders,openFieldSlots);
+    openFieldSlots.forEach((s,k)=>{
+      const fi=bySlot[k];
+      if(fi==null||fielders[fi]==null){round.slots[s]=null;return;}
+      const chosen=fielders[fi];
       round.slots[s]={player_id:chosen.id};
       used.add(chosen.id);thisRoundSlot[chosen.id]=s;
       slotCount[chosen.id+"|"+s]=(slotCount[chosen.id+"|"+s]||0)+1;
-    }
+    });
 
     // 6. assign the batters. In auto mode, a non-batter left unused because
     //    a field slot went Open (no eligible player) bats instead of
@@ -1373,28 +1405,36 @@ function scrimmageCompactHitters(round){
 function scrimmageRebalanceHits(board,players,fieldSlots,hitCount,lockedPos,rand){
   // A Never-hits player legitimately bats zero times -- keep them out of the
   // spread math entirely so the loop doesn't chase an impossible target.
-  for(let guard=0;guard<50;guard++){
+  const byId=Object.fromEntries(players.map(p=>[p.id,p]));
+  const nonHitField=["1B","2B","3B","SS","LF","CF","RF"]; // swap-in slots (not P/C)
+  for(let guard=0;guard<120;guard++){
     const present=players.filter(p=>!(p.locks&&(p.locks.sitOut||p.locks.noHit)));
     const hv=present.map(p=>hitCount[p.id]||0);
     if(!hv.length)return;
     const hi=Math.max(...hv),lo=Math.min(...hv);
     if(hi-lo<=1)return;
-    const over=present.filter(p=>(hitCount[p.id]||0)===hi);
-    const under=present.filter(p=>(hitCount[p.id]||0)===lo);
+    const over=present.filter(p=>(hitCount[p.id]||0)===hi&&!lockedPos[p.id]);
+    const under=present.filter(p=>(hitCount[p.id]||0)===lo&&!lockedPos[p.id]);
     let done=false;
-    for(const o of over){
+    // Directly target an under-batted player: find a round where U fields a
+    // non-P/C slot and an over-batted O bats. If the round's other non-P/C
+    // fielders plus O can still cover every non-P/C slot without U, then O
+    // fields and U bats.
+    for(const u of under){
       for(let ri=0;ri<board.length&&!done;ri++){
         const rd=board[ri].slots;
-        const oHits=Object.keys(rd).find(k=>/^H\d+$/.test(k)&&rd[k]&&rd[k].player_id===o.id);
-        if(!oHits)continue;
-        // find an under player fielding this round in a non-locked slot
-        for(const u of under){
-          if(lockedPos[u.id])continue;
-          const uSlot=Object.keys(rd).find(k=>!/^H\d+$/.test(k)&&rd[k]&&rd[k].player_id===u.id&&k!=="C");
-          if(!uSlot)continue;
-          if(uSlot==="P"||!scrimmageEligibleForSlot(o,uSlot))continue;
-          // swap: o fields uSlot, u bats
-          rd[uSlot]={player_id:o.id};
+        const uSlot=nonHitField.find(s=>rd[s]&&rd[s].player_id===u.id);
+        if(!uSlot)continue;
+        for(const o of over){
+          const oHits=Object.keys(rd).find(k=>/^H\d+$/.test(k)&&rd[k]&&rd[k].player_id===o.id);
+          if(!oHits)continue;
+          const rSlots=nonHitField.filter(s=>rd[s]&&rd[s].player_id);
+          const otherFielders=rSlots.map(s=>byId[rd[s].player_id]).filter(p=>p&&p.id!==u.id&&!lockedPos[p.id]);
+          if(otherFielders.length!==rSlots.length-1)continue; // a locked fielder here
+          const cand=[o,...otherFielders];
+          const bySlot=scrimmageMatchAssign(cand,rSlots);
+          if(Object.keys(bySlot).length!==rSlots.length)continue; // can't cover without u
+          rSlots.forEach((s,si)=>{const ci=bySlot[si];if(ci!=null)rd[s]={player_id:cand[ci].id};});
           rd[oHits]={player_id:u.id};
           hitCount[o.id]--;hitCount[u.id]++;
           done=true;break;
@@ -1402,7 +1442,7 @@ function scrimmageRebalanceHits(board,players,fieldSlots,hitCount,lockedPos,rand
       }
       if(done)break;
     }
-    if(!done)return; // no legal swap available
+    if(!done)return; // no improving move anywhere
   }
 }
 
