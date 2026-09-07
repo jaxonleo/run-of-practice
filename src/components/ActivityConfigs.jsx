@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { uid, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, groupByAttribute, stationIsPlanned, timeAgo,
   SCRIMMAGE_FIELD_SLOTS, SCRIMMAGE_DEFAULT_ROUND_MINUTES, generateScrimmageBoard, repairScrimmageBoard,
   summarizeScrimmageFairness, scrimmagePlayerRotation, buildDefaultScrimmageConfig } from "../constants.js";
@@ -861,7 +862,7 @@ const SCRIMMAGE_DEFAULT_ROLES=["Umpire","1B Coach","3B Coach","Dugout"];
 export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId,refreshLibrary,absentPlayerIds,isBB}){
   const cfg=act.scrimmageConfig||buildDefaultScrimmageConfig(act.duration||60,SCRIMMAGE_DEFAULT_ROUND_MINUTES);
   const board=Array.isArray(act.scrimmageRounds)?act.scrimmageRounds:null;
-  const label=cfg.roundLabel||"Half-Inning";
+  const label=cfg.roundLabel||"Round";
   const outIds=absentPlayerIds||new Set();
   const roster=(team&&team.players)||[];
   const pool=useMemo(()=>roster.filter(p=>!outIds.has(p.id)&&!((cfg.locks||{})[p.id]||{}).sitOut).slice().sort((a,b)=>(a.firstName||"").localeCompare(b.firstName||"")),[roster,outIds,cfg.locks]);
@@ -896,6 +897,7 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
     hittersPerRound:cfg.hittersPerRound==null?"auto":cfg.hittersPerRound,
     catcherHold:cfg.catcherHold||2,
     pitcherRoundsMax:cfg.pitcherRoundsMax||1,
+    roundLabel:cfg.roundLabel,
     seed:cfg.seed||uid(),
   });
   const rolesAssignMap=()=>{
@@ -1175,7 +1177,14 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
           <div style={{fontSize:11,color:"var(--td)",marginTop:3}}>Turn P off for coach pitch. Turn outfield spots off for a small roster.</div>
         </div>
         <div className="fld"><label className="lbl">{label} label</label>
-          <input className="inp" value={cfg.roundLabel||"Half-Inning"} onChange={e=>setCfg({roundLabel:e.target.value})} onFocus={e=>e.target.select()}/>
+          <input className="inp" value={cfg.roundLabel||"Round"} onChange={e=>setCfg({roundLabel:e.target.value})} onFocus={e=>e.target.select()}/>
+        </div>
+        <div className="fld">
+          <button type="button" onClick={()=>setCfg({perRoundTimer:!cfg.perRoundTimer})} style={{display:"flex",alignItems:"center",gap:8,background:"none",border:"none",padding:0,cursor:"pointer"}}>
+            <span style={{width:20,height:20,borderRadius:"50%",border:"2px solid "+(cfg.perRoundTimer?"var(--green)":"var(--b)"),background:cfg.perRoundTimer?"var(--green)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{cfg.perRoundTimer&&<Ic.Check/>}</span>
+            <span style={{fontSize:13,fontWeight:600}}>Show a timer for each {label.toLowerCase()}</span>
+          </button>
+          <div style={{fontSize:11,color:"var(--td)",marginTop:3}}>A small pacing countdown on the live board (block duration ÷ {label.toLowerCase()}s). Off by default; the overall block timer is always shown.</div>
         </div>
         {data&&<div className="fld"><label className="lbl">Skill tags</label>
           <SkillTagPicker data={data} coachId={coachId} sport={teamSport||"General"} selectedIds={cfg.skillTagIds||[]} onChange={ids=>setCfg({skillTagIds:ids})} refreshLibrary={refreshLibrary}/>
@@ -1212,13 +1221,16 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
 
     <button type="button" className="btn ghost bsm bfull mt8" onClick={onDone}>Done</button>
 
-    {/* player rotation sheet */}
+    {/* player rotation sheet -- portalled to <body> so it is a true
+        viewport overlay (centered by the app's own @media(min-width:1024px)
+        .movly rule) rather than being clipped by the Builder's left pane,
+        which is an overflow:auto scroll container. */}
     {rotationPlayerId&&(()=>{
       const p=roster.find(x=>x.id===rotationPlayerId);
       if(!p)return null;
       const rot=board?scrimmagePlayerRotation(board,rotationPlayerId):{timeline:[],counts:{},holds:[]};
       const lk=playerLock(rotationPlayerId);
-      return (<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setRotationPlayerId(null);setLockPlayerId(null);}}}>
+      return createPortal(<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setRotationPlayerId(null);setLockPlayerId(null);}}}>
         <div className="modal">
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900}}>{p.firstName} {p.lastName||""} {p.jersey?<span style={{color:"var(--td)"}}>#{p.jersey}</span>:null}</div>
           <div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>{(p.positions||[]).join(" · ")||"No positions set"}</div>
@@ -1247,7 +1259,7 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
           </>}
           <button type="button" className="btn ghost bsm bfull mt10" onClick={()=>setRotationPlayerId(null)}>Close</button>
         </div>
-      </div>);
+      </div>,document.body);
     })()}
   </div>);
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea, menuNeedsToOpenUpward, SCRIMMAGE_FIELD_SLOTS, generateScrimmageBoard, repairScrimmageBoard, summarizeScrimmageFairness, scrimmagePlayerRotation } from "../constants.js";
 import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, saveSessionScrimmageBoard, fetchLatestScrimmageBoard, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, fetchPracticeRunStatus, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
@@ -573,7 +574,7 @@ function SetupStationBlockRow({act,loc,data,team,isController,onReassignLead,onV
 // live/setup palette; light otherwise. `onlyIdx` renders a single
 // half-inning (live "Now"); otherwise the whole board.
 function ScrimmageBoardView({board,cfg,assignee,dark,onlyIdx,onSlotTap,picked,currentIdx}){
-  const label=(cfg&&cfg.roundLabel)||"Half-Inning";
+  const label=(cfg&&cfg.roundLabel)||"Round";
   const fieldSlots=(cfg&&cfg.slots)||[...SCRIMMAGE_FIELD_SLOTS];
   const hasP=fieldSlots.includes("P"),hasC=fieldSlots.includes("C");
   const other=fieldSlots.filter(s=>s!=="P"&&s!=="C");
@@ -632,7 +633,7 @@ function SetupScrimmageRow({act,team,data,session,coachId,isController,presentId
   const busyRef=useRef(false);
   const cfg=act.scrimmageConfig||{};
   const roster=(team&&team.players)||[];
-  const label=(cfg.roundLabel||"Half-Inning");
+  const label=(cfg.roundLabel||"Round");
   const presentSet=presentIds||new Set();
   useEffect(()=>{
     if(!session){setSessionBoard(null);return;}
@@ -657,6 +658,7 @@ function SetupScrimmageRow({act,team,data,session,coachId,isController,presentId
     slots:cfg.slots||[...SCRIMMAGE_FIELD_SLOTS],
     hittersPerRound:cfg.hittersPerRound==null?"auto":cfg.hittersPerRound,
     catcherHold:cfg.catcherHold||2,pitcherRoundsMax:cfg.pitcherRoundsMax||1,
+    roundLabel:cfg.roundLabel,
     seed:cfg.seed||"scrimmage",
   });
   const status=(()=>{
@@ -724,6 +726,14 @@ function SetupScrimmageRow({act,team,data,session,coachId,isController,presentId
           </div>);
         })}
       </div>}
+      {board&&(()=>{
+        const f=summarizeScrimmageFairness(board,roster.filter(p=>presentSet.has(p.id)).map(p=>({id:p.id,name:p.firstName,positions:p.positions||[]})));
+        return <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
+          <span className="bdg bs" style={{background:f.hits.even?"var(--gbg)":"var(--ambg)",color:f.hits.even?"var(--green)":"var(--amber)"}}>{f.hits.even?"Hits: even":"Hits: uneven"}</span>
+          <span className="bdg bs">Pitch: {f.pitch.used}/{f.pitch.eligible}</span>
+          <span className="bdg bs">Catch: {f.catch.count}, ~{f.catch.roundsEach} {label.toLowerCase()}s each</span>
+        </div>;
+      })()}
       {board?<div style={{maxHeight:360,overflowY:"auto"}}><ScrimmageBoardView board={board} cfg={cfg} assignee={assignee} dark/></div>
         :<div style={{fontSize:12,color:"#666"}}>Not generated yet. Tap Generate.</div>}
     </div>}
@@ -1556,6 +1566,7 @@ function HelperView({token}){
   const [showAudioPrompt,setShowAudioPrompt]=useState(true);
   const [previewUpcoming,setPreviewUpcoming]=useState(null);
   const [showPlayerFocus,setShowPlayerFocus]=useState(false);
+  const [helperScrimNavOpen,setHelperScrimNavOpen]=useState(false);
   // Same shape as CommandScreen's own transitionFocus -- {label,skillTags,
   // playerFocus,playerIds} for a tapped transition card's Player Focus
   // button, sourced from the server-computed per-station skill_tags/
@@ -1813,16 +1824,33 @@ function HelperView({token}){
       {isCl&&cur&&<div className="cc-focus"><div className="cc-focus-lbl">{cur.name}</div>{(cur.items||[]).map(it=>(<div key={it.id} className="cl-item"><div className="cl-check"/><div className="cl-text">{it.text}</div></div>))}</div>}
       {isScrim&&cur&&scrimBoard&&scrimBoard.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900}}>
-          {inBlockIntro?("Get to your "+((scrimCfg&&scrimCfg.roundLabel||"Half-Inning").toLowerCase())+" 1 positions"):((scrimCfg&&scrimCfg.roundLabel||"Half-Inning")+" "+(scrimRoundIdx+1)+" of "+scrimBoard.length)}
+          {inBlockIntro?("Get to your "+((scrimCfg&&scrimCfg.roundLabel||"Round").toLowerCase())+" 1 positions"):((scrimCfg&&scrimCfg.roundLabel||"Round")+" "+(scrimRoundIdx+1)+" of "+scrimBoard.length)}
         </div>
         <ScrimmageBoardView board={scrimBoard} cfg={scrimCfg} assignee={scrimHelperAssignee} onlyIdx={inBlockIntro?0:scrimRoundIdx}/>
         {!inBlockIntro&&scrimRoundIdx<scrimBoard.length-1&&(()=>{
           const nx=scrimBoard[scrimRoundIdx+1];if(!nx)return null;
           const P=scrimHelperAssignee(nx.slots.P),C=scrimHelperAssignee(nx.slots.C);
           const hitters=Object.keys(nx.slots).filter(k=>/^H\d+$/.test(k)).map(k=>scrimHelperAssignee(nx.slots[k])).filter(Boolean);
-          return <div style={{fontSize:12,color:"var(--td)",borderTop:"1px solid var(--b)",paddingTop:8}}><strong>Next {(scrimCfg&&scrimCfg.roundLabel||"Half-Inning").toLowerCase()}:</strong> P {P||"Open"} · C {C||"Open"} · Hitting {hitters.join(", ")}</div>;
+          return <div style={{fontSize:12,color:"var(--td)",borderTop:"1px solid var(--b)",paddingTop:8}}><strong>Next {(scrimCfg&&scrimCfg.roundLabel||"Round").toLowerCase()}:</strong> P {P||"Open"} · C {C||"Open"} · Hitting {hitters.join(", ")}</div>;
         })()}
+        {!inBlockIntro&&<button type="button" className="btn ghost bxs" style={{alignSelf:"flex-start"}} onClick={()=>setHelperScrimNavOpen(true)}>Coming Up / Past</button>}
       </div>}
+      {helperScrimNavOpen&&scrimBoard&&createPortal(<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setHelperScrimNavOpen(false);}}>
+        <div className="modal" style={{maxHeight:"82vh",display:"flex",flexDirection:"column"}}>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,marginBottom:8}}>{(scrimCfg&&scrimCfg.roundLabel||"Round")}s</div>
+          <div style={{overflowY:"auto",flex:1}}>
+            {scrimBoard.map((rd,ri)=>{
+              const P=scrimHelperAssignee(rd.slots.P),C=scrimHelperAssignee(rd.slots.C);
+              const past=ri<scrimRoundIdx,curr=ri===scrimRoundIdx;
+              return (<div key={ri} style={{padding:"8px 10px",borderBottom:"1px solid var(--b)",opacity:past?.5:1,background:curr?"var(--gbg)":undefined}}>
+                <div style={{fontWeight:700,fontSize:13,color:curr?"var(--green)":"var(--black)"}}>{(scrimCfg&&scrimCfg.roundLabel||"Round")} {ri+1}{curr?" · now":past?" · done":""}</div>
+                <div style={{fontSize:12,color:"var(--td)"}}>P {P||"Open"} · C {C||"Open"}</div>
+              </div>);
+            })}
+          </div>
+          <button type="button" className="btn ghost bsm bfull mt10" onClick={()=>setHelperScrimNavOpen(false)}>Close</button>
+        </div>
+      </div>,document.body)}
       {!isBlock&&!isCl&&!isScrim&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
         {cur.description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
@@ -2546,6 +2574,57 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(a.helper_name)return a.helper_name;
     return null;
   },[team]);
+  // Players who currently appear anywhere on the live board (used to drive
+  // the "sit a player out" picker -- once someone is sat out they simply
+  // stop appearing in the repaired future rounds).
+  const scrimActivePlayerIds=useMemo(()=>{
+    const s=new Set();
+    (scrimBoard||[]).forEach(rd=>Object.values(rd.slots||{}).forEach(x=>{if(x&&x.player_id)s.add(x.player_id);}));
+    return s;
+  },[scrimBoard]);
+  // Live sit-out: pull a player from this round onward and repair only
+  // those rounds (fewest changes), then persist to the session override.
+  // Rounds already played (before scrimRoundIdx) are left exactly as they
+  // were so history/attribution is untouched.
+  const sitScrimPlayerOut=useCallback(async(playerId)=>{
+    if(!scrimBoard||!session||!cur)return;
+    const cfg=scrimCfg||{};
+    const remaining=((team&&team.players)||[])
+      .filter(p=>presentIds.has(p.id)&&p.id!==playerId&&scrimActivePlayerIds.has(p.id))
+      .map(p=>({id:p.id,name:((p.firstName||"")+" "+(p.lastName||"")).trim()||p.firstName,positions:p.positions||[],locks:(cfg.locks||{})[p.id]||{}}));
+    const from=Math.max(0,scrimRoundIdx);
+    const head=scrimBoard.slice(0,from).map(rd=>({slots:Object.assign({},rd.slots),coachRoles:rd.coachRoles}));
+    const tail=scrimBoard.slice(from).map(rd=>({slots:Object.assign({},rd.slots)}));
+    const {board:repairedTail}=repairScrimmageBoard({
+      players:remaining,rounds:tail.length,slots:cfg.slots||[...SCRIMMAGE_FIELD_SLOTS],
+      hittersPerRound:cfg.hittersPerRound==null?"auto":cfg.hittersPerRound,
+      catcherHold:cfg.catcherHold||2,pitcherRoundsMax:cfg.pitcherRoundsMax||1,
+      roundLabel:cfg.roundLabel,seed:(cfg.seed||"scrimmage")+"::sitout",
+    },tail);
+    const next=[...head,...repairedTail.map((rd,i)=>({slots:rd.slots,coachRoles:(scrimBoard[from+i]&&scrimBoard[from+i].coachRoles)||{}}))];
+    setLiveScrimBoard(next);
+    await saveSessionScrimmageBoard(session.id,cur.id,coachId,next);
+  },[scrimBoard,session,cur,scrimCfg,team,presentIds,scrimActivePlayerIds,scrimRoundIdx,coachId]);
+  const [scrimSitOpen,setScrimSitOpen]=useState(false);
+  const [scrimNavOpen,setScrimNavOpen]=useState(false);
+  // Optional per-round pacing timer (Builder toggle, default off). A
+  // per-device anchor reset on every round/activity change; when it hits
+  // zero it plays the soft two-minute-style tone once and does nothing
+  // else (section 3.8 -- "informational pacing").
+  useEffect(()=>{
+    scrimRoundStartRef.current=Date.now();
+    scrimRoundCueRef.current=false;
+  },[isScrim,scrimRoundIdx,cur&&cur.id]);
+  const scrimPerRoundSecs=(isScrim&&scrimCfg&&scrimCfg.perRoundTimer&&scrimRoundCount>0&&!inBlockIntro&&cur)?Math.max(30,Math.round(actSecs(cur)/scrimRoundCount)):0;
+  const scrimRoundElapsed=isScrim?Math.max(0,Math.floor((now-scrimRoundStartRef.current)/1000)):0;
+  const scrimRoundRem=scrimPerRoundSecs-scrimRoundElapsed;
+  useEffect(()=>{
+    if(!scrimPerRoundSecs||inBlockIntro||!running)return;
+    if(scrimRoundElapsed>=scrimPerRoundSecs&&!scrimRoundCueRef.current){
+      scrimRoundCueRef.current=true;
+      try{warnToneRef.current&&warnToneRef.current();}catch(e){}
+    }
+  },[scrimRoundElapsed,scrimPerRoundSecs,inBlockIntro,running]);
   const urg=rem<=30&&rem>0&&running;
   const pCount=presentIds.size;
   const pTotal=team?team.players.length:0;
@@ -2653,6 +2732,10 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   // happens (transitionTo, practice start, a timer nudge, mid-live Edit
   // Practice's resume) so a later transition can auto-advance again fresh.
   const transitionAdvancedRef=useRef(false);
+  // Optional per-round timer for a scrimmage (Builder toggle, default off).
+  // Per-device pacing only -- not synced -- so a local anchor is fine.
+  const scrimRoundStartRef=useRef(Date.now());
+  const scrimRoundCueRef=useRef(false);
 
   const warnedRef=useRef(false);
   useEffect(()=>{
@@ -3241,6 +3324,19 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     await transitionTo({current_rotation_number:0,in_transition:false,in_block_intro:false},cur,0);
   },[session,cur,isBlock,coachId,transitionTo]);
 
+  // A scrimmage round step is NOT a phase change -- the overall block timer
+  // keeps counting the block's duration (section 3.8, "the block does not
+  // auto-end when this hits zero"). So it writes only scrimmage_round_idx
+  // (optimistically, for a snappy flip) and never touches
+  // current_phase_started_at the way transitionTo does. Only the per-round
+  // soft-cue guard and the auto-advance guard are reset.
+  const stepScrimRound=useCallback(async(nextIdx)=>{
+    if(!session)return;
+    transitionAdvancedRef.current=false;scrimRoundCueRef.current=false;
+    setSession(s=>s?Object.assign({},s,{scrimmage_round_idx:nextIdx}):s);
+    await writeSession({scrimmage_round_idx:nextIdx});
+  },[session,writeSession]);
+
   const advance=useCallback(async()=>{
     if(!session||!cur)return;
     submitOperation(session.id,coachId,"advance");
@@ -3250,11 +3346,10 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       if(blockRotate&&stIdx<cur.stations.length-1){const ns=stIdx+1;await transitionTo({current_rotation_number:ns,in_transition:false},cur,ns);return;}
     }
     if(isScrim){
-      // The scrimmage intro screen and each half-inning are steps within the
-      // one execution unit -- no per-round logging (section 5.3), so
-      // transitionTo is passed no activity here.
+      // The scrimmage intro screen and each round are steps within the one
+      // execution unit -- no per-round logging (section 5.3).
       if(inBlockIntro){await transitionTo({in_block_intro:false},null);return;}
-      if(scrimRoundIdx<scrimRoundCount-1){await transitionTo({scrimmage_round_idx:scrimRoundIdx+1},null);return;}
+      if(scrimRoundIdx<scrimRoundCount-1){await stepScrimRound(scrimRoundIdx+1);return;}
     }
     if(idx<liveActs.length-1){
       const ni=idx+1;const nextAct=liveActs[ni];const nextIsBlock=nextAct.type==="station_block";
@@ -3269,7 +3364,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       setEndReason("completed");
       setStage("end");
     }
-  },[session,cur,isBlock,inBlockIntro,blockRotate,inTrans,stIdx,isScrim,scrimRoundIdx,scrimRoundCount,idx,liveActs,coachId,transitionTo,writeSession,closeCurrentLog]);
+  },[session,cur,isBlock,inBlockIntro,blockRotate,inTrans,stIdx,isScrim,scrimRoundIdx,scrimRoundCount,idx,liveActs,coachId,transitionTo,writeSession,closeCurrentLog,stepScrimRound]);
 
   // Direct feedback: a coach calling "rotate" shouldn't also have to tap
   // Next to actually start the next station's timer -- the transition
@@ -3320,9 +3415,9 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     submitOperation(session.id,coachId,"go_back");
     if(isBlock&&inTrans){await transitionTo({in_transition:false},cur,stIdx);return;}
     if(isBlock&&stIdx>0){const ns=stIdx-1;await transitionTo({current_rotation_number:ns,in_transition:false},cur,ns);return;}
-    if(isScrim&&!inBlockIntro&&scrimRoundIdx>0){await transitionTo({scrimmage_round_idx:scrimRoundIdx-1},null);return;}
+    if(isScrim&&!inBlockIntro&&scrimRoundIdx>0){await stepScrimRound(scrimRoundIdx-1);return;}
     if(idx>0){const pi=idx-1;const prevAct=liveActs[pi];const pB=prevAct.type==="station_block",pS=prevAct.type==="scrimmage";await transitionTo({current_practice_activity_id:prevAct.id,current_rotation_number:0,scrimmage_round_idx:0,in_transition:false,in_block_intro:pB||pS},pB?null:prevAct,0);}
-  },[session,cur,isBlock,isScrim,inTrans,inBlockIntro,stIdx,scrimRoundIdx,idx,liveActs,coachId,transitionTo]);
+  },[session,cur,isBlock,isScrim,inTrans,inBlockIntro,stIdx,scrimRoundIdx,idx,liveActs,coachId,transitionTo,stepScrimRound]);
 
   const jumpTo=useCallback(async(i)=>{
     if(!session)return;
@@ -3797,17 +3892,27 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       </div>}
       {isScrim&&cur&&scrimBoard&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
         {inBlockIntro&&<div style={{background:"#0d1512",borderRadius:"var(--r)",padding:"14px 12px",marginBottom:4}}>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b",marginBottom:8}}>Get everyone to their {(scrimCfg.roundLabel||"Half-Inning").toLowerCase()} 1 positions</div>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b",marginBottom:8}}>Get everyone to their {(scrimCfg.roundLabel||"Round").toLowerCase()} 1 positions</div>
           <ScrimmageBoardView board={scrimBoard} cfg={scrimCfg} assignee={scrimAssignee} dark onlyIdx={0}/>
         </div>}
         {!inBlockIntro&&<>
-          <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between"}}>
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900}}>{(scrimCfg.roundLabel||"Half-Inning")} {scrimRoundIdx+1} of {scrimRoundCount}</div>
+          <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900}}>{(scrimCfg.roundLabel||"Round")} {scrimRoundIdx+1} of {scrimRoundCount}
+              {scrimPerRoundSecs>0&&<span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:600,color:scrimRoundRem<=0?"var(--amber)":"var(--td)",marginLeft:8}}>{fmt(Math.abs(scrimRoundRem))}{scrimRoundRem<=0?" over":""}</span>}
+            </div>
             {isController&&<div style={{display:"flex",gap:6}}>
               <button className="btn ghost bxs" disabled={scrimRoundIdx===0} onClick={goBack}>◀ Back</button>
               <button className="btn ghost bxs" disabled={scrimRoundIdx>=scrimRoundCount-1} onClick={advance}>Next ▶</button>
             </div>}
           </div>
+          {(()=>{
+            const f=summarizeScrimmageFairness(scrimBoard,((team&&team.players)||[]).filter(p=>presentIds.has(p.id)).map(p=>({id:p.id,name:p.firstName,positions:p.positions||[]})));
+            return <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              <span className="bdg bs" style={{background:f.hits.even?"var(--gbg)":"var(--ambg)",color:f.hits.even?"var(--green)":"var(--amber)"}}>{f.hits.even?"Hits: even":"Hits: uneven"}</span>
+              <span className="bdg bs">Pitch: {f.pitch.used}/{f.pitch.eligible}</span>
+              <span className="bdg bs">Catch: {f.catch.count}</span>
+            </div>;
+          })()}
           <ScrimmageBoardView board={scrimBoard} cfg={scrimCfg} assignee={scrimAssignee} onlyIdx={scrimRoundIdx} picked={scrimPicked} onSlotTap={isController?(ri,slot)=>{
             setScrimPicked(p=>{
               if(!p)return{round:ri,slot};
@@ -3820,15 +3925,47 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
               return null;
             });
           }:undefined}/>
-          {scrimPicked&&<div style={{fontSize:11,color:"var(--green2)"}}>Tap another slot in this {(scrimCfg.roundLabel||"half-inning").toLowerCase()} to swap, or the same slot to cancel.</div>}
+          {scrimPicked&&<div style={{fontSize:11,color:"var(--green2)"}}>Tap another slot in this {(scrimCfg.roundLabel||"round").toLowerCase()} to swap, or the same slot to cancel.</div>}
           {scrimRoundIdx<scrimRoundCount-1&&(()=>{
             const nx=scrimBoard[scrimRoundIdx+1];if(!nx)return null;
             const P=scrimAssignee(nx.slots.P),C=scrimAssignee(nx.slots.C);
             const hitters=Object.keys(nx.slots).filter(k=>/^H\d+$/.test(k)).map(k=>scrimAssignee(nx.slots[k])).filter(Boolean);
-            return <div style={{fontSize:12,color:"var(--td)",borderTop:"1px solid var(--b)",paddingTop:8}}><strong>Next {(scrimCfg.roundLabel||"Half-Inning").toLowerCase()}:</strong> P {P||"Open"} · C {C||"Open"} · Hitting {hitters.join(", ")}</div>;
+            return <div style={{fontSize:12,color:"var(--td)",borderTop:"1px solid var(--b)",paddingTop:8}}><strong>Next {(scrimCfg.roundLabel||"Round").toLowerCase()}:</strong> P {P||"Open"} · C {C||"Open"} · Hitting {hitters.join(", ")}</div>;
           })()}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            <button type="button" className="btn ghost bxs" onClick={()=>setScrimNavOpen(true)}>Coming Up / Past</button>
+            {isController&&<button type="button" className="btn ghost bxs" onClick={()=>setScrimSitOpen(true)}>Sit a player out</button>}
+          </div>
         </>}
       </div>}
+      {scrimSitOpen&&createPortal(<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setScrimSitOpen(false);}}>
+        <div className="modal">
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,marginBottom:4}}>Sit a player out</div>
+          <div style={{fontSize:12,color:"var(--td)",marginBottom:10}}>They come off the board from {(scrimCfg&&scrimCfg.roundLabel||"round").toLowerCase()} {scrimRoundIdx+1} on, and the rest of the scrimmage re-fills around them. Rounds already played are left as they were.</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {((team&&team.players)||[]).filter(p=>presentIds.has(p.id)&&scrimActivePlayerIds.has(p.id)).sort((a,b)=>(a.firstName||"").localeCompare(b.firstName||"")).map(p=>(
+              <button key={p.id} type="button" onClick={async()=>{setScrimSitOpen(false);await sitScrimPlayerOut(p.id);}} style={{padding:"7px 12px",borderRadius:14,border:"1.5px solid var(--b)",background:"var(--s1)",fontSize:13,cursor:"pointer"}}>{p.jersey?"#"+p.jersey+" ":""}{p.firstName}</button>
+            ))}
+          </div>
+          <button type="button" className="btn ghost bsm bfull mt10" onClick={()=>setScrimSitOpen(false)}>Cancel</button>
+        </div>
+      </div>,document.body)}
+      {scrimNavOpen&&scrimBoard&&createPortal(<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setScrimNavOpen(false);}}>
+        <div className="modal" style={{maxHeight:"82vh",display:"flex",flexDirection:"column"}}>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,marginBottom:8}}>{(scrimCfg&&scrimCfg.roundLabel||"Round")}s</div>
+          <div style={{overflowY:"auto",flex:1}}>
+            {scrimBoard.map((rd,ri)=>{
+              const P=scrimAssignee(rd.slots.P),C=scrimAssignee(rd.slots.C);
+              const past=ri<scrimRoundIdx,curr=ri===scrimRoundIdx;
+              return (<div key={ri} style={{padding:"8px 10px",borderBottom:"1px solid var(--b)",opacity:past?.5:1,background:curr?"var(--gbg)":undefined}}>
+                <div style={{fontWeight:700,fontSize:13,color:curr?"var(--green)":"var(--black)"}}>{(scrimCfg&&scrimCfg.roundLabel||"Round")} {ri+1}{curr?" · now":past?" · done":""}</div>
+                <div style={{fontSize:12,color:"var(--td)"}}>P {P||"Open"} · C {C||"Open"}</div>
+              </div>);
+            })}
+          </div>
+          <button type="button" className="btn ghost bsm bfull mt10" onClick={()=>setScrimNavOpen(false)}>Close</button>
+        </div>
+      </div>,document.body)}
       {!isBlock&&!isCl&&!isScrim&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
         {cur.description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>

@@ -69,7 +69,7 @@ begin
              order by ssb.created_at desc limit 1),
             pa.scrimmage_rounds, '[]'::jsonb),
           'round_idx', ls.scrimmage_round_idx,
-          'round_label', coalesce(pa.scrimmage_config->>'roundLabel', 'Half-Inning')
+          'round_label', coalesce(pa.scrimmage_config->>'roundLabel', 'Round')
         ) else null end,
         'coach_name', nullif(trim(concat(ts.first_name, ' ', ts.last_name)), ''),
         'equipment', coalesce((
@@ -405,7 +405,7 @@ begin
         ), '[]'::jsonb),
         'scrimmage', case when pa.type = 'scrimmage' then jsonb_build_object(
           'round_count', coalesce((pa.scrimmage_config->>'rounds')::int, 0),
-          'round_label', coalesce(pa.scrimmage_config->>'roundLabel', 'Half-Inning'),
+          'round_label', coalesce(pa.scrimmage_config->>'roundLabel', 'Round'),
           'abs_per_hitter', coalesce((pa.scrimmage_config->>'absPerHitter')::int, 2),
           'coach_roles', coalesce(pa.scrimmage_config->'coachRoles', '[]'::jsonb)
         ) else null end,

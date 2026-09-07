@@ -860,7 +860,7 @@ export function buildDefaultScrimmageConfig(durationMinutes,perRoundMinutes,skil
   return {
     format:"everyone_rotates",
     rounds:Math.max(1,Math.round(dur/per)),
-    roundLabel:"Half-Inning",
+    roundLabel:"Round",
     slots:[...SCRIMMAGE_FIELD_SLOTS],
     hittersPerRound:"auto",
     absPerHitter:2,
@@ -1198,20 +1198,22 @@ function scrimmageBetterScore(a,b){
   return a.positionSpreadVariance<b.positionSpreadVariance;
 }
 
-function scrimmageWarnings(players,rounds,fieldSlots,catcherHold,pitcherRoundsMax,board){
+function scrimmageWarnings(players,rounds,fieldSlots,catcherHold,pitcherRoundsMax,board,roundLabel){
   const w=[];
+  const unit=(roundLabel||"round").toLowerCase();
+  const units=unit+"s";
   const hasP=fieldSlots.includes("P"),hasC=fieldSlots.includes("C");
   const eligP=players.filter(p=>scrimmageEligibleForSlot(p,"P"));
   const eligC=players.filter(p=>scrimmageEligibleForSlot(p,"C"));
 
   if(hasP&&eligP.length===0){
-    w.push("No players are set as pitchers. The pitcher spot stays Open every half-inning. Turn the pitcher off in Round rules for coach pitch, or set a pitcher on a player's profile.");
+    w.push("No players are set as pitchers. The pitcher spot stays Open every "+unit+". Turn the pitcher off in Round rules for coach pitch, or set a pitcher on a player's profile.");
   }else if(hasP&&eligP.length*pitcherRoundsMax<rounds){
-    w.push("Only "+eligP.length+" "+(eligP.length===1?"pitcher":"pitchers")+" for "+rounds+" half-innings. Some will pitch more than once.");
+    w.push("Only "+eligP.length+" "+(eligP.length===1?"pitcher":"pitchers")+" for "+rounds+" "+units+". Some will pitch more than once.");
   }
 
   if(hasC&&eligC.length===0){
-    w.push("No players are set as catchers. The catcher spot stays Open every half-inning. Turn the catcher off in Round rules, or set a catcher on a player's profile.");
+    w.push("No players are set as catchers. The catcher spot stays Open every "+unit+". Turn the catcher off in Round rules, or set a catcher on a player's profile.");
   }else if(hasC){
     const turns=Math.ceil(rounds/catcherHold);
     if(eligC.length<turns)w.push("Only "+eligC.length+" "+(eligC.length===1?"catcher":"catchers")+" for "+turns+" catching turns. Some will catch more than once.");
@@ -1280,7 +1282,7 @@ export function generateScrimmageBoard(input){
     best.board.forEach(scrimmageCompactHitters);
   }
 
-  const warnings=scrimmageWarnings(input.players||[],rounds,fieldSlots,catcherHold,pitcherRoundsMax,best.board);
+  const warnings=scrimmageWarnings(input.players||[],rounds,fieldSlots,catcherHold,pitcherRoundsMax,best.board,input.roundLabel);
   return {board:best.board,warnings};
 }
 
@@ -1388,7 +1390,7 @@ export function repairScrimmageBoard(input,existingBoard){
   scrimmageRebalanceHits(board,players,fieldSlots,hitCount,lockedPos,rand);
 
   board.forEach(scrimmageCompactHitters);
-  const warnings=scrimmageWarnings(input.players||[],rounds,fieldSlots,catcherHold,pitcherRoundsMax,board);
+  const warnings=scrimmageWarnings(input.players||[],rounds,fieldSlots,catcherHold,pitcherRoundsMax,board,input.roundLabel);
   return {board,warnings};
 }
 

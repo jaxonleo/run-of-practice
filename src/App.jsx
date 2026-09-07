@@ -2040,7 +2040,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                   </div>
                   {act.type==="scrimmage"?<div className="limt">{(()=>{
                     const c=act.scrimmageConfig||{};
-                    const lbl=(c.roundLabel||"Half-Inning").toLowerCase();
+                    const lbl=(c.roundLabel||"Round").toLowerCase();
                     const players=(team&&team.players||[]).filter(p=>!absentPlayerIds.has(p.id)).length;
                     return (c.rounds||0)+" "+lbl+"s · "+(act.duration||0)+" min · "+players+" players"+(act.scrimmageRounds?"":" · Not generated");
                   })()}</div>:
