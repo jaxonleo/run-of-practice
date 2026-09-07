@@ -2607,6 +2607,10 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   },[scrimBoard,session,cur,scrimCfg,team,presentIds,scrimActivePlayerIds,scrimRoundIdx,coachId]);
   const [scrimSitOpen,setScrimSitOpen]=useState(false);
   const [scrimNavOpen,setScrimNavOpen]=useState(false);
+  // Optional per-round timer for a scrimmage (Builder toggle, default off).
+  // Per-device pacing only -- not synced -- so a local anchor is fine.
+  const scrimRoundStartRef=useRef(Date.now());
+  const scrimRoundCueRef=useRef(false);
   // Optional per-round pacing timer (Builder toggle, default off). A
   // per-device anchor reset on every round/activity change; when it hits
   // zero it plays the soft two-minute-style tone once and does nothing
@@ -2732,10 +2736,6 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   // happens (transitionTo, practice start, a timer nudge, mid-live Edit
   // Practice's resume) so a later transition can auto-advance again fresh.
   const transitionAdvancedRef=useRef(false);
-  // Optional per-round timer for a scrimmage (Builder toggle, default off).
-  // Per-device pacing only -- not synced -- so a local anchor is fine.
-  const scrimRoundStartRef=useRef(Date.now());
-  const scrimRoundCueRef=useRef(false);
 
   const warnedRef=useRef(false);
   useEffect(()=>{

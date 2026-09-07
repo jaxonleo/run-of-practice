@@ -1342,9 +1342,13 @@ export function repairScrimmageBoard(input,existingBoard){
     fieldSlots.forEach(s=>{if(!(s in board[ri].slots))emptyFieldSlots.push(s);});
     emptyFieldSlots.sort((a,b)=>SCRIMMAGE_SLOT_KEEP_PRIORITY.indexOf(a)-SCRIMMAGE_SLOT_KEEP_PRIORITY.indexOf(b));
     for(const s of emptyFieldSlots){
-      const used=usedInRound(ri);
+      // A player already fielding a (non-P/C-or-any) slot this round can't
+      // take another; a player who is only batting CAN move to the field
+      // (their hitter slot is freed below) -- that's the natural minimal
+      // fill, so batters are candidates here, not excluded.
+      const fielding=new Set(Object.keys(board[ri].slots).filter(k=>!/^H\d+$/.test(k)).map(k=>board[ri].slots[k]).filter(a=>a&&a.player_id).map(a=>a.player_id));
       const batters=battersInRound(ri);
-      let cands=players.filter(p=>!used.has(p.id)&&scrimmageEligibleForSlot(p,s)&&(!lockedPos[p.id]||lockedPos[p.id]===s));
+      let cands=players.filter(p=>!fielding.has(p.id)&&scrimmageEligibleForSlot(p,s)&&(!lockedPos[p.id]||lockedPos[p.id]===s));
       if(!cands.length){board[ri].slots[s]=null;continue;}
       // prefer a player currently batting this round (natural swap), then
       // the same fairness score as generate
@@ -1365,31 +1369,63 @@ export function repairScrimmageBoard(input,existingBoard){
     }
   }
 
-  // 3. insert newly-present players (not anywhere on the board) as hitters
-  const onBoard=new Set();
-  board.forEach(rd=>Object.keys(rd.slots).forEach(s=>{const a=rd.slots[s];if(a&&a.player_id)onBoard.add(a.player_id);}));
-  const newcomers=players.filter(p=>!onBoard.has(p.id));
-  newcomers.forEach(p=>{
-    // add them as a hitter in the `catcherHold`... just the rounds where they
-    // are not already used and there is room, preferring rounds with the
-    // fewest batters so far
-    const order=board.map((_,ri)=>ri).sort((a,b)=>battersInRound(a).length-battersInRound(b).length||a-b);
-    let added=0;
-    const want=autoHitters?rounds:Math.min(rounds,pinnedHitters);
-    for(const ri of order){
-      if(added>=want)break;
-      if(usedInRound(ri).has(p.id))continue;
-      const next=scrimmageNextHitterKey(board[ri]);
-      board[ri].slots[next]={player_id:p.id};
-      hitCount[p.id]=(hitCount[p.id]||0)+1;added++;
-    }
-  });
-
-  // 4. if batting spread still > 1, swap a fielder (over-batted) with a
-  // hitter (under-batted) in the fewest rounds needed
-  scrimmageRebalanceHits(board,players,fieldSlots,hitCount,lockedPos,rand);
+  // 3. Rebuild the batting for every round WITHOUT touching the fielding
+  //    board at all -- for auto mode, each round's batters are exactly the
+  //    present players not fielding that round (so nobody is dropped or
+  //    double-counted), sat-out / never-hits players excluded. Because the
+  //    fielding rotation was already even and step 2 only nudged it, this
+  //    lands batting within an at-bat or two with zero extra fielding
+  //    churn. A pinned hitter count keeps the N fewest-batted eligible
+  //    non-fielders and the rest sit that round.
+  const present=players.filter(p=>!(p.locks&&(p.locks.sitOut||p.locks.noHit)));
+  const totalHit={};present.forEach(p=>{totalHit[p.id]=0;});
+  for(let ri=0;ri<rounds;ri++){
+    const rd=board[ri].slots;
+    Object.keys(rd).filter(k=>/^H\d+$/.test(k)).forEach(k=>{delete rd[k];});
+    const fieldingHere=new Set(Object.keys(rd).map(k=>rd[k]).filter(a=>a&&a.player_id).map(a=>a.player_id));
+    let batters=present.filter(p=>!fieldingHere.has(p.id));
+    batters.sort((a,b)=>(totalHit[a.id]-totalHit[b.id])||(rand()-0.5));
+    if(!autoHitters)batters=batters.slice(0,Math.max(0,pinnedHitters));
+    batters.forEach((p,i)=>{rd["H"+(i+1)]={player_id:p.id};totalHit[p.id]++;});
+  }
 
   board.forEach(scrimmageCompactHitters);
+
+  // 4. Low-churn batting rebalance: single hitter<->fielder swaps (one
+  //    field-slot change each), never a whole-round reshuffle. Stops as
+  //    soon as the spread is <=1 or no simple legal swap is left.
+  const lockedRepair={};present.forEach(p=>{if(p.locks&&p.locks.position)lockedRepair[p.id]=p.locks.position;});
+  for(let guard=0;guard<60;guard++){
+    const hc=scrimmageHitCounts(board,present);
+    const hv=present.map(p=>hc[p.id]||0);
+    if(!hv.length)break;
+    const hi=Math.max(...hv),lo=Math.min(...hv);
+    if(hi-lo<=1)break;
+    // over = batted the most (move one of their at-bats into the field);
+    // under = batted the least (they field a lot -- move one field slot to
+    // a bat). One field-slot change per swap.
+    const over=present.filter(p=>(hc[p.id]||0)===hi&&!lockedRepair[p.id]&&!(p.locks&&p.locks.noHit));
+    const under=present.filter(p=>(hc[p.id]||0)===lo&&!lockedRepair[p.id]);
+    let did=false;
+    for(const o of over){
+      for(let ri=0;ri<rounds&&!did;ri++){
+        const rd=board[ri].slots;
+        const oHit=Object.keys(rd).find(k=>/^H\d+$/.test(k)&&rd[k]&&rd[k].player_id===o.id);
+        if(!oHit)continue;
+        for(const u of under){
+          const uSlot=Object.keys(rd).find(k=>!/^H\d+$/.test(k)&&k!=="C"&&k!=="P"&&rd[k]&&rd[k].player_id===u.id);
+          if(!uSlot)continue;
+          if(!scrimmageEligibleForSlot(o,uSlot))continue;
+          rd[uSlot]={player_id:o.id};rd[oHit]={player_id:u.id};
+          did=true;break;
+        }
+      }
+      if(did)break;
+    }
+    if(!did)break;
+  }
+  board.forEach(scrimmageCompactHitters);
+
   const warnings=scrimmageWarnings(input.players||[],rounds,fieldSlots,catcherHold,pitcherRoundsMax,board,input.roundLabel);
   return {board,warnings};
 }
