@@ -15,6 +15,7 @@ import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/
 import { ActConfig, ChecklistConfig, StationConfig, ScrimmageConfig, BenchmarkConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView, usePracticePresence, PresenceBadge } from "./components/CommandScreen.jsx";
 import BenchmarkRecordView from "./components/BenchmarkRecordView.jsx";
+import { PlayerBenchmarks } from "./components/BenchmarkReport.jsx";
 import MyStationBuilderScreen, { StationPresenceIndicator } from "./components/MyStationBuilder.jsx";
 import HomeScreen from "./components/HomeScreen.jsx";
 import ScheduleScreen from "./components/ScheduleScreen.jsx";
@@ -2519,6 +2520,9 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
         </div>))}
       </div>
     </div>}
+
+    <div className="clbl mb8" style={{marginTop:16}}>Benchmarks</div>
+    <PlayerBenchmarks teamId={team.id} playerId={player.id}/>
   </div>);
 }
 

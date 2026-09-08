@@ -2669,3 +2669,20 @@ export async function saveBenchmarkAttemptByToken(token, { participantId, slotIn
   if (error) { console.error('saveBenchmarkAttemptByToken:', error); return { error } }
   return { data }
 }
+
+// ── Reporting (Goals & Insights + PlayerProfile) ──────────────────────────
+// History access gated server-side by can_view_benchmark_history_for_team
+// (== can_view_goals_for_team). The RPCs return canonical attempt values; the
+// caller computes official results / comparisons via src/benchmarks.js.
+export async function fetchTeamBenchmarkReport(teamId, benchmarkId = null, { limit = 25, before = null } = {}) {
+  const { data, error } = await supabase.rpc('get_team_benchmark_report', {
+    p_team_id: teamId, p_benchmark_id: benchmarkId, p_limit: limit, p_before: before,
+  })
+  if (error) { console.error('fetchTeamBenchmarkReport:', error); return { error } }
+  return { data }
+}
+export async function fetchPlayerBenchmarkReport(teamId, playerId) {
+  const { data, error } = await supabase.rpc('get_player_benchmark_report', { p_team_id: teamId, p_player_id: playerId })
+  if (error) { console.error('fetchPlayerBenchmarkReport:', error); return { error } }
+  return { data }
+}
