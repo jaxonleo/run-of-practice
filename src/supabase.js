@@ -458,7 +458,7 @@ function mapCatalogRow(c) {
 }
 
 export async function fetchLibraryData() {
-  const [assetsRes, categoriesRes, tagsRes, drillsRes, equipRes, drillTagsRes, orgsRes, profilesRes, catalogsRes, drillSharesRes, assetLocationsRes] = await Promise.all([
+  const [assetsRes, categoriesRes, tagsRes, drillsRes, equipRes, drillTagsRes, orgsRes, profilesRes, catalogsRes, drillSharesRes, assetLocationsRes, benchmarksRes] = await Promise.all([
     supabase.from('assets').select('*').is('archived_at', null),
     supabase.from('skill_categories').select('*').is('archived_at', null),
     supabase.from('skill_tags').select('*').is('archived_at', null),
@@ -470,6 +470,7 @@ export async function fetchLibraryData() {
     supabase.from('content_catalogs').select('*').is('archived_at', null),
     supabase.from('activity_library_org_shares').select('activity_library_id, organization_id'),
     supabase.from('asset_locations').select('*'),
+    supabase.from('benchmarks').select('*, benchmark_versions(*)').is('archived_at', null),
   ])
   // Pending org invites (Org Experience handoff Sec 5) -- fetched here too so
   // the existing app-wide refreshLibrary() call is what surfaces "you've
@@ -514,6 +515,7 @@ export async function fetchLibraryData() {
     pendingStationAssignmentNotices,
     profilesById,
     catalogs: (catalogsRes.data || []).map(mapCatalogRow),
+    benchmarks: (benchmarksRes.data || []).map(mapBenchmark),
   }
 }
 

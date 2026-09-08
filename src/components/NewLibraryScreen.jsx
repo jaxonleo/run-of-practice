@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { uid, sumMins, localDateStr, planningState, teamsForMode, menuNeedsToOpenUpward, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES } from "../constants.js";
+import { uid, sumMins, localDateStr, planningState, teamsForMode, menuNeedsToOpenUpward, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES, SPORTS } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig, ScrimmageConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
-import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, archiveSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport } from "../supabase.js";
+import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, archiveSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport, createBenchmark, createBenchmarkVersion, correctBenchmarkVersionWording, archiveBenchmark, restoreBenchmark, adoptBenchmarkForTeam, fetchBenchmarkAssessments } from "../supabase.js";
+import { METRIC_META, displayDecimals } from "../benchmarks.js";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 import DrillInsightsView from "./DrillInsightsView.jsx";
 
@@ -946,6 +947,392 @@ function SchedulePracticePicker({data,onPick,onClose}){
   </div>);
 }
 
+// ── Benchmarks (ROP-Benchmarks handoff, sections 3 and 3.2) ───────────────────
+// Library > Benchmarks: define a repeatable test once (an immutable protocol
+// version), adopt it onto a team, and see that team's measurement history.
+// Adding it to a practice and recording results live are the Builder and
+// live-capture stages; this tab owns the definition lifecycle and adoption.
+
+const BM_METRICS = [
+  { k: "time", label: "Time", units: ["seconds", "minutes:seconds"], help: "A timed test. Store seconds; enter mm:ss if you like." },
+  { k: "count", label: "Count", units: ["reps", "makes", "count"], help: "A whole-number count of reps, makes, catches, and so on." },
+  { k: "distance", label: "Distance", units: ["meters", "centimeters", "feet/inches"], help: "How far. Stored in metres." },
+  { k: "speed", label: "Speed", units: ["mph", "km/h"], help: "How fast. Stored in metres per second." },
+  { k: "success_rate", label: "Success rate", units: ["x / y"], help: "Successes out of a fixed number of opportunities per set." },
+  { k: "score_numeric", label: "Score (number)", units: ["points"], help: "A bounded numeric scale you define (min, max, step)." },
+  { k: "score_rubric", label: "Score (rubric)", units: ["level"], help: "Ordered levels with labels, e.g. Developing / Consistent / Independent." },
+];
+const BM_RULE_LABEL = { single: "the one attempt", best: "the best valid attempt", average: "the average of the valid attempts", total: "the total of the valid attempts", pooled: "pooled successes over pooled opportunities" };
+
+function bmRuleOptions(metricType, attempts, direction) {
+  const allowed = (METRIC_META[metricType] || { rules: ["single"] }).rules;
+  return allowed.filter(r => {
+    if (r === "single") return attempts === 1 || metricType === "success_rate" || metricType === "score_rubric";
+    if (r === "pooled") return metricType === "success_rate";
+    if (r === "best") return attempts > 1 && direction !== "track";
+    return attempts > 1; // average, total
+  });
+}
+function bmMetricSummary(v) {
+  if (!v) return "";
+  const m = BM_METRICS.find(x => x.k === v.metricType);
+  const dir = v.direction === "track" ? "track only" : (v.direction === "lower" ? "lower is better" : "higher is better");
+  const attempts = v.metricType === "success_rate"
+    ? `${v.scoredAttempts} set${v.scoredAttempts === 1 ? "" : "s"} of ${v.opportunitiesPerSet}`
+    : `${v.scoredAttempts} attempt${v.scoredAttempts === 1 ? "" : "s"}`;
+  const rule = v.scoredAttempts > 1 || v.resultRule === "pooled" ? `, ${BM_RULE_LABEL[v.resultRule] || v.resultRule}` : "";
+  return `${m ? m.label : v.metricType} · ${attempts}${rule} · ${dir}`;
+}
+
+function BenchmarkForm({ data, coachId, mode, sourceDrill, baseVersion, onCancel, onSaved }) {
+  const isOrg = mode && mode.type === "org";
+  const versioning = !!baseVersion; // creating a NEW version of an existing benchmark
+  const seed = baseVersion || {};
+  const [name, setName] = useState(sourceDrill ? sourceDrill.name : "");
+  const [sport, setSport] = useState(sourceDrill ? (sourceDrill.sport || "General") : (data.teams && data.teams[0] && data.teams[0].sport) || "General");
+  const [subject, setSubject] = useState("individual");
+  const [metricType, setMetricType] = useState(seed.metricType || "time");
+  const [unit, setUnit] = useState(seed.displayUnit || (BM_METRICS.find(m => m.k === (seed.metricType || "time")).units[0]));
+  const [direction, setDirection] = useState(seed.direction || METRIC_META.time.direction);
+  const [attempts, setAttempts] = useState(seed.scoredAttempts || 1);
+  const [rule, setRule] = useState(seed.resultRule || "single");
+  const [instructions, setInstructions] = useState(seed.instructions || (sourceDrill ? [sourceDrill.description, sourceDrill.coachingPoints].filter(Boolean).join("\n\n") : ""));
+  const [opps, setOpps] = useState(seed.opportunitiesPerSet || 10);
+  const [scoreMin, setScoreMin] = useState(seed.scoreMin ?? 1);
+  const [scoreMax, setScoreMax] = useState(seed.scoreMax ?? 5);
+  const [scoreStep, setScoreStep] = useState(seed.scoreIncrement ?? 1);
+  const [levels, setLevels] = useState(seed.rubricLevels && seed.rubricLevels.length ? seed.rubricLevels.map(l => ({ ...l })) : [{ id: uid(), order: 1, label: "Developing", description: "" }, { id: uid(), order: 2, label: "Consistent", description: "" }, { id: uid(), order: 3, label: "Independent", description: "" }]);
+  const [tagIds, setTagIds] = useState(seed.skillTagIds || (sourceDrill ? (sourceDrill.skillTagIds || []) : []));
+  const [plannedMin, setPlannedMin] = useState(seed.plannedMinutes || "");
+  const [pcDistance, setPcDistance] = useState((seed.protocolConditions && seed.protocolConditions.distance) || "");
+  const [pcWindow, setPcWindow] = useState((seed.protocolConditions && seed.protocolConditions.timedWindowSeconds) || "");
+  const [pcSetup, setPcSetup] = useState((seed.protocolConditions && seed.protocolConditions.surfaceSetup) || "");
+  const [pcScoring, setPcScoring] = useState((seed.protocolConditions && seed.protocolConditions.scoringCriteria) || "");
+  const [invalidGuidance, setInvalidGuidance] = useState(seed.invalidGuidance || "");
+  const [advanced, setAdvanced] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const metricMeta = BM_METRICS.find(m => m.k === metricType);
+  function pickMetric(k) {
+    setMetricType(k);
+    const meta = BM_METRICS.find(m => m.k === k);
+    setUnit(meta.units[0]);
+    setDirection(METRIC_META[k].direction);
+    if (k === "success_rate" || k === "score_rubric") { setAttempts(1); setRule(k === "score_rubric" ? "single" : "single"); }
+    else { setRule("single"); setAttempts(1); }
+  }
+  const ruleChoices = bmRuleOptions(metricType, attempts, direction);
+  useEffect(() => { if (!ruleChoices.includes(rule)) setRule(ruleChoices[0] || "single"); }, [metricType, attempts, direction]); // eslint-disable-line
+
+  const cats = (data.skillCategories || []).filter(c => (c.sport || "").toLowerCase() === (sport || "").toLowerCase());
+  const catIds = new Set(cats.map(c => c.id));
+  const tagsForSport = (data.skillTags || []).filter(t => catIds.has(t.categoryId));
+
+  function validate() {
+    if (!name.trim()) return "Give the benchmark a name.";
+    if (!instructions.trim()) return "Add test instructions so anyone can run it the same way.";
+    const a = Number(attempts);
+    if (!Number.isInteger(a) || a < 1 || a > 20) return "Scored attempts must be a whole number from 1 to 20.";
+    if (metricType === "success_rate") {
+      const o = Number(opps);
+      if (!Number.isInteger(o) || o <= 0) return "Set a fixed number of opportunities per set.";
+    }
+    if (metricType === "score_numeric") {
+      if (!(Number(scoreMax) > Number(scoreMin))) return "The score maximum must be above the minimum.";
+      if (!(Number(scoreStep) > 0)) return "The score step must be greater than zero.";
+    }
+    if (metricType === "score_rubric") {
+      if (levels.length < 2) return "A rubric needs at least two levels.";
+      if (levels.some(l => !l.label.trim())) return "Every rubric level needs a label.";
+    }
+    if (!ruleChoices.includes(rule)) return "That result rule is not valid for this metric.";
+    return "";
+  }
+
+  async function save() {
+    const v = validate();
+    if (v) { setErr(v); return; }
+    setErr(""); setSaving(true);
+    const protocol = {
+      metric_type: metricType, direction, result_rule: rule,
+      scored_attempts: Number(attempts),
+      opportunities_per_set: metricType === "success_rate" ? Number(opps) : null,
+      rubric_levels: metricType === "score_rubric" ? levels.map((l, i) => ({ id: l.id, order: i + 1, label: l.label.trim(), description: l.description || "" })) : null,
+      score_min: metricType === "score_numeric" ? Number(scoreMin) : null,
+      score_max: metricType === "score_numeric" ? Number(scoreMax) : null,
+      score_increment: metricType === "score_numeric" ? Number(scoreStep) : null,
+      display_unit: unit,
+      instructions: instructions.trim(),
+      protocol_conditions: (pcDistance || pcWindow || pcSetup || pcScoring)
+        ? { distance: pcDistance || null, timedWindowSeconds: pcWindow ? Number(pcWindow) : null, surfaceSetup: pcSetup || null, scoringCriteria: pcScoring || null }
+        : null,
+      invalid_guidance: invalidGuidance.trim() || null,
+      planned_minutes: plannedMin ? Number(plannedMin) : null,
+      skill_tag_ids: tagIds,
+      tag_snapshot: tagIds.map(id => { const t = tagsForSport.find(x => x.id === id); return t ? t.name : null; }).filter(Boolean),
+      equipment_snapshot: [],
+    };
+    let res;
+    if (versioning) res = await createBenchmarkVersion(baseVersion.benchmarkId, protocol);
+    else res = await createBenchmark({ organizationId: isOrg ? mode.orgId : null, sport, title: name.trim(), subjectMode: subject, protocol, sourceDrillId: sourceDrill ? sourceDrill.id : null });
+    setSaving(false);
+    if (res.error) { setErr(res.error.message || "Could not save. Please try again."); return; }
+    onSaved(res.data);
+  }
+
+  return (
+    <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900 }}>{versioning ? "New Protocol Version" : sourceDrill ? "Benchmark from Drill" : "Create Benchmark"}</div>
+        <button type="button" className="btn ghost bxs" onClick={onCancel}>Cancel</button>
+      </div>
+      {versioning && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 10 }}>A structural change starts a fresh comparison series. Existing planned occurrences stay on the current version until updated.</div>}
+
+      {!versioning && <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus maxLength={120} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Home-to-first sprint" /></div>}
+      {!versioning && <div style={{ display: "flex", gap: 10 }}>
+        <div className="fld" style={{ flex: 1 }}><label className="lbl">Sport</label>
+          <select className="inp" value={sport} onChange={e => setSport(e.target.value)}>{SPORTS.map(s => <option key={s} value={s}>{s}</option>)}</select>
+        </div>
+        <div className="fld" style={{ flex: 1 }}><label className="lbl">Measure</label>
+          <select className="inp" value={subject} onChange={e => setSubject(e.target.value)}><option value="individual">Individual players</option><option value="team">Whole team</option></select>
+        </div>
+      </div>}
+
+      <div className="fld"><label className="lbl">Metric</label>
+        <select className="inp" value={metricType} onChange={e => pickMetric(e.target.value)}>{BM_METRICS.map(m => <option key={m.k} value={m.k}>{m.label}</option>)}</select>
+        <div style={{ fontSize: 11, color: "var(--td)", marginTop: 4 }}>{metricMeta.help}</div>
+      </div>
+      <div style={{ display: "flex", gap: 10 }}>
+        {metricMeta.units.length > 1 && <div className="fld" style={{ flex: 1 }}><label className="lbl">Unit</label>
+          <select className="inp" value={unit} onChange={e => setUnit(e.target.value)}>{metricMeta.units.map(u => <option key={u} value={u}>{u}</option>)}</select>
+        </div>}
+        <div className="fld" style={{ flex: 1 }}><label className="lbl">Better means</label>
+          <select className="inp" value={direction} onChange={e => setDirection(e.target.value)} disabled={metricType === "score_rubric"}>
+            <option value="higher">Higher</option><option value="lower">Lower</option><option value="track">Track only</option>
+          </select>
+        </div>
+      </div>
+
+      {metricType === "success_rate" && <div className="fld"><label className="lbl">Opportunities per set</label><input className="inp" type="number" min={1} value={opps} onChange={e => setOpps(e.target.value)} /></div>}
+      {metricType === "score_numeric" && <div style={{ display: "flex", gap: 10 }}>
+        <div className="fld" style={{ flex: 1 }}><label className="lbl">Min</label><input className="inp" type="number" value={scoreMin} onChange={e => setScoreMin(e.target.value)} /></div>
+        <div className="fld" style={{ flex: 1 }}><label className="lbl">Max</label><input className="inp" type="number" value={scoreMax} onChange={e => setScoreMax(e.target.value)} /></div>
+        <div className="fld" style={{ flex: 1 }}><label className="lbl">Step</label><input className="inp" type="number" step="0.001" value={scoreStep} onChange={e => setScoreStep(e.target.value)} /></div>
+      </div>}
+      {metricType === "score_rubric" && <div className="fld"><label className="lbl">Levels (low to high)</label>
+        {levels.map((l, i) => <div key={l.id} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+          <span style={{ fontSize: 12, color: "var(--td)", width: 16 }}>{i + 1}</span>
+          <input className="inp" style={{ flex: 1 }} value={l.label} placeholder="Label" onChange={e => setLevels(levels.map(x => x.id === l.id ? { ...x, label: e.target.value } : x))} />
+          <button type="button" className="btn ghost bxs" disabled={levels.length <= 2} onClick={() => setLevels(levels.filter(x => x.id !== l.id))}>&times;</button>
+        </div>)}
+        <button type="button" className="btn ghost bxs" onClick={() => setLevels([...levels, { id: uid(), order: levels.length + 1, label: "", description: "" }])}>+ Add level</button>
+      </div>}
+
+      {metricType !== "success_rate" && metricType !== "score_rubric" && <div style={{ display: "flex", gap: 10 }}>
+        <div className="fld" style={{ flex: 1 }}><label className="lbl">Scored attempts</label><input className="inp" type="number" min={1} max={20} value={attempts} onChange={e => setAttempts(e.target.value)} /></div>
+        <div className="fld" style={{ flex: 2 }}><label className="lbl">Official result</label>
+          <select className="inp" value={rule} onChange={e => setRule(e.target.value)}>{ruleChoices.map(r => <option key={r} value={r}>{BM_RULE_LABEL[r]}</option>)}</select>
+        </div>
+      </div>}
+
+      <div className="fld"><label className="lbl">Test instructions</label>
+        <textarea className="inp" rows={3} maxLength={4000} value={instructions} onChange={e => setInstructions(e.target.value)} placeholder="How to set up, run, and score the test, so it is identical every time." />
+      </div>
+
+      <button type="button" className="btn ghost bxs" onClick={() => setAdvanced(a => !a)} style={{ marginBottom: 8 }}>{advanced ? "Hide" : "Show"} advanced setup</button>
+      {advanced && <div style={{ borderLeft: "2px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
+        <div className="fld"><label className="lbl">Skill tags</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {tagsForSport.length === 0 && <span style={{ fontSize: 12, color: "var(--td)" }}>No skill categories for {sport} yet.</span>}
+            {tagsForSport.map(t => <button key={t.id} type="button" onClick={() => setTagIds(tagIds.includes(t.id) ? tagIds.filter(x => x !== t.id) : [...tagIds, t.id])} style={{ padding: "4px 10px", borderRadius: 20, border: "1.5px solid var(--b)", background: tagIds.includes(t.id) ? "var(--green)" : "var(--s1)", color: tagIds.includes(t.id) ? "#fff" : "var(--black)", fontSize: 12, cursor: "pointer" }}>{t.name}</button>)}
+          </div>
+        </div>
+        <div className="fld"><label className="lbl">Planned activity minutes</label><input className="inp" type="number" min={0} value={plannedMin} onChange={e => setPlannedMin(e.target.value)} placeholder="Optional" /></div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <div className="fld" style={{ flex: 1 }}><label className="lbl">Distance / layout</label><input className="inp" value={pcDistance} onChange={e => setPcDistance(e.target.value)} placeholder="e.g. 60 ft" /></div>
+          <div className="fld" style={{ flex: 1 }}><label className="lbl">Timed window (sec)</label><input className="inp" type="number" value={pcWindow} onChange={e => setPcWindow(e.target.value)} placeholder="Optional" /></div>
+        </div>
+        <div className="fld"><label className="lbl">Surface / setup notes</label><input className="inp" value={pcSetup} onChange={e => setPcSetup(e.target.value)} placeholder="Optional" /></div>
+        <div className="fld"><label className="lbl">Scoring criteria</label><input className="inp" value={pcScoring} onChange={e => setPcScoring(e.target.value)} placeholder="Optional" /></div>
+        <div className="fld"><label className="lbl">Invalid attempt guidance</label><textarea className="inp" rows={2} maxLength={1000} value={invalidGuidance} onChange={e => setInvalidGuidance(e.target.value)} placeholder="Default: an invalid attempt does not score; repeat the slot." /></div>
+      </div>}
+
+      {err && <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 8 }}>{err}</div>}
+      <button type="button" className="btn primary" style={{ width: "100%" }} disabled={saving} onClick={save}>{saving ? "Saving..." : versioning ? "Save New Version" : "Create Benchmark"}</button>
+    </div>
+  );
+}
+
+function WordingForm({ version, onCancel, onSaved }) {
+  const [instr, setInstr] = useState(version.instructions || "");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  return (
+    <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900 }}>Clarify Wording</div>
+        <button type="button" className="btn ghost bxs" onClick={onCancel}>Cancel</button>
+      </div>
+      <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 10 }}>A wording correction stays on the same version and never changes what is scored. To change the test setup, create a new version instead.</div>
+      <div className="fld"><label className="lbl">Instructions</label><textarea className="inp" rows={4} maxLength={4000} value={instr} onChange={e => setInstr(e.target.value)} /></div>
+      <div className="fld"><label className="lbl">What changed and why</label><input className="inp" value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. fixed a typo" /></div>
+      <button type="button" className="btn primary" style={{ width: "100%" }} disabled={saving || !instr.trim()} onClick={async () => { setSaving(true); const r = await correctBenchmarkVersionWording(version.id, { instructions: instr.trim(), note: note.trim() || null }); setSaving(false); if (!r.error) onSaved(); }}>{saving ? "Saving..." : "Save Correction"}</button>
+    </div>
+  );
+}
+
+function BenchmarkDetail({ data, coachId, mode, benchmark, teamId, setTeamId, canManage, onBack, refreshLibrary }) {
+  const [assessments, setAssessments] = useState(null);
+  const [newVersion, setNewVersion] = useState(false);
+  const [wording, setWording] = useState(null);
+  const v = benchmark.latestVersion;
+  const teams = teamsForMode(data.teams || [], mode, coachId);
+  const adopted = teamId ? (data.teams || []).find(t => t.id === teamId) : null;
+
+  useEffect(() => {
+    let alive = true;
+    if (!teamId) { setAssessments(null); return; }
+    setAssessments(null);
+    fetchBenchmarkAssessments(teamId, benchmark.id, { limit: 25 }).then(rows => { if (alive) setAssessments(rows); });
+    return () => { alive = false; };
+  }, [teamId, benchmark.id]);
+
+  return (
+    <div>
+      <button type="button" className="btn ghost bxs" onClick={onBack}>&larr; All benchmarks</button>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, margin: "10px 0" }}>
+        <div>
+          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900 }}>{benchmark.title}</div>
+          <div style={{ fontSize: 12, color: "var(--td)" }}>{benchmark.sport} · {benchmark.subjectMode === "team" ? "Whole-team benchmark" : "Individual-player benchmark"}{benchmark.archivedAt ? " · Archived" : ""}</div>
+        </div>
+        {canManage && <button type="button" className="btn ghost bxs" onClick={async () => { benchmark.archivedAt ? await restoreBenchmark(benchmark.id) : await archiveBenchmark(benchmark.id); await refreshLibrary(); onBack(); }}>{benchmark.archivedAt ? "Restore" : "Archive"}</button>}
+      </div>
+
+      <div className="card" style={{ marginBottom: 12 }}>
+        <div className="clbl mb8">Current protocol (version {v.versionNumber})</div>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>{bmMetricSummary(v)}</div>
+        <div style={{ fontSize: 13, whiteSpace: "pre-wrap", marginTop: 8 }}>{v.instructions}</div>
+        {v.protocolConditions && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 8 }}>
+          {v.protocolConditions.distance && <div>Distance / layout: {v.protocolConditions.distance}</div>}
+          {v.protocolConditions.timedWindowSeconds && <div>Timed window: {v.protocolConditions.timedWindowSeconds}s</div>}
+          {v.protocolConditions.surfaceSetup && <div>Setup: {v.protocolConditions.surfaceSetup}</div>}
+          {v.protocolConditions.scoringCriteria && <div>Scoring: {v.protocolConditions.scoringCriteria}</div>}
+        </div>}
+        {(v.tagSnapshot || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>{v.tagSnapshot.map((t, i) => <span key={i} className="bdg bs">{t}</span>)}</div>}
+        {v.invalidGuidance && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 8 }}>Invalid attempts: {v.invalidGuidance}</div>}
+        {canManage && !benchmark.archivedAt && <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <button type="button" className="btn ghost bxs" onClick={() => setNewVersion(true)}>New version (setup change)</button>
+          <button type="button" className="btn ghost bxs" onClick={() => setWording(v)}>Clarify wording</button>
+        </div>}
+      </div>
+
+      {benchmark.versions.length > 1 && <div className="card" style={{ marginBottom: 12 }}>
+        <div className="clbl mb8">Version history</div>
+        {benchmark.versions.map(ver => <div key={ver.id} style={{ fontSize: 12, padding: "4px 0", borderTop: ver === benchmark.versions[0] ? "none" : "1px solid var(--b)" }}>
+          <b>v{ver.versionNumber}</b> {bmMetricSummary(ver)} {ver.firstUsedAt ? <span style={{ color: "var(--td)" }}>· in use</span> : <span style={{ color: "var(--td)" }}>· not yet used</span>}
+        </div>)}
+      </div>}
+
+      <div className="card">
+        <div className="clbl mb8">Team results</div>
+        {teams.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>You are not on any team yet.</div>}
+        {teams.length > 0 && <select className="inp" value={teamId || ""} onChange={e => setTeamId(e.target.value || null)} style={{ marginBottom: 10 }}>
+          <option value="">Choose a team to see results</option>
+          {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>}
+        {teamId && assessments === null && <div style={{ fontSize: 12, color: "var(--td)" }}>Loading...</div>}
+        {teamId && assessments && assessments.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>
+          No measurements for {adopted ? adopted.name : "this team"} yet.
+          {canManage && <button type="button" className="btn ghost bxs" style={{ marginLeft: 8 }} onClick={async () => { await adoptBenchmarkForTeam(benchmark.id, teamId, v.id); alert("Added to " + (adopted ? adopted.name : "team") + ". Use the Builder or Measure Again to record results (those land with the next stages)."); }}>Add to this team</button>}
+        </div>}
+        {teamId && assessments && assessments.length > 0 && <div>
+          {assessments.map(a => <div key={a.id} style={{ fontSize: 13, padding: "6px 0", borderTop: "1px solid var(--b)" }}>
+            <b>{a.measuredLocalDate}</b>{a.label ? " · " + a.label : ""} <span className="bdg bs">{a.state}{a.underCorrection ? " (under correction)" : ""}</span>
+            {a.excludedFromComparisons && <span className="bdg bs" style={{ marginLeft: 4 }}>excluded</span>}
+          </div>)}
+          <div style={{ fontSize: 11, color: "var(--td)", marginTop: 8 }}>Comparisons, targets and player history render here once the reporting stage lands.</div>
+        </div>}
+      </div>
+
+      {newVersion && <div className="movly" style={{ zIndex: 320 }} onClick={e => { if (e.target === e.currentTarget) setNewVersion(false); }}>
+        <BenchmarkForm data={data} coachId={coachId} mode={mode} baseVersion={v} onCancel={() => setNewVersion(false)} onSaved={async () => { setNewVersion(false); await refreshLibrary(); }} />
+      </div>}
+      {wording && <div className="movly" style={{ zIndex: 320 }} onClick={e => { if (e.target === e.currentTarget) setWording(null); }}>
+        <WordingForm version={wording} onCancel={() => setWording(null)} onSaved={async () => { setWording(null); await refreshLibrary(); }} />
+      </div>}
+    </div>
+  );
+}
+
+const BM_EXAMPLES = [
+  { title: "Home-to-first sprint", metric: "time", hint: "fastest of two, seconds" },
+  { title: "Free throws made", metric: "success_rate", hint: "makes out of 10" },
+  { title: "Consecutive team passes", metric: "count", hint: "whole-team challenge" },
+];
+
+function BenchmarksTab({ data, coachId, mode, refreshLibrary, fromDrill, clearFromDrill }) {
+  const isBB = useBigBrowser();
+  const [search, setSearch] = useState("");
+  const [sportFilter, setSportFilter] = useState("All");
+  const [showArchived, setShowArchived] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [detailId, setDetailId] = useState(null);
+  const [resultsTeamId, setResultsTeamId] = useState(null);
+
+  useEffect(() => { if (fromDrill) { setCreating({ sourceDrill: fromDrill }); setDetailId(null); } }, [fromDrill]);
+
+  const all = data.benchmarks || [];
+  const sports = ["All", ...[...new Set(all.map(b => b.sport || "General"))].sort()];
+  const list = all
+    .filter(b => showArchived ? true : !b.archivedAt)
+    .filter(b => sportFilter === "All" || (b.sport || "General") === sportFilter)
+    .filter(b => !search.trim() || b.title.toLowerCase().includes(search.trim().toLowerCase()));
+
+  const detail = detailId ? all.find(b => b.id === detailId) : null;
+  if (detail) {
+    const canManage = detail.ownerUserId === coachId || (mode && mode.type === "org" && detail.organizationId === mode.orgId);
+    return <BenchmarkDetail data={data} coachId={coachId} mode={mode} benchmark={detail} teamId={resultsTeamId} setTeamId={setResultsTeamId} canManage={canManage} onBack={() => setDetailId(null)} refreshLibrary={refreshLibrary} />;
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+        <input className="inp" style={{ flex: 1, minWidth: 160 }} placeholder="Search benchmarks..." value={search} onChange={e => setSearch(e.target.value)} />
+        <select className="btn ghost bsm" value={sportFilter} onChange={e => setSportFilter(e.target.value)}>{sports.map(s => <option key={s} value={s}>{s}</option>)}</select>
+        <button type="button" className="btn ghost bsm" onClick={() => setShowArchived(a => !a)}>{showArchived ? "Hide archived" : "Show archived"}</button>
+        <button type="button" className="btn primary bsm" onClick={() => setCreating(true)}>+ Create Benchmark</button>
+      </div>
+
+      {list.length === 0 && <div className="card" style={{ textAlign: "center", padding: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{all.length === 0 ? "No benchmarks yet" : "Nothing matches"}</div>
+        <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>Define a repeatable test once, then measure it as many times as you like.</div>
+        {all.length === 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+          {BM_EXAMPLES.map(ex => <button key={ex.title} type="button" className="btn ghost bxs" onClick={() => setCreating({ example: ex })}>{ex.title} <span style={{ color: "var(--td)" }}>({ex.hint})</span></button>)}
+        </div>}
+      </div>}
+
+      <div style={isBB ? { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 } : undefined}>
+        {list.map(b => <div key={b.id} className="card" style={{ cursor: "pointer", marginBottom: isBB ? 0 : 10, opacity: b.archivedAt ? 0.6 : 1 }} onClick={() => { setDetailId(b.id); }}>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>{b.title}</div>
+          <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>{b.sport} · {b.subjectMode === "team" ? "Whole team" : "Individual"}</div>
+          <div style={{ fontSize: 12, marginTop: 6 }}>{bmMetricSummary(b.latestVersion)}</div>
+          {(b.latestVersion && b.latestVersion.tagSnapshot || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>{b.latestVersion.tagSnapshot.map((t, i) => <span key={i} className="bdg bs">{t}</span>)}</div>}
+        </div>)}
+      </div>
+
+      {creating && <div className="movly" style={{ zIndex: 300 }} onClick={e => { if (e.target === e.currentTarget) { setCreating(false); if (clearFromDrill) clearFromDrill(); } }}>
+        <BenchmarkForm
+          data={data} coachId={coachId} mode={mode}
+          sourceDrill={creating.sourceDrill || null}
+          onCancel={() => { setCreating(false); if (clearFromDrill) clearFromDrill(); }}
+          onSaved={async (res) => { setCreating(false); if (clearFromDrill) clearFromDrill(); await refreshLibrary(); if (res && res.benchmark_id) setDetailId(res.benchmark_id); }}
+        />
+      </div>}
+    </div>
+  );
+}
+
 // ── NewLibraryScreen ──────────────────────────────────────────────────────────
 // Library split (nav restructure, 2026-07-15): two shelves -- "My Library"
 // (your drills + templates, with a sub-toggle) and "Explore" (content that
@@ -989,6 +1376,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   useEffect(()=>{if(refreshLibrary)refreshLibrary();},[]);
   const [section,setSection]=useState("mine"); // "mine" | "explore" -- the untagged deep link only ever means My Drills, already the default
   const [mineTab,setMineTab]=useState("drills"); // sub-toggle within My Library
+  const [benchmarkFromDrill,setBenchmarkFromDrill]=useState(null); // "Create Benchmark from Drill" hands a drill to BenchmarksTab's create form
   // Only-untagged filter: forced on when arriving via the deep link, but a
   // plain toggle afterward so the coach can drop back to the full list
   // without losing the "Back to Goals & Insights" exit or leaving the page.
@@ -1281,7 +1669,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           box was exactly text-sized. Padding widened, row gap shrank to
           compensate so all 5 tabs still fit without extra scrolling. */}
       <div style={{display:"flex",gap:8,padding:"6px 2px 0",overflowX:"auto"}}>
-        {[{k:"drills",label:"Drills"},{k:"templates",label:"Templates"},{k:"locations",label:"Locations"},{k:"equipment",label:"Equipment"},{k:"skills",label:"Skill Tags"}].map(t=>(<button key={t.k} onClick={()=>setMineTab(t.k)} style={{flexShrink:0,background:"none",border:"none",cursor:"pointer",padding:"8px 6px",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap",color:mineTab===t.k?"var(--green)":"var(--td)",borderBottom:"2px solid "+(mineTab===t.k?"var(--green)":"transparent")}}>{t.label}</button>))}
+        {[{k:"drills",label:"Drills"},{k:"templates",label:"Templates"},{k:"benchmarks",label:"Benchmarks"},{k:"locations",label:"Locations"},{k:"equipment",label:"Equipment"},{k:"skills",label:"Skill Tags"}].map(t=>(<button key={t.k} onClick={()=>setMineTab(t.k)} style={{flexShrink:0,background:"none",border:"none",cursor:"pointer",padding:"8px 6px",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap",color:mineTab===t.k?"var(--green)":"var(--td)",borderBottom:"2px solid "+(mineTab===t.k?"var(--green)":"transparent")}}>{t.label}</button>))}
       </div>
       {/* My Drills / Team Libraries -- Drills-only, since Explore never
           applied to Templates/Locations/Equipment/Skill Tags in the first
@@ -1290,6 +1678,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
         {[{k:"mine",label:isOrgMode?"Org Drills":"My Drills"},{k:"explore",label:"Explore"}].map(t=>(<button key={t.k} onClick={()=>goSection(t.k)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:section===t.k?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:section===t.k?"var(--black)":"var(--td)"}}>{t.label}</button>))}
       </div>}
     </div>
+    {mineTab==="benchmarks"&&<div style={{padding:"0 16px"}}><BenchmarksTab data={data} coachId={coachId} mode={mode} refreshLibrary={refreshLibrary} fromDrill={benchmarkFromDrill} clearFromDrill={()=>setBenchmarkFromDrill(null)}/></div>}
     {mineTab==="locations"&&<div style={{padding:"0 16px"}}><LocationsSection data={data} openModal={openModal} refreshPlanning={refreshPlanning} coachId={coachId} mode={mode}/></div>}
     {mineTab==="equipment"&&<div style={{padding:"0 16px"}}><EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode={mode}/></div>}
     {mineTab==="skills"&&<div style={{padding:"0 16px"}}><SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} isAdmin={isAdmin} mode={mode}/></div>}
@@ -1440,6 +1829,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
                     a safe, instant, one-way-reversible action. */}
                 <button className="mm-item" onClick={()=>{setDrillMenu(null);act.isPrivate?setConfirmMakePublicId(act.id):toggleDrillPrivate(act.id,true);}}>{act.isPrivate?"Make Public":"Keep Private"}</button>
                 <button className="mm-item" onClick={()=>{setDrillMenu(null);setOpenInsightsId(act.id);}}>View Drill Insights</button>
+                <button className="mm-item" onClick={()=>{setDrillMenu(null);setBenchmarkFromDrill(act);setMineTab("benchmarks");}}>Create Benchmark from Drill</button>
                 <button className="mm-item mm-danger" onClick={async()=>{setDrillMenu(null);await archiveDrill(act.id);await refreshLibrary();}}>Delete</button>
               </div>}
               {shareMenuId===act.id&&<div className="mini-menu" style={drillMenuUp?{right:0,minWidth:160,top:"auto",bottom:"calc(100% - 4px)"}:{right:0,top:"100%",minWidth:160}} onClick={e=>e.stopPropagation()}>
