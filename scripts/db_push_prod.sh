@@ -7,6 +7,12 @@
 #   (b) runs the §3.1 dump first, no exceptions
 #   (c) requires typing the literal production project ref to proceed
 # Usage: npm run db:push:prod
+#
+# Also runs the read-only production activity check first
+# (scripts/prod_activity_check.sh): if anyone has a live session, a practice
+# inside the deploy window, or was active in the last 15 minutes, this
+# refuses. Override for a genuine emergency with FORCE_PROD_PUSH=1 (logged
+# in the Session Log when used).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -28,6 +34,19 @@ if [ "$BRANCH" != "main" ]; then
   echo "Refusing to push to production from branch '$BRANCH' -- must be on main." >&2
   exit 1
 fi
+
+echo "Running the production activity check first (scripts/prod_activity_check.sh)..."
+if [ "${FORCE_PROD_PUSH:-0}" = "1" ]; then
+  bash scripts/prod_activity_check.sh || echo "Activity check reported HOLD -- continuing anyway because FORCE_PROD_PUSH=1."
+else
+  if ! bash scripts/prod_activity_check.sh; then
+    echo "" >&2
+    echo "Aborting: production has live or imminent activity. Wait, or re-run with" >&2
+    echo "FORCE_PROD_PUSH=1 for a genuine emergency (and log it in the Session Log)." >&2
+    exit 1
+  fi
+fi
+echo ""
 
 if [ -n "$(git status --porcelain)" ]; then
   echo "Refusing to push to production with a dirty working tree. Commit or stash first:" >&2

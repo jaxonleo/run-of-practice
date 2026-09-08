@@ -238,7 +238,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
             <div style={{width:24,height:24,borderRadius:"50%",background:"var(--s2)",border:"1px solid var(--b)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"var(--td)",flexShrink:0,marginRight:10}}>{i+1}</div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:14,fontWeight:600,color:"var(--black)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                {a.type==="station_block"?"Station Block · "+a.stations.length+" stations":a.type==="checklist"?a.name:a.name}
+                {a.type==="station_block"?(a.name&&a.name.trim()?a.name:"Station Block")+" · "+a.stations.length+" stations":a.name}
               </div>
               {a.type==="activity"&&a.coachingPoints&&!isExp&&<div style={{fontSize:11,color:"var(--td)",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.coachingPoints}</div>}
               {a.type==="station_block"&&<div style={{fontSize:11,color:"var(--td)",marginTop:1}}>{a.stations.map(s=>s.activityName||s.name).join(" / ")}</div>}

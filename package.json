@@ -33,6 +33,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:dump": "bash scripts/db_dump.sh",
+    "db:check:prod": "bash scripts/prod_activity_check.sh",
     "db:push:staging": "bash scripts/db_push_staging.sh",
     "db:push:prod": "bash scripts/db_push_prod.sh"
   }

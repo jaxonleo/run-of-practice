@@ -400,10 +400,16 @@ export async function fetchPracticeRunStatus(practiceIds) {
   if (!practiceIds || !practiceIds.length) return {}
   const { data, error } = await supabase.from('practice_live_sessions').select('practice_id,status').in('practice_id', practiceIds)
   if (error) { console.error('fetchPracticeRunStatus:', error); return {} }
+  // Precedence when a practice has several sessions over time: a real finish
+  // beats an in-progress run, which beats an aborted one. 'abandoned' is
+  // surfaced as its own value (not folded into 'started') so callers can
+  // tell an aborted practice apart -- Home uses it to drop an aborted
+  // practice from its upcoming list (see HomeScreen's agenda filter).
+  const rank = { completed: 3, started: 2, abandoned: 1 }
   const out = {}
   for (const row of data || []) {
-    if (row.status === 'completed') out[row.practice_id] = 'completed'
-    else if (out[row.practice_id] !== 'completed') out[row.practice_id] = 'started'
+    const s = row.status === 'completed' ? 'completed' : row.status === 'abandoned' ? 'abandoned' : 'started'
+    if (!out[row.practice_id] || rank[s] > rank[out[row.practice_id]]) out[row.practice_id] = s
   }
   return out
 }
@@ -428,7 +434,7 @@ const OLD_TO_EQUIP_TYPE = { team: 'team_equipment', player: 'player_gear' }
 // locationIds empty = travels everywhere (no location restriction); one or
 // more = only available at those locations.
 function mapAssetRow(a, locationsByAsset) {
-  return { id: a.id, name: a.name, type: EQUIP_TYPE_TO_OLD[a.type] || a.type, sport: a.sport, organizationId: a.organization_id, ownerUserId: a.owner_user_id, sourceCatalogId: a.source_catalog_id, locationIds: (locationsByAsset && locationsByAsset[a.id]) || [], acquired: a.acquired !== false }
+  return { id: a.id, name: a.name, type: EQUIP_TYPE_TO_OLD[a.type] || a.type, sport: a.sport, organizationId: a.organization_id, ownerUserId: a.owner_user_id, sourceCatalogId: a.source_catalog_id, locationIds: (locationsByAsset && locationsByAsset[a.id]) || [], acquired: a.acquired !== false, availableToTeamPlanners: !!a.available_to_team_planners }
 }
 function mapSkillTagRow(t) {
   return { id: t.id, categoryId: t.category_id, scope: t.scope, organizationId: t.organization_id, ownerUserId: t.owner_user_id, name: t.name }
@@ -558,6 +564,16 @@ export async function archiveAsset(id) {
   if (error) console.error('archiveAsset:', error)
   return { error }
 }
+// Same shape as setLocationTeamAvailability: an owner-only opt-in that lets
+// this coach's own equipment be picked (and linked) by a delegate planning
+// for a team they're both on. Off by default -- a coach's equipment is not
+// exposed to co-coaches just because they share a roster. Owner-only is
+// enforced inside set_asset_team_availability itself.
+export async function setAssetTeamAvailability(assetId, available) {
+  const { error } = await supabase.rpc('set_asset_team_availability', { p_asset_id: assetId, p_available: available })
+  if (error) console.error('setAssetTeamAvailability:', error)
+  return { error }
+}
 
 export async function createSkillTag(ownerUserId, { categoryId, name }) {
   const { data, error } = await supabase.from('skill_tags').insert({ category_id: categoryId, scope: 'coach', owner_user_id: ownerUserId, name }).select().single()
@@ -645,21 +661,28 @@ async function syncDrillTags(drillId, tagIds) {
   return {}
 }
 
-async function nextDrillPosition(ownerUserId) {
-  const { data } = await supabase.from('activity_library').select('position').eq('owner_user_id', ownerUserId).order('position', { ascending: false }).limit(1)
-  return data && data.length ? data[0].position + 1 : 0
-}
+// One atomic RPC -- the activity_library row plus every equipment and tag
+// link in a single transaction -- instead of insert-then-sync-then-sync.
+// The old path committed the drill row first, so an RLS rejection on an
+// equipment link (e.g. an asset the coach can see but not link) left an
+// orphan row behind and the modal, still open on a generic error, retried
+// straight into a duplicate. A real production report ended with ~5
+// near-identical rows. See 20260901000100_atomic_drill_write.sql.
 export async function createDrill(ownerUserId, { name, sport, duration, description, coachingPoints, grouping, numGroups, equipment, skillTagIds }) {
-  const position = await nextDrillPosition(ownerUserId)
-  const { data, error } = await supabase.from('activity_library').insert({
-    owner_user_id: ownerUserId, name, sport: sport || 'General', duration_minutes: duration || null,
-    description: description || null, coaching_points: coachingPoints || null,
-    grouping: grouping || 'whole', num_groups: numGroups || null, position,
-  }).select().single()
+  const { data, error } = await supabase.rpc('create_drill_with_equipment', {
+    p_owner_user_id: ownerUserId,
+    p_name: name,
+    p_sport: sport || 'General',
+    p_duration_minutes: duration || null,
+    p_description: description || null,
+    p_coaching_points: coachingPoints || null,
+    p_grouping: grouping || 'whole',
+    p_num_groups: numGroups || null,
+    p_equipment_asset_ids: (equipment || []).filter(Boolean),
+    p_skill_tag_ids: (skillTagIds || []).filter(Boolean),
+  })
   if (error) { console.error('createDrill:', error); return { error } }
-  if (equipment && equipment.length) { const r = await syncDrillEquipment(data.id, equipment); if (r.error) return { data, error: r.error } }
-  if (skillTagIds && skillTagIds.length) { const r = await syncDrillTags(data.id, skillTagIds); if (r.error) return { data, error: r.error } }
-  return { data }
+  return { data: { id: data } }
 }
 // Drag-to-reorder needs an arbitrary move (index 0 to index 5), not just an
 // adjacent swap -- orderedIds is the full new order for whatever subset was
@@ -680,15 +703,24 @@ export async function setDrillPrivate(id, isPrivate) {
   if (error) console.error('setDrillPrivate:', error)
   return { error }
 }
+// Atomic counterpart to createDrill (see 20260901000100). A null/undefined
+// equipment or skillTagIds arg means "leave that relation untouched" --
+// same contract the old syncDrill* branches had via `if (equipment)` --
+// while any array (including an empty one) is the full desired set.
 export async function updateDrill(id, { name, sport, duration, description, coachingPoints, grouping, numGroups, equipment, skillTagIds }) {
-  const { error } = await supabase.from('activity_library').update({
-    name, sport: sport || 'General', duration_minutes: duration || null,
-    description: description || null, coaching_points: coachingPoints || null,
-    grouping: grouping || 'whole', num_groups: numGroups || null,
-  }).eq('id', id)
+  const { error } = await supabase.rpc('update_drill_with_equipment', {
+    p_drill_id: id,
+    p_name: name,
+    p_sport: sport || 'General',
+    p_duration_minutes: duration || null,
+    p_description: description || null,
+    p_coaching_points: coachingPoints || null,
+    p_grouping: grouping || 'whole',
+    p_num_groups: numGroups || null,
+    p_equipment_asset_ids: equipment == null ? null : equipment.filter(Boolean),
+    p_skill_tag_ids: skillTagIds == null ? null : skillTagIds.filter(Boolean),
+  })
   if (error) { console.error('updateDrill:', error); return { error } }
-  if (equipment) { const r = await syncDrillEquipment(id, equipment); if (r.error) return { error: r.error } }
-  if (skillTagIds) { const r = await syncDrillTags(id, skillTagIds); if (r.error) return { error: r.error } }
   return {}
 }
 export async function archiveDrill(id) {
@@ -977,6 +1009,13 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
     base.items = (itemsByAct[a.id] || []).map(it => ({ id: it.id, text: it.text }))
     base.notes = base.description
   }
+  if (a.type === 'scrimmage') {
+    // Whole config + generated board ride jsonb on the activity row -- no
+    // child tables (unlike a station block). scrimmage_rounds is
+    // practices-only; a template row simply won't have the column/value.
+    base.scrimmageConfig = a.scrimmage_config || null
+    base.scrimmageRounds = a.scrimmage_rounds || null
+  }
   if (a.type === 'station_block') {
     const block = (stationBlocksByAct[a.id] || [])[0]
     base.rotate = block ? block.rotate : true
@@ -1148,10 +1187,29 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
       library_activity_id: act.libraryId || null,
       sublocation_id: act.sublocationId || null,
     }
+    if (act.type === 'scrimmage') {
+      // Config round-trips on both practices and templates; the generated
+      // board (roster-specific) is practices-only, gated on teamScoped
+      // below.
+      row.scrimmage_config = act.scrimmageConfig || null
+    }
     if (teamScoped) {
       row.team_staff_id = act.coachId || null; row.helper_name = act.coachId ? null : (act.helperName || null)
       row.tag_snapshot = act.libraryId ? (tagSnapshotByLibraryId[act.libraryId] || null) : null
       row.sublocation_name_snapshot = act.sublocationId ? (subNameById[act.sublocationId] || null) : null
+      if (act.type === 'scrimmage') {
+        row.scrimmage_rounds = act.scrimmageRounds || null
+        // A scrimmage block has no library drill, so its skill tags live in
+        // scrimmage_config.skillTagIds. Writing them into tag_snapshot is
+        // what makes Goals & Insights attribution work with no SQL change --
+        // the attribution helpers already have a
+        // `library_activity_id IS NULL AND tag_snapshot IS NOT NULL` branch
+        // (20260822000200) that splits a row's minutes across tag_snapshot's
+        // categories. Section 8: the block counts toward every area, and is
+        // never excluded from the denominator the way breaks/checklists are.
+        const stagTags = (act.scrimmageConfig && act.scrimmageConfig.skillTagIds) || []
+        row.tag_snapshot = stagTags.length ? stagTags : null
+      }
     }
 
     let actId = act.id
@@ -1833,6 +1891,43 @@ export async function fetchLatestGroups(sessionId, practiceActivityId, stationId
     console.error('fetchLatestGroups:', e)
     return null
   }
+}
+
+// Scrimmage board override, session-scoped (ROP-Scrimmage-Handoff.md §5.2).
+// Same append-only lifecycle as session_groups: every Repair / Regenerate /
+// manual edit / live pick-up-and-drop inserts a fresh snapshot rather than
+// updating one, and "current" = the newest row for that (session, activity).
+// `rounds` is the same shape as practice_activities.scrimmage_rounds.
+export async function saveSessionScrimmageBoard(sessionId, practiceActivityId, createdBy, rounds) {
+  const { error } = await supabase.from('session_scrimmage_boards').insert({
+    live_session_id: sessionId, practice_activity_id: practiceActivityId,
+    rounds: rounds || [], created_by: createdBy,
+  })
+  if (error) { console.error('saveSessionScrimmageBoard:', error); return { error } }
+  return {}
+}
+
+// Sibling of fetchLatestGroups: hardened against a hard network throw (feeds
+// a live-session render path with no error handling of its own) and given a
+// bounded 3-attempt retry, since a transient failure here would otherwise
+// silently drop the live board back to the plan for the rest of the mount.
+// Returns the latest rounds array, or null if there is no session override
+// (caller then falls back to the plan's scrimmage_rounds).
+export async function fetchLatestScrimmageBoard(sessionId, practiceActivityId) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { data, error } = await supabase.from('session_scrimmage_boards')
+        .select('rounds,created_at')
+        .eq('live_session_id', sessionId).eq('practice_activity_id', practiceActivityId)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle()
+      if (error) { console.error('fetchLatestScrimmageBoard:', error); }
+      else return data ? (data.rounds || null) : null
+    } catch (e) {
+      console.error('fetchLatestScrimmageBoard:', e)
+    }
+    await new Promise(r => setTimeout(r, 250 * (attempt + 1)))
+  }
+  return null
 }
 
 // Reconstructs the in-memory "currently open log row" ref after a resume

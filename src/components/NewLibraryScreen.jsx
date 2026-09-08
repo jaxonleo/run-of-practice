@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { uid, sumMins, localDateStr, planningState, teamsForMode, menuNeedsToOpenUpward, useBigBrowser } from "../constants.js";
-import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
+import { uid, sumMins, localDateStr, planningState, teamsForMode, menuNeedsToOpenUpward, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES } from "../constants.js";
+import { ActConfig, ChecklistConfig, StationConfig, ScrimmageConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
 import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, archiveSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport } from "../supabase.js";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
@@ -718,7 +718,7 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
           {dragHandle}
           <div style={{flex:1,minWidth:0}}>
             <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-              {act.type==="station_block"?"Station Block":act.name}
+              {act.type==="station_block"?"Station Block":act.type==="scrimmage"?(act.name||"Scrimmage"):act.name}
             </div>
             {act.type==="station_block"&&<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} · {act.stationDuration}m×{act.stations.length}{act.rotate!==false?" rotates":""}</div>}
             {act.type==="activity"&&<div className="limt">
@@ -753,6 +753,7 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
           {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} sport={sport} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
           {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
           {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={sport} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
+          {act.type==="scrimmage"&&<ScrimmageConfig act={act} team={null} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} teamSport={sport} data={data} coachId={coachId} refreshLibrary={refreshLibrary}/>}
         </div>)}
       </div>
     </div>)}</SortableActivityRow>
@@ -785,6 +786,14 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
         <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">2 stations, add or remove as needed</div></div>
         <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
       </div>
+      {sportSupportsScrimmage(sport)&&<div className="li tap" style={{marginBottom:6,background:"var(--gbg)",borderColor:"var(--gb)"}} onClick={()=>{
+        const cfg=buildDefaultScrimmageConfig(60,SCRIMMAGE_DEFAULT_ROUND_MINUTES,defaultScrimmageTagIds(data.skillCategories,data.skillTags,sport));
+        const a={id:uid(),type:"scrimmage",name:"Scrimmage",duration:60,coachId:"",sublocationId:"",equipment:[],scrimmageConfig:cfg,scrimmageRounds:null};
+        setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
+      }}>
+        <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Scrimmage</div><div className="limt">Everyone rotates positions and at-bats</div></div>
+        <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
+      </div>}
       {(()=>{
         const tplSport=sport||"General";
         // Same exclusion as StationConfig's quick-picker -- public-catalog

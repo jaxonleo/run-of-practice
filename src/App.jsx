@@ -6,12 +6,13 @@ import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
+import { setSentryUser } from "./sentry.js";
 import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser } from "./constants.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES } from "./constants.js";
 import { TwoPane } from "./components/BBShells.jsx";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
-import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
+import { ActConfig, ChecklistConfig, StationConfig, ScrimmageConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView, usePracticePresence, PresenceBadge } from "./components/CommandScreen.jsx";
 import MyStationBuilderScreen, { StationPresenceIndicator } from "./components/MyStationBuilder.jsx";
 import HomeScreen from "./components/HomeScreen.jsx";
@@ -202,7 +203,15 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .cc-prog-bar{height:100%;background:var(--green);transition:width .5s linear;}
 .cc-prog-bar.over{background:var(--red);}
 .cc-controls{padding:6px 14px;display:flex;gap:8px;flex-shrink:0;}
-.cc-body{flex:1;overflow-y:auto;padding:0 14px 8px;display:flex;flex-direction:column;gap:10px;}
+.cc-body{flex:1;min-height:0;overflow-y:auto;padding:0 14px 8px;display:flex;flex-direction:column;gap:10px;}
+/* Real bug (mobile only): .cc-body is a flex column that's meant to scroll,
+   but its children default to flex-shrink:1 -- so on a short viewport with a
+   tall station block open, the browser compressed the children to fit
+   instead of scrolling, collapsing the last one ("Up Next") to just its
+   border with no room for its rows. Desktop viewports were tall enough to
+   never hit it. Pinning every direct child to its natural height forces the
+   scroll onto .cc-body where it belongs. */
+.cc-body>*{flex-shrink:0;}
 .cc-focus{background:var(--gbg);border:1.5px solid var(--gb);border-radius:var(--r);padding:14px;}
 .cc-focus-lbl{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--green2);margin-bottom:6px;}
 .cc-focus-txt{font-size:17px;font-weight:600;color:var(--black);line-height:1.5;}
@@ -269,14 +278,47 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
    children instead of viewport-fixed overlays. */
 .bb .live-resume{position:static;left:auto;bottom:auto;transform:none;width:100%;max-width:none;flex-shrink:0;}
 /* Bottom-sheet overlays (SkillTagPicker, move-pickers, PermissionsModal,
-   etc.) become centered dialogs at BB -- same .movly/.modal components,
-   same open/close state and tryClose guards, style only. */
-.bb .movly{align-items:center;padding:24px;}
-.bb .modal{border-radius:16px;max-width:560px;max-height:82dvh;}
+   New Drill, Add Coach, etc.) become centered dialogs on a big browser --
+   same .movly/.modal components, same open/close state and tryClose guards,
+   style only. Keyed to the raw viewport width, NOT the .bb class, because
+   several overlays (ModalLayer, AuthScreen's own sheet) render OUTSIDE the
+   .app.bb subtree -- .bb-scoped rules never reached them, so on desktop
+   they stayed glued to the bottom of the window. The breakpoint is the
+   exact one useBigBrowser() uses, so nothing inside .app.bb changes. */
+@media (min-width:1024px){
+  .movly{align-items:center;padding:24px;}
+  .modal{border-radius:16px;max-width:560px;max-height:82dvh;}
+  /* Builder's "choose a drill" / "new drill" flows: rather than a dialog
+     floating over the seam between the two panes (covering part of the Run
+     of Practice AND part of the library, aligned to neither), slide in from
+     the right as a work panel roughly the width of the right pane. The Run
+     of Practice stays where it is on the left, just dimmed by the panel's
+     own backdrop -- "navigation work on the right, ROP still visible." */
+  .movly-right{justify-content:flex-end;align-items:stretch;padding:0;background:rgba(17,23,20,.42);}
+  /* width lines the panel's left edge up with the right pane's left edge:
+     rail (88) + .screen padding (28) + half the pane gap (~9) ~= 52px of
+     chrome to the left of that edge, so the panel is (viewport / 2) minus
+     that. Clamped so it stays usable on a 1024 screen and doesn't get
+     absurdly wide on an ultrawide one. */
+  .movly-right>.modal{width:clamp(440px,calc(50vw - 52px),760px);max-width:none!important;height:100%!important;max-height:100%!important;border-radius:0!important;border:none;border-left:1px solid var(--b);box-shadow:-16px 0 48px rgba(0,0,0,.18);}
+  .movly-right>.modal>.mhandle{display:none;}
+  /* Sign-in screen: on a phone the white card is a bottom sheet under a
+     tall hero; on a desktop that reads as "stuck to the bottom of the
+     window." Lift it into a centered, fully-rounded card instead. */
+  .auth-wrap{justify-content:center;align-items:center;}
+  .auth-hero{flex:0 0 auto!important;padding:0 24px 24px!important;}
+  .auth-sheet{max-width:400px;width:100%;border-radius:20px!important;padding:32px 28px 36px!important;box-shadow:0 24px 64px rgba(0,0,0,.4);}
+  .auth-sheet .mhandle-auth{display:none;}
+}
 
 /* Shared shells (BBShells.jsx) -- layout only, no state/logic. */
 .bb-two-pane{display:flex;gap:18px;height:100%;min-height:0;}
-.bb-pane{flex:1;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+/* padding-right keeps the pane's scrollbar clear of its content. Without
+   it the left pane's (overlay) scrollbar floated over the right edge of
+   the green Run of Practice backdrop, which is pinned to the pane's own
+   right edge. scrollbar-gutter:stable covers browsers with classic
+   scrollbars so the reserved space stays consistent. */
+.bb-pane{flex:1;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:12px;scrollbar-gutter:stable;scrollbar-width:thin;}
 .bb-centered-page{max-width:820px;margin:0 auto;width:100%;}
 /* Opt-in per screen when it adopts TwoPane at BB, so the screen's own outer
    container fills .screen's height instead of growing with content -- that
@@ -347,17 +389,17 @@ function AuthScreen({onBack}){
     }
     // onAuthStateChange picks up the new session automatically.
   };
-  return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
+  return (<div className="auth-wrap" style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
     {onBack&&<button onClick={onBack} style={{position:"absolute",top:16,left:16,background:"rgba(255,255,255,.08)",border:"none",borderRadius:"50%",width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#fff",fontSize:18,zIndex:10}}>&#8249;</button>}
-    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
+    <div className="auth-hero" style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
       <div style={{width:96,height:96,borderRadius:22,overflow:"hidden",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
         <img src="/apple-touch-icon.png" style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Run of Practice"/>
       </div>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:38,fontWeight:900,color:"#fff",letterSpacing:"-.01em",lineHeight:1,marginBottom:6,textAlign:"center"}}>Run of Practice</div>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:600,letterSpacing:".12em",textTransform:"uppercase",color:"var(--green)",textAlign:"center"}}>Organize. Execute. Elevate.</div>
     </div>
-    <div style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
-      <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
+    <div className="auth-sheet" style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
+      <div className="mhandle-auth" style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
       {!sent&&<div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Welcome, Coach</div>
         <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Enter your email. We'll send you a sign-in code.</div>
@@ -393,15 +435,15 @@ function NameScreen({onSave}){
     await onSave(firstName.trim(),lastName.trim());
     setSaving(false);
   };
-  return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
-    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
+  return (<div className="auth-wrap" style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
+    <div className="auth-hero" style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
       <div style={{width:96,height:96,borderRadius:22,overflow:"hidden",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
         <img src="/apple-touch-icon.png" style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Run of Practice"/>
       </div>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,color:"#fff",letterSpacing:"-.01em",lineHeight:1,marginBottom:6,textAlign:"center"}}>What should we call you?</div>
     </div>
-    <div style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
-      <div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
+    <div className="auth-sheet" style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
+      <div className="mhandle-auth" style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
       <div className="fld mb10">
         <label className="lbl">First name*</label>
         <input className="inp" autoFocus type="text" placeholder="Alex" value={firstName} onChange={e=>setFirstName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")save();}}/>
@@ -446,6 +488,13 @@ export default function App(){
     return ()=>sub.unsubscribe();
   },[]);
   const coachId=session?session.user.id:null;
+  // Tie every Sentry error/replay/trace to the signed-in coach (cleared on
+  // sign-out). session is undefined while loading -- only act on a resolved
+  // value.
+  useEffect(()=>{
+    if(session===undefined)return;
+    setSentryUser(session?session.user:null);
+  },[session]);
   // Real-usage feedback: silently clearing deactivated_at on sign-in (no
   // prompt at all) was surprising -- a coach signed back in, went to check
   // something else, and only later realized their account had quietly come
@@ -1127,6 +1176,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const runOfPracticeOuterRef=useRef(null);
   const runOfPracticeStartRef=useRef(null);
   const runOfPracticeEndRef=useRef(null);
+  const leftPaneInnerRef=useRef(null);
   const [runOfPracticeH,setRunOfPracticeH]=useState(0);
   const recomputeRunOfPracticeH=useCallback(()=>{
     const start=runOfPracticeStartRef.current;
@@ -1134,7 +1184,20 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     if(!start||!end)return;
     const sRect=start.getBoundingClientRect();
     const eRect=end.getBoundingClientRect();
-    setRunOfPracticeH(Math.max(0,eRect.bottom-sRect.top));
+    let h=Math.max(0,eRect.bottom-sRect.top);
+    // At BB the Run of Practice is a whole scroll pane to itself with
+    // nothing below it -- so the green should always reach at least the
+    // bottom of the visible pane (no white gap under a short practice) and,
+    // when a station block is expanded, still cover all of it (the row
+    // content is measured start->end, which already includes the expanded
+    // config). Floor the height at "distance from the green's top edge to
+    // the pane's bottom edge."
+    const pane=start.closest(".bb-pane");
+    if(pane){
+      const pRect=pane.getBoundingClientRect();
+      h=Math.max(h,pRect.bottom-sRect.top);
+    }
+    setRunOfPracticeH(h);
   },[]);
   useEffect(()=>{
     const outer=runOfPracticeOuterRef.current;
@@ -1155,6 +1218,22 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // whenever the practice's own content-affecting state changes covers BB
   // without touching mobile's existing resize-driven path at all.
   useEffect(()=>{recomputeRunOfPracticeH();},[acts,expandedId,recomputeRunOfPracticeH]);
+  // A station block expanded inline grows and shrinks (its own collapsed
+  // stations, the description textarea, the drill picker) without touching
+  // acts/expandedId, so neither effect above fires. At BB the left pane's
+  // inner content wrapper does grow with all of that -- observe it directly
+  // so the green keeps up. Also recompute on pane scroll, since the
+  // "reach the pane bottom" floor is measured relative to the viewport.
+  useEffect(()=>{
+    const inner=leftPaneInnerRef.current;
+    if(!inner)return;
+    const ro=new ResizeObserver(recomputeRunOfPracticeH);
+    ro.observe(inner);
+    const pane=inner.closest(".bb-pane");
+    const onScroll=()=>recomputeRunOfPracticeH();
+    if(pane)pane.addEventListener("scroll",onScroll,{passive:true});
+    return()=>{ro.disconnect();if(pane)pane.removeEventListener("scroll",onScroll);};
+  },[recomputeRunOfPracticeH]);
   // Direct feedback, two rounds: a prior session added an actual
   // scrollIntoView() here to fix "the last-added drill should be frozen at
   // the top" -- but forcing the whole page to jump back up to the Run of
@@ -1512,10 +1591,18 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // just two of PRACTICE_COMPONENT_TYPES, all sharing this one path.
   // station_block is the one non-checklist kind, so it just delegates to
   // addBlock (which already handles its own hand-rotation bump).
+  const addScrimmage=()=>{
+    const tagIds=defaultScrimmageTagIds(data.skillCategories,data.skillTags,teamSport);
+    const cfg=buildDefaultScrimmageConfig(60,SCRIMMAGE_DEFAULT_ROUND_MINUTES,tagIds);
+    const a={id:uid(),type:"scrimmage",name:"Scrimmage",duration:60,coachId:"",sublocationId:"",equipment:[],scrimmageConfig:cfg,scrimmageRounds:null};
+    setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
+    setHandRotation(r=>r+360);
+  };
   const addComponentType=key=>{
     const type=PRACTICE_COMPONENT_TYPES.find(t=>t.key===key);
     if(!type)return;
     if(type.kind==="station_block"){addBlock();return;}
+    if(type.kind==="scrimmage"){addScrimmage();return;}
     const a={id:uid(),type:"checklist",name:type.defaultName,duration:type.defaultDuration,assignments:defaultAssignIds,coachId:headCoachId,items:[],notes:""};
     setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
     setHandRotation(r=>r+360);
@@ -1674,12 +1761,12 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         <div className="modal">
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>Add/Remove Practice Components</div>
           <div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>Choose which of these show as one-tap buttons below. You can change this anytime.</div>
-          {PRACTICE_COMPONENT_TYPES.map(t=>{
+          {PRACTICE_COMPONENT_TYPES.filter(t=>t.key!=="scrimmage"||sportSupportsScrimmage(teamSport)).map(t=>{
             const on=visibleTypeKeys.includes(t.key);
             return (<div key={t.key} className="li tap" style={{marginBottom:8}} onClick={()=>toggleComponentType(t.key)}>
               <div className="lim">
                 <div className="lin">{t.label}</div>
-                <div className="limt">{t.kind==="station_block"?"2+ stations":t.defaultDuration+" min"}</div>
+                <div className="limt">{t.kind==="station_block"?"2+ stations":t.kind==="scrimmage"?"Everyone rotates positions and at-bats":t.defaultDuration+" min"}</div>
               </div>
               <span style={{width:22,height:22,borderRadius:"50%",border:"2px solid "+(on?"var(--green)":"var(--b)"),background:on?"var(--green)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{on&&<Ic.Check/>}</span>
             </div>);
@@ -1873,7 +1960,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         </>}
       </div>
       {acts.length===0&&(<div style={{position:"relative",zIndex:1,textAlign:"center",padding:"8px 22px 18px"}}>
-          <div style={{fontSize:13,color:"rgba(255,255,255,.9)",lineHeight:1.7,marginBottom:teamTemplates.length?10:0}}>Nothing added yet.<br/>Add activities below to begin building your Run of Practice.</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,.9)",lineHeight:1.7,marginBottom:teamTemplates.length?10:0}}>Nothing added yet.<br/>Add activities {isBB?"from the right":"below"} to begin building your Run of Practice.</div>
           {teamTemplates.length>0&&<button className="btn bsm" style={{background:"#fff",color:"var(--green)"}} onClick={()=>setShowTplPicker(true)}>Start with a Template</button>}
         </div>
       )}
@@ -1943,7 +2030,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                 {dragHandle}
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {act.type==="station_block"?(act.name||"Station Block"):act.name}
+                    {act.type==="station_block"?(act.name||"Station Block"):act.type==="scrimmage"?(act.name||"Scrimmage"):act.name}
                     {/* Direct feedback: a coach should be able to tell at a
                         glance who's leading a drill without expanding it --
                         same coach-or-typed-helper-name label the Practice
@@ -1951,7 +2038,13 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                         row here instead of its own section. */}
                     {act.type==="activity"&&<span style={{fontWeight:400,color:"var(--td)"}}> · {act.coachId?((team&&team.coaches.find(c=>c.id===act.coachId))||{}).name||"Unassigned":(act.helperName||"Unassigned")}</span>}
                   </div>
-                  {act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m
+                  {act.type==="scrimmage"?<div className="limt">{(()=>{
+                    const c=act.scrimmageConfig||{};
+                    const lbl=(c.roundLabel||"Round").toLowerCase();
+                    const players=(team&&team.players||[]).filter(p=>!absentPlayerIds.has(p.id)).length;
+                    return (c.rounds||0)+" "+lbl+"s · "+(act.duration||0)+" min · "+players+" players"+(act.scrimmageRounds?"":" · Not generated");
+                  })()}</div>:
+                  act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m
                     {/* Only shown once this block actually has a station
                         delegated to someone -- pure noise for the far more
                         common single-owner block, where "planned" isn't a
@@ -2009,6 +2102,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                     {act.stations.filter(s=>s.delegatedTo).map(s=><StationPresenceIndicator key={s.id} stationId={s.id}/>)}
                   </div>}
                   {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} libraryDrills={sourceFilteredLib} librarySources={librarySources} libSource={libSource} setLibSource={setLibSource} skillTags={data.skillTags} absentPlayerIds={absentPlayerIds}/>}
+                  {act.type==="scrimmage"&&<ScrimmageConfig act={act} team={team} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} data={data} coachId={coachId} refreshLibrary={refreshLibrary} absentPlayerIds={absentPlayerIds} isBB={isBB}/>}
                 </div>
               )}
             </div>
@@ -2039,9 +2133,9 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       {componentsOpen&&(<>
         {visibleTypeKeys.length===0&&<div style={{fontSize:13,color:"var(--td)",textAlign:"center",padding:"12px 0",marginBottom:8}}>No quick-add types selected. Tap the ⋯ above to choose some.</div>}
         {visibleTypeKeys.length>0&&<div className="g2" style={{marginBottom:14}}>
-          {PRACTICE_COMPONENT_TYPES.filter(t=>visibleTypeKeys.includes(t.key)).map(t=>(
+          {PRACTICE_COMPONENT_TYPES.filter(t=>visibleTypeKeys.includes(t.key)).filter(t=>t.key!=="scrimmage"||sportSupportsScrimmage(teamSport)).map(t=>(
             <div key={t.key} className="li tap" style={{marginBottom:0}} onClick={()=>addComponentType(t.key)}>
-              <div className="lim"><div className="lin">{t.label}</div><div className="limt">{t.kind==="station_block"?"2+ stations":t.defaultDuration+" min"}</div></div>
+              <div className="lim"><div className="lin">{t.label}</div><div className="limt">{t.kind==="station_block"?"2+ stations":t.kind==="scrimmage"?"Everyone rotates":t.defaultDuration+" min"}</div></div>
               <span style={{color:"var(--green)",fontSize:18,fontWeight:700,flexShrink:0}}>+</span>
             </div>
           ))}
@@ -2067,7 +2161,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         ):(
           <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flex:1}}>My Library</span>
         )}
-        {libSource==="mine"&&<button className="btn bxs" style={{background:"rgba(255,255,255,.16)",color:"#fff"}} onClick={()=>openModal("addActivity")}>+ New Activity</button>}
+        {libSource==="mine"&&<button className="btn bxs" style={{background:"rgba(255,255,255,.16)",color:"#fff"}} onClick={()=>openModal("addActivity",{fromBuilder:true})}>+ New Activity</button>}
         <button type="button" onClick={()=>setMyDrillsOpen(o=>!o)} aria-label={myDrillsOpen?"Collapse My Drill Library":"Expand My Drill Library"} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",padding:6,display:"flex",alignItems:"center"}}><Ic.Chev up={myDrillsOpen}/></button>
       </div>
       {myDrillsOpen&&(<>
@@ -2134,7 +2228,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       // never remounts BuilderScreen itself, so no draft is ever lost.
       return isBB?(
         <div className="bb-fill-height" style={{padding:"0 14px",position:"relative",flex:1,minHeight:0,overflow:"hidden"}} ref={runOfPracticeOuterRef}>
-          <TwoPane left={leftPaneContent} right={rightPaneContent}/>
+          <TwoPane left={<div ref={leftPaneInnerRef}>{leftPaneContent}</div>} right={rightPaneContent}/>
         </div>
       ):(
         <div style={{padding:"0 14px",position:"relative"}} ref={runOfPracticeOuterRef}>
