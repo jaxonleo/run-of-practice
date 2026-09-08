@@ -848,9 +848,9 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
 // board) and two collapsed disclosures (Round rules, Coach roles). A
 // first-time coach never opens a disclosure and still gets sensible
 // defaults. `team` is null in the template editor -- config only, no board.
-function CountStepper({value,min,max,onChange,suffix}){
+function CountStepper({value,min,max,onChange,suffix,fill}){
   const mn=min==null?1:min;
-  return (<div style={{display:"flex",alignItems:"center",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",overflow:"hidden",background:"#fff"}}>
+  return (<div style={{display:"flex",alignItems:"center",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",overflow:"hidden",background:"#fff",...(fill?{flex:1,minWidth:0}:null)}}>
     <button type="button" onClick={()=>onChange(Math.max(mn,value-1))} style={{width:40,height:40,border:"none",background:"var(--s2)",color:"var(--black2)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0}}>-</button>
     <div style={{flex:1,textAlign:"center",fontFamily:"DM Mono,monospace",fontSize:15,fontWeight:600,color:"var(--black)"}}>{value}{suffix||""}</div>
     <button type="button" onClick={()=>onChange(max!=null?Math.min(max,value+1):value+1)} style={{width:40,height:40,border:"none",background:"var(--s2)",color:"var(--black2)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0}}>+</button>
@@ -1056,7 +1056,7 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
         {pool.map(p=>{
           const lk=playerLock(p.id);
           const locked=lk.position||lk.noHit||lk.noPitch||lk.noCatch;
-          return (<button key={p.id} type="button" onClick={()=>setRotationPlayerId(p.id)} style={{padding:"5px 9px",borderRadius:14,border:"1.5px solid var(--b)",background:"var(--s1)",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:3}}>
+          return (<button key={p.id} type="button" onClick={()=>setRotationPlayerId(p.id)} style={{padding:"5px 9px",borderRadius:14,border:"1.5px solid var(--b)",background:"var(--s1)",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:3,color:"var(--black)"}}>
             {p.jersey?<span style={{fontFamily:"DM Mono,monospace",fontSize:10}}>#{p.jersey}</span>:null}{p.firstName}
             {locked&&<span title="Has a lock" style={{color:"var(--green)"}}>&#128274;</span>}
             {warnPlayerIds.has(p.id)&&<span style={{width:6,height:6,borderRadius:"50%",background:"var(--red)"}}/>}
@@ -1150,15 +1150,15 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
 
     {/* 6. Round rules disclosure */}
     <div className="fld">
-      <button type="button" onClick={()=>setRulesOpen(o=>!o)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13}}>
+      <button type="button" onClick={()=>setRulesOpen(o=>!o)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13,color:"var(--black)"}}>
         Round rules <Ic.Chev up={rulesOpen}/>
       </button>
       {rulesOpen&&<div style={{border:"1.5px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)",padding:"12px"}}>
         <div className="fld"><label className="lbl">Hitters per {label.toLowerCase()}</label>
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
-            <button type="button" className="btn ghost bxs" style={{background:(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")?"var(--green)":undefined,color:(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")?"#fff":undefined}} onClick={()=>setCfg({hittersPerRound:"auto"})}>Auto</button>
-            {typeof cfg.hittersPerRound==="number"&&<CountStepper value={cfg.hittersPerRound} min={1} max={12} onChange={n=>setCfg({hittersPerRound:n})}/>}
-            {(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")&&<button type="button" className="btn ghost bxs" onClick={()=>setCfg({hittersPerRound:Math.max(1,pool.length-(cfg.slots||FIELD_ALL).length)})}>Pin a number</button>}
+            <button type="button" className="btn ghost bxs" style={{flexShrink:0,alignSelf:"stretch",background:(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")?"var(--green)":undefined,color:(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")?"#fff":undefined}} onClick={()=>setCfg({hittersPerRound:"auto"})}>Auto</button>
+            {typeof cfg.hittersPerRound==="number"&&<CountStepper fill value={cfg.hittersPerRound} min={1} max={12} onChange={n=>setCfg({hittersPerRound:n})}/>}
+            {(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")&&<button type="button" className="btn ghost bxs" style={{flex:1}} onClick={()=>setCfg({hittersPerRound:Math.max(1,pool.length-(cfg.slots||FIELD_ALL).length)})}>Pin a number</button>}
           </div>
         </div>
         <div className="fld"><label className="lbl">At-bats per hitter</label>
@@ -1187,7 +1187,7 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
           <input className="inp" value={cfg.roundLabel||"Round"} onChange={e=>setCfg({roundLabel:e.target.value})} onFocus={e=>e.target.select()}/>
         </div>
         <div className="fld">
-          <button type="button" onClick={()=>setCfg({perRoundTimer:!cfg.perRoundTimer})} style={{display:"flex",alignItems:"center",gap:8,background:"none",border:"none",padding:0,cursor:"pointer"}}>
+          <button type="button" onClick={()=>setCfg({perRoundTimer:!cfg.perRoundTimer})} style={{display:"flex",alignItems:"center",gap:8,background:"none",border:"none",padding:0,cursor:"pointer",color:"var(--black)"}}>
             <span style={{width:20,height:20,borderRadius:"50%",border:"2px solid "+(cfg.perRoundTimer?"var(--green)":"var(--b)"),background:cfg.perRoundTimer?"var(--green)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{cfg.perRoundTimer&&<Ic.Check/>}</span>
             <span style={{fontSize:13,fontWeight:600}}>Show a timer for each {label.toLowerCase()}</span>
           </button>
@@ -1202,7 +1202,7 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
 
     {/* 7. Coach roles disclosure */}
     {team&&<div className="fld">
-      <button type="button" onClick={()=>setRolesOpen(o=>!o)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13}}>
+      <button type="button" onClick={()=>setRolesOpen(o=>!o)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13,color:"var(--black)"}}>
         Coach roles <Ic.Chev up={rolesOpen}/>
       </button>
       {rolesOpen&&<div style={{border:"1.5px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)",padding:"12px"}}>

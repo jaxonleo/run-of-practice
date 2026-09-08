@@ -375,13 +375,29 @@ const PRACTICE_COMPONENT_TYPES_KEY="rop_practice_component_types";
 // per-device (same rationale as the audio prefs above: a lightweight UI
 // preference, not data worth syncing through the database). Falls back to
 // today's existing set (Intro/Closer/Station Block) so nobody's Builder
-// changes shape until they actually open the picker and choose otherwise.
-export function getVisibleComponentTypes(){
+// changes shape until they actually open the picker and choose otherwise --
+// plus Scrimmage when the build is for a baseball/softball team, since that
+// tile is only ever offered for those sports anyway. Once the coach edits
+// the tile set (which writes a saved preference), that preference is
+// returned verbatim and this sport-aware default no longer applies.
+export function getVisibleComponentTypes(supportsScrimmage){
   try{
     const raw=JSON.parse(localStorage.getItem(PRACTICE_COMPONENT_TYPES_KEY)||"null");
     if(Array.isArray(raw)&&raw.length)return raw.filter(k=>PRACTICE_COMPONENT_TYPES.some(t=>t.key===k));
   }catch(e){}
-  return PRACTICE_COMPONENT_TYPES.filter(t=>t.defaultOn).map(t=>t.key);
+  const keys=PRACTICE_COMPONENT_TYPES.filter(t=>t.defaultOn).map(t=>t.key);
+  if(supportsScrimmage&&!keys.includes("scrimmage"))keys.push("scrimmage");
+  return keys;
+}
+// True once the coach has explicitly chosen a tile set via the picker.
+// Callers use this to know whether the sport-aware default above still
+// applies (it does not once a real preference exists).
+export function hasVisibleComponentTypesPref(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(PRACTICE_COMPONENT_TYPES_KEY)||"null");
+    return Array.isArray(raw)&&raw.length>0;
+  }catch(e){}
+  return false;
 }
 export function setVisibleComponentTypes(keys){
   try{localStorage.setItem(PRACTICE_COMPONENT_TYPES_KEY,JSON.stringify(keys));}catch(e){}
