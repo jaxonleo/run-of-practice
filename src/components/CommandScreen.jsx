@@ -3506,15 +3506,41 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     await writeSession(patch);
   },[session,writeSession]);
 
+  // A terminal write (complete / abort) MUST actually land before we show the
+  // end screen. writeSession silently reconciles on a version conflict and
+  // returns null without retrying -- so a poll tick or realtime bump landing
+  // during the two awaited round-trips above (submitOperation, closeCurrentLog)
+  // used to make this write a no-op while the coach still saw "Practice
+  // Complete"/"Aborted". The row stayed 'active', reappeared on the next visit,
+  // and only the stale-session cron ever cleaned it up (seen live as sessions
+  // abandoned in batch pairs with identical timestamps, never on the tap).
+  const finalizeSession=useCallback(async(status)=>{
+    const patch={status,ended_at:new Date().toISOString(),paused_at:null};
+    const updated=await writeSession(patch);
+    if(updated&&updated.status===status)return true;
+    // Conflict or transient failure -- re-fetch the real row and try once more.
+    const fresh=await findActiveLiveSession(practice.id);
+    if(!fresh)return true; // nothing active anymore: the goal is already met
+    const {data}=await updateLiveSession(fresh.id,fresh.version,patch);
+    if(data&&data.status===status){
+      sessionRef.current=data;setSession(data);
+      return true;
+    }
+    return false;
+  },[writeSession,practice]);
+
   const endPractice=useCallback(async()=>{
     setShowEllipsis(false);
     if(!session)return;
     submitOperation(session.id,coachId,"end_practice");
     await closeCurrentLog();
-    await writeSession({status:"completed",ended_at:new Date().toISOString(),paused_at:null});
+    if(!await finalizeSession("completed")){
+      window.alert("Couldn't reach the server to end the practice. Check your connection and try again.");
+      return;
+    }
     setEndReason("completed");
     setStage("end");
-  },[session,coachId,writeSession,closeCurrentLog]);
+  },[session,coachId,finalizeSession,closeCurrentLog]);
 
   // Abort: for a mistaken/test run (e.g. testing new features on tonight's
   // real practice hours early) -- ends the session without it counting as a
@@ -3531,10 +3557,13 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(!window.confirm("Abort this practice? It won't count as completed, and you can start a fresh run any time."))return;
     submitOperation(session.id,coachId,"abort_practice");
     await closeCurrentLog();
-    await writeSession({status:"abandoned",ended_at:new Date().toISOString(),paused_at:null});
+    if(!await finalizeSession("abandoned")){
+      window.alert("Couldn't reach the server to abort the practice. Check your connection and try again.");
+      return;
+    }
     setEndReason("abandoned");
     setStage("end");
-  },[session,coachId,writeSession,closeCurrentLog]);
+  },[session,coachId,finalizeSession,closeCurrentLog]);
 
   const takeControlNow=useCallback(async()=>{
     if(!session)return;
