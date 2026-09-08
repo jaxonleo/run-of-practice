@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useBlocker, useLocation, useNavigate } from "react-router-dom";
+import { useBlocker, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { canManageTeamInMode, localDateStr, stripIdsForCopy, summarizeCategoryTrend, calculateGoalGapGuidance, TREND_FLAT_THRESHOLD_PCT, classifyDurationVariance, useBigBrowser } from "../constants.js";
 import { TwoPane } from "./BBShells.jsx";
 import {
@@ -994,7 +994,18 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
   // clicking afterward isn't overridden.
   const location = useLocation();
   const navigate = useNavigate();
-  const [view, setView] = useState(() => (location.state && location.state.openGoalsView) || "overview");
+  // An open SessionHistoryDetail is a ?session=<id> search param on this
+  // route rather than plain local state, so a phone back-swipe (or the
+  // browser Back button) pops it back to the History list instead of
+  // unwinding to whatever route preceded Goals & Insights -- drilling in
+  // used to change no URL and push no history entry. openSessionDetail
+  // pushes an entry; closeSessionDetail (the Layout Back button, and the
+  // BB detail-pane close) replaces it away.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openSessionId = searchParams.get("session");
+  const openSessionDetail = s => setSearchParams(prev => { const n = new URLSearchParams(prev); n.set("session", s.session_id); return n; });
+  const closeSessionDetail = () => setSearchParams(prev => { const n = new URLSearchParams(prev); n.delete("session"); return n; }, { replace: true });
+  const [view, setView] = useState(() => (location.state && location.state.openGoalsView) || (new URLSearchParams(location.search).get("session") ? "history" : "overview"));
   const goToUntaggedDrills = () => navigate("/library", {
     state: { untaggedForSport: (team && team.sport) || "General", teamId, returnTo: "/team/" + teamId + "/goals" },
   });
@@ -1022,7 +1033,6 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
   const [goals, setGoals] = useState(null);
   const [report, setReport] = useState(null);
   const [history, setHistory] = useState(null);
-  const [openSessionId, setOpenSessionId] = useState(null);
   // Re-derived from `history` every render (not stored as its own object)
   // so that toggling exclude/restore -- which refreshes `history` but was
   // otherwise leaving this stale -- actually shows up: previously the
@@ -1060,7 +1070,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
   const openSessionPractice = openSession ? data.practices.find(p => p.id === openSession.practice_id) : null;
   const sessionDetailEl = openSession && (
     <SessionHistoryDetail session={openSession} practice={openSessionPractice} team={team} data={data} canManage={canManage} coachId={coachId} goToRun={goToRun} refreshPlanning={refreshPlanning}
-      onBack={() => setOpenSessionId(null)}
+      onBack={closeSessionDetail}
       onChanged={() => { refreshAll(); }}
       setSubViewBack={setSubViewBack} />
   );
@@ -1094,7 +1104,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
             <div className="clbl" style={{ marginBottom: 0 }}>History</div>
             {canManage && anyUnviewed && <button className="btn ghost bxs" onClick={markAllViewed}>Mark all as viewed</button>}
           </div>
-          <HistoryList history={history} data={data} canManage={canManage} onOpen={s => setOpenSessionId(s.session_id)} />
+          <HistoryList history={history} data={data} canManage={canManage} onOpen={openSessionDetail} />
         </>}
         right={openSession ? sessionDetailEl : <div className="empty"><div className="emtx">Select a practice from the list to see its details.</div></div>}
       />
@@ -1103,7 +1113,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
         <div className="clbl" style={{ marginBottom: 0 }}>History</div>
         {canManage && anyUnviewed && <button className="btn ghost bxs" onClick={markAllViewed}>Mark all as viewed</button>}
       </div>
-      <HistoryList history={history} data={data} canManage={canManage} onOpen={s => setOpenSessionId(s.session_id)} />
+      <HistoryList history={history} data={data} canManage={canManage} onOpen={openSessionDetail} />
     </>))}
   </div>);
 }

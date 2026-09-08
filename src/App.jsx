@@ -2292,35 +2292,40 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   // Direct feedback: a plain "leave without saving?" confirm only offered
   // leave-or-stay, no way to actually save from the prompt itself. Replaced
   // with a real three-way choice (Save & Leave / Discard / Cancel), and
-  // widened to cover every way off this screen, not just its own Back
-  // button -- bottom-tab and workspace-tab taps navigate via the router
-  // directly, bypassing a component-local Back handler entirely. useBlocker
-  // is the same guard BuilderScreen/GoalsScreen already use for their own
-  // unsaved-changes cases; pendingBack covers this screen's own Back
-  // button, which un-drills a view rather than changing the route.
+  // widened to cover every way off this screen: bottom-tab and workspace-tab
+  // taps, the Layout Back button, and a phone back-swipe all now go through
+  // the router (the profile is a ?player= search param), so the single
+  // useBlocker below catches them all -- the same guard BuilderScreen and
+  // GoalsScreen use for their own unsaved-changes cases.
   useEffect(()=>{
     if(!isDirty)return;
     const onBeforeUnload=e=>{e.preventDefault();e.returnValue="";};
     window.addEventListener("beforeunload",onBeforeUnload);
     return()=>window.removeEventListener("beforeunload",onBeforeUnload);
   },[isDirty]);
-  const blocker=useBlocker(useCallback(({currentLocation,nextLocation})=>isDirty&&currentLocation.pathname!==nextLocation.pathname,[isDirty]));
-  const [pendingBack,setPendingBack]=useState(false);
-  const showLeavePrompt=blocker.state==="blocked"||pendingBack;
-  const resolveLeave=()=>{
-    if(blocker.state==="blocked")blocker.proceed();
-    if(pendingBack){setPendingBack(false);onBack();}
-  };
-  const cancelLeave=()=>{
-    if(blocker.state==="blocked")blocker.reset();
-    setPendingBack(false);
-  };
+  // Blocks a route change away from an unsaved profile. Also blocks a
+  // same-path navigation that drops the ?player= search param -- that's a
+  // back-swipe (or the in-app Back button) leaving the profile for the
+  // roster list, which needs the same Save/Discard/Cancel prompt as any
+  // other way off this screen.
+  const blocker=useBlocker(useCallback(({currentLocation,nextLocation})=>{
+    if(!isDirty)return false;
+    if(currentLocation.pathname!==nextLocation.pathname)return true;
+    const cur=new URLSearchParams(currentLocation.search).get("player");
+    const nxt=new URLSearchParams(nextLocation.search).get("player");
+    return !!cur&&cur!==nxt;
+  },[isDirty]));
+  // onBack (closePlayer) now drops the ?player= param via the router, so
+  // every way off this screen -- the Layout Back button, a back-swipe, a
+  // bottom-tab tap -- is a real navigation the blocker above can catch.
+  // That removed the need for the old separate pendingBack path the Back
+  // button used to need when un-drilling was pure local state.
+  const showLeavePrompt=blocker.state==="blocked";
+  const resolveLeave=()=>{if(blocker.state==="blocked")blocker.proceed();};
+  const cancelLeave=()=>{if(blocker.state==="blocked")blocker.reset();};
   const saveAndLeave=async()=>{await saveEdit();resolveLeave();};
   const discardAndLeave=()=>{discardEdits();resolveLeave();};
-  const handleBack=()=>{
-    if(isDirty){setPendingBack(true);return;}
-    onBack();
-  };
+  const handleBack=()=>{onBack();};
   // Nav restructure round 3: registers with Layout's colored bar instead of
   // rendering its own inline Back button. Registers once (a ref keeps the
   // callback seeing the latest isDirty/handleBack without needing to
@@ -2492,6 +2497,18 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
   // re-rendering doesn't keep reopening it.
   const location=useLocation();
   const [pendingPermissionsUserId,setPendingPermissionsUserId]=useState(()=>(location.state&&location.state.openPermissionsForUserId)||null);
+  // A drilled-in player profile is tracked as a ?player=<id> search param
+  // rather than plain local state, so a phone back-swipe (or the browser
+  // Back button) pops it back to the roster list -- before this it unwound
+  // straight to whatever route the coach was on before opening Roster
+  // (usually the team's Schedule tab), since drilling in pushed no history
+  // entry at all. openPlayer pushes an entry; closePlayer (the in-app Back
+  // button) replaces it, so a subsequent back-swipe off the list doesn't
+  // just re-open the profile.
+  const [searchParams,setSearchParams]=useSearchParams();
+  const viewPlayerId=searchParams.get("player");
+  const openPlayer=p=>setSearchParams(prev=>{const n=new URLSearchParams(prev);n.set("player",p.id);return n;});
+  const closePlayer=()=>setSearchParams(prev=>{const n=new URLSearchParams(prev);n.delete("player");return n;},{replace:true});
   // Real bug: team_staff/team_invites have no realtime subscription and
   // `data.teams` is loaded once at login, so a coach who accepted an
   // invite on their own device left the inviter's already-open session
@@ -2503,7 +2520,6 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
   const [openMenu,setOpenMenu]=useState(null);
   const [openMenuUp,setOpenMenuUp]=useState(false);
   const [sort,setSort]=useState({by:"firstName",dir:"asc"});
-  const [viewPlayer,setViewPlayer]=useState(null);
   const [confirmRemovePlayer,setConfirmRemovePlayer]=useState(null);
   // Direct feedback: removing an assistant/helper from the roster used to
   // happen immediately on tap, no confirmation -- same "Cannot be undone"
@@ -2519,6 +2535,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
   // the one right after refreshTeams() resolves) reflects the real value.
   const [permissionsCoachId,setPermissionsCoachId]=useState(null);
   const team=data.teams.find(t=>t.id===teamId)||null;
+  const viewPlayer=viewPlayerId&&team?(team.players||[]).find(p=>p.id===viewPlayerId)||null:null;
   const permissionsCoach=permissionsCoachId?(team&&team.coaches||[]).find(c=>c.id===permissionsCoachId)||null:null;
   useEffect(()=>{
     if(!pendingPermissionsUserId||!team)return;
@@ -2555,7 +2572,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
     else{av=(a.firstName+" "+a.lastName).toLowerCase();bv=(b.firstName+" "+b.lastName).toLowerCase();}
     return sort.dir==="asc"?(av>bv?1:av<bv?-1:0):(av<bv?1:av>bv?-1:0);
   }):[];
-  if(viewPlayer)return(<PlayerProfile player={viewPlayer} team={team} data={data} refreshTeams={refreshTeams} coachId={coachId} canManage={canManage} onBack={()=>setViewPlayer(null)}/>);
+  if(viewPlayer)return(<PlayerProfile player={viewPlayer} team={team} data={data} refreshTeams={refreshTeams} coachId={coachId} canManage={canManage} onBack={closePlayer}/>);
   return (<div className={isBB?"bb-centered-page":undefined} style={{paddingBottom:80}} onClick={()=>setOpenMenu(null)}>
     {!fixedTeamId&&(<div className="sechdr mb8">
       <div>{data.teams.length>1&&<select className="sel" style={{maxWidth:200}} value={teamId} onChange={e=>setTeamId(e.target.value)}>{data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>}</div>
@@ -2587,7 +2604,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
           </div>
           {canManage&&<button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addPlayer",{teamId});}}>+ Add</button>}
         </div>
-        {sorted.map(p=>(<div key={p.id} className="li tap" style={{position:"relative"}} onClick={()=>setViewPlayer(p)}>
+        {sorted.map(p=>(<div key={p.id} className="li tap" style={{position:"relative"}} onClick={()=>openPlayer(p)}>
           <div className="lim">
             <div className="lin">{p.jersey?"#"+p.jersey+" ":""}{p.firstName} {p.lastName}{p.positions&&p.positions.length>0?" · "+p.positions.join("/"):""}</div>
             {(p.focusAreas&&p.focusAreas.length>0)&&<div className="limt">{p.focusAreas.length} focus area{p.focusAreas.length>1?"s":""}</div>}
@@ -2599,7 +2616,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
             setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));
             setOpenMenu(p.id);
           }}><span/><span/><span/></button>}
-          {canManage&&openMenu===p.id&&<div className="mini-menu" style={openMenuUp?{top:"auto",bottom:"calc(100% - 4px)"}:undefined}><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setViewPlayer(p);}}>Player Profile</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);setConfirmRemovePlayer(p);}}>Remove</button></div>}
+          {canManage&&openMenu===p.id&&<div className="mini-menu" style={openMenuUp?{top:"auto",bottom:"calc(100% - 4px)"}:undefined}><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);openPlayer(p);}}>Player Profile</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);setConfirmRemovePlayer(p);}}>Remove</button></div>}
         </div>))}
         {!team.players.length&&<div className="empty"><div className="emtx">No players yet{canManage?" -- tap + Add.":"."}</div></div>}
       </div>)}
