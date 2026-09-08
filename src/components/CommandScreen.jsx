@@ -578,6 +578,12 @@ function ScrimmageBoardView({board,cfg,assignee,dark,onlyIdx,onSlotTap,picked,cu
   const fieldSlots=(cfg&&cfg.slots)||[...SCRIMMAGE_FIELD_SLOTS];
   const hasP=fieldSlots.includes("P"),hasC=fieldSlots.includes("C");
   const other=fieldSlots.filter(s=>s!=="P"&&s!=="C");
+  // Lay the fielders out roughly where they stand: infield down the left
+  // (1B, 2B, SS, 3B), outfield down the right (LF, CF, RF). Anything the
+  // coach kept that is neither goes in the left column after the infield.
+  const IN_ORDER=["1B","2B","SS","3B"],OUT_ORDER=["LF","CF","RF"];
+  const leftCol=[...IN_ORDER.filter(s=>other.includes(s)),...other.filter(s=>!IN_ORDER.includes(s)&&!OUT_ORDER.includes(s))];
+  const rightCol=OUT_ORDER.filter(s=>other.includes(s));
   const roles=(cfg&&cfg.coachRoles)||[];
   const c=dark?{card:"rgba(255,255,255,.05)",bd:"rgba(255,255,255,.12)",txt:"#fff",dim:"#8fa89b",accent:"#52b788"}
               :{card:"var(--s1)",bd:"var(--b)",txt:"var(--black)",dim:"var(--td)",accent:"var(--green)"};
@@ -606,8 +612,10 @@ function ScrimmageBoardView({board,cfg,assignee,dark,onlyIdx,onSlotTap,picked,cu
             {!hasP&&<span style={{color:c.dim}}>Coach Pitch</span>}
           </span>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"2px 10px"}}>
-          {other.map(s=>(<div key={s} style={{fontSize:12,color:c.txt}}><span style={{color:c.dim,fontFamily:"DM Mono,monospace",marginRight:4}}>{s}</span>{cell(ri,s,assignee(slots[s]))}</div>))}
+        <div style={{display:"flex",gap:16}}>
+          {[leftCol,rightCol].map((col,ci)=>col.length>0&&(<div key={ci} style={{flex:1,display:"flex",flexDirection:"column",gap:2}}>
+            {col.map(s=>(<div key={s} style={{fontSize:12,color:c.txt}}><span style={{color:c.dim,fontFamily:"DM Mono,monospace",marginRight:4}}>{s}</span>{cell(ri,s,assignee(slots[s]))}</div>))}
+          </div>))}
         </div>
         {hitters.length>0&&<div style={{marginTop:6,fontSize:12,color:c.txt}}>
           <span style={{color:c.dim,fontWeight:700}}>Hitting{cfg&&cfg.absPerHitter?" ("+cfg.absPerHitter+" ABs each)":""}: </span>

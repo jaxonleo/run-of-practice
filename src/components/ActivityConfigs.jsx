@@ -1101,6 +1101,11 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
             const P=assigneeLabel(rd.slots.P), C=assigneeLabel(rd.slots.C);
             const hitters=Object.keys(rd.slots).filter(k=>/^H\d+$/.test(k)).sort((a,b)=>parseInt(a.slice(1))-parseInt(b.slice(1)));
             const otherSlots=(cfg.slots||FIELD_ALL).filter(s=>s!=="P"&&s!=="C");
+            // infield down the left (1B, 2B, SS, 3B), outfield down the
+            // right (LF, CF, RF) -- roughly where they stand
+            const IN_ORDER=["1B","2B","SS","3B"],OUT_ORDER=["LF","CF","RF"];
+            const leftCol=[...IN_ORDER.filter(s=>otherSlots.includes(s)),...otherSlots.filter(s=>!IN_ORDER.includes(s)&&!OUT_ORDER.includes(s))];
+            const rightCol=OUT_ORDER.filter(s=>otherSlots.includes(s));
             return (<div key={ri} id={"scrim-card-"+act.id+"-"+ri} style={{border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 12px",marginBottom:8,background:"var(--s1)"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
                 <span style={{fontFamily:"Barlow Condensed,sans-serif",fontWeight:900,color:"var(--green)"}}>{label} {ri+1}</span>
@@ -1111,15 +1116,17 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
                 <span style={{margin:"0 4px",color:"var(--td)"}}>&middot;</span>
                 <span onClick={()=>doSwap(ri,"C")} style={{cursor:"pointer",fontWeight:600,padding:"2px 6px",borderRadius:6,background:picked&&picked.round===ri&&picked.slot==="C"?"var(--green)":picked&&picked.round===ri?"var(--gbg)":undefined,color:picked&&picked.round===ri&&picked.slot==="C"?"#fff":undefined}}>C: {(cfg.slots||FIELD_ALL).includes("C")?(C||"Open"):"n/a"}</span>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"3px 10px"}}>
-                {otherSlots.map(s=>{
-                  const a=slotOccupant(ri,s);
-                  const isPicked=picked&&picked.round===ri&&picked.slot===s;
-                  const isTarget=picked&&picked.round===ri&&!isPicked;
-                  return (<div key={s} onClick={()=>doSwap(ri,s)} style={{fontSize:12,cursor:"pointer",padding:"3px 6px",borderRadius:6,background:isPicked?"var(--green)":isTarget?"var(--gbg)":undefined,color:isPicked?"#fff":undefined}}>
-                    <span style={{color:isPicked?"rgba(255,255,255,.8)":"var(--td)",fontFamily:"DM Mono,monospace",marginRight:4}}>{s}</span>{assigneeLabel(a)||"Open"}
-                  </div>);
-                })}
+              <div style={{display:"flex",gap:16}}>
+                {[leftCol,rightCol].map((col,ci)=>col.length>0&&(<div key={ci} style={{flex:1,display:"flex",flexDirection:"column",gap:3}}>
+                  {col.map(s=>{
+                    const a=slotOccupant(ri,s);
+                    const isPicked=picked&&picked.round===ri&&picked.slot===s;
+                    const isTarget=picked&&picked.round===ri&&!isPicked;
+                    return (<div key={s} onClick={()=>doSwap(ri,s)} style={{fontSize:12,cursor:"pointer",padding:"3px 6px",borderRadius:6,background:isPicked?"var(--green)":isTarget?"var(--gbg)":undefined,color:isPicked?"#fff":undefined}}>
+                      <span style={{color:isPicked?"rgba(255,255,255,.8)":"var(--td)",fontFamily:"DM Mono,monospace",marginRight:4}}>{s}</span>{assigneeLabel(a)||"Open"}
+                    </div>);
+                  })}
+                </div>))}
               </div>
               {hitters.length>0&&<div style={{marginTop:6,fontSize:12}}>
                 <span style={{color:"var(--td)",fontWeight:700}}>Hitting ({cfg.absPerHitter||2} ABs each): </span>
