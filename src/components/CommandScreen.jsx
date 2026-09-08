@@ -621,6 +621,45 @@ function ScrimmageBoardView({board,cfg,assignee,dark,onlyIdx,onSlotTap,picked,cu
   </div>);
 }
 
+// The whole board as one compact grid -- rounds down, every slot across
+// (P C, the active fielding slots, then Bat 1..Bat k, then any coach
+// roles). Used by the live "Coming Up / Past" navigator (coach + helper)
+// so a coach can see where the *whole team* is every round at a glance,
+// not just P/C. Horizontally scrollable; sticky round column + header row;
+// the current round highlighted, past rounds dimmed.
+function ScrimmageGridView({board,cfg,assignee,currentIdx}){
+  const label=(cfg&&cfg.roundLabel)||"Round";
+  const fieldSlots=(cfg&&cfg.slots)||[...SCRIMMAGE_FIELD_SLOTS];
+  const roles=(cfg&&cfg.coachRoles)||[];
+  const maxHit=Math.max(1,...(board||[]).map(rd=>Object.keys(rd.slots||{}).filter(k=>/^H\d+$/.test(k)).length));
+  const cols=[...fieldSlots,...Array.from({length:maxHit},(_,i)=>"H"+(i+1))];
+  const th={position:"sticky",top:0,background:"#fff",zIndex:2,padding:"6px 8px",borderBottom:"2px solid var(--b)",whiteSpace:"nowrap",fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--td)",textAlign:"left"};
+  const firstCol={position:"sticky",left:0,background:"#fff",zIndex:1,padding:"6px 8px",whiteSpace:"nowrap",fontWeight:700,fontSize:12,borderRight:"1px solid var(--b)"};
+  return (<div style={{overflowX:"auto"}}>
+    <table style={{borderCollapse:"collapse",fontSize:11}}>
+      <thead><tr>
+        <th style={{...th,left:0,zIndex:3}}>{label}</th>
+        {cols.map(s=><th key={s} style={th}>{/^H\d+$/.test(s)?"Bat "+s.slice(1):s}</th>)}
+        {roles.map(r=><th key={r.id} style={th}>{r.label}</th>)}
+      </tr></thead>
+      <tbody>
+        {(board||[]).map((rd,ri)=>{
+          const past=ri<currentIdx,curr=ri===currentIdx;
+          const rowBg=curr?"var(--gbg)":"#fff";
+          return (<tr key={ri} style={{opacity:past?.55:1}}>
+            <td style={{...firstCol,background:rowBg,color:curr?"var(--green)":"var(--black)"}}>{label} {ri+1}{curr?" ·":past?"":""}</td>
+            {cols.map(s=>{
+              const v=assignee((rd.slots||{})[s]);
+              return <td key={s} style={{padding:"5px 8px",borderBottom:"1px solid var(--b)",whiteSpace:"nowrap",background:rowBg}}>{v||<span style={{color:"var(--td)"}}>Open</span>}</td>;
+            })}
+            {roles.map(r=><td key={r.id} style={{padding:"5px 8px",borderBottom:"1px solid var(--b)",whiteSpace:"nowrap",background:rowBg,color:"var(--td)"}}>{assignee((rd.coachRoles||{})[r.id])||"Open"}</td>)}
+          </tr>);
+        })}
+      </tbody>
+    </table>
+  </div>);
+}
+
 // Practice Setup's scrimmage block row (sibling of SetupStationBlockRow).
 // Status pill + Repair / Regenerate All + coach-role assignment. Writes go
 // to session_scrimmage_boards (never the plan), same as station
@@ -1837,16 +1876,10 @@ function HelperView({token}){
       </div>}
       {helperScrimNavOpen&&scrimBoard&&createPortal(<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setHelperScrimNavOpen(false);}}>
         <div className="modal" style={{maxHeight:"82vh",display:"flex",flexDirection:"column"}}>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,marginBottom:8}}>{(scrimCfg&&scrimCfg.roundLabel||"Round")}s</div>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,marginBottom:2}}>Every {(scrimCfg&&scrimCfg.roundLabel||"Round").toLowerCase()}</div>
+          <div style={{fontSize:11,color:"var(--td)",marginBottom:8}}>Preview only. Green row is now, faded rows are done.</div>
           <div style={{overflowY:"auto",flex:1}}>
-            {scrimBoard.map((rd,ri)=>{
-              const P=scrimHelperAssignee(rd.slots.P),C=scrimHelperAssignee(rd.slots.C);
-              const past=ri<scrimRoundIdx,curr=ri===scrimRoundIdx;
-              return (<div key={ri} style={{padding:"8px 10px",borderBottom:"1px solid var(--b)",opacity:past?.5:1,background:curr?"var(--gbg)":undefined}}>
-                <div style={{fontWeight:700,fontSize:13,color:curr?"var(--green)":"var(--black)"}}>{(scrimCfg&&scrimCfg.roundLabel||"Round")} {ri+1}{curr?" · now":past?" · done":""}</div>
-                <div style={{fontSize:12,color:"var(--td)"}}>P {P||"Open"} · C {C||"Open"}</div>
-              </div>);
-            })}
+            <ScrimmageGridView board={scrimBoard} cfg={scrimCfg} assignee={scrimHelperAssignee} currentIdx={scrimRoundIdx}/>
           </div>
           <button type="button" className="btn ghost bsm bfull mt10" onClick={()=>setHelperScrimNavOpen(false)}>Close</button>
         </div>
@@ -3951,17 +3984,11 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         </div>
       </div>,document.body)}
       {scrimNavOpen&&scrimBoard&&createPortal(<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setScrimNavOpen(false);}}>
-        <div className="modal" style={{maxHeight:"82vh",display:"flex",flexDirection:"column"}}>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,marginBottom:8}}>{(scrimCfg&&scrimCfg.roundLabel||"Round")}s</div>
+        <div className="modal" style={{maxHeight:"82vh",maxWidth:"min(92vw,720px)",display:"flex",flexDirection:"column"}}>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,marginBottom:2}}>Every {(scrimCfg&&scrimCfg.roundLabel||"Round").toLowerCase()}</div>
+          <div style={{fontSize:11,color:"var(--td)",marginBottom:8}}>Preview only. Green row is now, faded rows are done. Scroll sideways for hitters and coach roles.</div>
           <div style={{overflowY:"auto",flex:1}}>
-            {scrimBoard.map((rd,ri)=>{
-              const P=scrimAssignee(rd.slots.P),C=scrimAssignee(rd.slots.C);
-              const past=ri<scrimRoundIdx,curr=ri===scrimRoundIdx;
-              return (<div key={ri} style={{padding:"8px 10px",borderBottom:"1px solid var(--b)",opacity:past?.5:1,background:curr?"var(--gbg)":undefined}}>
-                <div style={{fontWeight:700,fontSize:13,color:curr?"var(--green)":"var(--black)"}}>{(scrimCfg&&scrimCfg.roundLabel||"Round")} {ri+1}{curr?" · now":past?" · done":""}</div>
-                <div style={{fontSize:12,color:"var(--td)"}}>P {P||"Open"} · C {C||"Open"}</div>
-              </div>);
-            })}
+            <ScrimmageGridView board={scrimBoard} cfg={scrimCfg} assignee={scrimAssignee} currentIdx={scrimRoundIdx}/>
           </div>
           <button type="button" className="btn ghost bsm bfull mt10" onClick={()=>setScrimNavOpen(false)}>Close</button>
         </div>
