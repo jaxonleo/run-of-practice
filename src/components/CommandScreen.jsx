@@ -4137,6 +4137,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coachingPoints}</div>
           </div>}
           {(()=>{const{equipment,playerGear}=splitEquipFor(rotatedStations[focusSt].equipment,data);return<div style={{marginBottom:10}}><EquipGearRow equipment={equipment} playerGear={playerGear}/></div>;})()}
+          {rotatedStations[focusSt].benchmarkId&&<BenchmarkLivePanel station={rotatedStations[focusSt]} activity={cur} practice={practice} team={team} liveSessionId={session&&session.id} coachId={coachId} isDesktop={typeof window!=="undefined"&&window.innerWidth>=1024}/>}
           {rotatedStations[focusSt].grouping&&rotatedStations[focusSt].grouping!=="whole"&&<div style={{borderLeft:"3px solid #c4b5fd",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:10}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
               <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed"}}>👥 {rotatedStations[focusSt].grouping==="partners"?"Partners":"Groups"} at this station</div>
