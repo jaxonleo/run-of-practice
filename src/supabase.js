@@ -2394,7 +2394,7 @@ export async function fetchOrgWeeklyPracticeRollup(organizationId, weeks) {
 // definitions and assessment lists are RLS-scoped direct selects.
 // ─────────────────────────────────────────────────────────────────────────────
 
-function mapBenchmarkVersion(v) {
+export function mapBenchmarkVersion(v) {
   if (!v) return null
   return {
     id: v.id, benchmarkId: v.benchmark_id, versionNumber: v.version_number,

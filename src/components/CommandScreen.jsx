@@ -7,6 +7,7 @@ import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndC
 import { SkillTagPicker } from "./ModalLayer.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
+import BenchmarkLivePanel from "./BenchmarkLivePanel.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
 const Ic={
@@ -2521,6 +2522,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const blockRotate=isBlock&&cur.rotate!==false;
   const isCl=cur&&cur.type==="checklist";
   const isScrim=cur&&cur.type==="scrimmage";
+  const isBench=cur&&cur.type==="benchmark";
   const scrimCfg=isScrim?(cur.scrimmageConfig||{}):null;
   const scrimRoundIdx=session?(session.scrimmage_round_idx||0):0;
   const stIdx=session?session.current_rotation_number||0:0;
@@ -4030,7 +4032,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           <button type="button" className="btn ghost bsm bfull mt10" onClick={()=>setScrimNavOpen(false)}>Close</button>
         </div>
       </div>,document.body)}
-      {!isBlock&&!isCl&&!isScrim&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {isBench&&cur&&<BenchmarkLivePanel activity={cur} practice={practice} team={team} liveSessionId={session&&session.id} coachId={coachId} isDesktop={typeof window!=="undefined"&&window.innerWidth>=1024}/>}
+      {!isBlock&&!isCl&&!isScrim&&!isBench&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
         {cur.description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
           <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{cur.description}</div>

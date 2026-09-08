@@ -14,6 +14,7 @@ import ModalLayer, { PositionPicker, HandednessPicker } from "./components/Modal
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig, ScrimmageConfig, BenchmarkConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView, usePracticePresence, PresenceBadge } from "./components/CommandScreen.jsx";
+import BenchmarkRecordView from "./components/BenchmarkRecordView.jsx";
 import MyStationBuilderScreen, { StationPresenceIndicator } from "./components/MyStationBuilder.jsx";
 import HomeScreen from "./components/HomeScreen.jsx";
 import ScheduleScreen from "./components/ScheduleScreen.jsx";
@@ -624,6 +625,7 @@ export default function App(){
     <>
       <Route path="/live/:token" element={<HelperViewRoute/>}/>
       <Route path="/preview/:token" element={<PreviewViewRoute/>}/>
+      <Route path="/brec/:token" element={<BenchmarkRecordRoute/>}/>
       <Route path="/terms" element={<TermsPage/>}/>
       <Route path="/privacy" element={<PrivacyPage/>}/>
       <Route path="/faq" element={<FAQPage/>}/>
@@ -800,6 +802,7 @@ function FounderAdminRoute(){
 
 function HelperViewRoute(){ const {token}=useParams(); return <HelperView token={token}/>; }
 function PreviewViewRoute(){ const {token}=useParams(); return <PreviewView token={token}/>; }
+function BenchmarkRecordRoute(){ const {token}=useParams(); return <BenchmarkRecordView token={token}/>; }
 
 function HomeRoute(){
   const {data,goToBuilder,goToRun,goToSchedule,goToTeam,goToSettings,coachId,coachName,coachEmail,refreshPlanning,refreshTeams,refreshLibrary,mode,setMode,liveId}=useAppCtx();
