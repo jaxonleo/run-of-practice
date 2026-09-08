@@ -358,8 +358,18 @@ export const PRACTICE_COMPONENT_TYPES=[
   {key:"water_break",label:"Water Break",kind:"checklist",defaultName:"Water Break",defaultDuration:2,description:"A short pause for players to hydrate before continuing.",defaultOn:false},
   {key:"stretch",label:"Stretch",kind:"checklist",defaultName:"Stretch",defaultDuration:5,description:"Time set aside for warming up or cooling down.",defaultOn:false},
   {key:"station_block",label:"Station Block",kind:"station_block",description:"Multiple stations players rotate through, each with its own drill, coach, and equipment.",defaultOn:true},
+  // Baseball/softball only -- Builder hides this tile for every other sport
+  // (see getVisibleComponentTypes callers / BuilderScreen's sport check).
+  // `kind:"scrimmage"` gets its own act shape (a scrimmage_config jsonb, a
+  // generated scrimmage_rounds board), not a checklist.
+  {key:"scrimmage",label:"Scrimmage",kind:"scrimmage",description:"Everyone rotates positions and at-bats. No second team needed.",defaultOn:false},
   {key:"other",label:"Other",kind:"checklist",defaultName:"Other",defaultDuration:5,description:"For anything that doesn't fit the categories above, like a guest speaker or a team photo. Name it once it's added -- it's a one-off, not saved to your library.",defaultOn:false},
 ];
+// Which sports the Scrimmage tile is offered for. Softball is treated
+// identically to baseball (same nine positions, same P/C eligibility) even
+// though it has no skill categories yet.
+export const SCRIMMAGE_SPORTS=["Baseball","Softball"];
+export function sportSupportsScrimmage(sport){return SCRIMMAGE_SPORTS.includes(sport);}
 const PRACTICE_COMPONENT_TYPES_KEY="rop_practice_component_types";
 // Which of the types above show as one-tap tiles in Builder -- per-coach,
 // per-device (same rationale as the audio prefs above: a lightweight UI
@@ -505,6 +515,21 @@ export function categoryMinutesForPracticeActivities(activities,activityLibraryB
         totalMinutes+=dur;
         addTaggedMinutes(st.libraryId,dur,byCategory,activityLibraryById,skillTagsById);
       });
+      return;
+    }
+    if(act.type==="scrimmage"){
+      // Not a library drill -- its tags live on the config, and (section 8)
+      // it counts toward the denominator like any timed activity.
+      const dur=act.duration||0;
+      totalMinutes+=dur;
+      const tagIds=(act.scrimmageConfig&&act.scrimmageConfig.skillTagIds)||[];
+      if(tagIds.length){
+        const perTag=dur/tagIds.length;
+        tagIds.forEach(tagId=>{
+          const catId=skillTagsById[tagId]&&skillTagsById[tagId].categoryId;
+          if(catId)byCategory[catId]=(byCategory[catId]||0)+perTag;
+        });
+      }
       return;
     }
     const dur=act.duration||0;
@@ -804,4 +829,701 @@ export function resolveDevelopmentPulseState({team,report,nextPractice,activityL
   }
 
   return {...base,state:"meaningful_gap"};
+}
+
+// ── Scrimmage: Everyone Rotates (ROP-Scrimmage-Handoff.md sections 4, 8) ─────
+// Pure functions: no network, no React. Two entry points,
+// generateScrimmageBoard(input) and repairScrimmageBoard(input, existingBoard),
+// plus small helpers the Builder/live board use to summarize a board.
+//
+// The board is an array of rounds. Each round is { slots: { <SLOT>: assignee
+// | null } }, where a fielding SLOT is one of P C 1B 2B 3B SS LF CF RF and a
+// hitter SLOT is H1, H2, ...  An assignee is exactly one of
+// { player_id } | { team_staff_id } | { helper_name } -- the generator only
+// ever produces { player_id } or null; repair preserves any staff/helper
+// assignee it finds untouched (the generator never places staff, section 3.6).
+
+export const SCRIMMAGE_FIELD_SLOTS=["P","C","1B","2B","3B","SS","LF","CF","RF"];
+// Priority order for keeping a fielding slot filled when players are scarce
+// (section 4.1): drop from the end (RF first), keep from the front (P last to
+// go). This is the reverse of the spec's stated drop order.
+const SCRIMMAGE_SLOT_KEEP_PRIORITY=["P","C","SS","2B","3B","1B","LF","CF","RF"];
+const SCRIMMAGE_OF_SLOTS=["LF","CF","RF"];
+
+// Per-half-inning minutes the duration<->count link preserves once a coach
+// edits either field directly (section 3.2). 60 / 6 = 10 half-innings.
+export const SCRIMMAGE_DEFAULT_ROUND_MINUTES=6;
+
+export function buildDefaultScrimmageConfig(durationMinutes,perRoundMinutes,skillTagIds){
+  const dur=durationMinutes||60;
+  const per=perRoundMinutes||SCRIMMAGE_DEFAULT_ROUND_MINUTES;
+  return {
+    format:"everyone_rotates",
+    rounds:Math.max(1,Math.round(dur/per)),
+    roundLabel:"Round",
+    slots:[...SCRIMMAGE_FIELD_SLOTS],
+    hittersPerRound:"auto",
+    absPerHitter:2,
+    catcherHold:2,
+    pitcherRoundsMax:1,
+    perRoundTimer:false,
+    coachRoles:[],
+    locks:{},
+    skillTagIds:skillTagIds||[],
+    seed:uid(),
+  };
+}
+
+// section 8: a scrimmage "counts a little toward every area". Default tag
+// selection is the first tag alphabetically (scope='global') in every
+// category for the team's sport, so the even-split covers hitting,
+// fielding, pitching, base running, and so on. Softball has no categories
+// today -> returns [] and the block stays untagged (the existing untagged
+// path handles it). `skillCategories` / `skillTags` come straight from
+// `data`; each category is { id, name, sport }, each tag { id, name,
+// categoryId, scope }.
+export function defaultScrimmageTagIds(skillCategories,skillTags,sport){
+  const cats=(skillCategories||[]).filter(c=>c.sport===sport);
+  const out=[];
+  cats.forEach(cat=>{
+    const inCat=(skillTags||[])
+      .filter(t=>t.categoryId===cat.id&&(t.scope==null||t.scope==="global"))
+      .sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+    if(inCat.length)out.push(inCat[0].id);
+  });
+  return out;
+}
+
+// Small deterministic string-seeded PRNG (FNV-1a hash -> mulberry32) so the
+// same input reproduces the same board and the tests are stable.
+function scrimmageHash(s){let h=2166136261>>>0;const str=String(s);for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function scrimmageRng(seed){
+  let a=scrimmageHash(seed);
+  return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+}
+
+function scrimmagePlayerById(players,id){return players.find(p=>p.id===id)||null;}
+
+// Max bipartite matching (Kuhn's augmenting paths) between a set of players
+// and a set of fielding slots, edge = player eligible for slot. Small n (a
+// roster and <=9 slots), so the simple O(V*E) form is fine.
+// scrimmageMatchAssign returns { slotIndex: playerIndex } for a maximum
+// matching; scrimmageMaxMatch is just its size.
+function scrimmageMatchAssign(playerList,slots){
+  const slotOf={}; // playerIndex -> slotIndex
+  const tryKuhn=(slotIdx,visited)=>{
+    for(let pi=0;pi<playerList.length;pi++){
+      if(visited.has(pi))continue;
+      if(!scrimmageEligibleForSlot(playerList[pi],slots[slotIdx]))continue;
+      visited.add(pi);
+      if(slotOf[pi]===undefined||tryKuhn(slotOf[pi],visited)){slotOf[pi]=slotIdx;return true;}
+    }
+    return false;
+  };
+  for(let si=0;si<slots.length;si++)tryKuhn(si,new Set());
+  const bySlot={};
+  Object.keys(slotOf).forEach(pi=>{bySlot[slotOf[pi]]=Number(pi);});
+  return bySlot;
+}
+function scrimmageMaxMatch(playerList,slots){
+  return Object.keys(scrimmageMatchAssign(playerList,slots)).length;
+}
+
+// Eligibility from the profile's position chips (section 3.3):
+//   P -> can pitch, C -> can catch, 1B/2B/3B/SS literal, IF -> any infield,
+//   OF -> LF/CF/RF. A player with no positions set is eligible for every slot
+//   except P and C. Locks are absolute: locked-to-position fills only that
+//   slot; Never-X removes P/C/hitter eligibility; sitOut removes everything.
+export function scrimmageEligibleForSlot(player,slot){
+  const locks=(player&&player.locks)||{};
+  if(locks.sitOut)return false;
+  if(locks.position)return locks.position===slot;
+  const pos=(player&&player.positions)||[];
+  if(slot==="P")return !locks.noPitch&&pos.includes("P");
+  if(slot==="C")return !locks.noCatch&&pos.includes("C");
+  if(pos.length===0)return true; // any non-P/C slot
+  if(SCRIMMAGE_OF_SLOTS.includes(slot))return pos.includes("OF")||pos.includes(slot);
+  return pos.includes(slot)||pos.includes("IF");
+}
+function scrimmageHasRealPositions(p){return !!((p.positions||[]).length);}
+
+// hittersPerRound: 'auto' (or null) resolves to max(1, players - fielding
+// slots) so with a full roster nobody sits and everyone bats. A pinned
+// number is used as-is (extras sit that round).
+function resolveScrimmageHitters(hittersPerRound,playerCount,slotCount){
+  if(hittersPerRound==null||hittersPerRound==="auto")return Math.max(1,playerCount-slotCount);
+  return Math.max(1,Math.round(hittersPerRound));
+}
+
+// Builds one candidate board with a given RNG. Greedy per round: locked
+// players, then the catcher (continue an active hold or start a new one),
+// then the pitcher, then the remaining fielding slots by a fairness score,
+// then the leftover players bat.
+function scrimmageBuildBoard(cfg){
+  const {rounds,fieldSlots,players,catcherHold,pitcherRoundsMax,autoHitters,pinnedHitters,rand}=cfg;
+  const hasP=fieldSlots.includes("P");
+  const hasC=fieldSlots.includes("C");
+  const board=[];
+
+  const hitCount={},pitchCount={},catchCount={},slotCount={},lastHitRound={};
+  players.forEach(p=>{hitCount[p.id]=0;pitchCount[p.id]=0;catchCount[p.id]=0;lastHitRound[p.id]=-99;});
+
+  const eligPitchers=players.filter(p=>scrimmageEligibleForSlot(p,"P"));
+  const eligCatchers=players.filter(p=>scrimmageEligibleForSlot(p,"C"));
+  const pitcherCanExceed=hasP&&eligPitchers.length>0&&eligPitchers.length*pitcherRoundsMax<rounds;
+
+  let activeCatcher=null; // { id, roundsLeft }
+  let prevRoundSlot={};   // player id -> slot they held last round
+
+  for(let r=0;r<rounds;r++){
+    const round={slots:{}};
+    const used=new Set();
+    const thisRoundSlot={};
+
+    // 1. locked-to-position
+    players.forEach(p=>{
+      const lp=p.locks&&p.locks.position;
+      if(lp&&fieldSlots.includes(lp)&&!(lp in round.slots)&&!used.has(p.id)){
+        round.slots[lp]={player_id:p.id};
+        used.add(p.id);thisRoundSlot[p.id]=lp;
+        slotCount[p.id+"|"+lp]=(slotCount[p.id+"|"+lp]||0)+1;
+      }
+    });
+
+    // 2. catcher
+    if(hasC&&!("C" in round.slots)){
+      const holdOpen=activeCatcher&&activeCatcher.roundsLeft>0;
+      const holdPlayer=holdOpen?scrimmagePlayerById(players,activeCatcher.id):null;
+      if(holdOpen&&holdPlayer&&!used.has(holdPlayer.id)&&scrimmageEligibleForSlot(holdPlayer,"C")){
+        round.slots.C={player_id:holdPlayer.id};
+        used.add(holdPlayer.id);thisRoundSlot[holdPlayer.id]="C";
+        catchCount[holdPlayer.id]++;
+        activeCatcher.roundsLeft--;
+      }else{
+        const cands=eligCatchers.filter(p=>!used.has(p.id)&&!(p.locks&&p.locks.position));
+        if(cands.length){
+          cands.sort((a,b)=>(catchCount[a.id]-catchCount[b.id])||(rand()-0.5));
+          const chosen=cands[0];
+          round.slots.C={player_id:chosen.id};
+          used.add(chosen.id);thisRoundSlot[chosen.id]="C";
+          catchCount[chosen.id]++;
+          activeCatcher={id:chosen.id,roundsLeft:catcherHold-1};
+        }else{
+          round.slots.C=null;
+        }
+      }
+      if(activeCatcher&&activeCatcher.roundsLeft<=0)activeCatcher=null;
+    }
+
+    // 3. pitcher
+    if(hasP&&!("P" in round.slots)){
+      let cands=eligPitchers.filter(p=>!used.has(p.id)&&!(p.locks&&p.locks.position));
+      const withinMax=cands.filter(p=>pitchCount[p.id]<pitcherRoundsMax);
+      const pool=(!pitcherCanExceed&&withinMax.length)?withinMax:cands;
+      if(pool.length){
+        pool.sort((a,b)=>(pitchCount[a.id]-pitchCount[b.id])||(rand()-0.5));
+        const chosen=pool[0];
+        round.slots.P={player_id:chosen.id};
+        used.add(chosen.id);thisRoundSlot[chosen.id]="P";
+        pitchCount[chosen.id]++;
+      }else{
+        round.slots.P=null;
+      }
+    }
+
+    // 4. Decide who bats this round BEFORE filling the field. Batting
+    //    fairness (section 4.2 rule 3, Strong) is the constraint that
+    //    matters most to a coach ("everyone bats the same number of
+    //    times"), and it is far easier to enforce by choosing the
+    //    fewest-batted players to bat than to recover it after a greedy
+    //    field fill has already handed every at-bat to whoever happened to
+    //    be least versatile. A player is only skipped as a batter if
+    //    removing them from the fielding pool would leave a fielding slot
+    //    with no eligible player at all.
+    const openFieldSlots=fieldSlots.filter(s=>s!=="P"&&s!=="C"&&!(s in round.slots));
+    const fieldPool=players.filter(p=>!used.has(p.id));
+    const targetHitters=autoHitters
+      ? Math.max(0,fieldPool.length-openFieldSlots.length)
+      : Math.min(pinnedHitters,Math.max(0,fieldPool.length-openFieldSlots.length));
+    const batOrder=fieldPool.slice().sort((a,b)=>
+      (hitCount[a.id]-hitCount[b.id])||(lastHitRound[a.id]-lastHitRound[b.id])||(rand()-0.5));
+    const batters=[];
+    const batterIds=new Set();
+    // A batter can only be taken out of the fielding pool if the remaining
+    // fielders can still cover every open field slot with a distinct player
+    // (a real bipartite matching, not just "some eligible player exists for
+    // each slot" -- that weaker check let two outfielders both bat and
+    // leave RF Open even on a full roster).
+    for(const p of batOrder){
+      if(batters.length>=targetHitters)break;
+      if(p.locks&&p.locks.noHit)continue;
+      const remainingFielders=fieldPool.filter(x=>x.id!==p.id&&!batterIds.has(x.id));
+      const cover=scrimmageMaxMatch(remainingFielders,openFieldSlots);
+      if(cover>=Math.min(openFieldSlots.length,remainingFielders.length)){
+        batters.push(p);batterIds.add(p.id);
+      }
+    }
+
+    // 5. fill fielding slots from the non-batters via a real max bipartite
+    //    matching, so a slot never goes Open while a valid distinct-player
+    //    assignment exists. The fielder list is seeded-shuffled AND then
+    //    ordered by the fairness score for each slot's most-constrained
+    //    resolution, so different rounds/retries produce different valid
+    //    assignments and a player does not sit in one position every round
+    //    (position-spread variance is also one of the retry-loop's ranking
+    //    keys). Nothing here can create an Open slot the matching could
+    //    have avoided.
+    const fielders=fieldPool.filter(p=>!batterIds.has(p.id))
+      .map(p=>[p,scrimmageFieldScore(p,"1B",slotCount,hitCount,prevRoundSlot,rand)+rand()])
+      .sort((a,b)=>a[1]-b[1]).map(x=>x[0]);
+    const bySlot=scrimmageMatchAssign(fielders,openFieldSlots);
+    openFieldSlots.forEach((s,k)=>{
+      const fi=bySlot[k];
+      if(fi==null||fielders[fi]==null){round.slots[s]=null;return;}
+      const chosen=fielders[fi];
+      round.slots[s]={player_id:chosen.id};
+      used.add(chosen.id);thisRoundSlot[chosen.id]=s;
+      slotCount[chosen.id+"|"+s]=(slotCount[chosen.id+"|"+s]||0)+1;
+    });
+
+    // 6. assign the batters. In auto mode, a non-batter left unused because
+    //    a field slot went Open (no eligible player) bats instead of
+    //    sitting -- only a pinned hitter cap is allowed to leave players
+    //    sitting.
+    const finalBatters=batters.slice();
+    if(autoHitters){
+      fielders.forEach(p=>{if(!used.has(p.id)&&!(p.locks&&p.locks.noHit))finalBatters.push(p);});
+    }
+    finalBatters.forEach((p,i)=>{
+      round.slots["H"+(i+1)]={player_id:p.id};
+      hitCount[p.id]++;lastHitRound[p.id]=r;
+      used.add(p.id);thisRoundSlot[p.id]="H";
+    });
+
+    board.push(round);
+    prevRoundSlot=thisRoundSlot;
+  }
+  return board;
+}
+
+// Lower score = more likely to be placed in this fielding slot this round.
+//  - times already in THIS slot, x3: spreads a player across positions.
+//  - a player who has batted more so far is nudged into the field (negative
+//    term) so batting stays even -- this is the fairness lever, backed by
+//    the retry loop below. (The spec's prose describes the sign the other
+//    way; that reading works against "everyone bats the same", so the
+//    fairness-preserving sign is used and the retry loop is the real
+//    guarantee.)
+//  - a small penalty for a player with no positions set where a real
+//    eligible player exists (prefer real eligibility).
+//  - a small penalty for the same slot two rounds running (soft, section 4.2 #8).
+//  - a seeded jitter so retries actually explore.
+function scrimmageFieldScore(p,slot,slotCount,hitCount,prevRoundSlot,rand){
+  const inSlot=slotCount[p.id+"|"+slot]||0;
+  const noPos=scrimmageHasRealPositions(p)?0:5;
+  const sameAsLast=prevRoundSlot[p.id]===slot?2:0;
+  const batBias=-(hitCount[p.id]||0)*2;
+  return inSlot*3+noPos+sameAsLast+batBias+rand()*0.5;
+}
+
+function scrimmageHitCounts(board,players){
+  const c={};players.forEach(p=>c[p.id]=0);
+  board.forEach(rd=>Object.keys(rd.slots).forEach(s=>{
+    if(/^H\d+$/.test(s)){const a=rd.slots[s];if(a&&a.player_id&&a.player_id in c)c[a.player_id]++;}
+  }));
+  return c;
+}
+function scrimmageSlotCounts(board){
+  const c={}; // `${pid}|${slot}` -> n
+  board.forEach(rd=>Object.keys(rd.slots).forEach(s=>{
+    if(/^H\d+$/.test(s))return;
+    const a=rd.slots[s];if(a&&a.player_id)c[a.player_id+"|"+s]=(c[a.player_id+"|"+s]||0)+1;
+  }));
+  return c;
+}
+function scrimmageRoleCounts(board,slot){
+  const c={};
+  board.forEach(rd=>{const a=rd.slots[slot];if(a&&a.player_id)c[a.player_id]=(c[a.player_id]||0)+1;});
+  return c;
+}
+
+function scrimmageScoreBoard(board,players,fieldSlots,catcherHold,pitcherRoundsMax){
+  const hits=scrimmageHitCounts(board,players);
+  const hv=players.map(p=>hits[p.id]);
+  const hitSpread=hv.length?Math.max(...hv)-Math.min(...hv):0;
+
+  const pitchC=scrimmageRoleCountsSafe(board,"P");
+  const nPitchers=Object.keys(pitchC).length||1;
+  const pitchAllowance=Math.max(pitcherRoundsMax,Math.ceil(board.length/nPitchers));
+  let pitcherViolations=0;Object.values(pitchC).forEach(n=>{if(n>pitchAllowance)pitcherViolations+=n-pitchAllowance;});
+
+  // catcher runs: each catcher's rounds should be one contiguous run of
+  // length catcherHold (the final run in the block may be shorter).
+  const catRounds={};
+  board.forEach((rd,ri)=>{const a=rd.slots.C;if(a&&a.player_id)(catRounds[a.player_id]||(catRounds[a.player_id]=[])).push(ri);});
+  let catcherRunViolations=0;
+  Object.values(catRounds).forEach(list=>{
+    list.sort((a,b)=>a-b);
+    let runStart=list[0],prev=list[0];
+    for(let i=1;i<list.length;i++){
+      if(list[i]===prev+1){prev=list[i];continue;}
+      const len=prev-runStart+1;
+      if(len>catcherHold)catcherRunViolations+=len-catcherHold;
+      else if(len<catcherHold&&prev<board.length-1)catcherRunViolations+=catcherHold-len;
+      runStart=list[i];prev=list[i];
+    }
+    const len=prev-runStart+1;
+    if(len>catcherHold)catcherRunViolations+=len-catcherHold;
+    else if(len<catcherHold&&prev<board.length-1)catcherRunViolations+=catcherHold-len;
+  });
+
+  // position spread: sum of per-player variance of their fielding-slot counts
+  const slotC=scrimmageSlotCounts(board);
+  let positionSpreadVariance=0;
+  players.forEach(p=>{
+    const counts=fieldSlots.filter(s=>s!=="P"&&s!=="C").map(s=>slotC[p.id+"|"+s]||0).filter(n=>n>0);
+    if(counts.length<2)return;
+    const mean=counts.reduce((a,b)=>a+b,0)/counts.length;
+    positionSpreadVariance+=counts.reduce((a,b)=>a+(b-mean)*(b-mean),0)/counts.length;
+  });
+
+  return {hitSpread,pitcherViolations,catcherRunViolations,positionSpreadVariance};
+}
+function scrimmageRoleCountsSafe(board,slot){return scrimmageRoleCounts(board,slot);}
+
+function scrimmageBetterScore(a,b){
+  if(a.hitSpread!==b.hitSpread)return a.hitSpread<b.hitSpread;
+  if(a.pitcherViolations!==b.pitcherViolations)return a.pitcherViolations<b.pitcherViolations;
+  if(a.catcherRunViolations!==b.catcherRunViolations)return a.catcherRunViolations<b.catcherRunViolations;
+  return a.positionSpreadVariance<b.positionSpreadVariance;
+}
+
+function scrimmageWarnings(players,rounds,fieldSlots,catcherHold,pitcherRoundsMax,board,roundLabel){
+  const w=[];
+  const unit=(roundLabel||"round").toLowerCase();
+  const units=unit+"s";
+  const hasP=fieldSlots.includes("P"),hasC=fieldSlots.includes("C");
+  const eligP=players.filter(p=>scrimmageEligibleForSlot(p,"P"));
+  const eligC=players.filter(p=>scrimmageEligibleForSlot(p,"C"));
+
+  if(hasP&&eligP.length===0){
+    w.push("No players are set as pitchers. The pitcher spot stays Open every "+unit+". Turn the pitcher off in Round rules for coach pitch, or set a pitcher on a player's profile.");
+  }else if(hasP&&eligP.length*pitcherRoundsMax<rounds){
+    w.push("Only "+eligP.length+" "+(eligP.length===1?"pitcher":"pitchers")+" for "+rounds+" "+units+". Some will pitch more than once.");
+  }
+
+  if(hasC&&eligC.length===0){
+    w.push("No players are set as catchers. The catcher spot stays Open every "+unit+". Turn the catcher off in Round rules, or set a catcher on a player's profile.");
+  }else if(hasC){
+    const turns=Math.ceil(rounds/catcherHold);
+    if(eligC.length<turns)w.push("Only "+eligC.length+" "+(eligC.length===1?"catcher":"catchers")+" for "+turns+" catching turns. Some will catch more than once.");
+  }
+
+  fieldSlots.forEach(s=>{
+    if(s==="P"||s==="C")return;
+    if(!players.some(p=>scrimmageEligibleForSlot(p,s)))w.push("No players are eligible for "+s+". It stays Open. Turn "+s+" off in Round rules, or fill it with a coach or helper.");
+  });
+
+  const noPos=players.filter(p=>!scrimmageHasRealPositions(p)&&!(p.locks&&p.locks.sitOut));
+  if(noPos.length)w.push(noPos.length+" "+(noPos.length===1?"player has":"players have")+" no positions set. They'll be placed anywhere except pitcher and catcher.");
+
+  players.forEach(p=>{
+    const lp=p.locks&&p.locks.position;
+    if(lp&&!fieldSlots.includes(lp))w.push((p.name||"A player")+" is locked to "+lp+", which is turned off. They will only bat.");
+  });
+
+  if(board){
+    const hits=scrimmageHitCounts(board,players);
+    const present=players.filter(p=>!(p.locks&&p.locks.sitOut));
+    const hv=present.map(p=>hits[p.id]);
+    if(hv.length){
+      const spread=Math.max(...hv)-Math.min(...hv);
+      if(spread>1){
+        const min=Math.min(...hv);
+        const low=present.filter(p=>hits[p.id]===min).map(p=>p.name||p.id);
+        w.push("Batting is uneven: "+low.join(", ")+" "+(low.length===1?"bats":"bat")+" "+min+" "+(min===1?"time":"times")+" while others bat "+Math.max(...hv)+".");
+      }
+    }
+  }
+  return w;
+}
+
+// section 4: generate a fair board from scratch.
+export function generateScrimmageBoard(input){
+  const rounds=Math.max(1,Math.round(input.rounds||1));
+  const fieldSlots=(input.slots&&input.slots.length)?input.slots.slice():[...SCRIMMAGE_FIELD_SLOTS];
+  const players=(input.players||[]).filter(p=>!(p.locks&&p.locks.sitOut));
+  const catcherHold=Math.max(1,Math.min(input.catcherHold||2,rounds));
+  const pitcherRoundsMax=Math.max(1,input.pitcherRoundsMax||1);
+  const autoHitters=input.hittersPerRound==null||input.hittersPerRound==="auto";
+  const pinnedHitters=autoHitters?0:resolveScrimmageHitters(input.hittersPerRound,players.length,fieldSlots.length);
+  const seed=input.seed||"scrimmage";
+
+  if(!players.length){
+    return {board:Array.from({length:rounds},()=>({slots:{}})),warnings:["No players available. Take attendance or add players to the roster."]};
+  }
+
+  let best=null;
+  const RETRIES=30;
+  for(let attempt=0;attempt<RETRIES;attempt++){
+    const rand=scrimmageRng(seed+"::"+attempt);
+    const board=scrimmageBuildBoard({rounds,fieldSlots,players,catcherHold,pitcherRoundsMax,autoHitters,pinnedHitters,rand});
+    const score=scrimmageScoreBoard(board,players,fieldSlots,catcherHold,pitcherRoundsMax);
+    if(!best||scrimmageBetterScore(score,best.score))best={board,score};
+  }
+
+  // If the greedy passes never fully evened batting (a tightly-constrained
+  // roster), take the best board and swap over-batted fielders for
+  // under-batted ones until the spread is 1 or no legal swap is left.
+  if(best.score.hitSpread>1){
+    const hc=scrimmageHitCounts(best.board,players);
+    const lockedPos={};players.forEach(p=>{if(p.locks&&p.locks.position)lockedPos[p.id]=p.locks.position;});
+    scrimmageRebalanceHits(best.board,players,fieldSlots,hc,lockedPos,scrimmageRng(seed+"::rebalance"));
+    best.board.forEach(scrimmageCompactHitters);
+  }
+
+  const warnings=scrimmageWarnings(input.players||[],rounds,fieldSlots,catcherHold,pitcherRoundsMax,best.board,input.roundLabel);
+  return {board:best.board,warnings};
+}
+
+// section 4.4: fill only the holes in an existing board with the fewest
+// changes. `existingBoard` is the current board (may contain team_staff /
+// helper assignees, which are left untouched -- the generator never places
+// staff). Departed players are removed; now-empty player slots are refilled,
+// preferring a player already batting in that same round; newly-present
+// players are inserted as hitters; then, only if batting spread exceeds 1,
+// hitter/fielder pairs are swapped in the fewest rounds needed.
+export function repairScrimmageBoard(input,existingBoard){
+  const fieldSlots=(input.slots&&input.slots.length)?input.slots.slice():[...SCRIMMAGE_FIELD_SLOTS];
+  const players=(input.players||[]).filter(p=>!(p.locks&&p.locks.sitOut));
+  const catcherHold=Math.max(1,Math.min(input.catcherHold||2,Math.max(1,(existingBoard||[]).length)));
+  const pitcherRoundsMax=Math.max(1,input.pitcherRoundsMax||1);
+  const autoHitters=input.hittersPerRound==null||input.hittersPerRound==="auto";
+  const pinnedHitters=autoHitters?0:resolveScrimmageHitters(input.hittersPerRound,players.length,fieldSlots.length);
+  const seed=(input.seed||"scrimmage")+"::repair";
+  const rand=scrimmageRng(seed);
+
+  const presentIds=new Set(players.map(p=>p.id));
+  const lockedPos={}; // playerId -> slot
+  players.forEach(p=>{if(p.locks&&p.locks.position)lockedPos[p.id]=p.locks.position;});
+
+  // deep clone
+  const board=(existingBoard||[]).map(rd=>({slots:Object.assign({},rd.slots)}));
+  const rounds=board.length;
+
+  // 1. strip departed players (player assignees only; leave staff/helpers)
+  board.forEach(rd=>{
+    Object.keys(rd.slots).forEach(s=>{
+      const a=rd.slots[s];
+      if(a&&a.player_id&&!presentIds.has(a.player_id))rd.slots[s]=/^H\d+$/.test(s)?undefined:null;
+    });
+    // compact hitter slots so H1..Hk stay contiguous
+    scrimmageCompactHitters(rd);
+  });
+
+  // running counts from what's left
+  const hitCount=scrimmageHitCounts(board,players);
+  const slotCount=scrimmageSlotCounts(board);
+  const pitchCount=scrimmageRoleCounts(board,"P");
+  const catchCount=scrimmageRoleCounts(board,"C");
+  players.forEach(p=>{if(!(p.id in hitCount))hitCount[p.id]=0;if(!(p.id in pitchCount))pitchCount[p.id]=0;if(!(p.id in catchCount))catchCount[p.id]=0;});
+
+  const usedInRound=ri=>{
+    const set=new Set();
+    Object.keys(board[ri].slots).forEach(s=>{const a=board[ri].slots[s];if(a&&a.player_id)set.add(a.player_id);});
+    return set;
+  };
+  const battersInRound=ri=>Object.keys(board[ri].slots).filter(s=>/^H\d+$/.test(s)).map(s=>board[ri].slots[s]).filter(a=>a&&a.player_id).map(a=>a.player_id);
+
+  // 2. fill now-empty fielding slots, round order, preferring a current batter
+  for(let ri=0;ri<rounds;ri++){
+    const emptyFieldSlots=fieldSlots.filter(s=>(s in board[ri].slots)&&board[ri].slots[s]===null);
+    // also treat slots the plan never had a key for as fillable
+    fieldSlots.forEach(s=>{if(!(s in board[ri].slots))emptyFieldSlots.push(s);});
+    emptyFieldSlots.sort((a,b)=>SCRIMMAGE_SLOT_KEEP_PRIORITY.indexOf(a)-SCRIMMAGE_SLOT_KEEP_PRIORITY.indexOf(b));
+    for(const s of emptyFieldSlots){
+      // A player already fielding a (non-P/C-or-any) slot this round can't
+      // take another; a player who is only batting CAN move to the field
+      // (their hitter slot is freed below) -- that's the natural minimal
+      // fill, so batters are candidates here, not excluded.
+      const fielding=new Set(Object.keys(board[ri].slots).filter(k=>!/^H\d+$/.test(k)).map(k=>board[ri].slots[k]).filter(a=>a&&a.player_id).map(a=>a.player_id));
+      const batters=battersInRound(ri);
+      let cands=players.filter(p=>!fielding.has(p.id)&&scrimmageEligibleForSlot(p,s)&&(!lockedPos[p.id]||lockedPos[p.id]===s));
+      if(!cands.length){board[ri].slots[s]=null;continue;}
+      // prefer a player currently batting this round (natural swap), then
+      // the same fairness score as generate
+      cands.sort((a,b)=>{
+        const ab=batters.includes(a.id)?0:1,bb=batters.includes(b.id)?0:1;
+        if(ab!==bb)return ab-bb;
+        return scrimmageFieldScore(a,s,slotCount,hitCount,{},rand)-scrimmageFieldScore(b,s,slotCount,hitCount,{},rand);
+      });
+      const chosen=cands[0];
+      // if they were batting this round, free that hitter slot
+      const hs=Object.keys(board[ri].slots).find(k=>/^H\d+$/.test(k)&&board[ri].slots[k]&&board[ri].slots[k].player_id===chosen.id);
+      if(hs){board[ri].slots[hs]=undefined;hitCount[chosen.id]=Math.max(0,(hitCount[chosen.id]||0)-1);}
+      board[ri].slots[s]={player_id:chosen.id};
+      if(s==="P")pitchCount[chosen.id]=(pitchCount[chosen.id]||0)+1;
+      else if(s==="C")catchCount[chosen.id]=(catchCount[chosen.id]||0)+1;
+      else slotCount[chosen.id+"|"+s]=(slotCount[chosen.id+"|"+s]||0)+1;
+      scrimmageCompactHitters(board[ri]);
+    }
+  }
+
+  // 3. Rebuild the batting for every round WITHOUT touching the fielding
+  //    board at all -- for auto mode, each round's batters are exactly the
+  //    present players not fielding that round (so nobody is dropped or
+  //    double-counted), sat-out / never-hits players excluded. Because the
+  //    fielding rotation was already even and step 2 only nudged it, this
+  //    lands batting within an at-bat or two with zero extra fielding
+  //    churn. A pinned hitter count keeps the N fewest-batted eligible
+  //    non-fielders and the rest sit that round.
+  const present=players.filter(p=>!(p.locks&&(p.locks.sitOut||p.locks.noHit)));
+  const totalHit={};present.forEach(p=>{totalHit[p.id]=0;});
+  for(let ri=0;ri<rounds;ri++){
+    const rd=board[ri].slots;
+    Object.keys(rd).filter(k=>/^H\d+$/.test(k)).forEach(k=>{delete rd[k];});
+    const fieldingHere=new Set(Object.keys(rd).map(k=>rd[k]).filter(a=>a&&a.player_id).map(a=>a.player_id));
+    let batters=present.filter(p=>!fieldingHere.has(p.id));
+    batters.sort((a,b)=>(totalHit[a.id]-totalHit[b.id])||(rand()-0.5));
+    if(!autoHitters)batters=batters.slice(0,Math.max(0,pinnedHitters));
+    batters.forEach((p,i)=>{rd["H"+(i+1)]={player_id:p.id};totalHit[p.id]++;});
+  }
+
+  board.forEach(scrimmageCompactHitters);
+
+  // 4. Low-churn batting rebalance: single hitter<->fielder swaps (one
+  //    field-slot change each), never a whole-round reshuffle. Stops as
+  //    soon as the spread is <=1 or no simple legal swap is left.
+  const lockedRepair={};present.forEach(p=>{if(p.locks&&p.locks.position)lockedRepair[p.id]=p.locks.position;});
+  for(let guard=0;guard<60;guard++){
+    const hc=scrimmageHitCounts(board,present);
+    const hv=present.map(p=>hc[p.id]||0);
+    if(!hv.length)break;
+    const hi=Math.max(...hv),lo=Math.min(...hv);
+    if(hi-lo<=1)break;
+    // over = batted the most (move one of their at-bats into the field);
+    // under = batted the least (they field a lot -- move one field slot to
+    // a bat). One field-slot change per swap.
+    const over=present.filter(p=>(hc[p.id]||0)===hi&&!lockedRepair[p.id]&&!(p.locks&&p.locks.noHit));
+    const under=present.filter(p=>(hc[p.id]||0)===lo&&!lockedRepair[p.id]);
+    let did=false;
+    for(const o of over){
+      for(let ri=0;ri<rounds&&!did;ri++){
+        const rd=board[ri].slots;
+        const oHit=Object.keys(rd).find(k=>/^H\d+$/.test(k)&&rd[k]&&rd[k].player_id===o.id);
+        if(!oHit)continue;
+        for(const u of under){
+          const uSlot=Object.keys(rd).find(k=>!/^H\d+$/.test(k)&&k!=="C"&&k!=="P"&&rd[k]&&rd[k].player_id===u.id);
+          if(!uSlot)continue;
+          if(!scrimmageEligibleForSlot(o,uSlot))continue;
+          rd[uSlot]={player_id:o.id};rd[oHit]={player_id:u.id};
+          did=true;break;
+        }
+      }
+      if(did)break;
+    }
+    if(!did)break;
+  }
+  board.forEach(scrimmageCompactHitters);
+
+  const warnings=scrimmageWarnings(input.players||[],rounds,fieldSlots,catcherHold,pitcherRoundsMax,board,input.roundLabel);
+  return {board,warnings};
+}
+
+function scrimmageNextHitterKey(round){
+  let i=1;while(("H"+i) in round.slots&&round.slots["H"+i]!==undefined&&round.slots["H"+i]!==null)i++;
+  return "H"+i;
+}
+function scrimmageCompactHitters(round){
+  const hs=Object.keys(round.slots).filter(k=>/^H\d+$/.test(k)).sort((a,b)=>parseInt(a.slice(1))-parseInt(b.slice(1)));
+  const kept=hs.map(k=>round.slots[k]).filter(a=>a&&a.player_id);
+  hs.forEach(k=>{delete round.slots[k];});
+  kept.forEach((a,i)=>{round.slots["H"+(i+1)]=a;});
+}
+function scrimmageRebalanceHits(board,players,fieldSlots,hitCount,lockedPos,rand){
+  // A Never-hits player legitimately bats zero times -- keep them out of the
+  // spread math entirely so the loop doesn't chase an impossible target.
+  const byId=Object.fromEntries(players.map(p=>[p.id,p]));
+  const nonHitField=["1B","2B","3B","SS","LF","CF","RF"]; // swap-in slots (not P/C)
+  for(let guard=0;guard<120;guard++){
+    const present=players.filter(p=>!(p.locks&&(p.locks.sitOut||p.locks.noHit)));
+    const hv=present.map(p=>hitCount[p.id]||0);
+    if(!hv.length)return;
+    const hi=Math.max(...hv),lo=Math.min(...hv);
+    if(hi-lo<=1)return;
+    const over=present.filter(p=>(hitCount[p.id]||0)===hi&&!lockedPos[p.id]);
+    const under=present.filter(p=>(hitCount[p.id]||0)===lo&&!lockedPos[p.id]);
+    let done=false;
+    // Directly target an under-batted player: find a round where U fields a
+    // non-P/C slot and an over-batted O bats. If the round's other non-P/C
+    // fielders plus O can still cover every non-P/C slot without U, then O
+    // fields and U bats.
+    for(const u of under){
+      for(let ri=0;ri<board.length&&!done;ri++){
+        const rd=board[ri].slots;
+        const uSlot=nonHitField.find(s=>rd[s]&&rd[s].player_id===u.id);
+        if(!uSlot)continue;
+        for(const o of over){
+          const oHits=Object.keys(rd).find(k=>/^H\d+$/.test(k)&&rd[k]&&rd[k].player_id===o.id);
+          if(!oHits)continue;
+          const rSlots=nonHitField.filter(s=>rd[s]&&rd[s].player_id);
+          const otherFielders=rSlots.map(s=>byId[rd[s].player_id]).filter(p=>p&&p.id!==u.id&&!lockedPos[p.id]);
+          if(otherFielders.length!==rSlots.length-1)continue; // a locked fielder here
+          const cand=[o,...otherFielders];
+          const bySlot=scrimmageMatchAssign(cand,rSlots);
+          if(Object.keys(bySlot).length!==rSlots.length)continue; // can't cover without u
+          rSlots.forEach((s,si)=>{const ci=bySlot[si];if(ci!=null)rd[s]={player_id:cand[ci].id};});
+          rd[oHits]={player_id:u.id};
+          hitCount[o.id]--;hitCount[u.id]++;
+          done=true;break;
+        }
+      }
+      if(done)break;
+    }
+    if(!done)return; // no improving move anywhere
+  }
+}
+
+// section 3.4 fairness badges. Pure summary of a board for the UI.
+export function summarizeScrimmageFairness(board,players){
+  const present=(players||[]);
+  const hits=scrimmageHitCounts(board||[],present);
+  const hv=present.map(p=>hits[p.id]||0);
+  const hitEven=hv.length?(Math.max(...hv)-Math.min(...hv)<=1):true;
+  const lowNames=(()=>{
+    if(hitEven||!hv.length)return[];
+    const min=Math.min(...hv);
+    return present.filter(p=>(hits[p.id]||0)===min).map(p=>p.name||p.id);
+  })();
+  const pitchC=scrimmageRoleCounts(board||[],"P");
+  const catchC=scrimmageRoleCounts(board||[],"C");
+  const eligP=present.filter(p=>scrimmageEligibleForSlot(p,"P")).length;
+  const catchRuns=Object.values(catchC);
+  return {
+    hits:{even:hitEven,counts:hits,lowNames,max:hv.length?Math.max(...hv):0,min:hv.length?Math.min(...hv):0},
+    pitch:{used:Object.keys(pitchC).length,eligible:eligP},
+    catch:{count:Object.keys(catchC).length,roundsEach:catchRuns.length?Math.round(catchRuns.reduce((a,b)=>a+b,0)/catchRuns.length):0},
+  };
+}
+
+// One player's rotation across the board (section 3.5). Returns
+// { timeline:[{round, slot}], counts:{SLOT:n, Hit:n}, holds:[[startRound,endRound]] }
+export function scrimmagePlayerRotation(board,playerId){
+  const timeline=[];const counts={};const holds=[];
+  (board||[]).forEach((rd,ri)=>{
+    let where=null;
+    Object.keys(rd.slots).forEach(s=>{
+      const a=rd.slots[s];
+      if(a&&a.player_id===playerId)where=/^H\d+$/.test(s)?"Hit":s;
+    });
+    timeline.push({round:ri,slot:where});
+    if(where)counts[where]=(counts[where]||0)+1;
+  });
+  let run=null;
+  timeline.forEach(t=>{
+    if(t.slot&&run&&run.slot===t.slot){run.end=t.round;}
+    else{if(run&&run.end>run.start)holds.push([run.start,run.end]);run=t.slot?{slot:t.slot,start:t.round,end:t.round}:null;}
+  });
+  if(run&&run.end>run.start)holds.push([run.start,run.end]);
+  return {timeline,counts,holds};
 }
