@@ -1006,6 +1006,8 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
     sublocationNameSnapshot: a.sublocation_name_snapshot || null,
     libraryId: a.library_activity_id || null,
     equipment: equipByAct[a.id] || [],
+    benchmarkId: a.benchmark_id || null,
+    benchmarkVersionId: a.benchmark_version_id || null,
   }
   if (a.type === 'checklist') {
     base.items = (itemsByAct[a.id] || []).map(it => ({ id: it.id, text: it.text }))
@@ -1030,6 +1032,8 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
       sublocationNameSnapshot: st.sublocation_name_snapshot || null,
       description: st.description || '',
       coachingPoints: st.coaching_points || '', libraryId: st.library_activity_id || null,
+      benchmarkId: st.benchmark_id || null, benchmarkVersionId: st.benchmark_version_id || null,
+      benchmarkSharedOccurrence: !!st.benchmark_shared_occurrence,
       equipment: stationEquipByStation[st.id] || [], playerGear: '',
       assignments: st.assignments || [], groupLabel: st.group_label || '',
       grouping: st.grouping || 'whole', numGroups: st.num_groups || 2,
@@ -1156,15 +1160,19 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
   // Insights). Batched once per save rather than per-row.
   let tagSnapshotByLibraryId = {}
   let subNameById = {}
+  let tagsByBenchmarkVersionId = {}
   if (teamScoped) {
     const libraryIds = new Set()
     const sublocationIds = new Set()
+    const benchmarkVersionIds = new Set()
     for (const act of activities) {
       if (act.libraryId) libraryIds.add(act.libraryId)
       if (act.sublocationId) sublocationIds.add(act.sublocationId)
+      if (act.benchmarkVersionId) benchmarkVersionIds.add(act.benchmarkVersionId)
       for (const st of (act.stations || [])) {
         if (st.libraryId) libraryIds.add(st.libraryId)
         if (st.sublocationId) sublocationIds.add(st.sublocationId)
+        if (st.benchmarkVersionId) benchmarkVersionIds.add(st.benchmarkVersionId)
       }
     }
     if (libraryIds.size) {
@@ -1174,6 +1182,15 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
     if (sublocationIds.size) {
       const { data: subRows } = await supabase.from('sublocations').select('id,name').in('id', Array.from(sublocationIds))
       for (const r of (subRows || [])) subNameById[r.id] = r.name
+    }
+    // A benchmark activity/station has no library drill, so its skill tags
+    // live on the pinned protocol version. Writing them into tag_snapshot is
+    // what makes Goals & Insights attribution work with no SQL change, the
+    // same mechanism scrimmage uses (the library_activity_id IS NULL AND
+    // tag_snapshot IS NOT NULL branch in the attribution helpers).
+    if (benchmarkVersionIds.size) {
+      const { data: bvRows } = await supabase.from('benchmark_versions').select('id,skill_tag_ids').in('id', Array.from(benchmarkVersionIds))
+      for (const r of (bvRows || [])) tagsByBenchmarkVersionId[r.id] = r.skill_tag_ids || []
     }
   }
 
@@ -1188,6 +1205,8 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
       group_assignments: (Array.isArray(act.groupAssignments) && act.groupAssignments.some(g => g && g.length)) ? act.groupAssignments : null,
       library_activity_id: act.libraryId || null,
       sublocation_id: act.sublocationId || null,
+      benchmark_id: act.benchmarkId || null,
+      benchmark_version_id: act.benchmarkVersionId || null,
     }
     if (act.type === 'scrimmage') {
       // Config round-trips on both practices and templates; the generated
@@ -1211,6 +1230,10 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
         // never excluded from the denominator the way breaks/checklists are.
         const stagTags = (act.scrimmageConfig && act.scrimmageConfig.skillTagIds) || []
         row.tag_snapshot = stagTags.length ? stagTags : null
+      }
+      if (act.type === 'benchmark' && act.benchmarkVersionId) {
+        const bmTags = tagsByBenchmarkVersionId[act.benchmarkVersionId] || []
+        row.tag_snapshot = bmTags.length ? bmTags : null
       }
     }
 
@@ -1265,6 +1288,9 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
           coaching_points: st.coachingPoints || null,
           sublocation_id: st.sublocationId || null,
           library_activity_id: st.libraryId || null,
+          benchmark_id: st.benchmarkId || null,
+          benchmark_version_id: st.benchmarkVersionId || null,
+          benchmark_shared_occurrence: !!st.benchmarkSharedOccurrence,
           grouping: st.grouping || 'whole', num_groups: st.numGroups || null,
         }
         if (teamScoped) {
@@ -1273,7 +1299,9 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
           stRow.assignments = st.assignments || []
           stRow.group_label = st.groupLabel || null
           stRow.delegated_to = st.delegatedTo || null
-          stRow.tag_snapshot = st.libraryId ? (tagSnapshotByLibraryId[st.libraryId] || null) : null
+          stRow.tag_snapshot = st.libraryId
+            ? (tagSnapshotByLibraryId[st.libraryId] || null)
+            : (st.benchmarkVersionId ? (tagsByBenchmarkVersionId[st.benchmarkVersionId] || null) : null)
           stRow.sublocation_name_snapshot = st.sublocationId ? (subNameById[st.sublocationId] || null) : null
         }
         let stId = st.id

@@ -32,6 +32,27 @@ export default function PracticePlanPrint({ practice, team, loc, data, onClose }
     }).filter(Boolean);
   };
   const actMins = a => a.type === "station_block" ? a.stations.length * (a.stationDuration || 0) + Math.max(0, a.stations.length - 1) * (a.transitionDuration || 0) : (a.duration || 0);
+  // Printed benchmark protocol summary: subject mode, metric, unit, attempt
+  // rule, direction, instructions. Never any historical result (handoff 9.3
+  // PracticePlanPrint).
+  const benchmarkSummary = row => {
+    const bm = (data.benchmarks || []).find(b => b.id === row.benchmarkId);
+    if (!bm) return null;
+    const v = (bm.versions || []).find(x => x.id === row.benchmarkVersionId) || bm.latestVersion;
+    if (!v) return { title: bm.title, line: "protocol unavailable", instructions: "", tags: [] };
+    const dir = v.direction === "track" ? "track only" : (v.direction === "lower" ? "lower is better" : "higher is better");
+    const attempts = v.metricType === "success_rate"
+      ? v.scoredAttempts + " set" + (v.scoredAttempts === 1 ? "" : "s") + " of " + v.opportunitiesPerSet
+      : v.scoredAttempts + " attempt" + (v.scoredAttempts === 1 ? "" : "s");
+    const ruleWord = { single: "one attempt", best: "best valid attempt", average: "average of valid attempts", total: "total of valid attempts", pooled: "pooled successes / opportunities" }[v.resultRule] || v.resultRule;
+    const rule = (v.scoredAttempts > 1 || v.resultRule === "pooled") ? ", " + ruleWord : "";
+    return {
+      title: bm.title,
+      line: (bm.subjectMode === "team" ? "Whole team" : "Individual players") + " · " + v.metricType + (v.displayUnit ? " (" + v.displayUnit + ")" : "") + " · " + attempts + rule + " · " + dir,
+      instructions: v.instructions || "",
+      tags: v.tagSnapshot || [],
+    };
+  };
   const totalMins = activities.reduce((s, a) => s + actMins(a), 0);
   const stationCount = activities.filter(a => a.type === "station_block").reduce((s, a) => s + (a.stations || []).length, 0);
   const coachNameFor = id => { const c = id && team && team.coaches.find(c => c.id === id); return c ? c.name : null; };
@@ -149,6 +170,22 @@ export default function PracticePlanPrint({ practice, team, loc, data, onClose }
               {(a.items || []).map(it => (<div key={it.id} style={{ fontSize: 13, padding: "2px 0" }}>&#9633; {it.text}</div>))}
               {a.notes && <div style={{ fontSize: 12, color: P.td, marginTop: 4, fontStyle: "italic" }}>{a.notes}</div>}
             </div>}
+            {a.type === "benchmark" && (() => {
+              const bs = benchmarkSummary(a);
+              const s = loc && loc.sublocations.find(s => s.id === a.sublocationId);
+              const c = team && team.coaches.find(c => c.id === a.coachId);
+              return (<div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: P.green2, marginBottom: 3 }}>Benchmark Protocol</div>
+                {(s || c) && <div style={{ fontSize: 12, color: P.td, marginBottom: 4 }}>{[s && s.name, c && ("Coach: " + c.name)].filter(Boolean).join("  ·  ")}</div>}
+                {bs ? <>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{bs.line}</div>
+                  {bs.instructions && <div style={{ fontSize: 13, lineHeight: 1.6, marginTop: 4, whiteSpace: "pre-wrap" }}>{bs.instructions}</div>}
+                  {bs.tags.length > 0 && <div style={{ fontSize: 12, color: P.td, marginTop: 4 }}><em>Skills: {bs.tags.join(", ")}</em></div>}
+                </> : <div style={{ fontSize: 12, color: P.td }}>Protocol not available.</div>}
+                {equip.length > 0 && <div style={{ fontSize: 12, color: P.amber, marginTop: 4 }}>Equipment: {equip.join(", ")}</div>}
+                {a.coachingPoints && <div style={{ fontSize: 12, lineHeight: 1.5, marginTop: 4 }}>{a.coachingPoints}</div>}
+              </div>);
+            })()}
             {a.type === "station_block" && <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {a.stations.map((st, si) => {
                 const stEquip = resolveEquip(st.equipment);
@@ -157,8 +194,9 @@ export default function PracticePlanPrint({ practice, team, loc, data, onClose }
                 const s = loc && loc.sublocations.find(s => s.id === st.sublocationId);
                 const c = team && team.coaches.find(c => c.id === st.coachId);
                 return (<div key={st.id} style={{ borderLeft: "2px solid " + P.b, paddingLeft: 10 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>Station {si + 1}{st.activityName ? "  ·  " + st.activityName : ""} <span style={{ fontWeight: 400, color: P.td, fontSize: 12 }}>({a.stationDuration || 0} min)</span></div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>Station {si + 1}{st.activityName ? "  ·  " + st.activityName : ""}{st.benchmarkId ? "  ·  BENCHMARK" : ""} <span style={{ fontWeight: 400, color: P.td, fontSize: 12 }}>({a.stationDuration || 0} min)</span></div>
                   {(s || c) && <div style={{ fontSize: 12, color: P.td }}>{[s && s.name, c && ("Coach: " + c.name)].filter(Boolean).join("  ·  ")}</div>}
+                  {st.benchmarkId && (() => { const bs = benchmarkSummary(st); return bs ? <div style={{ fontSize: 12, marginTop: 2 }}><strong>{bs.line}</strong>{bs.instructions ? " — " + bs.instructions : ""}</div> : null; })()}
                   {st.coachingPoints && <div style={{ fontSize: 12, lineHeight: 1.5, marginTop: 2 }}>{st.coachingPoints}</div>}
                   {stTags.length > 0 && <div style={{ fontSize: 11, color: P.td }}><em>Skills: {stTags.join(", ")}</em></div>}
                   {stEquip.length > 0 && <div style={{ fontSize: 11, color: P.amber }}>Equipment: {stEquip.join(", ")}</div>}
