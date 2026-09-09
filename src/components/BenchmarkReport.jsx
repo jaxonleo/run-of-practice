@@ -10,6 +10,7 @@ import {
   personalBest, classifyAgainstPersonalBest, targetAttainment, meetsTarget,
   comparableAssessments, isEligibleAssessment, previousEligibleAssessment,
   displayDecimals, roundTo, changeVerb,
+  formatMeasurement, displayMagnitude, unitIsInline, parseDisplayValue,
 } from "../benchmarks.js";
 
 // Reporting surfaces for Goals & Insights and PlayerProfile. All official
@@ -60,7 +61,12 @@ function fmtResult(protocol, r) {
   if (!isOfficial(r)) return "—";
   if (r.metricType === "success_rate") return r.successes + "/" + r.opportunities + " (" + roundTo(r.proportion * 100, 1) + "%)";
   if (r.metricType === "score_rubric") { const l = (protocol.rubricLevels || []).find(x => x.id === r.levelId); return l ? l.label : "level " + r.levelOrder; }
-  return roundTo(r.value, displayDecimals(protocol)) + (protocol.displayUnit ? " " + protocol.displayUnit : "");
+  return formatMeasurement(protocol, r.value);
+}
+// A team average / mean is a canonical number: show it in the display unit too.
+function fmtMean(protocol, v) {
+  if (!Number.isFinite(v)) return "—";
+  return formatMeasurement(protocol, v);
 }
 // median rubric level(s): one label, or the two middle labels as a range for
 // an even split whose middle levels differ (handoff 7.3).
@@ -69,10 +75,12 @@ function rubricLabels(protocol, orders) {
   const names = (orders || []).map(o => { const l = lv.find(x => x.order === o); return l ? l.label : "level " + o; });
   return names.length === 2 ? names[0] + " to " + names[1] : (names[0] || "—");
 }
-function fmtChange(m) {
+function fmtChange(protocol, m) {
   if (!m || m.status !== "ok") return "";
   if (m.kind === "rubric") return m.improved + " up · " + m.unchanged + " same · " + m.lower + " down";
-  const s = roundTo(m.signedImprovement, 2);
+  // signedImprovement is a canonical delta; show its magnitude in the display
+  // unit (linear conversions, so a delta converts the same way a value does).
+  const s = roundTo(protocol ? displayMagnitude(protocol, m.signedImprovement) : m.signedImprovement, 2);
   const rel = m.relativeImprovementPercent != null ? " (" + roundTo(Math.abs(m.relativeImprovementPercent), 1) + "%)" : "";
   return (s > 0 ? "+" : "") + s + " " + (m.verb || "") + rel;
 }
@@ -106,7 +114,7 @@ function TeamBenchmarksOverview({ teamId, onOpen }) {
               ? "Avg " + roundTo(c.teamPerf.meanProportion * 100, 1) + "% · " + c.teamPerf.measuredCount + " measured"
               : protocol.metricType === "score_rubric"
                 ? c.teamPerf.measuredCount + " measured"
-                : "Avg " + roundTo(c.teamPerf.mean, displayDecimals(protocol)) + (protocol.displayUnit ? " " + protocol.displayUnit : "") + " · " + c.teamPerf.measuredCount + " measured";
+                : "Avg " + fmtMean(protocol, c.teamPerf.mean) + " · " + c.teamPerf.measuredCount + " measured";
           } else summary = "No completed results";
         }
         return (
@@ -242,7 +250,7 @@ function TeamBenchmarkDetail({ teamId, team, coachId, benchmarkId, canManage, on
           <div style={{ fontSize: 15, fontWeight: 800 }}>
             {protocol.metricType === "success_rate" ? "Avg " + roundTo(cur.teamPerf.meanProportion * 100, 1) + "%" :
              protocol.metricType === "score_rubric" ? "Median " + rubricLabels(protocol, cur.teamPerf.medianLevelOrders) :
-             "Avg " + roundTo(cur.teamPerf.mean, displayDecimals(protocol)) + (protocol.displayUnit ? " " + protocol.displayUnit : "")}
+             "Avg " + fmtMean(protocol, cur.teamPerf.mean)}
           </div>
           {protocol.metricType === "score_rubric" && cur.teamPerf.byLevel && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>
             {(protocol.rubricLevels || []).map(l => (cur.teamPerf.byLevel[l.id] || 0) + " " + l.label).join(" · ")}
@@ -266,7 +274,7 @@ function TeamBenchmarkDetail({ teamId, team, coachId, benchmarkId, canManage, on
         {!improvement && <div style={{ fontSize: 13, color: "var(--td)" }}>No comparable assessment (version mismatch or excluded).</div>}
         {improvement && improvement.status === "no_overlap" && <div style={{ fontSize: 13 }}>No comparable players between these dates.</div>}
         {improvement && improvement.status === "ok" && improvement.kind !== undefined && <div>
-          <div style={{ fontSize: 15, fontWeight: 800 }}>{fmtChange(improvement)}</div>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>{fmtChange(protocol, improvement)}</div>
           <div style={{ fontSize: 12, color: "var(--td)" }}>
             {improvement.kind === "rubric" ? "" : "matched " + improvement.matchedCount + " player" + (improvement.matchedCount === 1 ? "" : "s") + " · "}
             {compare.measured_local_date} &rarr; {latest.measured_local_date}
@@ -275,7 +283,7 @@ function TeamBenchmarkDetail({ teamId, team, coachId, benchmarkId, canManage, on
           {improvement.improved != null && improvement.kind !== "rubric" && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 4 }}>{improvement.improved} improved · {improvement.unchanged} unchanged · {improvement.worse} lower</div>}
         </div>}
         {improvement && improvement.status === "ok" && improvement.label === "team_challenge" && <div>
-          <div style={{ fontSize: 15, fontWeight: 800 }}>Team challenge result: {fmtChange({ ...improvement, kind: "ratio" })}</div>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>Team challenge result: {fmtChange(protocol, { ...improvement, kind: "ratio" })}</div>
           {improvement.compositionWarning && <div style={{ fontSize: 12, color: "var(--amber)", marginTop: 4 }}>Different participants ({improvement.previousCount ?? "?"} &rarr; {improvement.currentCount ?? "?"}) — not same-player development.</div>}
         </div>}
       </div>}
@@ -285,7 +293,7 @@ function TeamBenchmarkDetail({ teamId, team, coachId, benchmarkId, canManage, on
         <div style={{ fontSize: 13 }}>
           {protocol.metricType === "success_rate" ? "≥ " + roundTo(target.threshold_proportion * 100, 0) + "%" :
            protocol.metricType === "score_rubric" ? "at or above level " + target.threshold_level_order :
-           (protocol.direction === "lower" ? "≤ " : "≥ ") + target.threshold_value + (protocol.displayUnit ? " " + protocol.displayUnit : "")}
+           (protocol.direction === "lower" ? "≤ " : "≥ ") + formatMeasurement(protocol, target.threshold_value)}
           {target.attainment_percent != null ? " · objective " + target.attainment_percent + "% of measured" : ""}
         </div>
         {attain && <div style={{ fontSize: 13, marginTop: 4 }}>{attain.meetingCount} of {attain.measuredCount} measured meet target ({attain.attainmentPercent}%)</div>}
@@ -296,7 +304,7 @@ function TeamBenchmarkDetail({ teamId, team, coachId, benchmarkId, canManage, on
         <Sparkline points={series} lower={protocol.direction === "lower"} />
         <table style={{ width: "100%", fontSize: 12, marginTop: 8, borderCollapse: "collapse" }}>
           <thead><tr><th style={{ textAlign: "left", borderBottom: "1px solid var(--b)" }}>Date</th><th style={{ textAlign: "right", borderBottom: "1px solid var(--b)" }}>Average</th><th style={{ textAlign: "right", borderBottom: "1px solid var(--b)" }}>N</th></tr></thead>
-          <tbody>{series.map((p, i) => <tr key={i}><td>{p.date}{p.excluded ? " (excluded)" : ""}</td><td style={{ textAlign: "right" }}>{roundTo(p.value, protocol.metricType === "success_rate" ? 3 : displayDecimals(protocol))}</td><td style={{ textAlign: "right" }}>{p.n}</td></tr>)}</tbody>
+          <tbody>{series.map((p, i) => <tr key={i}><td>{p.date}{p.excluded ? " (excluded)" : ""}</td><td style={{ textAlign: "right" }}>{protocol.metricType === "success_rate" ? roundTo(p.value, 3) : roundTo(displayMagnitude(protocol, p.value), displayDecimals(protocol))}</td><td style={{ textAlign: "right" }}>{p.n}</td></tr>)}</tbody>
         </table>
       </div>}
 
@@ -397,15 +405,18 @@ function TargetEditor({ detail, version, protocol, onSaved }) {
     <div className="card" style={{ marginTop: 10 }}>
       <div className="clbl mb8">Set target ({protocol.metricType})</div>
       <div className="fld"><label className="lbl">{protocol.metricType === "success_rate" ? "Threshold %" : protocol.metricType === "score_rubric" ? "Level order" : "Threshold" + (protocol.displayUnit ? " (" + protocol.displayUnit + ")" : "")}</label>
-        <input className="inp" type="number" step="any" value={val} onChange={e => setVal(e.target.value)} /></div>
+        <input className="inp" type={unitIsInline(protocol) ? "text" : "number"} step="any" placeholder={unitIsInline(protocol) ? protocol.displayUnit : ""} value={val} onChange={e => setVal(e.target.value)} /></div>
       {protocol.subjectMode !== "team" && <div className="fld"><label className="lbl">Objective: % of measured players meeting it</label><input className="inp" type="number" value={pct} onChange={e => setPct(e.target.value)} /></div>}
       <div style={{ display: "flex", gap: 8 }}>
         <button type="button" className="btn ghost bsm" onClick={() => setOpen(false)}>Cancel</button>
         <button type="button" className="btn primary bsm" disabled={busy || val === ""} onClick={async () => {
           setBusy(true);
+          // Store the threshold in canonical units, the same way an attempt is
+          // stored, so targetAttainment compares like with like.
           const num = Number(val);
+          const canon = parseDisplayValue(protocol, val);
           await setTeamBenchmarkTarget(detail.team_benchmark.id, version, {
-            thresholdValue: (protocol.metricType === "success_rate" || protocol.metricType === "score_rubric") ? null : num,
+            thresholdValue: (protocol.metricType === "success_rate" || protocol.metricType === "score_rubric") ? null : canon,
             thresholdProportion: protocol.metricType === "success_rate" ? num / 100 : null,
             thresholdLevelOrder: protocol.metricType === "score_rubric" ? num : null,
             attainmentPercent: pct === "" ? null : Number(pct),
@@ -467,8 +478,8 @@ export function PlayerBenchmarks({ teamId, playerId }) {
               {latest && <>
                 <div style={{ fontSize: 15, fontWeight: 800, marginTop: 4 }}>{fmtResult(protocol, latest.result)} <span style={{ fontSize: 12, fontWeight: 400, color: "var(--td)" }}>· {latest.date}</span></div>
                 <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>
-                  {officials.length === 1 ? "First measurement" : (vsPrev ? "vs previous: " + fmtChange(vsPrev) : "")}
-                  {vsFirst ? "  ·  since first: " + fmtChange(vsFirst) : ""}
+                  {officials.length === 1 ? "First measurement" : (vsPrev ? "vs previous: " + fmtChange(protocol, vsPrev) : "")}
+                  {vsFirst ? "  ·  since first: " + fmtChange(protocol, vsFirst) : ""}
                 </div>
                 <div style={{ fontSize: 12, marginTop: 4 }}>
                   {pbClass.status === "new" && <span className="bdg bs">New personal best</span>}
