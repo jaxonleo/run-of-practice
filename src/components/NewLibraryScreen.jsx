@@ -1159,7 +1159,7 @@ function BenchmarkForm({ data, coachId, mode, sourceDrill, baseVersion, onCancel
       </div>}
 
       {err && <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 8 }}>{err}</div>}
-      <button type="button" className="btn primary" style={{ width: "100%" }} disabled={saving} onClick={save}>{saving ? "Saving..." : versioning ? "Save New Version" : "Create Benchmark"}</button>
+      <button type="button" className="btn primary bmd bfull" disabled={saving} onClick={save}>{saving ? "Saving..." : versioning ? "Save New Version" : "Create Benchmark"}</button>
     </div>
   );
 }
@@ -1177,7 +1177,7 @@ function WordingForm({ version, onCancel, onSaved }) {
       <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 10 }}>A wording correction stays on the same version and never changes what is scored. To change the test setup, create a new version instead.</div>
       <div className="fld"><label className="lbl">Instructions</label><textarea className="inp" rows={4} maxLength={4000} value={instr} onChange={e => setInstr(e.target.value)} /></div>
       <div className="fld"><label className="lbl">What changed and why</label><input className="inp" value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. fixed a typo" /></div>
-      <button type="button" className="btn primary" style={{ width: "100%" }} disabled={saving || !instr.trim()} onClick={async () => { setSaving(true); const r = await correctBenchmarkVersionWording(version.id, { instructions: instr.trim(), note: note.trim() || null }); setSaving(false); if (!r.error) onSaved(); }}>{saving ? "Saving..." : "Save Correction"}</button>
+      <button type="button" className="btn primary bmd bfull" disabled={saving || !instr.trim()} onClick={async () => { setSaving(true); const r = await correctBenchmarkVersionWording(version.id, { instructions: instr.trim(), note: note.trim() || null }); setSaving(false); if (!r.error) onSaved(); }}>{saving ? "Saving..." : "Save Correction"}</button>
     </div>
   );
 }
