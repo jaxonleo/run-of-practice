@@ -7,13 +7,15 @@ import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { setSentryUser } from "./sentry.js";
-import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed } from "./supabase.js";
+import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed, adoptBenchmarkForTeam } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, hasVisibleComponentTypesPref, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES } from "./constants.js";
 import { TwoPane } from "./components/BBShells.jsx";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
-import { ActConfig, ChecklistConfig, StationConfig, ScrimmageConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
+import { ActConfig, ChecklistConfig, StationConfig, ScrimmageConfig, BenchmarkConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView, usePracticePresence, PresenceBadge } from "./components/CommandScreen.jsx";
+import BenchmarkRecordView from "./components/BenchmarkRecordView.jsx";
+import { PlayerBenchmarks } from "./components/BenchmarkReport.jsx";
 import MyStationBuilderScreen, { StationPresenceIndicator } from "./components/MyStationBuilder.jsx";
 import HomeScreen from "./components/HomeScreen.jsx";
 import ScheduleScreen from "./components/ScheduleScreen.jsx";
@@ -624,6 +626,7 @@ export default function App(){
     <>
       <Route path="/live/:token" element={<HelperViewRoute/>}/>
       <Route path="/preview/:token" element={<PreviewViewRoute/>}/>
+      <Route path="/brec/:token" element={<BenchmarkRecordRoute/>}/>
       <Route path="/terms" element={<TermsPage/>}/>
       <Route path="/privacy" element={<PrivacyPage/>}/>
       <Route path="/faq" element={<FAQPage/>}/>
@@ -800,6 +803,7 @@ function FounderAdminRoute(){
 
 function HelperViewRoute(){ const {token}=useParams(); return <HelperView token={token}/>; }
 function PreviewViewRoute(){ const {token}=useParams(); return <PreviewView token={token}/>; }
+function BenchmarkRecordRoute(){ const {token}=useParams(); return <BenchmarkRecordView token={token}/>; }
 
 function HomeRoute(){
   const {data,goToBuilder,goToRun,goToSchedule,goToTeam,goToSettings,coachId,coachName,coachEmail,refreshPlanning,refreshTeams,refreshLibrary,mode,setMode,liveId}=useAppCtx();
@@ -1607,11 +1611,26 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
     setHandRotation(r=>r+360);
   };
+  // A benchmark is chosen from Library > Benchmarks, not authored here. The
+  // picker opens; addBenchmarkChosen adds the drill-like activity carrying
+  // the pinned protocol version and adopts it for this team so it can be
+  // measured again later even if the definition's author leaves.
+  const [benchmarkPickerOpen,setBenchmarkPickerOpen]=useState(false);
+  const addBenchmarkChosen=async(bm)=>{
+    setBenchmarkPickerOpen(false);
+    const v=bm.latestVersion;
+    if(!v)return;
+    const a={id:uid(),type:"benchmark",name:bm.title,duration:v.plannedMinutes||10,coachId:headCoachId,sublocationId:"",equipment:[],benchmarkId:bm.id,benchmarkVersionId:v.id};
+    setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
+    setHandRotation(r=>r+360);
+    if(teamId)await adoptBenchmarkForTeam(bm.id,teamId,v.id);
+  };
   const addComponentType=key=>{
     const type=PRACTICE_COMPONENT_TYPES.find(t=>t.key===key);
     if(!type)return;
     if(type.kind==="station_block"){addBlock();return;}
     if(type.kind==="scrimmage"){addScrimmage();return;}
+    if(type.kind==="benchmark"){setBenchmarkPickerOpen(true);return;}
     const a={id:uid(),type:"checklist",name:type.defaultName,duration:type.defaultDuration,assignments:defaultAssignIds,coachId:headCoachId,items:[],notes:""};
     setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
     setHandRotation(r=>r+360);
@@ -1775,7 +1794,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
             return (<div key={t.key} className="li tap" style={{marginBottom:8}} onClick={()=>toggleComponentType(t.key)}>
               <div className="lim">
                 <div className="lin">{t.label}</div>
-                <div className="limt">{t.kind==="station_block"?"2+ stations":t.kind==="scrimmage"?"Everyone rotates positions and at-bats":t.defaultDuration+" min"}</div>
+                <div className="limt">{t.kind==="station_block"?"2+ stations":t.kind==="scrimmage"?"Everyone rotates positions and at-bats":t.kind==="benchmark"?"Pick from your Library":t.defaultDuration+" min"}</div>
               </div>
               <span style={{width:22,height:22,borderRadius:"50%",border:"2px solid "+(on?"var(--green)":"var(--b)"),background:on?"var(--green)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{on&&<Ic.Check/>}</span>
             </div>);
@@ -2039,7 +2058,8 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                 {dragHandle}
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {act.type==="station_block"?(act.name||"Station Block"):act.type==="scrimmage"?(act.name||"Scrimmage"):act.name}
+                    {act.type==="station_block"?(act.name||"Station Block"):act.type==="scrimmage"?(act.name||"Scrimmage"):act.type==="benchmark"?(act.name||"Benchmark"):act.name}
+                    {act.type==="benchmark"&&<span style={{fontWeight:700,color:"var(--green)",marginLeft:6,fontSize:11,letterSpacing:".04em"}}>BENCHMARK</span>}
                     {/* Direct feedback: a coach should be able to tell at a
                         glance who's leading a drill without expanding it --
                         same coach-or-typed-helper-name label the Practice
@@ -2047,7 +2067,14 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                         row here instead of its own section. */}
                     {act.type==="activity"&&<span style={{fontWeight:400,color:"var(--td)"}}> · {act.coachId?((team&&team.coaches.find(c=>c.id===act.coachId))||{}).name||"Unassigned":(act.helperName||"Unassigned")}</span>}
                   </div>
-                  {act.type==="scrimmage"?<div className="limt">{(()=>{
+                  {act.type==="benchmark"?<div className="limt">{(()=>{
+                    const bm=(data.benchmarks||[]).find(b=>b.id===act.benchmarkId);
+                    const v=bm&&(bm.versions||[]).find(x=>x.id===act.benchmarkVersionId)||bm&&bm.latestVersion;
+                    if(!v)return "Benchmark · "+(act.duration||0)+" min";
+                    const dir=v.direction==="track"?"track only":(v.direction==="lower"?"lower better":"higher better");
+                    return (bm.subjectMode==="team"?"Whole team":"Individual")+" · "+v.metricType+" · "+dir+" · "+(act.duration||0)+" min activity";
+                  })()}</div>:
+                  act.type==="scrimmage"?<div className="limt">{(()=>{
                     const c=act.scrimmageConfig||{};
                     const lbl=(c.roundLabel||"Round").toLowerCase();
                     const players=(team&&team.players||[]).filter(p=>!absentPlayerIds.has(p.id)).length;
@@ -2110,8 +2137,9 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                   {act.type==="station_block"&&act.stations.some(s=>s.delegatedTo)&&<div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:8}}>
                     {act.stations.filter(s=>s.delegatedTo).map(s=><StationPresenceIndicator key={s.id} stationId={s.id}/>)}
                   </div>}
-                  {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} libraryDrills={sourceFilteredLib} librarySources={librarySources} libSource={libSource} setLibSource={setLibSource} skillTags={data.skillTags} absentPlayerIds={absentPlayerIds}/>}
+                  {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} libraryDrills={sourceFilteredLib} librarySources={librarySources} libSource={libSource} setLibSource={setLibSource} skillTags={data.skillTags} absentPlayerIds={absentPlayerIds} benchmarks={data.benchmarks}/>}
                   {act.type==="scrimmage"&&<ScrimmageConfig act={act} team={team} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} data={data} coachId={coachId} refreshLibrary={refreshLibrary} absentPlayerIds={absentPlayerIds} isBB={isBB}/>}
+                  {act.type==="benchmark"&&<BenchmarkConfig act={act} team={team} loc={loc} benchmarks={data.benchmarks} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)}/>}
                 </div>
               )}
             </div>
@@ -2144,7 +2172,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         {visibleTypeKeys.length>0&&<div className="g2" style={{marginBottom:14}}>
           {PRACTICE_COMPONENT_TYPES.filter(t=>visibleTypeKeys.includes(t.key)).filter(t=>t.key!=="scrimmage"||sportSupportsScrimmage(teamSport)).map(t=>(
             <div key={t.key} className="li tap" style={{marginBottom:0}} onClick={()=>addComponentType(t.key)}>
-              <div className="lim"><div className="lin">{t.label}</div><div className="limt">{t.kind==="station_block"?"2+ stations":t.kind==="scrimmage"?"Everyone rotates":t.defaultDuration+" min"}</div></div>
+              <div className="lim"><div className="lin">{t.label}</div><div className="limt">{t.kind==="station_block"?"2+ stations":t.kind==="scrimmage"?"Everyone rotates":t.kind==="benchmark"?"From your Library":t.defaultDuration+" min"}</div></div>
               <span style={{color:"var(--green)",fontSize:18,fontWeight:700,flexShrink:0}}>+</span>
             </div>
           ))}
@@ -2249,6 +2277,26 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
 
       {equipmentDialogLib&&<EquipmentMismatchDialog drillName={equipmentDialogLib.name} missing={findMissingEquipment(equipmentDialogLib.equipment,assetsById,ownAssetPool)} context="practice" onAddWithEquipment={()=>resolveAndAdd(equipmentDialogLib,true)} onAddAnyway={()=>resolveAndAdd(equipmentDialogLib,false)} onCancel={()=>setEquipmentDialogLib(null)}/>}
       {privateWarningLib&&<PrivateDrillWarningDialog drillName={privateWarningLib.name} onAdd={addActAfterPrivateWarning} onCancel={()=>setPrivateWarningLib(null)} onDismissForever={async()=>{setPrivateWarningDismissed(true);await setPrivateDrillWarningDismissed(coachId,true);}}/>}
+      {benchmarkPickerOpen&&(()=>{
+        const opts=(data.benchmarks||[]).filter(b=>!b.archivedAt&&b.latestVersion&&((b.sport||"General")===teamSport||(b.sport||"General")==="General"));
+        return <div className="movly" style={{zIndex:300}} onClick={e=>{if(e.target===e.currentTarget)setBenchmarkPickerOpen(false);}}>
+          <div className="modal" style={{maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div className="mtitle" style={{marginBottom:0}}>Add a Benchmark</div>
+              <button type="button" className="btn ghost bxs" onClick={()=>setBenchmarkPickerOpen(false)}>Close</button>
+            </div>
+            <div style={{overflowY:"auto",flex:1}}>
+              {opts.length===0&&<div style={{fontSize:13,color:"var(--td)",padding:10}}>No benchmarks for {teamSport} yet. Create one in Library &rarr; Benchmarks.</div>}
+              {opts.map(b=>{const v=b.latestVersion;const dir=v.direction==="track"?"track only":(v.direction==="lower"?"lower is better":"higher is better");return(
+                <div key={b.id} className="li tap" onClick={()=>addBenchmarkChosen(b)}>
+                  <div className="lim"><div className="lin">{b.title}</div><div className="limt">{(b.subjectMode==="team"?"Whole team":"Individual")+" · "+v.metricType+" · "+dir}</div>
+                    {(v.tagSnapshot||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>{v.tagSnapshot.map((t,i)=><span key={i} className="bdg bs" style={{fontSize:10}}>{t}</span>)}</div>}
+                  </div>
+                </div>);})}
+            </div>
+          </div>
+        </div>;
+      })()}
     </div>
   );
 }
@@ -2472,6 +2520,9 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
         </div>))}
       </div>
     </div>}
+
+    <div className="clbl mb8" style={{marginTop:16}}>Benchmarks</div>
+    <PlayerBenchmarks teamId={team.id} playerId={player.id}/>
   </div>);
 }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useBlocker, useLocation, useNavigate } from "react-router-dom";
 import { canManageTeamInMode, localDateStr, stripIdsForCopy, summarizeCategoryTrend, calculateGoalGapGuidance, TREND_FLAT_THRESHOLD_PCT, classifyDurationVariance, useBigBrowser } from "../constants.js";
 import { TwoPane } from "./BBShells.jsx";
+import { TeamBenchmarksView } from "./BenchmarkReport.jsx";
 import {
   fetchTeamGoals, setTeamGoals, updateGoalsWindowWeeks,
   fetchTeamGoalReport, fetchTeamGoalTrends, fetchTeamSessionHistory, fetchSessionActivityLog, fetchSessionExecutionScorecard, fetchNotesForPractice, archiveNote,
@@ -756,7 +757,7 @@ function GoalsSubnav({ view, setView, anyUnviewed }) {
   // row (Schedule/Roster/Equipment/Goals & Insights) with no breathing
   // room -- marginTop gives it real separation from that row.
   return (<div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3, marginTop: 14, marginBottom: 14 }}>
-    {[{ k: "overview", label: "Overview" }, { k: "trends", label: "Trends" }, { k: "history", label: "History" }].map(t => (
+    {[{ k: "overview", label: "Overview" }, { k: "trends", label: "Trends" }, { k: "benchmarks", label: "Benchmarks" }, { k: "history", label: "History" }].map(t => (
       <button key={t.k} onClick={() => setView(t.k)} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: view === t.k ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: view === t.k ? "var(--black)" : "var(--td)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
         {t.label}
         {/* Direct feedback: a coach had no way to tell a session had an
@@ -1087,6 +1088,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
       </>)}
     </>)}
     {view === "trends" && <TrendsView teamId={teamId} team={team} canManage={canManage} isBB={isBB} />}
+    {view === "benchmarks" && <TeamBenchmarksView teamId={teamId} team={team} coachId={coachId} canManage={canManage} isBB={isBB} />}
     {view === "history" && (isBB ? (
       <TwoPane
         left={<>
