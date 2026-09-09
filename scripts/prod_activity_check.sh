@@ -65,9 +65,9 @@ recent_users as (
 lines as (
   select 1 as n, 'AZ now: ' || to_char(now() at time zone 'America/Phoenix', 'Dy YYYY-MM-DD HH24:MI') as line
   union all
-  select 2, 'active live sessions: ' || coalesce((select string_agg(practice || ' (' || team || ', ' || age_hours || 'h)', '; ') from active_sessions), 'none')
+  select 2, 'active live sessions: ' || coalesce((select string_agg(coalesce(practice, '(unnamed)') || ' (' || team || ', ' || age_hours || 'h)', '; ') from active_sessions), 'none')
   union all
-  select 3, 'practices within window: ' || coalesce((select string_agg(name || ' (' || team || ', ' || min_from_now || ' min)', '; ') from window_practices), 'none')
+  select 3, 'practices within window: ' || coalesce((select string_agg(coalesce(name, '(unnamed)') || ' (' || team || ', ' || min_from_now || ' min)', '; ') from window_practices), 'none')
   union all
   select 4, 'users active last 5 / 15 / 60 min: ' || (select u5 || ' / ' || u15 || ' / ' || u60 from recent_users)
   union all
