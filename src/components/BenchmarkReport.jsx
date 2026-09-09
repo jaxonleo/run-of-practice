@@ -247,6 +247,9 @@ function TeamBenchmarkDetail({ teamId, team, coachId, benchmarkId, canManage, on
           {protocol.metricType === "score_rubric" && cur.teamPerf.byLevel && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>
             {(protocol.rubricLevels || []).map(l => (cur.teamPerf.byLevel[l.id] || 0) + " " + l.label).join(" · ")}
           </div>}
+          {protocol.metricType === "success_rate" && cur.teamPerf.pooledOpportunities > 0 && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>
+            Pooled: {cur.teamPerf.pooledSuccesses}/{cur.teamPerf.pooledOpportunities} ({roundTo(cur.teamPerf.pooledProportion * 100, 1)}%) · range {roundTo(cur.teamPerf.minProportion * 100, 0)}%&ndash;{roundTo(cur.teamPerf.maxProportion * 100, 0)}%
+          </div>}
           <div style={{ fontSize: 12, color: "var(--td)" }}>{cur.teamPerf.measuredCount} measured · {cur.teamPerf.notMeasuredCount} not measured · {cur.teamPerf.partialCount} partial · {cur.teamPerf.skippedCount} skipped · {cur.teamPerf.unableCount} unable</div>
         </>}
         {cur && !cur.collective && cur.teamPerf && cur.teamPerf.noResults && <div style={{ fontSize: 13, color: "var(--td)" }}>No completed results.</div>}
