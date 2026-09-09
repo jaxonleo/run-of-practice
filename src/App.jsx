@@ -542,18 +542,29 @@ export default function App(){
     setLibrary(await fetchLibraryData());
   },[coachId]);
   const [planning,setPlanning]=useState({locations:[],practices:[],templates:[]});
+  // allSettled + per-slice merge, not Promise.all: a failure in any one of
+  // the three fetches used to reject the whole thing, so setPlanning never
+  // ran and every slice stayed empty even though the other two loaded fine.
+  // Now each slice that resolved is applied and a slice that failed keeps
+  // whatever it had (empty on the first load, good data on a re-fetch).
   const refreshPlanning=useCallback(async()=>{
     if(!coachId)return;
-    const [locations,practices,templates]=await Promise.all([fetchLocations(),fetchPracticesFull(),fetchTemplatesFull()]);
-    setPlanning({locations,practices,templates});
+    const [locs,pracs,tpls]=await Promise.allSettled([fetchLocations(),fetchPracticesFull(),fetchTemplatesFull()]);
+    setPlanning(prev=>({
+      locations: locs.status==="fulfilled"?locs.value:prev.locations,
+      practices: pracs.status==="fulfilled"?pracs.value:prev.practices,
+      templates: tpls.status==="fulfilled"?tpls.value:prev.templates,
+    }));
+    for(const [name,r] of [["fetchLocations",locs],["fetchPracticesFull",pracs],["fetchTemplatesFull",tpls]])
+      if(r.status==="rejected")console.error("refreshPlanning: "+name+" failed:",r.reason);
   },[coachId]);
   // Single combined load gate -- `loaded` used to flip once the (now-removed)
   // legacy app_data blob resolved; teams/library/planning are the real data
   // sources, so it waits on all three instead. allSettled, not all -- a
-  // rejection in any one of these must never hang the loading screen forever
-  // (the old app_data-based gate was fully decoupled from these fetches, so
-  // this failure mode didn't exist before; each fetch already handles its
-  // own query-level errors internally and returns a safe empty default).
+  // rejection in any one of these must never hang the loading screen forever.
+  // refreshTeams/refreshLibrary keep their prior state on a throw (the fetch
+  // helpers now throw on a primary-query error instead of silently returning
+  // an empty default); refreshPlanning merges partial results itself.
   useEffect(()=>{
     if(!coachId){setLoaded(false);return;}
     setLoaded(false);
@@ -562,6 +573,21 @@ export default function App(){
       setLoaded(true);
     });
   },[coachId,refreshTeams,refreshLibrary,refreshPlanning]);
+  // Self-heal: a transient auth/network failure during the initial load
+  // leaves a data slice stale with no retry until the user happens onto a
+  // screen that refetches. Once the first load has completed, re-run the
+  // loaders in the background whenever the session object changes for the
+  // same coach (token refresh, tab-refocus re-auth) -- no loading screen,
+  // partial results merge, so the worst case is a redundant refetch.
+  const loadedForRef=useRef(null);
+  useEffect(()=>{if(loaded&&coachId)loadedForRef.current=coachId;},[loaded,coachId]);
+  useEffect(()=>{
+    // Only a *repeat* session event for a coach we've already loaded --
+    // a first sign-in / coach switch is handled by the main load gate above.
+    if(!coachId||loadedForRef.current!==coachId)return;
+    Promise.allSettled([refreshTeams(),refreshLibrary(),refreshPlanning()]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[session]);
   // Real bug (direct feedback): a head coach already signed in and sitting
   // on Home never learned an assistant had accepted their invite -- teams/
   // library are fetched once at login and never refetched in response to
@@ -874,11 +900,17 @@ function TeamScheduleRoute(){
   const {data,goToBuilder,goToRun,coachId,refreshPlanning:refreshGlobalPlanning,setSubViewBack,mode}=useAppCtx();
   const [teamPractices,setTeamPractices]=useState(null);
   const refreshTeamPractices=useCallback(()=>{
-    fetchPracticesFull(teamId).then(setTeamPractices);
+    // fetchPracticesFull now throws on a load failure -- fall back to the
+    // prior list (or an empty one on the first try) so this never sits on
+    // "Loading..." forever.
+    return fetchPracticesFull(teamId).then(setTeamPractices).catch(e=>{
+      console.error("refreshTeamPractices:",e);
+      setTeamPractices(p=>p||[]);
+    });
   },[teamId]);
   useEffect(()=>{refreshTeamPractices();},[refreshTeamPractices]);
   const refreshBoth=useCallback(async()=>{
-    await Promise.all([refreshTeamPractices(),refreshGlobalPlanning()]);
+    await Promise.allSettled([refreshTeamPractices(),refreshGlobalPlanning()]);
   },[refreshTeamPractices,refreshGlobalPlanning]);
   if(teamPractices===null)return (<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Loading...</div>);
   const scopedData=Object.assign({},data,{practices:teamPractices});
