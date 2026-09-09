@@ -7,6 +7,7 @@ import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndC
 import { SkillTagPicker } from "./ModalLayer.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
+import BenchmarkLivePanel from "./BenchmarkLivePanel.jsx";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
 const Ic={
@@ -2262,7 +2263,7 @@ function LiveEditBuilder({data,coachId,refreshLibrary,liveActs,team,loc,onSaveRe
           {expandedId===act.id&&(<div className="abbody">
             {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
             {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-            {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport} libraryDrills={sourceFilteredLib} librarySources={librarySources} libSource={libSource} setLibSource={setLibSource} skillTags={data.skillTags}/>}
+            {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={teamSport} libraryDrills={sourceFilteredLib} librarySources={librarySources} libSource={libSource} setLibSource={setLibSource} skillTags={data.skillTags} benchmarks={data.benchmarks}/>}
           </div>)}
         </div>
       </div>)}</SortableActivityRow>
@@ -2521,6 +2522,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const blockRotate=isBlock&&cur.rotate!==false;
   const isCl=cur&&cur.type==="checklist";
   const isScrim=cur&&cur.type==="scrimmage";
+  const isBench=cur&&cur.type==="benchmark";
   const scrimCfg=isScrim?(cur.scrimmageConfig||{}):null;
   const scrimRoundIdx=session?(session.scrimmage_round_idx||0):0;
   const stIdx=session?session.current_rotation_number||0:0;
@@ -4030,7 +4032,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           <button type="button" className="btn ghost bsm bfull mt10" onClick={()=>setScrimNavOpen(false)}>Close</button>
         </div>
       </div>,document.body)}
-      {!isBlock&&!isCl&&!isScrim&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {isBench&&cur&&<BenchmarkLivePanel activity={cur} practice={practice} team={team} liveSessionId={session&&session.id} coachId={coachId} isDesktop={typeof window!=="undefined"&&window.innerWidth>=1024}/>}
+      {!isBlock&&!isCl&&!isScrim&&!isBench&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
         {cur.description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
           <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{cur.description}</div>
@@ -4134,6 +4137,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coachingPoints}</div>
           </div>}
           {(()=>{const{equipment,playerGear}=splitEquipFor(rotatedStations[focusSt].equipment,data);return<div style={{marginBottom:10}}><EquipGearRow equipment={equipment} playerGear={playerGear}/></div>;})()}
+          {rotatedStations[focusSt].benchmarkId&&<BenchmarkLivePanel station={rotatedStations[focusSt]} activity={cur} practice={practice} team={team} liveSessionId={session&&session.id} coachId={coachId} isDesktop={typeof window!=="undefined"&&window.innerWidth>=1024}/>}
           {rotatedStations[focusSt].grouping&&rotatedStations[focusSt].grouping!=="whole"&&<div style={{borderLeft:"3px solid #c4b5fd",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:10}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
               <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed"}}>👥 {rotatedStations[focusSt].grouping==="partners"?"Partners":"Groups"} at this station</div>

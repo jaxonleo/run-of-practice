@@ -413,11 +413,18 @@ export function ChecklistConfig({act,onChange,onDone}){
   </div>);
 }
 
-export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,refreshLibrary,teamSport,libraryDrills,librarySources,libSource,setLibSource,skillTags,absentPlayerIds}){
+export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,refreshLibrary,teamSport,libraryDrills,librarySources,libSource,setLibSource,skillTags,absentPlayerIds,benchmarks}){
   const rotate=act.rotate!==false;
   const [newEquipIdx,setNewEquipIdx]=useState(null);
   const [newGearIdx,setNewGearIdx]=useState(null);
   const [libraryPickerIdx,setLibraryPickerIdx]=useState(null);
+  const [benchmarkPickerIdx,setBenchmarkPickerIdx]=useState(null);
+  const benchmarkOpts=(benchmarks||[]).filter(b=>!b.archivedAt&&b.latestVersion&&((b.sport||"General")===(teamSport||"General")||(b.sport||"General")==="General"));
+  const chooseBenchmark=(si,bm)=>{
+    const v=bm.latestVersion;
+    onSt(act.stations[si].id,{benchmarkId:bm.id,benchmarkVersionId:v?v.id:null,libraryId:null,activityName:bm.title,name:bm.title});
+    setBenchmarkPickerIdx(null);
+  };
   // Which station's Delegate picker is open -- same per-station-index
   // pattern as libraryPickerIdx/helperIdx below, not persisted.
   const [delegatePickerIdx,setDelegatePickerIdx]=useState(null);
@@ -641,7 +648,35 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
         <div className="fld">
           <label className="lbl">Name</label>
           <input className="inp" placeholder="Write your own, or choose from library below" value={st.activityName||st.name||""} onChange={e=>onSt(st.id,{activityName:e.target.value,name:e.target.value})}/>
-          <button type="button" className="btn ghost bxs mt6" onClick={()=>setLibraryPickerIdx(si)}>{st.libraryId?"Change Library Drill":"Choose from Library"}</button>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            <button type="button" className="btn ghost bxs mt6" onClick={()=>setLibraryPickerIdx(si)}>{st.libraryId?"Change Library Drill":"Choose from Library"}</button>
+            <button type="button" className="btn ghost bxs mt6" onClick={()=>setBenchmarkPickerIdx(si)}>{st.benchmarkId?"Change Benchmark":"Set a Benchmark"}</button>
+          </div>
+          {st.benchmarkId&&(()=>{const bm=benchmarkOpts.find(b=>b.id===st.benchmarkId)||(benchmarks||[]).find(b=>b.id===st.benchmarkId);const bv=bm&&((bm.versions||[]).find(x=>x.id===st.benchmarkVersionId)||bm.latestVersion);return(
+            <div className="card" style={{background:"var(--gbg)",border:"1px solid var(--green2)",marginTop:6}}>
+              <div style={{fontSize:10,fontWeight:900,letterSpacing:".06em",color:"var(--green)"}}>BENCHMARK{bv?" · v"+bv.versionNumber:""}</div>
+              {bv?<div style={{fontSize:12,marginTop:2}}>{(bm.subjectMode==="team"?"Whole team":"Individual")} · {bv.metricType} · {bv.scoredAttempts} attempt{bv.scoredAttempts===1?"":"s"} · {bv.direction==="track"?"track only":bv.direction+" is better"}</div>:<div style={{fontSize:12,color:"var(--red)",marginTop:2}}>Unavailable</div>}
+              <label style={{fontSize:12,display:"flex",alignItems:"center",gap:6,marginTop:6}}>
+                <input type="checkbox" checked={!!st.benchmarkSharedOccurrence} onChange={e=>onSt(st.id,{benchmarkSharedOccurrence:e.target.checked})}/>
+                Share one assessment with other stations in this block running the same benchmark
+              </label>
+              <button type="button" className="btn ghost bxs mt6" onClick={()=>onSt(st.id,{benchmarkId:null,benchmarkVersionId:null,benchmarkSharedOccurrence:false})}>Remove benchmark</button>
+            </div>);})()}
+          {benchmarkPickerIdx===si&&<div className="movly movly-right" style={{zIndex:300}} onClick={e=>{if(e.target===e.currentTarget)setBenchmarkPickerIdx(null);}}>
+            <div className="modal" style={{maxHeight:"85vh",display:"flex",flexDirection:"column",padding:"20px 0 0"}}>
+              <div className="mhandle"/>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",marginBottom:12}}>
+                <div className="mtitle" style={{marginBottom:0}}>Set a Benchmark</div>
+                <button type="button" className="btn ghost bxs" onClick={()=>setBenchmarkPickerIdx(null)}>Close</button>
+              </div>
+              <div style={{overflowY:"auto",flex:1,padding:"0 20px calc(20px + var(--tab) + env(safe-area-inset-bottom,0px))"}}>
+                {benchmarkOpts.length===0&&<div style={{padding:10,fontSize:13,color:"var(--td)"}}>No benchmarks for {teamSport} yet. Create one in Library &rarr; Benchmarks.</div>}
+                {benchmarkOpts.map(b=>{const bv=b.latestVersion;return(<div key={b.id} className="li tap" onClick={()=>chooseBenchmark(si,b)}>
+                  <div className="lim"><div className="lin">{b.title}</div><div className="limt">{(b.subjectMode==="team"?"Whole team":"Individual")} · {bv.metricType} · {bv.direction==="track"?"track only":bv.direction+" is better"}</div></div>
+                </div>);})}
+              </div>
+            </div>
+          </div>}
           {/* Direct feedback: the old inline dropdown (max-height 220px,
               squeezed into the station's own card) felt claustrophobic --
               a real full-screen popup (same movly/modal overlay pattern
@@ -1268,6 +1303,53 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
         </div>
       </div>,document.body);
     })()}
+  </div>);
+}
+
+// ── BenchmarkConfig ──────────────────────────────────────────────────────────
+// A benchmark scheduled as a standalone activity. The protocol is a pinned,
+// immutable version (shown read-only); everything editable here is the
+// practice-activity wrapper -- its own duration (separate from the measured
+// test window), coach, area, notes, grouping. Results are recorded live or
+// via Measure Again, never here.
+export function BenchmarkConfig({act,team,loc,benchmarks,onChange,onDone}){
+  const bm=(benchmarks||[]).find(b=>b.id===act.benchmarkId);
+  const v=bm&&((bm.versions||[]).find(x=>x.id===act.benchmarkVersionId)||bm.latestVersion)||null;
+  const dir=!v?"":v.direction==="track"?"track only":(v.direction==="lower"?"lower is better":"higher is better");
+  const attempts=v?(v.metricType==="success_rate"
+    ? v.scoredAttempts+" set"+(v.scoredAttempts===1?"":"s")+" of "+v.opportunitiesPerSet
+    : v.scoredAttempts+" attempt"+(v.scoredAttempts===1?"":"s")):"";
+  const rule=v&&(v.scoredAttempts>1||v.resultRule==="pooled")?", "+({single:"one attempt",best:"best valid attempt",average:"average of valid attempts",total:"total of valid attempts",pooled:"pooled successes / opportunities"}[v.resultRule]||v.resultRule):"";
+  return (<div>
+    <div className="card" style={{background:"var(--gbg)",border:"1px solid var(--green2)",marginBottom:10}}>
+      <div style={{fontSize:11,fontWeight:900,letterSpacing:".06em",color:"var(--green)"}}>BENCHMARK PROTOCOL{v?" · v"+v.versionNumber:""}</div>
+      {!v&&<div style={{fontSize:13,color:"var(--red)",marginTop:4}}>This benchmark is no longer available.</div>}
+      {v&&<>
+        <div style={{fontSize:14,fontWeight:800,marginTop:4}}>{bm.title}</div>
+        <div style={{fontSize:12,marginTop:2}}>{(bm.subjectMode==="team"?"Whole team":"Individual players")} · {v.metricType}{v.displayUnit?" ("+v.displayUnit+")":""} · {attempts}{rule} · {dir}</div>
+        <div style={{fontSize:12,whiteSpace:"pre-wrap",marginTop:6,color:"var(--black2)"}}>{v.instructions}</div>
+        {(v.tagSnapshot||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{v.tagSnapshot.map((t,i)=><span key={i} className="bdg bs">{t}</span>)}</div>}
+        <div style={{fontSize:11,color:"var(--td)",marginTop:6}}>The protocol is fixed. Change the test setup from Library &rarr; Benchmarks (a new version); this activity stays on v{v.versionNumber} until updated.</div>
+      </>}
+    </div>
+    <div className="fld"><label className="lbl">Activity name</label><input className="inp" value={act.name||""} onChange={e=>onChange({name:e.target.value})}/></div>
+    <div className="fld"><label className="lbl">Practice minutes</label><DurStepper value={act.duration||10} min={1} onChange={x=>onChange({duration:x})}/>
+      <div style={{fontSize:11,color:"var(--td)",marginTop:4}}>How long this slot takes in the run order. It does not change the measured test window.</div>
+    </div>
+    {team&&<div className="fld"><label className="lbl">Coach</label><select className="sel" value={act.coachId||""} onChange={e=>onChange({coachId:e.target.value})}><option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
+    {loc&&loc.sublocations&&loc.sublocations.length>0&&<div className="fld"><label className="lbl">Area</label><select className="sel" value={act.sublocationId||""} onChange={e=>onChange({sublocationId:e.target.value})}><option value="">Any</option>{loc.sublocations.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>}
+    <div className="fld"><label className="lbl">Notes for the coach running it</label><AutoTextarea value={act.coachingPoints||""} onChange={e=>onChange({coachingPoints:e.target.value})}/></div>
+    {bm&&bm.subjectMode!=="team"&&<div className="fld"><label className="lbl">Player Grouping</label>
+      <div style={{display:"flex",gap:6}}>
+        {[{v:"whole",l:"Whole Team"},{v:"partners",l:"Partners"},{v:"groups",l:"Groups"}].map(({v:gv,l})=>(
+          <button key={gv} type="button" onClick={()=>onChange({grouping:gv})} style={{flex:1,padding:"8px 4px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(act.grouping||"whole")===gv?"var(--green)":"var(--s1)",color:(act.grouping||"whole")===gv?"#fff":"var(--black)",fontSize:13,cursor:"pointer",fontWeight:700}}>{l}</button>
+        ))}
+      </div>
+      {(act.grouping||"whole")==="groups"&&<div style={{display:"flex",gap:6,marginTop:8}}>
+        {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>onChange({numGroups:n})} style={{flex:1,padding:"8px 0",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(act.numGroups||2)===n?"var(--green)":"var(--s1)",color:(act.numGroups||2)===n?"#fff":"var(--black)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
+      </div>}
+    </div>}
+    <button type="button" className="btn ghost bsm bfull mt10" onClick={onDone}>Done</button>
   </div>);
 }
 

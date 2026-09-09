@@ -458,7 +458,7 @@ function mapCatalogRow(c) {
 }
 
 export async function fetchLibraryData() {
-  const [assetsRes, categoriesRes, tagsRes, drillsRes, equipRes, drillTagsRes, orgsRes, profilesRes, catalogsRes, drillSharesRes, assetLocationsRes] = await Promise.all([
+  const [assetsRes, categoriesRes, tagsRes, drillsRes, equipRes, drillTagsRes, orgsRes, profilesRes, catalogsRes, drillSharesRes, assetLocationsRes, benchmarksRes] = await Promise.all([
     supabase.from('assets').select('*').is('archived_at', null),
     supabase.from('skill_categories').select('*').is('archived_at', null),
     supabase.from('skill_tags').select('*').is('archived_at', null),
@@ -470,6 +470,7 @@ export async function fetchLibraryData() {
     supabase.from('content_catalogs').select('*').is('archived_at', null),
     supabase.from('activity_library_org_shares').select('activity_library_id, organization_id'),
     supabase.from('asset_locations').select('*'),
+    supabase.from('benchmarks').select('*, benchmark_versions(*)').is('archived_at', null),
   ])
   // Pending org invites (Org Experience handoff Sec 5) -- fetched here too so
   // the existing app-wide refreshLibrary() call is what surfaces "you've
@@ -514,6 +515,7 @@ export async function fetchLibraryData() {
     pendingStationAssignmentNotices,
     profilesById,
     catalogs: (catalogsRes.data || []).map(mapCatalogRow),
+    benchmarks: (benchmarksRes.data || []).map(mapBenchmark),
   }
 }
 
@@ -1004,6 +1006,8 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
     sublocationNameSnapshot: a.sublocation_name_snapshot || null,
     libraryId: a.library_activity_id || null,
     equipment: equipByAct[a.id] || [],
+    benchmarkId: a.benchmark_id || null,
+    benchmarkVersionId: a.benchmark_version_id || null,
   }
   if (a.type === 'checklist') {
     base.items = (itemsByAct[a.id] || []).map(it => ({ id: it.id, text: it.text }))
@@ -1028,6 +1032,8 @@ function mapActivityRow(a, equipByAct, itemsByAct, stationBlocksByAct, stationsB
       sublocationNameSnapshot: st.sublocation_name_snapshot || null,
       description: st.description || '',
       coachingPoints: st.coaching_points || '', libraryId: st.library_activity_id || null,
+      benchmarkId: st.benchmark_id || null, benchmarkVersionId: st.benchmark_version_id || null,
+      benchmarkSharedOccurrence: !!st.benchmark_shared_occurrence,
       equipment: stationEquipByStation[st.id] || [], playerGear: '',
       assignments: st.assignments || [], groupLabel: st.group_label || '',
       grouping: st.grouping || 'whole', numGroups: st.num_groups || 2,
@@ -1154,15 +1160,19 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
   // Insights). Batched once per save rather than per-row.
   let tagSnapshotByLibraryId = {}
   let subNameById = {}
+  let tagsByBenchmarkVersionId = {}
   if (teamScoped) {
     const libraryIds = new Set()
     const sublocationIds = new Set()
+    const benchmarkVersionIds = new Set()
     for (const act of activities) {
       if (act.libraryId) libraryIds.add(act.libraryId)
       if (act.sublocationId) sublocationIds.add(act.sublocationId)
+      if (act.benchmarkVersionId) benchmarkVersionIds.add(act.benchmarkVersionId)
       for (const st of (act.stations || [])) {
         if (st.libraryId) libraryIds.add(st.libraryId)
         if (st.sublocationId) sublocationIds.add(st.sublocationId)
+        if (st.benchmarkVersionId) benchmarkVersionIds.add(st.benchmarkVersionId)
       }
     }
     if (libraryIds.size) {
@@ -1172,6 +1182,15 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
     if (sublocationIds.size) {
       const { data: subRows } = await supabase.from('sublocations').select('id,name').in('id', Array.from(sublocationIds))
       for (const r of (subRows || [])) subNameById[r.id] = r.name
+    }
+    // A benchmark activity/station has no library drill, so its skill tags
+    // live on the pinned protocol version. Writing them into tag_snapshot is
+    // what makes Goals & Insights attribution work with no SQL change, the
+    // same mechanism scrimmage uses (the library_activity_id IS NULL AND
+    // tag_snapshot IS NOT NULL branch in the attribution helpers).
+    if (benchmarkVersionIds.size) {
+      const { data: bvRows } = await supabase.from('benchmark_versions').select('id,skill_tag_ids').in('id', Array.from(benchmarkVersionIds))
+      for (const r of (bvRows || [])) tagsByBenchmarkVersionId[r.id] = r.skill_tag_ids || []
     }
   }
 
@@ -1186,6 +1205,8 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
       group_assignments: (Array.isArray(act.groupAssignments) && act.groupAssignments.some(g => g && g.length)) ? act.groupAssignments : null,
       library_activity_id: act.libraryId || null,
       sublocation_id: act.sublocationId || null,
+      benchmark_id: act.benchmarkId || null,
+      benchmark_version_id: act.benchmarkVersionId || null,
     }
     if (act.type === 'scrimmage') {
       // Config round-trips on both practices and templates; the generated
@@ -1209,6 +1230,10 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
         // never excluded from the denominator the way breaks/checklists are.
         const stagTags = (act.scrimmageConfig && act.scrimmageConfig.skillTagIds) || []
         row.tag_snapshot = stagTags.length ? stagTags : null
+      }
+      if (act.type === 'benchmark' && act.benchmarkVersionId) {
+        const bmTags = tagsByBenchmarkVersionId[act.benchmarkVersionId] || []
+        row.tag_snapshot = bmTags.length ? bmTags : null
       }
     }
 
@@ -1263,6 +1288,9 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
           coaching_points: st.coachingPoints || null,
           sublocation_id: st.sublocationId || null,
           library_activity_id: st.libraryId || null,
+          benchmark_id: st.benchmarkId || null,
+          benchmark_version_id: st.benchmarkVersionId || null,
+          benchmark_shared_occurrence: !!st.benchmarkSharedOccurrence,
           grouping: st.grouping || 'whole', num_groups: st.numGroups || null,
         }
         if (teamScoped) {
@@ -1271,7 +1299,9 @@ async function saveActivityTree({ parentIdCol, parentId, activities, activityTab
           stRow.assignments = st.assignments || []
           stRow.group_label = st.groupLabel || null
           stRow.delegated_to = st.delegatedTo || null
-          stRow.tag_snapshot = st.libraryId ? (tagSnapshotByLibraryId[st.libraryId] || null) : null
+          stRow.tag_snapshot = st.libraryId
+            ? (tagSnapshotByLibraryId[st.libraryId] || null)
+            : (st.benchmarkVersionId ? (tagsByBenchmarkVersionId[st.benchmarkVersionId] || null) : null)
           stRow.sublocation_name_snapshot = st.sublocationId ? (subNameById[st.sublocationId] || null) : null
         }
         let stId = st.id
@@ -2355,4 +2385,304 @@ export async function fetchOrgWeeklyPracticeRollup(organizationId, weeks) {
   const { data, error } = await supabase.rpc('get_org_weekly_practice_rollup', { p_organization_id: organizationId, p_weeks: weeks || 8 })
   if (error) { console.error('fetchOrgWeeklyPracticeRollup:', error); return [] }
   return data || []
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Benchmarks (ROP-Benchmarks handoff). Data-access layer over the schema and
+// RPCs in migrations 20260908000000 / 20260908000100. Every write is a
+// SECURITY DEFINER RPC (the server authorizes and computes); reads of
+// definitions and assessment lists are RLS-scoped direct selects.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function mapBenchmarkVersion(v) {
+  if (!v) return null
+  return {
+    id: v.id, benchmarkId: v.benchmark_id, versionNumber: v.version_number,
+    metricType: v.metric_type, direction: v.direction, resultRule: v.result_rule,
+    scoredAttempts: v.scored_attempts, opportunitiesPerSet: v.opportunities_per_set,
+    rubricLevels: v.rubric_levels || null,
+    scoreMin: v.score_min, scoreMax: v.score_max, scoreIncrement: v.score_increment,
+    displayUnit: v.display_unit, instructions: v.instructions,
+    protocolConditions: v.protocol_conditions || null, invalidGuidance: v.invalid_guidance,
+    plannedMinutes: v.planned_minutes, equipmentSnapshot: v.equipment_snapshot || [],
+    skillTagIds: v.skill_tag_ids || [], tagSnapshot: v.tag_snapshot || [],
+    titleSnapshot: v.title_snapshot, metadataCorrections: v.metadata_corrections || [],
+    firstUsedAt: v.first_used_at, supersededBy: v.superseded_by, createdAt: v.created_at,
+  }
+}
+function mapBenchmark(b) {
+  if (!b) return null
+  const versions = (b.benchmark_versions || []).slice().sort((a, c) => c.version_number - a.version_number).map(mapBenchmarkVersion)
+  return {
+    id: b.id, ownerUserId: b.owner_user_id, organizationId: b.organization_id,
+    sport: b.sport, title: b.title, subjectMode: b.subject_mode,
+    sourceDrillId: b.source_drill_id, sourceBenchmarkId: b.source_benchmark_id,
+    createdBy: b.created_by, createdAt: b.created_at, archivedAt: b.archived_at,
+    versions, latestVersion: versions[0] || null,
+  }
+}
+
+// Library list of benchmark definitions the caller can see (own, org, or via a
+// team that adopted them). Includes every version so the detail view and the
+// Builder picker can pin one.
+export async function fetchBenchmarks() {
+  const { data, error } = await supabase
+    .from('benchmarks')
+    .select('*, benchmark_versions(*)')
+    .order('created_at', { ascending: false })
+  if (error) { console.error('fetchBenchmarks:', error); return [] }
+  return (data || []).map(mapBenchmark)
+}
+
+export async function fetchBenchmark(benchmarkId) {
+  if (!benchmarkId) return null
+  const { data, error } = await supabase
+    .from('benchmarks')
+    .select('*, benchmark_versions(*)')
+    .eq('id', benchmarkId)
+    .maybeSingle()
+  if (error) { console.error('fetchBenchmark:', error); return null }
+  return mapBenchmark(data)
+}
+
+// A team's adopted benchmarks, each with its currently adopted version. Used by
+// the team-scoped Library results view, the Builder picker, and Measure Again.
+export async function fetchTeamBenchmarks(teamId) {
+  if (!teamId) return []
+  const { data, error } = await supabase
+    .from('team_benchmarks')
+    .select('*, benchmarks(*, benchmark_versions(*))')
+    .eq('team_id', teamId)
+    .is('archived_at', null)
+  if (error) { console.error('fetchTeamBenchmarks:', error); return [] }
+  return (data || []).map(tb => {
+    const benchmark = mapBenchmark(tb.benchmarks)
+    return {
+      id: tb.id, teamId: tb.team_id, benchmarkId: tb.benchmark_id,
+      adoptedVersionId: tb.adopted_version_id, baselineAssessmentId: tb.baseline_assessment_id,
+      createdAt: tb.created_at,
+      benchmark,
+      adoptedVersion: (benchmark && benchmark.versions || []).find(v => v.id === tb.adopted_version_id) || (benchmark && benchmark.latestVersion) || null,
+    }
+  })
+}
+
+// Finalized + recording assessments for a team benchmark, newest first,
+// paginated (handoff 9.2: 25 initially, Load more). No attempt data here.
+export async function fetchBenchmarkAssessments(teamId, benchmarkId, { limit = 25, before = null } = {}) {
+  if (!teamId || !benchmarkId) return []
+  let q = supabase
+    .from('benchmark_assessments')
+    .select('*')
+    .eq('team_id', teamId)
+    .eq('benchmark_id', benchmarkId)
+    .order('measured_at', { ascending: false })
+    .limit(limit)
+  if (before) q = q.lt('measured_at', before)
+  const { data, error } = await q
+  if (error) { console.error('fetchBenchmarkAssessments:', error); return [] }
+  return (data || []).map(a => ({
+    id: a.id, teamId: a.team_id, benchmarkId: a.benchmark_id, protocolVersionId: a.protocol_version_id,
+    liveSessionId: a.live_session_id, practiceId: a.practice_id, label: a.label,
+    measuredAt: a.measured_at, measuredLocalDate: a.measured_local_date, timezone: a.timezone,
+    state: a.state, underCorrection: a.under_correction,
+    conditionsNote: a.conditions_note,
+    excludedFromComparisons: a.excluded_from_comparisons, excludedReason: a.excluded_reason,
+    createdAt: a.created_at, finalizedAt: a.finalized_at,
+  }))
+}
+
+export async function fetchBenchmarkTargetRevisions(teamBenchmarkId, protocolVersionId) {
+  if (!teamBenchmarkId) return []
+  let q = supabase.from('benchmark_target_revisions').select('*').eq('team_benchmark_id', teamBenchmarkId).order('effective_at', { ascending: false })
+  if (protocolVersionId) q = q.eq('protocol_version_id', protocolVersionId)
+  const { data, error } = await q
+  if (error) { console.error('fetchBenchmarkTargetRevisions:', error); return [] }
+  return (data || []).map(t => ({
+    id: t.id, teamBenchmarkId: t.team_benchmark_id, protocolVersionId: t.protocol_version_id,
+    thresholdValue: t.threshold_value, thresholdProportion: t.threshold_proportion,
+    thresholdLevelOrder: t.threshold_level_order, attainmentPercent: t.attainment_percent,
+    seasonLabel: t.season_label, effectiveAt: t.effective_at, createdBy: t.created_by,
+  }))
+}
+
+// ── Definition writes ──────────────────────────────────────────────────────
+// `protocol` is the raw jsonb the RPC expects (snake_case keys): metric_type,
+// direction, result_rule, scored_attempts, opportunities_per_set, rubric_levels,
+// score_min, score_max, score_increment, display_unit, instructions,
+// protocol_conditions, invalid_guidance, planned_minutes, equipment_snapshot,
+// skill_tag_ids, tag_snapshot.
+export async function createBenchmark({ organizationId = null, sport, title, subjectMode, protocol, sourceDrillId = null, sourceBenchmarkId = null }) {
+  const { data, error } = await supabase.rpc('create_benchmark', {
+    p_organization_id: organizationId, p_sport: sport || 'General', p_title: title,
+    p_subject_mode: subjectMode, p_protocol: protocol,
+    p_source_drill_id: sourceDrillId, p_source_benchmark_id: sourceBenchmarkId,
+  })
+  if (error) console.error('createBenchmark:', error)
+  return { data, error }
+}
+export async function createBenchmarkVersion(benchmarkId, protocol) {
+  const { data, error } = await supabase.rpc('create_benchmark_version', { p_benchmark_id: benchmarkId, p_protocol: protocol })
+  if (error) console.error('createBenchmarkVersion:', error)
+  return { data, error }
+}
+export async function correctBenchmarkVersionWording(versionId, { instructions = null, title = null, note = null }) {
+  const { data, error } = await supabase.rpc('correct_benchmark_version_wording', {
+    p_version_id: versionId, p_instructions: instructions, p_title: title, p_note: note,
+  })
+  if (error) console.error('correctBenchmarkVersionWording:', error)
+  return { data, error }
+}
+export async function archiveBenchmark(id) {
+  const { error } = await supabase.from('benchmarks').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  if (error) console.error('archiveBenchmark:', error)
+  return { error }
+}
+export async function restoreBenchmark(id) {
+  const { error } = await supabase.from('benchmarks').update({ archived_at: null }).eq('id', id)
+  if (error) console.error('restoreBenchmark:', error)
+  return { error }
+}
+export async function adoptBenchmarkForTeam(benchmarkId, teamId, versionId) {
+  const { data, error } = await supabase.rpc('adopt_benchmark_for_team', { p_benchmark_id: benchmarkId, p_team_id: teamId, p_version_id: versionId })
+  if (error) console.error('adoptBenchmarkForTeam:', error)
+  return { data, error }
+}
+
+// ── Assessment lifecycle ──────────────────────────────────────────────────
+export async function resolveBenchmarkAssessment({
+  teamId, benchmarkId, versionId, occurrenceKey,
+  practiceId = null, practiceActivityId = null, stationId = null, liveSessionId = null,
+  label = null, measuredAt = null, measuredLocalDate = null, timezone = null,
+  joinAssessmentId = null, standalone = false,
+}) {
+  const { data, error } = await supabase.rpc('resolve_benchmark_assessment', {
+    p_team_id: teamId, p_benchmark_id: benchmarkId, p_version_id: versionId, p_occurrence_key: occurrenceKey,
+    p_practice_id: practiceId, p_practice_activity_id: practiceActivityId, p_station_id: stationId,
+    p_live_session_id: liveSessionId, p_label: label,
+    p_measured_at: measuredAt || new Date().toISOString(), p_measured_local_date: measuredLocalDate,
+    p_timezone: timezone, p_join_assessment_id: joinAssessmentId, p_standalone: standalone,
+  })
+  if (error) console.error('resolveBenchmarkAssessment:', error)
+  return { data, error }
+}
+export async function getBenchmarkAssessment(assessmentId) {
+  const { data, error } = await supabase.rpc('get_benchmark_assessment', { p_assessment_id: assessmentId })
+  if (error) { console.error('getBenchmarkAssessment:', error); return { error } }
+  return { data }
+}
+export async function addBenchmarkParticipant(assessmentId, playerId) {
+  const { data, error } = await supabase.rpc('add_benchmark_participant', { p_assessment_id: assessmentId, p_player_id: playerId })
+  if (error) console.error('addBenchmarkParticipant:', error)
+  return { data, error }
+}
+export async function saveBenchmarkAttempt({
+  assessmentId, participantId, slotIndex,
+  valueNumeric = null, successes = null, opportunities = null, rubricLevelId = null,
+  valid = true, invalidReason = null, clientOperationId, expectedRowVersion = null,
+}) {
+  const { data, error } = await supabase.rpc('save_benchmark_attempt', {
+    p_assessment_id: assessmentId, p_participant_id: participantId, p_slot_index: slotIndex,
+    p_value_numeric: valueNumeric, p_successes: successes, p_opportunities: opportunities,
+    p_rubric_level_id: rubricLevelId, p_valid: valid, p_invalid_reason: invalidReason,
+    p_client_operation_id: clientOperationId, p_expected_row_version: expectedRowVersion,
+  })
+  if (error) { console.error('saveBenchmarkAttempt:', error); return { error } }
+  return { data }
+}
+export async function setBenchmarkParticipantStatus(participantId, status, conditionsNote = null) {
+  const { data, error } = await supabase.rpc('set_benchmark_participant_status', { p_participant_id: participantId, p_status: status, p_conditions_note: conditionsNote })
+  if (error) console.error('setBenchmarkParticipantStatus:', error)
+  return { data, error }
+}
+export async function setBenchmarkCollectiveParticipants(participantId, playerIds, note = null) {
+  const { data, error } = await supabase.rpc('set_benchmark_collective_participants', { p_participant_id: participantId, p_player_ids: playerIds, p_note: note })
+  if (error) console.error('setBenchmarkCollectiveParticipants:', error)
+  return { data, error }
+}
+export async function finalizeBenchmarkAssessment(assessmentId, confirmIncomplete = false) {
+  const { data, error } = await supabase.rpc('finalize_benchmark_assessment', { p_assessment_id: assessmentId, p_confirm_incomplete: confirmIncomplete })
+  if (error) { console.error('finalizeBenchmarkAssessment:', error); return { error } }
+  return { data }
+}
+export async function reopenBenchmarkAssessment(assessmentId) {
+  const { data, error } = await supabase.rpc('reopen_benchmark_assessment', { p_assessment_id: assessmentId })
+  if (error) console.error('reopenBenchmarkAssessment:', error)
+  return { data, error }
+}
+export async function archiveBenchmarkAssessment(assessmentId) {
+  const { data, error } = await supabase.rpc('archive_benchmark_assessment', { p_assessment_id: assessmentId })
+  if (error) console.error('archiveBenchmarkAssessment:', error)
+  return { data, error }
+}
+export async function restoreBenchmarkAssessment(assessmentId) {
+  const { data, error } = await supabase.rpc('restore_benchmark_assessment', { p_assessment_id: assessmentId })
+  if (error) console.error('restoreBenchmarkAssessment:', error)
+  return { data, error }
+}
+export async function setBenchmarkAssessmentExclusion(assessmentId, excluded, reason = null) {
+  const { data, error } = await supabase.rpc('set_benchmark_assessment_exclusion', { p_assessment_id: assessmentId, p_excluded: excluded, p_reason: reason })
+  if (error) console.error('setBenchmarkAssessmentExclusion:', error)
+  return { data, error }
+}
+export async function setTeamBenchmarkTarget(teamBenchmarkId, protocolVersionId, { thresholdValue = null, thresholdProportion = null, thresholdLevelOrder = null, attainmentPercent = null, seasonLabel = null }) {
+  const { data, error } = await supabase.rpc('set_team_benchmark_target', {
+    p_team_benchmark_id: teamBenchmarkId, p_protocol_version_id: protocolVersionId,
+    p_threshold_value: thresholdValue, p_threshold_proportion: thresholdProportion,
+    p_threshold_level_order: thresholdLevelOrder, p_attainment_percent: attainmentPercent, p_season_label: seasonLabel,
+  })
+  if (error) console.error('setTeamBenchmarkTarget:', error)
+  return { data, error }
+}
+export async function setTeamBenchmarkBaseline(teamBenchmarkId, assessmentId) {
+  const { data, error } = await supabase.rpc('set_team_benchmark_baseline', { p_team_benchmark_id: teamBenchmarkId, p_assessment_id: assessmentId })
+  if (error) console.error('setTeamBenchmarkBaseline:', error)
+  return { data, error }
+}
+
+// ── Scoped recording grants ───────────────────────────────────────────────
+export async function createBenchmarkRecordingGrant(assessmentId, { subjectScope, playerIds = [], attributionLabel = null }) {
+  const { data, error } = await supabase.rpc('create_benchmark_recording_grant', {
+    p_assessment_id: assessmentId, p_subject_scope: subjectScope, p_player_ids: playerIds, p_attribution_label: attributionLabel,
+  })
+  if (error) console.error('createBenchmarkRecordingGrant:', error)
+  return { data, error } // data.token is the one-time bearer; build the link client-side
+}
+export async function revokeBenchmarkRecordingGrant(grantId) {
+  const { data, error } = await supabase.rpc('revoke_benchmark_recording_grant', { p_grant_id: grantId })
+  if (error) console.error('revokeBenchmarkRecordingGrant:', error)
+  return { data, error }
+}
+
+// ── Anonymous helper recording (token) ────────────────────────────────────
+export async function getBenchmarkRecordingViewByToken(token) {
+  const { data, error } = await supabase.rpc('get_benchmark_recording_view_by_token', { p_token: token })
+  if (error) { console.error('getBenchmarkRecordingViewByToken:', error); return { error } }
+  return { data }
+}
+export async function saveBenchmarkAttemptByToken(token, { participantId, slotIndex, valueNumeric = null, successes = null, opportunities = null, rubricLevelId = null, clientOperationId }) {
+  const { data, error } = await supabase.rpc('save_benchmark_attempt_by_token', {
+    p_token: token, p_participant_id: participantId, p_slot_index: slotIndex,
+    p_value_numeric: valueNumeric, p_successes: successes, p_opportunities: opportunities,
+    p_rubric_level_id: rubricLevelId, p_client_operation_id: clientOperationId,
+  })
+  if (error) { console.error('saveBenchmarkAttemptByToken:', error); return { error } }
+  return { data }
+}
+
+// ── Reporting (Goals & Insights + PlayerProfile) ──────────────────────────
+// History access gated server-side by can_view_benchmark_history_for_team
+// (== can_view_goals_for_team). The RPCs return canonical attempt values; the
+// caller computes official results / comparisons via src/benchmarks.js.
+export async function fetchTeamBenchmarkReport(teamId, benchmarkId = null, { limit = 25, before = null } = {}) {
+  const { data, error } = await supabase.rpc('get_team_benchmark_report', {
+    p_team_id: teamId, p_benchmark_id: benchmarkId, p_limit: limit, p_before: before,
+  })
+  if (error) { console.error('fetchTeamBenchmarkReport:', error); return { error } }
+  return { data }
+}
+export async function fetchPlayerBenchmarkReport(teamId, playerId) {
+  const { data, error } = await supabase.rpc('get_player_benchmark_report', { p_team_id: teamId, p_player_id: playerId })
+  if (error) { console.error('fetchPlayerBenchmarkReport:', error); return { error } }
+  return { data }
 }

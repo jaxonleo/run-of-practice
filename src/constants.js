@@ -363,6 +363,11 @@ export const PRACTICE_COMPONENT_TYPES=[
   // `kind:"scrimmage"` gets its own act shape (a scrimmage_config jsonb, a
   // generated scrimmage_rounds board), not a checklist.
   {key:"scrimmage",label:"Scrimmage",kind:"scrimmage",description:"Everyone rotates positions and at-bats. No second team needed.",defaultOn:false},
+  // A benchmark is picked from Library > Benchmarks (an immutable protocol
+  // version), not authored here. `kind:"benchmark"` opens a picker rather
+  // than adding a blank row; the chosen activity carries benchmark_id /
+  // benchmark_version_id, no scored data.
+  {key:"benchmark",label:"Benchmark",kind:"benchmark",description:"A repeatable test from your Library. Record results live or later; the practice minutes are separate from the measured window.",defaultOn:false},
   {key:"other",label:"Other",kind:"checklist",defaultName:"Other",defaultDuration:5,description:"For anything that doesn't fit the categories above, like a guest speaker or a team photo. Name it once it's added -- it's a one-off, not saved to your library.",defaultOn:false},
 ];
 // Which sports the Scrimmage tile is offered for. Softball is treated
