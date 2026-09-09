@@ -558,3 +558,63 @@ export function metresToFeetInches(metres) {
 export function mphToMetresPerSecond(mph) { return Number(mph || 0) * 0.44704; }
 export function kmhToMetresPerSecond(kmh) { return Number(kmh || 0) / 3.6; }
 export function minutesSecondsToSeconds(min, sec = 0) { return Number(min || 0) * 60 + Number(sec || 0); }
+
+// Raw text a coach typed (in the protocol's display unit) -> the canonical
+// number we store. The single implementation shared by the live recorder and
+// the target editor, so entry is converted the same way everywhere.
+export function parseDisplayValue(protocol, raw) {
+  if (raw == null || raw === '') return null;
+  const u = (protocol && protocol.displayUnit) || '';
+  const t = protocol && protocol.metricType;
+  if (t === 'time') {
+    if (/:/.test(String(raw))) { const [m, s] = String(raw).split(':'); return minutesSecondsToSeconds(Number(m) || 0, Number(s) || 0); }
+    return Number(raw);
+  }
+  if (t === 'distance') {
+    if (u === 'feet/inches') { const [ft, inch] = String(raw).replace(/['"]/g, ' ').trim().split(/\s+/); return feetInchesToMetres(Number(ft) || 0, Number(inch) || 0); }
+    if (u === 'centimeters') return Number(raw) / 100;
+    return Number(raw);
+  }
+  if (t === 'speed') return u === 'km/h' ? kmhToMetresPerSecond(Number(raw)) : mphToMetresPerSecond(Number(raw));
+  return Number(raw);
+}
+
+// Canonical stored number -> the number shown in the protocol's display unit
+// (still a Number, for compound formats it is the primary quantity). Inverse of
+// parseDisplayValue; display only, never fed back into any calculation.
+export function displayMagnitude(protocol, v) {
+  if (!Number.isFinite(v)) return v;
+  const u = (protocol && protocol.displayUnit) || '';
+  const t = protocol && protocol.metricType;
+  if (t === 'distance' && u === 'centimeters') return v * 100;
+  if (t === 'speed') return u === 'km/h' ? v * 3.6 : v / 0.44704;
+  return v;
+}
+
+// Whether formatMeasurement's string already carries its own unit (mm:ss, ft/in)
+// so callers should not append the display-unit label a second time.
+export function unitIsInline(protocol) {
+  const u = (protocol && protocol.displayUnit) || '';
+  return u === 'minutes:seconds' || u === 'feet/inches';
+}
+
+// Canonical stored number -> a display string in the protocol's display unit,
+// including the unit label. The single implementation shared by the live
+// recorder and every reporting surface. Never used for further math.
+export function formatMeasurement(protocol, v) {
+  if (!Number.isFinite(v)) return '';
+  const u = (protocol && protocol.displayUnit) || '';
+  const dp = displayDecimals(protocol);
+  const t = protocol && protocol.metricType;
+  if (t === 'time' && u === 'minutes:seconds') {
+    const neg = v < 0; const a = Math.abs(v);
+    const m = Math.floor(a / 60); const s = roundTo(a - m * 60, dp);
+    return (neg ? '-' : '') + m + ':' + String(s).padStart(2, '0');
+  }
+  if (t === 'distance' && u === 'feet/inches') {
+    const neg = v < 0; const { feet, inches } = metresToFeetInches(Math.abs(v));
+    return (neg ? '-' : '') + feet + "' " + roundTo(inches, 1) + '"';
+  }
+  const n = roundTo(displayMagnitude(protocol, v), dp);
+  return n + (u ? ' ' + u : '');
+}

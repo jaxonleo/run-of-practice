@@ -19,6 +19,10 @@ import {
   metresToFeetInches,
   displayDecimals,
   changeDecimals,
+  parseDisplayValue,
+  displayMagnitude,
+  formatMeasurement,
+  unitIsInline,
 } from './benchmarks.js'
 
 // Small helpers so each fixture reads close to the handoff's own table.
@@ -500,5 +504,60 @@ describe('precision helpers', () => {
   it('roundTo rounds half away from zero and normalises -0', () => {
     expect(roundTo(4.715, 2)).toBe(4.72)
     expect(roundTo(-0.0001, 2)).toBe(0)
+  })
+})
+
+describe('display-unit round trip (entry and reporting share one implementation)', () => {
+  const SPEED_MPH = { metricType: 'speed', displayUnit: 'mph' }
+  const SPEED_KMH = { metricType: 'speed', displayUnit: 'km/h' }
+  const DIST_M = { metricType: 'distance', displayUnit: 'meters' }
+  const DIST_CM = { metricType: 'distance', displayUnit: 'centimeters' }
+  const DIST_FTIN = { metricType: 'distance', displayUnit: 'feet/inches' }
+  const TIME_MMSS = { metricType: 'time', displayUnit: 'minutes:seconds' }
+  const TIME_SEC = { metricType: 'time', displayUnit: 'seconds' }
+  const COUNT = { metricType: 'count', displayUnit: 'reps' }
+
+  it('speed stores canonical m/s and formats back to the display unit', () => {
+    const canon = parseDisplayValue(SPEED_MPH, '65')
+    expect(canon).toBeCloseTo(29.0576, 4)
+    expect(formatMeasurement(SPEED_MPH, canon)).toBe('65 mph')
+    expect(displayMagnitude(SPEED_MPH, canon)).toBeCloseTo(65, 6)
+    const k = parseDisplayValue(SPEED_KMH, '104.607')
+    expect(formatMeasurement(SPEED_KMH, k)).toBe('104.6 km/h')
+  })
+
+  it('distance in cm and ft/in round-trips through metres', () => {
+    const cm = parseDisplayValue(DIST_CM, '215')
+    expect(cm).toBeCloseTo(2.15, 6)
+    expect(formatMeasurement(DIST_CM, cm)).toBe('215 centimeters')
+    const ft = parseDisplayValue(DIST_FTIN, "7 3")
+    expect(ft).toBeCloseTo(2.2098, 4)
+    expect(formatMeasurement(DIST_FTIN, ft)).toBe('7\' 3"')
+    expect(formatMeasurement(DIST_M, 2.1675)).toBe('2.2 meters')
+  })
+
+  it('time in mm:ss stores seconds and formats back as m:ss', () => {
+    const s = parseDisplayValue(TIME_MMSS, '2:05')
+    expect(s).toBe(125)
+    expect(formatMeasurement(TIME_MMSS, 125)).toBe('2:05')
+    expect(formatMeasurement(TIME_SEC, 4.708)).toBe('4.71 seconds')
+  })
+
+  it('metrics whose canonical unit is the display unit are unchanged', () => {
+    expect(parseDisplayValue(COUNT, '34')).toBe(34)
+    expect(displayMagnitude(COUNT, 34)).toBe(34)
+    expect(formatMeasurement(COUNT, 34)).toBe('34 reps')
+  })
+
+  it('unitIsInline flags the compound formats that carry their own unit', () => {
+    expect(unitIsInline(TIME_MMSS)).toBe(true)
+    expect(unitIsInline(DIST_FTIN)).toBe(true)
+    expect(unitIsInline(SPEED_MPH)).toBe(false)
+    expect(unitIsInline(DIST_CM)).toBe(false)
+  })
+
+  it('formatMeasurement carries a sign through the compound formats', () => {
+    expect(formatMeasurement(TIME_MMSS, -65)).toBe('-1:05')
+    expect(formatMeasurement(DIST_FTIN, -0.3048)).toBe('-1\' 0"')
   })
 })

@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   officialResult, isOfficial, displayDecimals, roundTo,
-  feetInchesToMetres, metresToFeetInches, mphToMetresPerSecond, kmhToMetresPerSecond,
-  minutesSecondsToSeconds,
+  metresToFeetInches, parseDisplayValue,
 } from "../benchmarks.js";
 import {
   outboxAdd, outboxUpdate, outboxRemove, outboxList, outboxFlush, outboxResolveConflict,
@@ -80,22 +79,10 @@ export default function BenchmarkRecorder({
   // Existing (server) attempt for a participant slot.
   const serverAttempt = (p, slot) => (p.attempts || []).find(a => a.slot_index === slot) || null;
 
-  // Canonical numeric value from the display-unit input(s).
+  // Canonical numeric value from the display-unit input(s). Shared with the
+  // target editor so entry is converted identically everywhere.
   function toCanonical(raw) {
-    if (raw == null || raw === "") return null;
-    const u = protocol.displayUnit || "";
-    const t = protocol.metricType;
-    if (t === "time") {
-      if (/[:]/.test(String(raw))) { const [m, s] = String(raw).split(":"); return minutesSecondsToSeconds(Number(m) || 0, Number(s) || 0); }
-      return Number(raw);
-    }
-    if (t === "distance") {
-      if (u === "feet/inches") { const [ft, inch] = String(raw).replace(/['"]/g, " ").trim().split(/\s+/); return feetInchesToMetres(Number(ft) || 0, Number(inch) || 0); }
-      if (u === "centimeters") return Number(raw) / 100;
-      return Number(raw);
-    }
-    if (t === "speed") return u === "km/h" ? kmhToMetresPerSecond(Number(raw)) : mphToMetresPerSecond(Number(raw));
-    return Number(raw);
+    return parseDisplayValue(protocol, raw);
   }
   function fromCanonical(v) {
     if (!Number.isFinite(v)) return "";
