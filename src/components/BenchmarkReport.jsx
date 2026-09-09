@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
+import BenchmarkLivePanel from "./BenchmarkLivePanel.jsx";
 import {
   fetchTeamBenchmarkReport, fetchPlayerBenchmarkReport, mapBenchmarkVersion,
   setTeamBenchmarkTarget, setTeamBenchmarkBaseline, setBenchmarkAssessmentExclusion,
+  resolveBenchmarkAssessment,
 } from "../supabase.js";
 import {
   officialResult, isOfficial, teamPerformanceIndividual, matchedImprovement, collectiveImprovement,
@@ -69,9 +71,9 @@ function fmtChange(m) {
 }
 
 // ── Goals & Insights: overview + detail ─────────────────────────────────────
-export function TeamBenchmarksView({ teamId, canManage, isBB }) {
+export function TeamBenchmarksView({ teamId, team, coachId, canManage, isBB }) {
   const [openId, setOpenId] = useState(null);
-  if (openId) return <TeamBenchmarkDetail teamId={teamId} benchmarkId={openId} canManage={canManage} onBack={() => setOpenId(null)} isBB={isBB} />;
+  if (openId) return <TeamBenchmarkDetail teamId={teamId} team={team} coachId={coachId} benchmarkId={openId} canManage={canManage} onBack={() => setOpenId(null)} isBB={isBB} />;
   return <TeamBenchmarksOverview teamId={teamId} canManage={canManage} onOpen={setOpenId} />;
 }
 
@@ -115,31 +117,60 @@ function TeamBenchmarksOverview({ teamId, onOpen }) {
   );
 }
 
-function TeamBenchmarkDetail({ teamId, benchmarkId, canManage, onBack }) {
+const HISTORY_PAGE = 25;
+
+function TeamBenchmarkDetail({ teamId, team, coachId, benchmarkId, canManage, onBack, isDesktop }) {
   const [detail, setDetail] = useState(null);
-  const [compareId, setCompareId] = useState(null);
+  const [compareId, setCompareId] = useState(null); // "" | "season" | <assessmentId>
+  const [extra, setExtra] = useState([]);           // older assessments loaded via "Load more"
+  const [noMore, setNoMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [measureAgain, setMeasureAgain] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
-    setDetail(null);
-    fetchTeamBenchmarkReport(teamId, benchmarkId).then(r => setDetail(r.data || { error: true }));
+    setDetail(null); setExtra([]); setNoMore(false);
+    fetchTeamBenchmarkReport(teamId, benchmarkId, { limit: HISTORY_PAGE }).then(r => setDetail(r.data || { error: true }));
   }, [teamId, benchmarkId]);
   useEffect(load, [load]);
 
   if (!detail) return <div style={{ fontSize: 13, color: "var(--td)" }}>Loading...</div>;
   if (detail.error) return <div><button className="btn ghost bxs" onClick={onBack}>&larr; Back</button><div style={{ fontSize: 13, color: "var(--td)", marginTop: 8 }}>Not available.</div></div>;
 
-  const all = detail.assessments || [];
+  const all = [...(detail.assessments || []), ...extra];
+  const hasMore = (detail.assessments || []).length >= HISTORY_PAGE && !noMore;
+  async function loadMore() {
+    setLoadingMore(true);
+    const oldest = all[all.length - 1];
+    const r = await fetchTeamBenchmarkReport(teamId, benchmarkId, { limit: HISTORY_PAGE, before: oldest && oldest.measured_at });
+    setLoadingMore(false);
+    const page = (r.data && r.data.assessments) || [];
+    setExtra(x => [...x, ...page]);
+    if (page.length < HISTORY_PAGE) setNoMore(true);
+  }
+
   const elig = all.filter(eligible);
   const latest = elig[0];
   const version = detail.team_benchmark ? detail.team_benchmark.adopted_version_id : (latest && latest.protocol_version_id);
   const protocol = protocolForVersion(detail, version);
   const subjectMode = detail.benchmark.subject_mode;
+  const baselineId = detail.team_benchmark && detail.team_benchmark.baseline_assessment_id;
 
-  // comparison target: chosen, else previous eligible of the same version
-  let compare = compareId ? all.find(a => a.id === compareId) : null;
-  if (!compare && latest) {
-    compare = elig.find(a => a.id !== latest.id && a.protocol_version_id === latest.protocol_version_id && !a.excluded_from_comparisons && !latest.excluded_from_comparisons);
+  // comparison target: an explicit assessment, the season baseline, or (default)
+  // the immediately preceding eligible assessment of the same version.
+  let compare = null;
+  if (compareId === "season") {
+    compare = baselineId ? elig.find(a => a.id === baselineId) : null;
+    if (!compare) {
+      const s = detail.season || {};
+      const sameVer = elig.filter(a => a.protocol_version_id === version && !a.excluded_from_comparisons);
+      const inSeason = (s.start && s.end) ? sameVer.filter(a => a.measured_local_date >= s.start && a.measured_local_date <= s.end) : sameVer;
+      compare = (inSeason.length ? inSeason : sameVer).slice().sort((x, y) => (x.measured_at < y.measured_at ? -1 : 1))[0] || null;
+    }
+  } else if (compareId) {
+    compare = all.find(a => a.id === compareId) || null;
+  } else if (latest) {
+    compare = elig.find(a => a.id !== latest.id && a.protocol_version_id === latest.protocol_version_id && !a.excluded_from_comparisons && !latest.excluded_from_comparisons) || null;
   }
 
   // official summary of the latest
@@ -179,9 +210,21 @@ function TeamBenchmarkDetail({ teamId, benchmarkId, canManage, onBack }) {
 
   return (
     <div>
-      <button className="btn ghost bxs" onClick={onBack}>&larr; All benchmarks</button>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <button className="btn ghost bxs" onClick={onBack}>&larr; All benchmarks</button>
+        {!detail.benchmark.archived && <button type="button" className="btn ghost bsm" onClick={() => setMeasureAgain(true)}>Measure again</button>}
+      </div>
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, margin: "8px 0 2px" }}>{detail.benchmark.title}</div>
       <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 10 }}>{subjectMode === "team" ? "Whole-team" : "Individual"} · {protocol.metricType} · {(detail.versions || []).length} version{(detail.versions || []).length === 1 ? "" : "s"}</div>
+
+      {measureAgain && <MeasureAgainModal
+        teamId={teamId} team={team} coachId={coachId}
+        benchmarkId={benchmarkId}
+        versionId={(detail.team_benchmark && detail.team_benchmark.adopted_version_id) || version}
+        title={detail.benchmark.title}
+        onClose={() => setMeasureAgain(false)}
+        onDone={() => { setMeasureAgain(false); load(); }}
+      />}
 
       {!latest && <div className="card"><div style={{ fontSize: 13, color: "var(--td)" }}>No finalized assessments yet.</div></div>}
 
@@ -203,8 +246,10 @@ function TeamBenchmarkDetail({ teamId, benchmarkId, canManage, onBack }) {
         <div className="clbl mb8">Comparison</div>
         <select className="inp" value={compareId || (compare ? compare.id : "")} onChange={e => setCompareId(e.target.value || null)} style={{ marginBottom: 8 }}>
           <option value="">Previous eligible</option>
+          <option value="season">Season baseline{baselineId ? " (chosen)" : ""}</option>
           {elig.filter(a => a.id !== latest.id).map(a => <option key={a.id} value={a.id}>{a.measured_local_date}{a.label ? " · " + a.label : ""}</option>)}
         </select>
+        {compareId === "season" && !compare && <div style={{ fontSize: 12, color: "var(--amber)", marginBottom: 6 }}>Baseline unavailable (archived or excluded). Choose another below or set a new one.</div>}
         {!improvement && <div style={{ fontSize: 13, color: "var(--td)" }}>No comparable assessment (version mismatch or excluded).</div>}
         {improvement && improvement.status === "no_overlap" && <div style={{ fontSize: 13 }}>No comparable players between these dates.</div>}
         {improvement && improvement.status === "ok" && improvement.kind !== undefined && <div>
@@ -255,15 +300,76 @@ function TeamBenchmarkDetail({ teamId, benchmarkId, canManage, onBack }) {
 
       <div className="card">
         <div className="clbl mb8">Assessment history</div>
-        {all.map(a => <div key={a.id} style={{ fontSize: 13, padding: "5px 0", borderTop: "1px solid var(--b)", display: "flex", justifyContent: "space-between", gap: 8 }}>
-          <span>{a.measured_local_date}{a.label ? " · " + a.label : ""} <span className="bdg bs">{a.under_correction ? "under correction" : a.state}</span>{a.excluded_from_comparisons ? <span className="bdg bs" style={{ marginLeft: 4 }}>excluded</span> : null}</span>
-          {canManage && a.state === "finalized" && <button type="button" className="btn ghost bxs" disabled={busy} onClick={async () => {
-            setBusy(true); await setBenchmarkAssessmentExclusion(a.id, !a.excluded_from_comparisons, a.excluded_from_comparisons ? null : "Different test conditions"); setBusy(false); load();
-          }}>{a.excluded_from_comparisons ? "Include" : "Exclude"}</button>}
+        {all.map(a => <div key={a.id} style={{ fontSize: 13, padding: "5px 0", borderTop: "1px solid var(--b)", display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+          <span>{a.measured_local_date}{a.label ? " · " + a.label : ""} <span className="bdg bs">{a.under_correction ? "under correction" : a.state}</span>{a.excluded_from_comparisons ? <span className="bdg bs" style={{ marginLeft: 4 }}>excluded</span> : null}{baselineId === a.id ? <span className="bdg bs" style={{ marginLeft: 4 }}>baseline</span> : null}</span>
+          {canManage && a.state === "finalized" && <span style={{ display: "flex", gap: 6 }}>
+            <button type="button" className="btn ghost bxs" disabled={busy} onClick={async () => {
+              setBusy(true); await setTeamBenchmarkBaseline(detail.team_benchmark.id, baselineId === a.id ? null : a.id); setBusy(false); load();
+            }}>{baselineId === a.id ? "Clear baseline" : "Set baseline"}</button>
+            <button type="button" className="btn ghost bxs" disabled={busy} onClick={async () => {
+              setBusy(true); await setBenchmarkAssessmentExclusion(a.id, !a.excluded_from_comparisons, a.excluded_from_comparisons ? null : "Different test conditions"); setBusy(false); load();
+            }}>{a.excluded_from_comparisons ? "Include" : "Exclude"}</button>
+          </span>}
         </div>)}
+        {hasMore && <button type="button" className="btn ghost bsm bfull" style={{ marginTop: 10 }} disabled={loadingMore} onClick={loadMore}>{loadingMore ? "Loading..." : "Load more"}</button>}
       </div>
 
       {canManage && detail.team_benchmark && <TargetEditor detail={detail} version={version} protocol={protocol} onSaved={load} />}
+    </div>
+  );
+}
+
+// Measure Again -> "record results now without a scheduled practice" (handoff
+// 4.3, option 3). Creates a team-scoped standalone assessment for a chosen
+// measured date/time (no future dates for actual results) and hosts the
+// recorder + finalize in place. Server rejects if the caller is neither a
+// manager nor a build delegate.
+export function MeasureAgainModal({ teamId, team, coachId, benchmarkId, versionId, title, onClose, onDone }) {
+  const today = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  const [date, setDate] = useState(today.getFullYear() + "-" + pad(today.getMonth() + 1) + "-" + pad(today.getDate()));
+  const [time, setTime] = useState(pad(today.getHours()) + ":" + pad(today.getMinutes()));
+  const [assessmentId, setAssessmentId] = useState(null);
+  const [err, setErr] = useState("");
+  const [starting, setStarting] = useState(false);
+  const maxDate = today.getFullYear() + "-" + pad(today.getMonth() + 1) + "-" + pad(today.getDate());
+
+  async function start() {
+    setErr(""); setStarting(true);
+    const measuredAt = new Date(date + "T" + (time || "00:00")).toISOString();
+    if (new Date(measuredAt) > new Date()) { setErr("A recorded measurement cannot be in the future."); setStarting(false); return; }
+    const r = await resolveBenchmarkAssessment({
+      teamId, benchmarkId, versionId,
+      occurrenceKey: "manual:" + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random()),
+      standalone: true, label: "Measure Again",
+      measuredAt, measuredLocalDate: date, timezone: team && team.timezone,
+    });
+    setStarting(false);
+    if (r.error || !r.data || !r.data.assessment_id) { setErr((r.error && r.error.message) || "Could not start. You may not have permission."); return; }
+    setAssessmentId(r.data.assessment_id);
+  }
+
+  return (
+    <div className="movly" style={{ zIndex: 330 }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal" style={{ maxWidth: 620, maxHeight: "88vh", display: "flex", flexDirection: "column" }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div className="mtitle" style={{ marginBottom: 0 }}>Measure Again — {title}</div>
+          <button type="button" className="btn ghost bxs" onClick={assessmentId ? onDone : onClose}>{assessmentId ? "Done" : "Cancel"}</button>
+        </div>
+        {!assessmentId && <>
+          <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 10 }}>Records a standalone measurement for {team ? team.name : "this team"}. It adds no practice minutes and creates no practice.</div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div className="fld" style={{ flex: 1 }}><label className="lbl">Measured date</label><input className="inp" type="date" max={maxDate} value={date} onChange={e => setDate(e.target.value)} /></div>
+            <div className="fld" style={{ flex: 1 }}><label className="lbl">Time</label><input className="inp" type="time" value={time} onChange={e => setTime(e.target.value)} /></div>
+          </div>
+          {err && <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 8 }}>{err}</div>}
+          <button type="button" className="btn primary bmd bfull" disabled={starting} onClick={start}>{starting ? "Starting..." : "Start recording"}</button>
+        </>}
+        {assessmentId && <div style={{ overflowY: "auto", flex: 1 }}>
+          <BenchmarkLivePanel assessmentId={assessmentId} team={team} coachId={coachId} isDesktop={typeof window !== "undefined" && window.innerWidth >= 1024} />
+          <button type="button" className="btn primary bmd bfull" style={{ marginTop: 10 }} onClick={onDone}>Done</button>
+        </div>}
+      </div>
     </div>
   );
 }

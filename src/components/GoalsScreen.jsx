@@ -1088,7 +1088,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
       </>)}
     </>)}
     {view === "trends" && <TrendsView teamId={teamId} team={team} canManage={canManage} isBB={isBB} />}
-    {view === "benchmarks" && <TeamBenchmarksView teamId={teamId} canManage={canManage} isBB={isBB} />}
+    {view === "benchmarks" && <TeamBenchmarksView teamId={teamId} team={team} coachId={coachId} canManage={canManage} isBB={isBB} />}
     {view === "history" && (isBB ? (
       <TwoPane
         left={<>
