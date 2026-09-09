@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { findOrCreatePreviewToken, cancelPractice, restorePractice, fetchPlannedAbsences, findActiveLiveSession, savePracticeTree } from "../supabase.js";
-import { canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, isMoreThanTwoHoursAway, useBigBrowser } from "../constants.js";
+import { canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, isMoreThanTwoHoursAway, useBigBrowser, SCRIMMAGE_FIELD_SLOTS } from "../constants.js";
 import { TwoPane } from "./BBShells.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
@@ -40,24 +40,26 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
   // org team can edit/cancel/plan its practices without a personal
   // team_staff row on that specific team.
   const canManage=canManageTeamInMode(team,coachId,mode);
-  // Multi-Coach Builder: a coach who isn't the head coach but has a station
-  // assigned to them on this specific practice still needs a repeat way
-  // back into Builder (BuilderRoute itself scopes them to just their own
-  // station once there) -- without this they'd only ever be able to reach
-  // it via the one-time Home assignment notice, which doesn't fit the
-  // async "assigned days before, comes back on their own schedule" shape
-  // this feature is explicitly built for. Only gates the Edit button --
-  // Cancel Practice stays canManage-only, a skeleton/scheduling decision.
+  // Who can open this plan in the Builder from here. Mirrors the DB gate
+  // (practices_update_manage = can_manage_team OR can_build_practice_for_team)
+  // and BuilderRoute's own logic:
+  //  - canManage: head coach / org manager -> full Builder.
+  //  - canBuildFull: any coach with the team's "plan practices" permission
+  //    -> full Builder (BuilderRoute sends them to the normal BuilderScreen
+  //    when no station is delegated to them). This used to be missing here,
+  //    so a plan-permitted assistant reviewing a head-coach-built practice
+  //    saw no Edit button even though the Builder and RLS both allow it.
+  //  - hasMyStation: not a full delegate for this plan, but a specific
+  //    station on it is delegated to them -> the restricted single-station
+  //    Builder screen ("Build My Station").
   const myCoach=team?(team.coaches||[]).find(c=>c.userId===coachId):null;
   const myTeamStaffId=myCoach?myCoach.id:null;
-  // delegated_to, not coachId (the live leader field -- a different,
-  // lower-stakes concept with no editing implication, direct feedback).
-  // canBuildPractices required too, matching update_station_content's own
-  // requirement -- shouldn't be reachable in practice since Builder's own
-  // Delegate picker already only offers eligible coaches, but keeps this
-  // check consistent with the actual RPC gate regardless.
-  const hasMyStation=!canManage&&!!(myTeamStaffId&&myCoach.canBuildPractices&&(practice.activities||[]).some(a=>a.type==="station_block"&&(a.stations||[]).some(st=>st.delegatedTo===myTeamStaffId)));
-  const canEdit=canManage||hasMyStation;
+  const canBuildPractices=!!(myCoach&&myCoach.canBuildPractices);
+  // BuilderRoute sends a non-manager who has a station delegated to them to
+  // the scoped MyStationBuilderScreen ("Build My Station"); everyone else
+  // who can edit gets the full BuilderScreen ("Edit").
+  const routedToMyStation=!canManage&&canBuildPractices&&(practice.activities||[]).some(a=>a.type==="station_block"&&(a.stations||[]).some(st=>st.delegatedTo===myTeamStaffId));
+  const canEdit=canManage||canBuildPractices;
   // Falls back to the practice's own location snapshot (Delegated Planning
   // spec: history must survive the source location being archived/deleted
   // -- data.locations is fetched non-archived-only, so a live lookup alone
@@ -92,6 +94,24 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
   const allEquip=[...new Map((practice.activities||[]).flatMap(a=>{if(a.type==="station_block")return(a.stations||[]).flatMap(st=>resolveEquip(st.equipment));return resolveEquip(a.equipment);}).map(e=>[e.id,e])).values()];
   const subName=(id,snap)=>{const l=loc&&loc.sublocations.find(s=>s.id===id);return l?l.name:(snap||null);};
   const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
+  // Scrimmage review helpers: resolve a board assignee ({player_id} |
+  // {team_staff_id} | {helper_name}) to a short label, and summarise the
+  // block the same way the line item does for the other activity types.
+  const scrimAssignee=a=>{
+    if(!a)return null;
+    if(a.player_id){const p=team&&team.players.find(x=>x.id===a.player_id);return p?((p.jersey?"#"+p.jersey+" ":"")+p.firstName):"Player";}
+    if(a.team_staff_id)return coachName(a.team_staff_id)||"Coach";
+    if(a.helper_name)return a.helper_name;
+    return null;
+  };
+  const scrimSummary=a=>{
+    const cfg=a.scrimmageConfig||{};
+    const label=(cfg.roundLabel||"Round").toLowerCase();
+    const n=(Array.isArray(a.scrimmageRounds)&&a.scrimmageRounds.length)||cfg.rounds||0;
+    const abs=cfg.absPerHitter||2;
+    const coachPitch=Array.isArray(cfg.slots)&&!cfg.slots.includes("P");
+    return n+" "+label+(n===1?"":"s")+" · "+abs+" at-bat"+(abs===1?"":"s")+" per hitter"+(coachPitch?" · coach pitch":"");
+  };
   const refreshAbsences=()=>{
     fetchPlannedAbsences([practice.id]).then(rows=>{
       const ids=new Set(rows.map(r=>r.player_id));
@@ -179,7 +199,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
         </div>);
       })()}
       {absentPlayers.length>0&&<div style={{fontSize:13,color:"var(--red)",marginBottom:12}}>Out: {absentPlayers.map(p=>p.firstName+" "+(p.lastName||"").slice(0,1)).join(", ")}</div>}
-      {!isCancelled&&!isPlanned&&canManage&&<div className="brow" style={{marginBottom:8}}>
+      {!isCancelled&&!isPlanned&&canEdit&&<div className="brow" style={{marginBottom:8}}>
         <button className="btn primary bmd bfull" onClick={()=>goToBuilder(practice.id)}>Plan Practice</button>
       </div>}
       {!isCancelled&&isPlanned&&<div className="brow" style={{marginBottom:8}}>
@@ -191,7 +211,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
       {showFutureGuard&&<FuturePracticeGuardModal practice={practice} team={team} onCancel={()=>setShowFutureGuard(false)} onRunAsNew={runAsNewFromGuard} onRunNow={()=>{setShowFutureGuard(false);goToRun(practice.id);}}/>}
       {!isCancelled&&<div style={{display:"flex",gap:8,marginBottom:12}}>
         <button className="btn outline bmd" style={{flex:1}} onClick={()=>setShowAbsencePicker(true)}>Who's Out?</button>
-        {isPlanned&&canEdit&&<button className="btn outline bmd" style={{flex:1}} onClick={()=>goToBuilder(practice.id)}>{canManage?"Edit":"Build My Station"}</button>}
+        {isPlanned&&canEdit&&<button className="btn outline bmd" style={{flex:1}} onClick={()=>goToBuilder(practice.id)}>{routedToMyStation?"Build My Station":"Edit"}</button>}
       </div>}
       {/* Print/PDF export: a clean, standalone document a coach can follow
           without the app (old-school coaches, or a remote player doing
@@ -242,6 +262,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
               </div>
               {a.type==="activity"&&a.coachingPoints&&!isExp&&<div style={{fontSize:11,color:"var(--td)",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.coachingPoints}</div>}
               {a.type==="station_block"&&<div style={{fontSize:11,color:"var(--td)",marginTop:1}}>{a.stations.map(s=>s.activityName||s.name).join(" / ")}</div>}
+              {a.type==="scrimmage"&&<div style={{fontSize:11,color:"var(--td)",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{scrimSummary(a)}</div>}
             </div>
             <span style={{fontFamily:"DM Mono,monospace",fontSize:12,fontWeight:600,color:"var(--td)",flexShrink:0,marginLeft:8}}>{mins}m</span>
             <span style={{color:"var(--td)",fontSize:11,marginLeft:6}}>{isExp?"▲":"▼"}</span>
@@ -285,6 +306,42 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
                 </div>);
               })}
             </div>}
+            {a.type==="scrimmage"&&(()=>{
+              const cfg=a.scrimmageConfig||{};
+              const label=cfg.roundLabel||"Round";
+              const rounds=Array.isArray(a.scrimmageRounds)?a.scrimmageRounds:[];
+              const fieldSlots=Array.isArray(cfg.slots)&&cfg.slots.length?cfg.slots:[...SCRIMMAGE_FIELD_SLOTS];
+              const roles=cfg.coachRoles||[];
+              const maxHit=Math.max(0,...rounds.map(rd=>Object.keys(rd.slots||{}).filter(k=>/^H\d+$/.test(k)).length));
+              const cols=[...fieldSlots,...Array.from({length:maxHit},(_,i)=>"H"+(i+1))];
+              const th={padding:"5px 7px",borderBottom:"2px solid var(--b)",whiteSpace:"nowrap",fontFamily:"DM Mono,monospace",fontSize:10,color:"var(--td)",textAlign:"left"};
+              const firstCol={position:"sticky",left:0,background:"#fff",padding:"5px 7px",whiteSpace:"nowrap",fontWeight:700,fontSize:11,borderRight:"1px solid var(--b)"};
+              return (<div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{fontSize:13,color:"var(--black)"}}>{scrimSummary(a)}</div>
+                {roles.length>0&&<div style={{fontSize:12,color:"var(--td)"}}>Coach roles: {roles.map(r=>r.label).join(", ")}</div>}
+                {rounds.length===0
+                  ?<div style={{fontSize:13,color:"var(--td)"}}>The rotation board is built when this practice is run.</div>
+                  :<div style={{overflowX:"auto"}}>
+                    <table style={{borderCollapse:"collapse",fontSize:11}}>
+                      <thead><tr>
+                        <th style={{...th,position:"sticky",left:0,background:"#fff"}}>{label}</th>
+                        {cols.map(s=><th key={s} style={th}>{/^H\d+$/.test(s)?"Bat "+s.slice(1):s}</th>)}
+                        {roles.map(r=><th key={r.id} style={th}>{r.label}</th>)}
+                      </tr></thead>
+                      <tbody>
+                        {rounds.map((rd,ri)=>(<tr key={ri}>
+                          <td style={firstCol}>{label} {ri+1}</td>
+                          {cols.map(s=>{
+                            const v=scrimAssignee((rd.slots||{})[s]);
+                            return <td key={s} style={{padding:"4px 7px",borderBottom:"1px solid var(--s2)",whiteSpace:"nowrap"}}>{v||<span style={{color:"var(--td)"}}>Open</span>}</td>;
+                          })}
+                          {roles.map(r=><td key={r.id} style={{padding:"4px 7px",borderBottom:"1px solid var(--s2)",whiteSpace:"nowrap",color:"var(--td)"}}>{scrimAssignee((rd.coachRoles||{})[r.id])||"Open"}</td>)}
+                        </tr>))}
+                      </tbody>
+                    </table>
+                  </div>}
+              </div>);
+            })()}
           </div>}
         </div>);
       })}

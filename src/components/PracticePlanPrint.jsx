@@ -1,5 +1,5 @@
 import React from "react";
-import { buildEquipmentNeeded } from "../constants.js";
+import { buildEquipmentNeeded, SCRIMMAGE_FIELD_SLOTS } from "../constants.js";
 
 // Practice plan -> clean PDF export. Renders a print-optimized document (not
 // a screenshot of the app UI) and hands off to the browser's native
@@ -57,6 +57,14 @@ export default function PracticePlanPrint({ practice, team, loc, data, onClose }
   const stationCount = activities.filter(a => a.type === "station_block").reduce((s, a) => s + (a.stations || []).length, 0);
   const coachNameFor = id => { const c = id && team && team.coaches.find(c => c.id === id); return c ? c.name : null; };
   const subNameFor = id => { const s = id && loc && loc.sublocations && loc.sublocations.find(s => s.id === id); return s ? s.name : null; };
+  // Scrimmage: resolve a board assignee to a short printed label.
+  const scrimAssigneeFor = as => {
+    if (!as) return null;
+    if (as.player_id) { const p = team && team.players.find(x => x.id === as.player_id); return p ? ((p.jersey ? "#" + p.jersey + " " : "") + p.firstName) : "Player"; }
+    if (as.team_staff_id) return coachNameFor(as.team_staff_id) || "Coach";
+    if (as.helper_name) return as.helper_name;
+    return null;
+  };
   // Direct feedback: the Equipment Needed summary used to just dedupe names
   // across the whole practice -- paired here with each drill's own coach/
   // location (same buildEquipmentNeeded helper Practice Setup and the
@@ -184,6 +192,40 @@ export default function PracticePlanPrint({ practice, team, loc, data, onClose }
                 </> : <div style={{ fontSize: 12, color: P.td }}>Protocol not available.</div>}
                 {equip.length > 0 && <div style={{ fontSize: 12, color: P.amber, marginTop: 4 }}>Equipment: {equip.join(", ")}</div>}
                 {a.coachingPoints && <div style={{ fontSize: 12, lineHeight: 1.5, marginTop: 4 }}>{a.coachingPoints}</div>}
+              </div>);
+            })()}
+            {a.type === "scrimmage" && (() => {
+              const cfg = a.scrimmageConfig || {};
+              const label = cfg.roundLabel || "Round";
+              const rounds = Array.isArray(a.scrimmageRounds) ? a.scrimmageRounds : [];
+              const fieldSlots = Array.isArray(cfg.slots) && cfg.slots.length ? cfg.slots : [...SCRIMMAGE_FIELD_SLOTS];
+              const roles = cfg.coachRoles || [];
+              const maxHit = Math.max(0, ...rounds.map(rd => Object.keys(rd.slots || {}).filter(k => /^H\d+$/.test(k)).length));
+              const cols = [...fieldSlots, ...Array.from({ length: maxHit }, (_, i) => "H" + (i + 1))];
+              const abs = cfg.absPerHitter || 2;
+              const coachPitch = Array.isArray(cfg.slots) && !cfg.slots.includes("P");
+              const th = { padding: "4px 6px", borderBottom: "1.5px solid " + P.black, whiteSpace: "nowrap", fontSize: 10, fontWeight: 700, textAlign: "left", color: P.td };
+              return (<div>
+                <div style={{ fontSize: 12, color: P.td, marginBottom: 6 }}>
+                  {rounds.length || cfg.rounds || 0} {label.toLowerCase()}s · {abs} at-bat{abs === 1 ? "" : "s"} per hitter{coachPitch ? " · coach pitch" : ""}
+                </div>
+                {rounds.length === 0
+                  ? <div style={{ fontSize: 12, color: P.td }}>The rotation board is built when this practice is run.</div>
+                  : <table style={{ borderCollapse: "collapse", fontSize: 10, width: "100%" }}>
+                      <thead><tr>
+                        <th style={th}>{label}</th>
+                        {cols.map(s => <th key={s} style={th}>{/^H\d+$/.test(s) ? "Bat " + s.slice(1) : s}</th>)}
+                        {roles.map(r => <th key={r.id} style={th}>{r.label}</th>)}
+                      </tr></thead>
+                      <tbody>
+                        {rounds.map((rd, ri) => (<tr key={ri} style={{ breakInside: "avoid", pageBreakInside: "avoid" }}>
+                          <td style={{ padding: "4px 6px", borderBottom: "1px solid " + P.b, fontWeight: 700, whiteSpace: "nowrap" }}>{label} {ri + 1}</td>
+                          {cols.map(s => <td key={s} style={{ padding: "4px 6px", borderBottom: "1px solid " + P.b, whiteSpace: "nowrap" }}>{scrimAssigneeFor((rd.slots || {})[s]) || "—"}</td>)}
+                          {roles.map(r => <td key={r.id} style={{ padding: "4px 6px", borderBottom: "1px solid " + P.b, whiteSpace: "nowrap", color: P.td }}>{scrimAssigneeFor((rd.coachRoles || {})[r.id]) || "—"}</td>)}
+                        </tr>))}
+                      </tbody>
+                    </table>}
+                {equip.length > 0 && <div style={{ fontSize: 12, color: P.amber, marginTop: 6 }}>Equipment: {equip.join(", ")}</div>}
               </div>);
             })()}
             {a.type === "station_block" && <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
