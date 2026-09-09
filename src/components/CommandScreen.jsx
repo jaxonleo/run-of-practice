@@ -3749,7 +3749,10 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       onSaveResume={async(newActs)=>{
         await savePracticeTree(practice.id,{teamId:practice.teamId,locationId:practice.locationId,date:practice.date,startTime:practice.startTime,prePracticeNotes:practice.prePracticeNotes,activities:newActs,coachId});
         await refreshPlanning();
-        const freshList=await fetchPracticesFull();
+        // fetchPracticesFull now throws on a load failure; this mid-session
+        // reload keeps its old degrade-to-empty behavior rather than
+        // breaking the resume flow.
+        const freshList=await fetchPracticesFull().catch(()=>[]);
         const freshPractice=freshList.find(p=>p.id===practice.id);
         const freshActs=freshPractice?freshPractice.activities:[];
         const firstAct=freshActs[0]||null;

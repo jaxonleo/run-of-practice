@@ -21,7 +21,7 @@ export async function getCurrentSession() {
   return data.session
 }
 export function onAuthStateChange(cb) {
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => cb(session))
+  const { data } = supabase.auth.onAuthStateChange((event, session) => cb(session, event))
   return data.subscription
 }
 export async function signOut() {
@@ -111,7 +111,10 @@ export async function fetchMyTeams() {
     supabase.from('team_staff').select('*').is('archived_at', null),
     supabase.from('team_locations').select('*'),
   ])
-  if (teamsRes.error) { console.error('fetchMyTeams:', teamsRes.error); return [] }
+  // Throw (don't return []) on a primary-query failure so a caller can tell
+  // "genuinely no teams" from "the fetch failed" and keep its prior state
+  // instead of blanking the UI on a transient auth/network blip.
+  if (teamsRes.error) { console.error('fetchMyTeams:', teamsRes.error); throw teamsRes.error }
   const players = playersRes.data || []
   const staff = staffRes.data || []
   const teamIds = (teamsRes.data || []).map(t => t.id)
@@ -490,6 +493,11 @@ export async function fetchLibraryData() {
   const pendingStationAssignmentNotices = await fetchPendingStationAssignmentNotices()
   if (drillsRes.error) console.error('fetchLibraryData drills:', drillsRes.error)
   if (assetsRes.error) console.error('fetchLibraryData assets:', assetsRes.error)
+  // A primary-table failure means the library didn't load -- throw so
+  // refreshLibrary keeps its prior state rather than replacing it with
+  // empty arrays (see fetchMyTeams).
+  const libFail = drillsRes.error || assetsRes.error || categoriesRes.error || tagsRes.error
+  if (libFail) throw libFail
 
   const equipmentByDrill = {}
   for (const e of equipRes.data || []) (equipmentByDrill[e.activity_library_id] ||= []).push(e.asset_id)
@@ -900,7 +908,7 @@ export async function fetchLocations() {
     supabase.from('locations').select('*').is('archived_at', null),
     supabase.from('sublocations').select('*').is('archived_at', null),
   ])
-  if (locsRes.error) console.error('fetchLocations:', locsRes.error)
+  if (locsRes.error) { console.error('fetchLocations:', locsRes.error); throw locsRes.error }
   return (locsRes.data || []).map(l => ({
     id: l.id, name: l.name, organizationId: l.organization_id, ownerUserId: l.owner_user_id,
     availableToTeamPlanners: !!l.available_to_team_planners,
@@ -1067,7 +1075,7 @@ export async function fetchPracticesFull(teamId) {
     supabase.from('station_equipment').select('*'),
     supabase.from('teams').select('id,timezone'),
   ])
-  if (practicesRes.error) console.error('fetchPracticesFull:', practicesRes.error)
+  if (practicesRes.error) { console.error('fetchPracticesFull:', practicesRes.error); throw practicesRes.error }
   const tzByTeam = {}
   for (const t of teamsRes.data || []) tzByTeam[t.id] = t.timezone
   const equipByAct = {}
@@ -1584,7 +1592,7 @@ export async function fetchTemplatesFull() {
     supabase.from('template_stations').select('*').is('archived_at', null).order('position'),
     supabase.from('template_station_equipment').select('*'),
   ])
-  if (tplsRes.error) console.error('fetchTemplatesFull:', tplsRes.error)
+  if (tplsRes.error) { console.error('fetchTemplatesFull:', tplsRes.error); throw tplsRes.error }
   const equipByAct = {}
   for (const e of equipRes.data || []) (equipByAct[e.template_activity_id] ||= []).push(e.asset_id)
   const itemsByAct = {}
