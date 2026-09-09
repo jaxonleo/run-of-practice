@@ -62,6 +62,13 @@ function fmtResult(protocol, r) {
   if (r.metricType === "score_rubric") { const l = (protocol.rubricLevels || []).find(x => x.id === r.levelId); return l ? l.label : "level " + r.levelOrder; }
   return roundTo(r.value, displayDecimals(protocol)) + (protocol.displayUnit ? " " + protocol.displayUnit : "");
 }
+// median rubric level(s): one label, or the two middle labels as a range for
+// an even split whose middle levels differ (handoff 7.3).
+function rubricLabels(protocol, orders) {
+  const lv = protocol.rubricLevels || [];
+  const names = (orders || []).map(o => { const l = lv.find(x => x.order === o); return l ? l.label : "level " + o; });
+  return names.length === 2 ? names[0] + " to " + names[1] : (names[0] || "—");
+}
 function fmtChange(m) {
   if (!m || m.status !== "ok") return "";
   if (m.kind === "rubric") return m.improved + " up · " + m.unchanged + " same · " + m.lower + " down";
@@ -234,9 +241,12 @@ function TeamBenchmarkDetail({ teamId, team, coachId, benchmarkId, canManage, on
         {cur && !cur.collective && cur.teamPerf && !cur.teamPerf.noResults && <>
           <div style={{ fontSize: 15, fontWeight: 800 }}>
             {protocol.metricType === "success_rate" ? "Avg " + roundTo(cur.teamPerf.meanProportion * 100, 1) + "%" :
-             protocol.metricType === "score_rubric" ? cur.teamPerf.measuredCount + " measured" :
+             protocol.metricType === "score_rubric" ? "Median " + rubricLabels(protocol, cur.teamPerf.medianLevelOrders) :
              "Avg " + roundTo(cur.teamPerf.mean, displayDecimals(protocol)) + (protocol.displayUnit ? " " + protocol.displayUnit : "")}
           </div>
+          {protocol.metricType === "score_rubric" && cur.teamPerf.byLevel && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>
+            {(protocol.rubricLevels || []).map(l => (cur.teamPerf.byLevel[l.id] || 0) + " " + l.label).join(" · ")}
+          </div>}
           <div style={{ fontSize: 12, color: "var(--td)" }}>{cur.teamPerf.measuredCount} measured · {cur.teamPerf.notMeasuredCount} not measured · {cur.teamPerf.partialCount} partial · {cur.teamPerf.skippedCount} skipped · {cur.teamPerf.unableCount} unable</div>
         </>}
         {cur && !cur.collective && cur.teamPerf && cur.teamPerf.noResults && <div style={{ fontSize: 13, color: "var(--td)" }}>No completed results.</div>}
