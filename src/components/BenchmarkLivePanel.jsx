@@ -14,16 +14,21 @@ import { outboxScopeForUser, outboxClearScope } from "../benchmarkOutbox.js";
 // signed-in team coach can record; finalize / reopen / grants gate on the
 // server (can_finalize / can_manage) and this only mirrors that in the UI.
 
-export default function BenchmarkLivePanel({ activity, station, practice, team, liveSessionId, coachId, isDesktop }) {
-  const bId = station ? station.benchmarkId : activity.benchmarkId;
-  const bvId = station ? station.benchmarkVersionId : activity.benchmarkVersionId;
-  const occurrenceKey = station
+export default function BenchmarkLivePanel({ activity, station, practice, team, liveSessionId, coachId, isDesktop, assessmentId: assessmentIdProp }) {
+  // Standalone mode: the caller (Measure Again -> record now) has already
+  // created the assessment and passes its id; there is no live activity or
+  // station to resolve an occurrence for.
+  const standalone = !!assessmentIdProp;
+  const bId = standalone ? null : (station ? station.benchmarkId : activity.benchmarkId);
+  const bvId = standalone ? null : (station ? station.benchmarkVersionId : activity.benchmarkVersionId);
+  const occurrenceKey = standalone ? null : (station
     ? (station.benchmarkSharedOccurrence ? "sb:" + (station.stationBlockId || activity.id) + ":" + bvId : "st:" + station.id)
-    : "pa:" + activity.id;
+    : "pa:" + activity.id);
 
-  const [assessmentId, setAssessmentId] = useState(null);
+  const [assessmentId, setAssessmentId] = useState(assessmentIdProp || null);
   const [payload, setPayload] = useState(null);
-  const [err, setErr] = useState("");
+  const [err, setErr] = useState("");        // fatal: could not start / load -> hides the panel
+  const [actionErr, setActionErr] = useState(""); // finalize / grant error -> shown inline, panel stays
   const [busy, setBusy] = useState(true);
   const [confirmFinalize, setConfirmFinalize] = useState(null); // counts object
   const [grantToken, setGrantToken] = useState("");
@@ -42,6 +47,7 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
     let alive = true;
     (async () => {
       setBusy(true); setErr("");
+      if (standalone) { await refresh(assessmentIdProp); setBusy(false); return; }
       const { data, error } = await resolveBenchmarkAssessment({
         teamId: practice.teamId, benchmarkId: bId, versionId: bvId,
         occurrenceKey, practiceId: practice.id,
@@ -55,7 +61,21 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
       setBusy(false);
     })();
     return () => { alive = false; };
-  }, [bId, bvId, occurrenceKey]); // eslint-disable-line
+  }, [bId, bvId, occurrenceKey, assessmentIdProp]); // eslint-disable-line
+
+  // Backfill the source-practice link if the live session row settled a beat
+  // after this panel first resolved the assessment (handoff 4.1 / 5.2).
+  useEffect(() => {
+    if (standalone || !assessmentId || !liveSessionId) return;
+    const a = payload && payload.assessment;
+    if (a && !a.live_session_id) {
+      resolveBenchmarkAssessment({
+        teamId: practice.teamId, benchmarkId: bId, versionId: bvId, occurrenceKey,
+        practiceId: practice.id, practiceActivityId: station ? null : activity.id,
+        stationId: station ? station.id : null, liveSessionId, timezone: team && team.timezone,
+      }).then(() => refresh());
+    }
+  }, [assessmentId, liveSessionId, payload && payload.assessment && payload.assessment.live_session_id]); // eslint-disable-line
 
   useEffect(() => {
     if (!assessmentId) return;
@@ -85,10 +105,11 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
   const setStatus = async (participantId, status) => { await setBenchmarkParticipantStatus(participantId, status); };
 
   const doFinalize = async (confirmIncomplete) => {
+    setActionErr("");
     const { data, error } = await finalizeBenchmarkAssessment(assessmentId, confirmIncomplete);
-    if (error) { setErr(error.message || "Finalize failed"); return; }
+    if (error) { setActionErr(error.message || "Finalize failed"); setConfirmFinalize(null); return; }
     if (data && data.needs_confirmation) { setConfirmFinalize(data.counts); return; }
-    if (data && data.error) { setErr(data.message || data.error); return; }
+    if (data && data.error) { setActionErr(data.message || data.error); setConfirmFinalize(null); return; }
     setConfirmFinalize(null);
     await outboxClearScope(outboxScopeForUser(coachId, assessmentId));
     await refresh();
@@ -98,8 +119,9 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
     const playerIds = scope === "players"
       ? (payload.participants || []).filter(p => !p.is_team_subject && p.player_id).map(p => p.player_id)
       : [];
+    setActionErr("");
     const { data, error } = await createBenchmarkRecordingGrant(assessmentId, { subjectScope: scope, playerIds });
-    if (error || !data || !data.token) { setErr("Could not create a helper link."); return; }
+    if (error || !data || !data.token) { setActionErr("Could not create a helper link."); return; }
     setGrantToken(data.token); setGrantScope(scope);
     await refresh();
   };
@@ -134,9 +156,10 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
         {recording && canFinalize && <button type="button" className="btn primary bsm" onClick={() => doFinalize(false)}>Finalize</button>}
-        {state === "finalized" && canManage && <button type="button" className="btn ghost bsm" onClick={async () => { await reopenBenchmarkAssessment(assessmentId); await refresh(); }}>Reopen for correction</button>}
+        {state === "finalized" && canManage && <button type="button" className="btn ghost bsm" onClick={async () => { setActionErr(""); await reopenBenchmarkAssessment(assessmentId); await refresh(); }}>Reopen for correction</button>}
         {recording && canFinalize && <button type="button" className="btn ghost bsm" onClick={() => addHelper(subjectMode === "team" ? "team" : "players")}>Add a recording helper</button>}
       </div>
+      {actionErr && <div style={{ color: "var(--red)", fontSize: 13, marginTop: 6 }}>{actionErr}</div>}
 
       {grantToken && recording && <div style={{ marginTop: 10, background: "var(--s2)", borderRadius: 8, padding: 10 }}>
         <div style={{ fontSize: 12, fontWeight: 700 }}>Recording link ({grantScope === "team" ? "team result" : "all listed players"})</div>

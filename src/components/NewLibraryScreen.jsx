@@ -5,6 +5,7 @@ import { ActConfig, ChecklistConfig, StationConfig, ScrimmageConfig, useActivity
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
 import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, archiveSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport, createBenchmark, createBenchmarkVersion, correctBenchmarkVersionWording, archiveBenchmark, restoreBenchmark, adoptBenchmarkForTeam, fetchBenchmarkAssessments } from "../supabase.js";
 import { METRIC_META, displayDecimals } from "../benchmarks.js";
+import { MeasureAgainModal } from "./BenchmarkReport.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 import DrillInsightsView from "./DrillInsightsView.jsx";
 
@@ -1186,6 +1187,8 @@ function BenchmarkDetail({ data, coachId, mode, benchmark, teamId, setTeamId, ca
   const [assessments, setAssessments] = useState(null);
   const [newVersion, setNewVersion] = useState(false);
   const [wording, setWording] = useState(null);
+  const [measureAgain, setMeasureAgain] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const v = benchmark.latestVersion;
   const teams = teamsForMode(data.teams || [], mode, coachId);
   const adopted = teamId ? (data.teams || []).find(t => t.id === teamId) : null;
@@ -1196,7 +1199,7 @@ function BenchmarkDetail({ data, coachId, mode, benchmark, teamId, setTeamId, ca
     setAssessments(null);
     fetchBenchmarkAssessments(teamId, benchmark.id, { limit: 25 }).then(rows => { if (alive) setAssessments(rows); });
     return () => { alive = false; };
-  }, [teamId, benchmark.id]);
+  }, [teamId, benchmark.id, reloadKey]);
 
   return (
     <div>
@@ -1242,18 +1245,31 @@ function BenchmarkDetail({ data, coachId, mode, benchmark, teamId, setTeamId, ca
           {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>}
         {teamId && assessments === null && <div style={{ fontSize: 12, color: "var(--td)" }}>Loading...</div>}
+        {teamId && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+            <button type="button" className="btn ghost bsm" onClick={async () => { await adoptBenchmarkForTeam(benchmark.id, teamId, v.id); setReloadKey(k => k + 1); }}>Add to {adopted ? adopted.name : "team"}</button>
+            {!benchmark.archivedAt && <button type="button" className="btn primary bsm" onClick={() => setMeasureAgain(true)}>Measure again</button>}
+          </div>
+        )}
+        {teamId && assessments === null && <div style={{ fontSize: 12, color: "var(--td)" }}>Loading...</div>}
         {teamId && assessments && assessments.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>
-          No measurements for {adopted ? adopted.name : "this team"} yet.
-          {canManage && <button type="button" className="btn ghost bxs" style={{ marginLeft: 8 }} onClick={async () => { await adoptBenchmarkForTeam(benchmark.id, teamId, v.id); alert("Added to " + (adopted ? adopted.name : "team") + ". Use the Builder or Measure Again to record results (those land with the next stages)."); }}>Add to this team</button>}
+          No measurements for {adopted ? adopted.name : "this team"} yet. Add it to a practice in the Builder, or use Measure Again to record now.
         </div>}
         {teamId && assessments && assessments.length > 0 && <div>
           {assessments.map(a => <div key={a.id} style={{ fontSize: 13, padding: "6px 0", borderTop: "1px solid var(--b)" }}>
             <b>{a.measuredLocalDate}</b>{a.label ? " · " + a.label : ""} <span className="bdg bs">{a.state}{a.underCorrection ? " (under correction)" : ""}</span>
             {a.excludedFromComparisons && <span className="bdg bs" style={{ marginLeft: 4 }}>excluded</span>}
           </div>)}
-          <div style={{ fontSize: 11, color: "var(--td)", marginTop: 8 }}>Comparisons, targets and player history render here once the reporting stage lands.</div>
+          <div style={{ fontSize: 11, color: "var(--td)", marginTop: 8 }}>Comparisons, targets and player history are in Goals &amp; Insights &rarr; Benchmarks and each player's profile.</div>
         </div>}
       </div>
+
+      {measureAgain && <MeasureAgainModal
+        teamId={teamId} team={adopted} coachId={coachId}
+        benchmarkId={benchmark.id} versionId={v.id} title={benchmark.title}
+        onClose={() => setMeasureAgain(false)}
+        onDone={() => { setMeasureAgain(false); setReloadKey(k => k + 1); }}
+      />}
 
       {newVersion && <div className="movly" style={{ zIndex: 320 }} onClick={e => { if (e.target === e.currentTarget) setNewVersion(false); }}>
         <BenchmarkForm data={data} coachId={coachId} mode={mode} baseVersion={v} onCancel={() => setNewVersion(false)} onSaved={async () => { setNewVersion(false); await refreshLibrary(); }} />
