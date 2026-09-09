@@ -1285,20 +1285,35 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // screen on its own and stays put while they keep browsing/adding further
   // down in the library, with zero forced movement.
   const collapseAndScroll=id=>{
+    const wasLast=id===ropLastId;
     setExpandedId(null);
-    // Direct feedback: Done on a long station block sometimes left the
-    // coach scrolled somewhere past the collapsed row instead of back at
-    // it. Root cause: collapsing a very tall block changes this section's
-    // total height, which the ResizeObserver above (runOfPracticeH, for the
-    // green backdrop) reacts to with its own layout pass -- scrolling on
-    // the very next frame could still be racing that reflow, so the smooth
-    // scroll's target position was computed against a not-yet-settled
-    // layout and could overshoot well past the actual row. A second rAF
-    // lets that follow-up layout pass finish first.
+    // Direct feedback (two rounds): Done on a tall config (a long station
+    // block, or a scrimmage board) used to leave the coach staring at the
+    // green backdrop, having to scroll back up to the collapsed rows.
+    // Two compounding causes: (1) collapsing changes the section height and
+    // the runOfPracticeH ResizeObserver reflows on its own frame, so a
+    // scroll on the next frame raced a not-yet-settled layout; (2) that
+    // green-backdrop height is measured relative to the current scroll
+    // position, so while the pane is still scrolled deep it stays tall and
+    // keeps the scroll range from shrinking -- scrollIntoView then has
+    // nothing to shrink into.
+    //   Fix: first snap the section's own top into view (this both resets
+    // the scroll-position-dependent green height and, for a short practice,
+    // is already the whole answer -- everything's visible). Then, once the
+    // green has been recomputed against the corrected position, bring the
+    // target back: the section END for a Done on the last row (short ->
+    // clamps to top / everything visible, long -> its natural bottom), or
+    // the row itself, minimally, for any earlier row.
+    const startEl=runOfPracticeStartRef.current;
+    if(startEl)startEl.scrollIntoView({block:"start"});
     requestAnimationFrame(()=>{
+      recomputeRunOfPracticeH();
       requestAnimationFrame(()=>{
-        const el=rowRefs.current[id];
-        if(el)el.scrollIntoView({behavior:"smooth",block:"start"});
+        recomputeRunOfPracticeH();
+        const endEl=runOfPracticeEndRef.current;
+        const rowEl=rowRefs.current[id];
+        if(wasLast&&endEl)endEl.scrollIntoView({behavior:"smooth",block:"end"});
+        else if(rowEl)rowEl.scrollIntoView({behavior:"smooth",block:"nearest"});
       });
     });
   };

@@ -1143,7 +1143,10 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
       </div>}
 
       {/* rounds */}
-      <div className={isBB?"scrim-board-bb":undefined} style={isBB?{overflowX:"auto"}:undefined}>
+      {/* paddingBottom keeps the horizontal scrollbar off the last row's
+          cells -- with a classic (non-overlay) scrollbar it otherwise sits
+          right on top of the tap targets in the final round. */}
+      <div className={isBB?"scrim-board-bb":undefined} style={isBB?{overflowX:"auto",paddingBottom:14}:undefined}>
         {isBB?(
           <table style={{borderCollapse:"collapse",width:"100%",fontSize:12}}>
             <thead><tr>
