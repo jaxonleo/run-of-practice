@@ -542,18 +542,29 @@ export default function App(){
     setLibrary(await fetchLibraryData());
   },[coachId]);
   const [planning,setPlanning]=useState({locations:[],practices:[],templates:[]});
+  // allSettled + per-slice merge, not Promise.all: a failure in any one of
+  // the three fetches used to reject the whole thing, so setPlanning never
+  // ran and every slice stayed empty even though the other two loaded fine.
+  // Now each slice that resolved is applied and a slice that failed keeps
+  // whatever it had (empty on the first load, good data on a re-fetch).
   const refreshPlanning=useCallback(async()=>{
     if(!coachId)return;
-    const [locations,practices,templates]=await Promise.all([fetchLocations(),fetchPracticesFull(),fetchTemplatesFull()]);
-    setPlanning({locations,practices,templates});
+    const [locs,pracs,tpls]=await Promise.allSettled([fetchLocations(),fetchPracticesFull(),fetchTemplatesFull()]);
+    setPlanning(prev=>({
+      locations: locs.status==="fulfilled"?locs.value:prev.locations,
+      practices: pracs.status==="fulfilled"?pracs.value:prev.practices,
+      templates: tpls.status==="fulfilled"?tpls.value:prev.templates,
+    }));
+    for(const [name,r] of [["fetchLocations",locs],["fetchPracticesFull",pracs],["fetchTemplatesFull",tpls]])
+      if(r.status==="rejected")console.error("refreshPlanning: "+name+" failed:",r.reason);
   },[coachId]);
   // Single combined load gate -- `loaded` used to flip once the (now-removed)
   // legacy app_data blob resolved; teams/library/planning are the real data
   // sources, so it waits on all three instead. allSettled, not all -- a
-  // rejection in any one of these must never hang the loading screen forever
-  // (the old app_data-based gate was fully decoupled from these fetches, so
-  // this failure mode didn't exist before; each fetch already handles its
-  // own query-level errors internally and returns a safe empty default).
+  // rejection in any one of these must never hang the loading screen forever.
+  // refreshTeams/refreshLibrary keep their prior state on a throw (the fetch
+  // helpers now throw on a primary-query error instead of silently returning
+  // an empty default); refreshPlanning merges partial results itself.
   useEffect(()=>{
     if(!coachId){setLoaded(false);return;}
     setLoaded(false);
@@ -562,6 +573,21 @@ export default function App(){
       setLoaded(true);
     });
   },[coachId,refreshTeams,refreshLibrary,refreshPlanning]);
+  // Self-heal: a transient auth/network failure during the initial load
+  // leaves a data slice stale with no retry until the user happens onto a
+  // screen that refetches. Once the first load has completed, re-run the
+  // loaders in the background whenever the session object changes for the
+  // same coach (token refresh, tab-refocus re-auth) -- no loading screen,
+  // partial results merge, so the worst case is a redundant refetch.
+  const loadedForRef=useRef(null);
+  useEffect(()=>{if(loaded&&coachId)loadedForRef.current=coachId;},[loaded,coachId]);
+  useEffect(()=>{
+    // Only a *repeat* session event for a coach we've already loaded --
+    // a first sign-in / coach switch is handled by the main load gate above.
+    if(!coachId||loadedForRef.current!==coachId)return;
+    Promise.allSettled([refreshTeams(),refreshLibrary(),refreshPlanning()]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[session]);
   // Real bug (direct feedback): a head coach already signed in and sitting
   // on Home never learned an assistant had accepted their invite -- teams/
   // library are fetched once at login and never refetched in response to
@@ -874,11 +900,17 @@ function TeamScheduleRoute(){
   const {data,goToBuilder,goToRun,coachId,refreshPlanning:refreshGlobalPlanning,setSubViewBack,mode}=useAppCtx();
   const [teamPractices,setTeamPractices]=useState(null);
   const refreshTeamPractices=useCallback(()=>{
-    fetchPracticesFull(teamId).then(setTeamPractices);
+    // fetchPracticesFull now throws on a load failure -- fall back to the
+    // prior list (or an empty one on the first try) so this never sits on
+    // "Loading..." forever.
+    return fetchPracticesFull(teamId).then(setTeamPractices).catch(e=>{
+      console.error("refreshTeamPractices:",e);
+      setTeamPractices(p=>p||[]);
+    });
   },[teamId]);
   useEffect(()=>{refreshTeamPractices();},[refreshTeamPractices]);
   const refreshBoth=useCallback(async()=>{
-    await Promise.all([refreshTeamPractices(),refreshGlobalPlanning()]);
+    await Promise.allSettled([refreshTeamPractices(),refreshGlobalPlanning()]);
   },[refreshTeamPractices,refreshGlobalPlanning]);
   if(teamPractices===null)return (<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Loading...</div>);
   const scopedData=Object.assign({},data,{practices:teamPractices});
@@ -2222,9 +2254,13 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         return (<>
           <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:6,marginBottom:10,flexWrap:"wrap"}} onClick={e=>e.stopPropagation()}>
             <select className="btn ghost bxs" value={builderDrillSort} onChange={e=>setBuilderDrillSort(e.target.value)}>
-              <option value="custom">Sort: Custom</option>
-              <option value="alpha">Sort: Alphabetical</option>
-              <option value="byskill">Group by Skill</option>
+              <optgroup label="Sort">
+                <option value="custom">Custom order</option>
+                <option value="alpha">Alphabetical</option>
+              </optgroup>
+              <optgroup label="Group">
+                <option value="byskill">By skill tag</option>
+              </optgroup>
             </select>
             {builderAvailableTags.length>0&&<button type="button" className="btn ghost bxs" onClick={()=>setShowBuilderFilter(s=>!s)}>{builderTagFilter.length?"Filter ("+builderTagFilter.length+")":"Filter"}</button>}
           </div>
@@ -2305,7 +2341,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
 // Player" modal anymore. Tapping Edit swaps the relevant cards to their
 // input form in place; everything else (skill notes, Mark Out) stays live
 // underneath since those already save as you go.
-function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachId,canManage,onBack}){
+function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachId,canManage,onBack,onSaved}){
   // BB layout pass: a width cap on this full-screen detail view -- just a
   // plain className on the root div below. This hook is unconditional and
   // has no dependency on anything else in this component, so it can't
@@ -2330,12 +2366,21 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   const isDirty=canManage&&JSON.stringify(f)!==JSON.stringify(savedSnapshot);
   const discardEdits=()=>setF(savedSnapshot);
   const saveEdit=async()=>{
-    if(!f.firstName.trim())return;
+    if(!f.firstName.trim())return false;
     setSaving(true);
     await updatePlayer(player.id,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:f.positions||[],bats:f.bats||"",throws:f.throws||"",notes:f.notes||""});
     await refreshTeams();
     setSavedSnapshot(f);
     setSaving(false);
+    return true;
+  };
+  // Direct feedback: the primary Save used to just gray itself out and
+  // leave you on the profile with no confirmation. Now it saves, then hands
+  // back to the roster (which flashes a "Saved" toast). saveEdit itself is
+  // unchanged for the leave-prompt's Save & Leave path.
+  const saveAndReturn=async()=>{
+    const ok=await saveEdit();
+    if(ok!==false)(onSaved||onBack)();
   };
   // Direct feedback: a plain "leave without saving?" confirm only offered
   // leave-or-stay, no way to actually save from the prompt itself. Replaced
@@ -2487,7 +2532,7 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
         nothing to discard until something's actually changed. */}
     {canManage&&<div className="brow mt10 mb10">
       {isDirty&&<button className="btn ghost bmd" style={{flex:1}} onClick={discardEdits} disabled={saving}>Discard Changes</button>}
-      <button className="btn primary bmd" style={{flex:1}} onClick={saveEdit} disabled={saving||!isDirty||!f.firstName.trim()}>{saving?"Saving...":"Save"}</button>
+      <button className="btn primary bmd" style={{flex:1}} onClick={saveAndReturn} disabled={saving||!isDirty||!f.firstName.trim()}>{saving?"Saving...":"Save"}</button>
     </div>}
     {showLeavePrompt&&<div className="confirm-box mb10">
       <div className="confirm-title">Unsaved Changes</div>
@@ -2555,6 +2600,8 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
   const [openMenuUp,setOpenMenuUp]=useState(false);
   const [sort,setSort]=useState({by:"firstName",dir:"asc"});
   const [viewPlayer,setViewPlayer]=useState(null);
+  const [savedNotice,setSavedNotice]=useState(false);
+  useEffect(()=>{if(!savedNotice)return;const t=setTimeout(()=>setSavedNotice(false),2600);return()=>clearTimeout(t);},[savedNotice]);
   const [confirmRemovePlayer,setConfirmRemovePlayer]=useState(null);
   // Direct feedback: removing an assistant/helper from the roster used to
   // happen immediately on tap, no confirmation -- same "Cannot be undone"
@@ -2606,8 +2653,9 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
     else{av=(a.firstName+" "+a.lastName).toLowerCase();bv=(b.firstName+" "+b.lastName).toLowerCase();}
     return sort.dir==="asc"?(av>bv?1:av<bv?-1:0):(av<bv?1:av>bv?-1:0);
   }):[];
-  if(viewPlayer)return(<PlayerProfile player={viewPlayer} team={team} data={data} refreshTeams={refreshTeams} coachId={coachId} canManage={canManage} onBack={()=>setViewPlayer(null)}/>);
+  if(viewPlayer)return(<PlayerProfile player={viewPlayer} team={team} data={data} refreshTeams={refreshTeams} coachId={coachId} canManage={canManage} onBack={()=>setViewPlayer(null)} onSaved={()=>{setViewPlayer(null);setSavedNotice(true);}}/>);
   return (<div className={isBB?"bb-centered-page":undefined} style={{paddingBottom:80}} onClick={()=>setOpenMenu(null)}>
+    {savedNotice&&<div style={{position:"fixed",top:12,left:"50%",transform:"translateX(-50%)",zIndex:60,background:"var(--green)",color:"#fff",padding:"8px 16px",borderRadius:20,fontSize:13,fontWeight:600,boxShadow:"0 4px 12px rgba(0,0,0,.2)"}}>Player saved</div>}
     {!fixedTeamId&&(<div className="sechdr mb8">
       <div>{data.teams.length>1&&<select className="sel" style={{maxWidth:200}} value={teamId} onChange={e=>setTeamId(e.target.value)}>{data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>}</div>
       <button className="btn primary bsm" onClick={e=>{e.stopPropagation();openModal("addTeam");}}>+ Team</button>
@@ -2622,14 +2670,15 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
           <div className="row"><span className="sectitle">{team.players.length} Players</span>
             <div style={{position:"relative"}}>
               <button className="sort-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="__sort__"?null:"__sort__");}}><Ic.Sort/></button>
-              {openMenu==="__sort__"&&(<div className="mini-menu" style={{left:0,minWidth:160}}>
+              {openMenu==="__sort__"&&(<div className="mini-menu" style={{left:0,minWidth:170}}>
                 {[
-                  {by:"firstName",dir:"asc",label:"First Name A-Z"},
-                  {by:"firstName",dir:"desc",label:"First Name Z-A"},
-                  {by:"lastName",dir:"asc",label:"Last Name A-Z"},
-                  {by:"lastName",dir:"desc",label:"Last Name Z-A"},
-                  {by:"jersey",dir:"asc",label:"# Low-High"},
-                  {by:"jersey",dir:"desc",label:"# High-Low"},
+                  {by:"firstName",dir:"asc",label:"Sort: First Name A-Z"},
+                  {by:"firstName",dir:"desc",label:"Sort: First Name Z-A"},
+                  {by:"lastName",dir:"asc",label:"Sort: Last Name A-Z"},
+                  {by:"lastName",dir:"desc",label:"Sort: Last Name Z-A"},
+                  {by:"jersey",dir:"asc",label:"Sort: # Low-High"},
+                  {by:"jersey",dir:"desc",label:"Sort: # High-Low"},
+                  {by:"position",dir:"asc",label:"Group: By Position"},
                 ].map(opt=>(<button key={opt.by+opt.dir} className="mm-item" onClick={e=>{e.stopPropagation();setSort({by:opt.by,dir:opt.dir});setOpenMenu(null);}}>
                   {sort.by===opt.by&&sort.dir===opt.dir?"* ":""}{opt.label}
                 </button>))}
@@ -2638,21 +2687,52 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
           </div>
           {canManage&&<button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addPlayer",{teamId});}}>+ Add</button>}
         </div>
-        {sorted.map(p=>(<div key={p.id} className="li tap" style={{position:"relative"}} onClick={()=>setViewPlayer(p)}>
-          <div className="lim">
-            <div className="lin">{p.jersey?"#"+p.jersey+" ":""}{p.firstName} {p.lastName}{p.positions&&p.positions.length>0?" · "+p.positions.join("/"):""}</div>
-            {(p.focusAreas&&p.focusAreas.length>0)&&<div className="limt">{p.focusAreas.length} focus area{p.focusAreas.length>1?"s":""}</div>}
-            {(!p.focusAreas||!p.focusAreas.length)&&p.notes&&<div className="limt">{p.notes}</div>}
-          </div>
-          {canManage&&<button className="ell-btn" onClick={e=>{
-            e.stopPropagation();
-            if(openMenu===p.id){setOpenMenu(null);return;}
-            setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));
-            setOpenMenu(p.id);
-          }}><span/><span/><span/></button>}
-          {canManage&&openMenu===p.id&&<div className="mini-menu" style={openMenuUp?{top:"auto",bottom:"calc(100% - 4px)"}:undefined}><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setViewPlayer(p);}}>Player Profile</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);setConfirmRemovePlayer(p);}}>Remove</button></div>}
-        </div>))}
-        {!team.players.length&&<div className="empty"><div className="emtx">No players yet{canManage?" -- tap + Add.":"."}</div></div>}
+        {(()=>{
+          // A plain render function (not a component) so the flat list and
+          // the grouped-by-position list draw an identical row without
+          // introducing a remount boundary. keyPrefix keeps React keys and
+          // the open-menu key unique when a multi-position player appears
+          // under several position headers.
+          const playerRow=(p,keyPrefix)=>{
+            const menuKey=(keyPrefix||"")+p.id;
+            return (<div key={menuKey} className="li tap" style={{position:"relative"}} onClick={()=>setViewPlayer(p)}>
+              <div className="lim">
+                <div className="lin">{p.jersey?"#"+p.jersey+" ":""}{p.firstName} {p.lastName}{p.positions&&p.positions.length>0?" · "+p.positions.join("/"):""}</div>
+                {(p.focusAreas&&p.focusAreas.length>0)&&<div className="limt">{p.focusAreas.length} focus area{p.focusAreas.length>1?"s":""}</div>}
+                {(!p.focusAreas||!p.focusAreas.length)&&p.notes&&<div className="limt">{p.notes}</div>}
+              </div>
+              {canManage&&<button className="ell-btn" onClick={e=>{
+                e.stopPropagation();
+                if(openMenu===menuKey){setOpenMenu(null);return;}
+                setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));
+                setOpenMenu(menuKey);
+              }}><span/><span/><span/></button>}
+              {canManage&&openMenu===menuKey&&<div className="mini-menu" style={openMenuUp?{top:"auto",bottom:"calc(100% - 4px)"}:undefined}><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setViewPlayer(p);}}>Player Profile</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);setConfirmRemovePlayer(p);}}>Remove</button></div>}
+            </div>);
+          };
+          if(!team.players.length)return <div className="empty"><div className="emtx">No players yet{canManage?" -- tap + Add.":"."}</div></div>;
+          if(sort.by!=="position")return sorted.map(p=>playerRow(p));
+          // Group by position. Headers follow the sport's own position order;
+          // a player with several positions shows under each of them; anyone
+          // with none lands in "No Position". Players inside a group are
+          // ordered by first name.
+          const order=POSITIONS_BY_SPORT[team.sport]||[];
+          const used=new Set();
+          team.players.forEach(p=>(p.positions||[]).forEach(pos=>used.add(pos)));
+          const heads=[...order.filter(pos=>used.has(pos)),...[...used].filter(pos=>!order.includes(pos)).sort()];
+          const byPos=pos=>team.players.filter(p=>(p.positions||[]).includes(pos)).sort((a,b)=>(a.firstName||"").localeCompare(b.firstName||""));
+          const noPos=team.players.filter(p=>!p.positions||!p.positions.length).sort((a,b)=>(a.firstName||"").localeCompare(b.firstName||""));
+          return (<>
+            {heads.map(pos=>(<div key={pos} style={{marginBottom:12}}>
+              <div style={{fontSize:12,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 4px"}}>{pos} ({byPos(pos).length})</div>
+              {byPos(pos).map(p=>playerRow(p,pos+"|"))}
+            </div>))}
+            {noPos.length>0&&<div style={{marginBottom:12}}>
+              <div style={{fontSize:12,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 4px"}}>No Position ({noPos.length})</div>
+              {noPos.map(p=>playerRow(p,"none|"))}
+            </div>}
+          </>);
+        })()}
       </div>)}
       {tab==="coaches"&&(<div>
         <div className="sechdr mb8"><span className="sectitle">{team.coaches.length} Coaches</span>{canManage&&<button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addCoach",{teamId});}}>+ Add</button>}</div>

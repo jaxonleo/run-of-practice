@@ -1559,6 +1559,9 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
     });
   },[mineShelfIdsKey]);
   const isMine=shelf==="mine";
+  // Custom order / Most Used / Suggested only mean something on your own
+  // shelf; a shared or org shelf still gets Alphabetical + Group by Skill.
+  const effSort=isMine?drillSort:(drillSort==="byskill"?"byskill":"alpha");
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
   // Only offer tags that at least one drill on this shelf actually has --
@@ -1720,13 +1723,17 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           real .btn ghost bsm select sharing the same row, so the whole
           row reads as one consistent set of controls. */}
       <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:6,marginBottom:12,flexWrap:"wrap"}} onClick={e=>e.stopPropagation()}>
-        {isMine&&<select className="btn ghost bsm" value={drillSort} onChange={e=>setDrillSort(e.target.value)} style={{flexShrink:0}}>
-          <option value="custom">Sort: Custom</option>
-          <option value="frequency">Sort: Most Used</option>
-          <option value="alpha">Sort: Alphabetical</option>
-          <option value="suggested">Sort: Suggested</option>
-          <option value="byskill">Group by Skill</option>
-        </select>}
+        <select className="btn ghost bsm" value={effSort} onChange={e=>setDrillSort(e.target.value)} style={{flexShrink:0}}>
+          <optgroup label="Sort">
+            {isMine&&<option value="custom">Custom order</option>}
+            {isMine&&<option value="frequency">Most used</option>}
+            <option value="alpha">Alphabetical</option>
+            {isMine&&<option value="suggested">Suggested</option>}
+          </optgroup>
+          <optgroup label="Group">
+            <option value="byskill">By skill tag</option>
+          </optgroup>
+        </select>
         {isMine&&drillSort==="suggested"&&myTeamsForSort.length>1&&<select className="btn ghost bsm" value={suggestedTeamId} onChange={e=>setSuggestedTeamId(e.target.value)} style={{flexShrink:0}}>
           {myTeamsForSort.map(t=>(<option key={t.id} value={t.id}>{t.name}</option>))}
         </select>}
@@ -1783,15 +1790,15 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           // by frequency/alphabetical/suggested wouldn't mean anything
           // stable to drop back into).
           let sportDrills;
-          if(isMine&&drillSort==="alpha"){
+          if(effSort==="alpha"){
             sportDrills=bySport.slice().sort((a,b)=>a.name.localeCompare(b.name));
-          }else if(isMine&&drillSort==="frequency"){
+          }else if(isMine&&effSort==="frequency"){
             sportDrills=bySport.slice().sort((a,b)=>{
               const na=(insightSummaries[a.id]&&insightSummaries[a.id].completed_uses_trailing_12_months)||0;
               const nb=(insightSummaries[b.id]&&insightSummaries[b.id].completed_uses_trailing_12_months)||0;
               return nb-na||a.name.localeCompare(b.name);
             });
-          }else if(isMine&&drillSort==="suggested"){
+          }else if(isMine&&effSort==="suggested"){
             sportDrills=bySport.slice().sort((a,b)=>drillPriority(b)-drillPriority(a)||a.name.localeCompare(b.name));
           }else{
             sportDrills=(isMine&&drillOrderOverride[sport])
@@ -1863,7 +1870,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           // for the inverse case. Derived straight from this sport's own
           // drills (not a separate skill-category fetch), sorted
           // alphabetically by tag name so the header order is stable.
-          if(isMine&&drillSort==="byskill"){
+          if(effSort==="byskill"){
             const byTag={};
             const untagged=[];
             sportDrills.forEach(act=>{
@@ -1886,7 +1893,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
               </div>}
             </>);
           }
-          if(!isMine||drillSort!=="custom")return sportDrills.map(act=>(<Row key={act.id} act={act} dragHandle={null}/>));
+          if(!isMine||effSort!=="custom")return sportDrills.map(act=>(<Row key={act.id} act={act} dragHandle={null}/>));
           return (<ActivityDndContext sensors={drillDndSensors} onDragEnd={onDrillDragEnd(sport)} items={sportDrills.map(a=>a.id)}>
             {sportDrills.map(act=>(<SortableActivityRow key={act.id} id={act.id} raised={drillMenu===act.id||shareMenuId===act.id}>{dragHandle=><Row act={act} dragHandle={dragHandle}/>}</SortableActivityRow>))}
           </ActivityDndContext>);
