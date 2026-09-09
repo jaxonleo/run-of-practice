@@ -418,6 +418,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   const [newEquipIdx,setNewEquipIdx]=useState(null);
   const [newGearIdx,setNewGearIdx]=useState(null);
   const [libraryPickerIdx,setLibraryPickerIdx]=useState(null);
+  const [pickerSort,setPickerSort]=useState("alpha"); // "alpha" | "byskill"
   const [benchmarkPickerIdx,setBenchmarkPickerIdx]=useState(null);
   const benchmarkOpts=(benchmarks||[]).filter(b=>!b.archivedAt&&b.latestVersion&&((b.sport||"General")===(teamSport||"General")||(b.sport||"General")==="General"));
   const chooseBenchmark=(si,bm)=>{
@@ -698,11 +699,15 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
                   BuilderScreen) rather than a second, independent one keeps
                   "which library am I browsing" answered the same way in
                   both places at once; defaults to "My Library" either way. */}
-              {librarySources&&librarySources.length>1&&<div style={{padding:"0 20px 12px"}}>
-                <select className="sel" value={libSource} onChange={e=>setLibSource(e.target.value)}>
+              <div style={{padding:"0 20px 12px",display:"flex",gap:8,flexWrap:"wrap"}}>
+                {librarySources&&librarySources.length>1&&<select className="sel" style={{flex:1,minWidth:0}} value={libSource} onChange={e=>setLibSource(e.target.value)}>
                   {librarySources.map(s=>(<option key={s.key} value={s.key}>{s.label}</option>))}
+                </select>}
+                <select className="sel" style={{flexShrink:0}} value={pickerSort} onChange={e=>setPickerSort(e.target.value)}>
+                  <optgroup label="Sort"><option value="alpha">Alphabetical</option></optgroup>
+                  <optgroup label="Group"><option value="byskill">By skill tag</option></optgroup>
                 </select>
-              </div>}
+              </div>
               {/* Direct feedback: the last drill in this list was cut off by
                   the app's own fixed bottom tab bar -- this popup renders
                   above it in stacking order (movly's z-index beats the tab
@@ -713,16 +718,37 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
                   last row somewhere to scroll to. */}
               <div style={{overflowY:"auto",flex:1,padding:"0 20px calc(20px + var(--tab) + env(safe-area-inset-bottom,0px))"}}>
                 {filteredLibrary.length===0&&<div style={{padding:10,fontSize:13,color:"var(--td)"}}>No drills in this library for {sport} yet.</div>}
-                {filteredLibrary.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>chooseFromLibrary(si,lib)}>
-                  <div className="lim">
-                    <div className="lin">{lib.name}</div>
-                    {lib.description&&<div className="limt">{lib.description}</div>}
-                    {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                      {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
-                    </div>}
-                  </div>
-                  <div className="lir"><span className="bdg bp">{lib.duration}m</span></div>
-                </div>))}
+                {(()=>{
+                  const drillRow=(lib,keyPrefix)=>(<div key={(keyPrefix||"")+lib.id} className="li tap" onClick={()=>chooseFromLibrary(si,lib)}>
+                    <div className="lim">
+                      <div className="lin">{lib.name}</div>
+                      {lib.description&&<div className="limt">{lib.description}</div>}
+                      {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                        {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+                      </div>}
+                    </div>
+                    <div className="lir"><span className="bdg bp">{lib.duration}m</span></div>
+                  </div>);
+                  if(pickerSort==="byskill"){
+                    const byTag={};const untagged=[];
+                    filteredLibrary.forEach(lib=>{
+                      if(!lib.skillTagIds||!lib.skillTagIds.length){untagged.push(lib);return;}
+                      lib.skillTagIds.forEach(tid=>{(byTag[tid]=byTag[tid]||[]).push(lib);});
+                    });
+                    const tagIds=Object.keys(byTag).sort((a,b)=>((skillTagsById[a]&&skillTagsById[a].name)||"").localeCompare((skillTagsById[b]&&skillTagsById[b].name)||""));
+                    return (<>
+                      {tagIds.map(tid=>(<div key={tid} style={{marginBottom:10}}>
+                        <div style={{fontSize:11,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 0"}}>{(skillTagsById[tid]&&skillTagsById[tid].name)||"Tag"} ({byTag[tid].length})</div>
+                        {byTag[tid].map(lib=>drillRow(lib,tid+"|"))}
+                      </div>))}
+                      {untagged.length>0&&<div style={{marginBottom:10}}>
+                        <div style={{fontSize:11,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 0"}}>Untagged ({untagged.length})</div>
+                        {untagged.map(lib=>drillRow(lib,"u|"))}
+                      </div>}
+                    </>);
+                  }
+                  return filteredLibrary.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(lib=>drillRow(lib));
+                })()}
               </div>
             </div>
           </div>}
@@ -912,18 +938,13 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
 
   const setCfg=patch=>onChange({scrimmageConfig:Object.assign({},cfg,patch)});
 
-  // Duration <-> half-inning count stay linked both ways. Once the coach
-  // edits either directly the per-round minutes ratio is what's preserved,
-  // never a hardcoded 6.
-  const perRound=Math.max(1,Math.round((act.duration||60)/Math.max(1,cfg.rounds)));
-  const setDuration=mins=>{
-    const rounds=Math.max(1,Math.round(mins/perRound));
-    onChange({duration:mins,scrimmageConfig:Object.assign({},cfg,{rounds})});
-  };
-  const setRounds=n=>{
-    const rounds=Math.max(1,n);
-    onChange({duration:rounds*perRound,scrimmageConfig:Object.assign({},cfg,{rounds})});
-  };
+  // Duration and round count are INDEPENDENT (direct feedback). Editing one
+  // never moves the other. When the per-round pacing timer is on, the live
+  // board derives its countdown as duration / rounds -- see CommandScreen's
+  // scrimPerRoundSecs -- so the coach sets both freely and the split is
+  // computed, not stored. setRounds is defined further down, once genInput /
+  // repair helpers exist.
+  const setDuration=mins=>onChange({duration:mins});
 
   const genInput=(rounds)=>({
     players:pool.map(p=>({id:p.id,name:((p.firstName||"")+" "+(p.lastName||"")).trim()||p.firstName,positions:p.positions||[],locks:(cfg.locks||{})[p.id]||{}})),
@@ -953,16 +974,29 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
     onChange({scrimmageRounds:b.map((rd,i)=>({slots:rd.slots,coachRoles:(board[i]&&board[i].coachRoles)||rolesAssignMap()}))});
     setWarnings(w);
   };
+  // Round count changes never touch `duration` (they used to). When no board
+  // has been generated yet, setRounds just records the count for the next
+  // Generate; once a board exists it grows/trims + repairs it in place.
+  const setRounds=n=>{
+    const rounds=Math.max(1,n);
+    if(!board||rounds===board.length){setCfg({rounds});return;}
+    const next=rounds>board.length
+      ?board.concat(Array.from({length:rounds-board.length},()=>({slots:{}})))
+      :board.slice(0,rounds);
+    const {board:b,warnings:w}=repairScrimmageBoard(genInput(rounds),next.map(rd=>({slots:Object.assign({},rd.slots)})));
+    onChange({scrimmageConfig:Object.assign({},cfg,{rounds}),scrimmageRounds:b.map((rd,i)=>({slots:rd.slots,coachRoles:(board[i]&&board[i].coachRoles)||rolesAssignMap()}))});
+    setWarnings(w);
+  };
   const addHalfInning=()=>{
     const next=(board||[]).concat([{slots:{}}]);
     const {board:b,warnings:w}=repairScrimmageBoard(genInput(next.length),next.map(rd=>({slots:Object.assign({},rd.slots)})));
-    onChange({duration:(cfg.rounds+1)*perRound,scrimmageConfig:Object.assign({},cfg,{rounds:cfg.rounds+1}),scrimmageRounds:b.map((rd,i)=>({slots:rd.slots,coachRoles:(board&&board[i]&&board[i].coachRoles)||rolesAssignMap()}))});
+    onChange({scrimmageConfig:Object.assign({},cfg,{rounds:(cfg.rounds||0)+1}),scrimmageRounds:b.map((rd,i)=>({slots:rd.slots,coachRoles:(board&&board[i]&&board[i].coachRoles)||rolesAssignMap()}))});
     setWarnings(w);
   };
   const removeHalfInning=idx=>{
     if(!board||board.length<=1)return;
     const nb=board.filter((_,i)=>i!==idx);
-    onChange({duration:nb.length*perRound,scrimmageConfig:Object.assign({},cfg,{rounds:nb.length}),scrimmageRounds:nb});
+    onChange({scrimmageConfig:Object.assign({},cfg,{rounds:nb.length}),scrimmageRounds:nb});
   };
 
   // ── pick-up-and-drop swap within one round ───────────────────────────────
@@ -1045,15 +1079,16 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
       <input className="inp" value={act.name||""} placeholder="Scrimmage" onChange={e=>onChange({name:e.target.value})} onFocus={e=>e.target.select()}/>
     </div>
 
-    {/* 2. Duration + Half-Innings (linked both ways) */}
+    {/* 2. Duration + rounds -- independent. Set each to whatever you want. */}
     <div className="g2">
       <div className="fld"><label className="lbl">Duration (min)</label>
         <CountStepper value={act.duration||60} min={6} onChange={setDuration}/>
       </div>
       <div className="fld"><label className="lbl">{label}s</label>
-        <CountStepper value={cfg.rounds} min={1} max={40} onChange={setRounds}/>
+        <CountStepper value={board?board.length:cfg.rounds} min={1} max={40} onChange={setRounds}/>
       </div>
     </div>
+    <div style={{fontSize:11,color:"var(--td)",marginTop:-4,marginBottom:8}}>Duration and {label.toLowerCase()}s are set separately.{cfg.perRoundTimer?" With the per-"+label.toLowerCase()+" timer on, each "+label.toLowerCase()+" gets "+(cfg.rounds>0?Math.max(1,Math.round((act.duration||60)/((board?board.length:cfg.rounds)||1))):(act.duration||60))+" min (duration ÷ "+label.toLowerCase()+"s).":""}</div>
 
     {/* 3. Format pill row -- one option today, shown so the coach sees what
         they got and a future second format has a home. */}
