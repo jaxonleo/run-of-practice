@@ -2179,14 +2179,14 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                 </div>
               </div>
               {expandedId===act.id&&(<div className="abbody">
-                  {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} sport={teamSport} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
+                  {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} sport={teamSport} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)} libraryDrills={data.activityLibrary} skillTags={data.skillTags} openModal={openModal}/>}
                   {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)}/>}
                   {act.type==="station_block"&&act.stations.some(s=>s.delegatedTo)&&<div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:8}}>
                     {act.stations.filter(s=>s.delegatedTo).map(s=><StationPresenceIndicator key={s.id} stationId={s.id}/>)}
                   </div>}
-                  {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} libraryDrills={sourceFilteredLib} librarySources={librarySources} libSource={libSource} setLibSource={setLibSource} skillTags={data.skillTags} absentPlayerIds={absentPlayerIds} benchmarks={data.benchmarks}/>}
+                  {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} libraryDrills={sourceFilteredLib} librarySources={librarySources} libSource={libSource} setLibSource={setLibSource} skillTags={data.skillTags} absentPlayerIds={absentPlayerIds} benchmarks={data.benchmarks} openModal={openModal}/>}
                   {act.type==="scrimmage"&&<ScrimmageConfig act={act} team={team} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} data={data} coachId={coachId} refreshLibrary={refreshLibrary} absentPlayerIds={absentPlayerIds} isBB={isBB}/>}
-                  {act.type==="benchmark"&&<BenchmarkConfig act={act} team={team} loc={loc} benchmarks={data.benchmarks} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)}/>}
+                  {act.type==="benchmark"&&<BenchmarkConfig act={act} team={team} loc={loc} benchmarks={data.benchmarks} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)} openModal={openModal}/>}
                 </div>
               )}
             </div>
