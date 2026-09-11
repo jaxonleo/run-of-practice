@@ -985,20 +985,21 @@ function bmMetricSummary(v) {
   return `${m ? m.label : v.metricType} · ${attempts}${rule} · ${dir}`;
 }
 
-function BenchmarkForm({ data, coachId, mode, sourceDrill, baseVersion, onCancel, onSaved }) {
+function BenchmarkForm({ data, coachId, mode, sourceDrill, baseVersion, example, onCancel, onSaved }) {
   const isOrg = mode && mode.type === "org";
   const versioning = !!baseVersion; // creating a NEW version of an existing benchmark
   const seed = baseVersion || {};
-  const [name, setName] = useState(sourceDrill ? sourceDrill.name : "");
+  const ex = !versioning && !sourceDrill ? example : null; // a starter only ever seeds a brand-new, from-scratch benchmark
+  const [name, setName] = useState(sourceDrill ? sourceDrill.name : (ex ? ex.title : ""));
   const [sport, setSport] = useState(sourceDrill ? (sourceDrill.sport || "General") : (data.teams && data.teams[0] && data.teams[0].sport) || "General");
-  const [subject, setSubject] = useState("individual");
-  const [metricType, setMetricType] = useState(seed.metricType || "time");
-  const [unit, setUnit] = useState(seed.displayUnit || (BM_METRICS.find(m => m.k === (seed.metricType || "time")).units[0]));
-  const [direction, setDirection] = useState(seed.direction || METRIC_META.time.direction);
-  const [attempts, setAttempts] = useState(seed.scoredAttempts || 1);
-  const [rule, setRule] = useState(seed.resultRule || "single");
-  const [instructions, setInstructions] = useState(seed.instructions || (sourceDrill ? [sourceDrill.description, sourceDrill.coachingPoints].filter(Boolean).join("\n\n") : ""));
-  const [opps, setOpps] = useState(seed.opportunitiesPerSet || 10);
+  const [subject, setSubject] = useState(ex ? ex.subject : "individual");
+  const [metricType, setMetricType] = useState(seed.metricType || (ex ? ex.metric : "time"));
+  const [unit, setUnit] = useState(seed.displayUnit || (ex ? ex.unit : (BM_METRICS.find(m => m.k === (seed.metricType || "time")).units[0])));
+  const [direction, setDirection] = useState(seed.direction || METRIC_META[seed.metricType || (ex ? ex.metric : "time")].direction);
+  const [attempts, setAttempts] = useState(seed.scoredAttempts || (ex ? ex.attempts : 1));
+  const [rule, setRule] = useState(seed.resultRule || (ex ? ex.rule : "single"));
+  const [instructions, setInstructions] = useState(seed.instructions || (sourceDrill ? [sourceDrill.description, sourceDrill.coachingPoints].filter(Boolean).join("\n\n") : (ex ? ex.instructions : "")));
+  const [opps, setOpps] = useState(seed.opportunitiesPerSet || (ex && ex.opps) || 10);
   const [scoreMin, setScoreMin] = useState(seed.scoreMin ?? 1);
   const [scoreMax, setScoreMax] = useState(seed.scoreMax ?? 5);
   const [scoreStep, setScoreStep] = useState(seed.scoreIncrement ?? 1);
@@ -1281,10 +1282,25 @@ function BenchmarkDetail({ data, coachId, mode, benchmark, teamId, setTeamId, ca
   );
 }
 
+// Direct feedback (audit): tapping a starter used to open a completely
+// blank form (empty name, one attempt) -- `creating.example` was set but
+// never actually passed into BenchmarkForm, so the "starter" was really
+// just a label suggestion, not a working example. Each entry here now
+// carries the full protocol its own hint promises (name/metric/unit/
+// attempts/rule); BenchmarkForm's `example` prop seeds every relevant field
+// from it. `direction` is deliberately not listed -- it's always
+// METRIC_META[metric].direction, so there's no way for it to drift out of
+// sync with the metric the way a second hardcoded copy could.
 const BM_EXAMPLES = [
-  { title: "Home-to-first sprint", metric: "time", hint: "fastest of two, seconds" },
-  { title: "Free throws made", metric: "success_rate", hint: "makes out of 10" },
-  { title: "Consecutive team passes", metric: "count", hint: "whole-team challenge" },
+  { title: "Home-to-first sprint", metric: "time", hint: "fastest of two, seconds",
+    subject: "individual", unit: "seconds", attempts: 2, rule: "best",
+    instructions: "From a standing start in the batter's box, sprint through first base. Time each attempt from first movement to foot touching the base; record the faster of two attempts." },
+  { title: "Free throws made", metric: "success_rate", hint: "makes out of 10",
+    subject: "individual", unit: "x / y", attempts: 1, rule: "single", opps: 10,
+    instructions: "Shoot 10 free throws from the line in one set. Record makes out of 10 attempts." },
+  { title: "Consecutive team passes", metric: "count", hint: "whole-team challenge",
+    subject: "team", unit: "reps", attempts: 1, rule: "single",
+    instructions: "As a team, count the highest number of consecutive completed passes in one attempt, ending on a drop, turnover, or the time limit." },
 ];
 
 function BenchmarksTab({ data, coachId, mode, refreshLibrary, fromDrill, clearFromDrill }) {
@@ -1341,6 +1357,7 @@ function BenchmarksTab({ data, coachId, mode, refreshLibrary, fromDrill, clearFr
         <BenchmarkForm
           data={data} coachId={coachId} mode={mode}
           sourceDrill={creating.sourceDrill || null}
+          example={creating.example || null}
           onCancel={() => { setCreating(false); if (clearFromDrill) clearFromDrill(); }}
           onSaved={async (res) => { setCreating(false); if (clearFromDrill) clearFromDrill(); await refreshLibrary(); if (res && res.benchmark_id) setDetailId(res.benchmark_id); }}
         />

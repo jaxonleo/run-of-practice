@@ -57,6 +57,24 @@ function protocolForVersion(detail, versionId) {
 }
 const eligible = a => a.state === "finalized" && !a.under_correction;
 
+// Direct feedback (audit): two same-day assessments (e.g. a station result
+// and a standalone one) both rendered as just their shared date everywhere
+// they're picked from -- ambiguous with no way to tell which is which short
+// of opening each and comparing averages. Adds a time-of-day (always
+// distinguishes same-day assessments recorded at different moments, which
+// is effectively always) plus the practice name or a source word when there
+// is no name, ahead of any existing Measure Again label. One implementation
+// shared by every list/picker below rather than four copies drifting apart.
+const SOURCE_KIND_LABELS = { station: "Station", practice_activity: "Practice", standalone: "Standalone" };
+export function assessmentLabel(a) {
+  const time = a.measured_at ? new Date(a.measured_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : null;
+  const parts = [a.measured_local_date + (time ? " " + time : "")];
+  const source = a.practice_name || SOURCE_KIND_LABELS[a.source_kind];
+  if (source) parts.push(source);
+  if (a.label) parts.push(a.label);
+  return parts.join(" · ");
+}
+
 function fmtResult(protocol, r) {
   if (!isOfficial(r)) return "—";
   if (r.metricType === "success_rate") return r.successes + "/" + r.opportunities + " (" + roundTo(r.proportion * 100, 1) + "%)";
@@ -244,7 +262,7 @@ function TeamBenchmarkDetail({ teamId, team, coachId, benchmarkId, canManage, on
       {!latest && <div className="card"><div style={{ fontSize: 13, color: "var(--td)" }}>No finalized assessments yet.</div></div>}
 
       {latest && <div className="card" style={{ marginBottom: 10 }}>
-        <div className="clbl mb8">Latest · {latest.measured_local_date}{latest.label ? " · " + latest.label : ""}</div>
+        <div className="clbl mb8">Latest · {assessmentLabel(latest)}</div>
         {cur && cur.collective && <div style={{ fontSize: 15, fontWeight: 800 }}>{fmtResult(protocol, cur.teamResult)}{cur.playerCount ? "  ·  " + cur.playerCount + " players" : ""}</div>}
         {cur && !cur.collective && cur.teamPerf && !cur.teamPerf.noResults && <>
           <div style={{ fontSize: 15, fontWeight: 800 }}>
@@ -268,7 +286,7 @@ function TeamBenchmarkDetail({ teamId, team, coachId, benchmarkId, canManage, on
         <select className="inp" value={compareId || (compare ? compare.id : "")} onChange={e => setCompareId(e.target.value || null)} style={{ marginBottom: 8 }}>
           <option value="">Previous eligible</option>
           <option value="season">Season baseline{baselineId ? " (chosen)" : ""}</option>
-          {elig.filter(a => a.id !== latest.id).map(a => <option key={a.id} value={a.id}>{a.measured_local_date}{a.label ? " · " + a.label : ""}</option>)}
+          {elig.filter(a => a.id !== latest.id).map(a => <option key={a.id} value={a.id}>{assessmentLabel(a)}</option>)}
         </select>
         {compareId === "season" && !compare && <div style={{ fontSize: 12, color: "var(--amber)", marginBottom: 6 }}>Baseline unavailable (archived or excluded). Choose another below or set a new one.</div>}
         {!improvement && <div style={{ fontSize: 13, color: "var(--td)" }}>No comparable assessment (version mismatch or excluded).</div>}
@@ -277,7 +295,7 @@ function TeamBenchmarkDetail({ teamId, team, coachId, benchmarkId, canManage, on
           <div style={{ fontSize: 15, fontWeight: 800 }}>{fmtChange(protocol, improvement)}</div>
           <div style={{ fontSize: 12, color: "var(--td)" }}>
             {improvement.kind === "rubric" ? "" : "matched " + improvement.matchedCount + " player" + (improvement.matchedCount === 1 ? "" : "s") + " · "}
-            {compare.measured_local_date} &rarr; {latest.measured_local_date}
+            {assessmentLabel(compare)} &rarr; {assessmentLabel(latest)}
           </div>
           {improvement.note === "few_comparable_players" && <div style={{ fontSize: 12, color: "var(--amber)", marginTop: 4 }}>Only {improvement.matchedCount} comparable player{improvement.matchedCount === 1 ? "" : "s"} — not a team-wide claim.</div>}
           {improvement.improved != null && improvement.kind !== "rubric" && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 4 }}>{improvement.improved} improved · {improvement.unchanged} unchanged · {improvement.worse} lower</div>}
@@ -322,7 +340,7 @@ function TeamBenchmarkDetail({ teamId, team, coachId, benchmarkId, canManage, on
       <div className="card">
         <div className="clbl mb8">Assessment history</div>
         {all.map(a => <div key={a.id} style={{ fontSize: 13, padding: "5px 0", borderTop: "1px solid var(--b)", display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-          <span>{a.measured_local_date}{a.label ? " · " + a.label : ""} <span className="bdg bs">{a.under_correction ? "under correction" : a.state}</span>{a.excluded_from_comparisons ? <span className="bdg bs" style={{ marginLeft: 4 }}>excluded</span> : null}{baselineId === a.id ? <span className="bdg bs" style={{ marginLeft: 4 }}>baseline</span> : null}</span>
+          <span>{assessmentLabel(a)} <span className="bdg bs">{a.under_correction ? "under correction" : a.state}</span>{a.excluded_from_comparisons ? <span className="bdg bs" style={{ marginLeft: 4 }}>excluded</span> : null}{baselineId === a.id ? <span className="bdg bs" style={{ marginLeft: 4 }}>baseline</span> : null}</span>
           {canManage && a.state === "finalized" && <span style={{ display: "flex", gap: 6 }}>
             <button type="button" className="btn ghost bxs" disabled={busy} onClick={async () => {
               setBusy(true); await setTeamBenchmarkBaseline(detail.team_benchmark.id, baselineId === a.id ? null : a.id); setBusy(false); load();

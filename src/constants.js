@@ -1293,6 +1293,24 @@ function scrimmageWarnings(players,rounds,fieldSlots,catcherHold,pitcherRoundsMa
     if(!players.some(p=>scrimmageEligibleForSlot(p,s)))w.push("No players are eligible for "+s+". It stays Open. Turn "+s+" off in Round rules, or fill it with a coach or helper.");
   });
 
+  // Direct feedback (audit): a narrow roster (e.g. every player locked to
+  // one position) can leave a field slot Open in SOME rounds even though at
+  // least one player is genuinely eligible for it -- every eligible player
+  // is already needed elsewhere that round. The check above only ever
+  // caught "nobody is eligible, period"; this is the more common real case
+  // and previously produced no warning at all, so a slot could go Open with
+  // no explanation and no guidance. Counts across the whole board (not
+  // per-round) since a coach acts on "this keeps happening," not one
+  // instance -- guidance mirrors the audit's own recommended repairs.
+  if(board){
+    const openEligibleSlots=fieldSlots.filter(s=>s!=="P"&&s!=="C"&&players.some(p=>scrimmageEligibleForSlot(p,s)));
+    let openCount=0;
+    board.forEach(rd=>{openEligibleSlots.forEach(s=>{if(!rd.slots[s])openCount++;});});
+    if(openCount>0){
+      w.push(openCount+" field "+(openCount===1?"slot stayed":"slots stayed")+" Open even though players are eligible -- usually too many "+units+" need the same few eligible players at once. Add "+units+", have more players cover that position on the roster, or turn the slot off in Round rules.");
+    }
+  }
+
   const noPos=players.filter(p=>!scrimmageHasRealPositions(p)&&!(p.locks&&p.locks.sitOut));
   if(noPos.length)w.push(noPos.length+" "+(noPos.length===1?"player has":"players have")+" no positions set. They'll be placed anywhere except pitcher and catcher.");
 

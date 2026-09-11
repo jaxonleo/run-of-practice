@@ -1125,13 +1125,23 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
       <div style={{display:"flex",gap:6}}>
         <span style={{padding:"8px 14px",borderRadius:20,background:"var(--green)",color:"#fff",fontSize:13,fontWeight:700}}>Everyone Rotates</span>
       </div>
-      <div style={{fontSize:11,color:"var(--td)",marginTop:4}}>Every player rotates through positions and at-bats evenly. No second team needed.</div>
+      {/* Direct feedback (audit): this used to promise unconditionally even
+          rotation ("Every player rotates... evenly"), which a narrow roster
+          (too few rounds, or players locked to one position) genuinely
+          can't always deliver -- the warnings and fairness badges below say
+          so when it happens, so the intro copy shouldn't contradict them. */}
+      <div style={{fontSize:11,color:"var(--td)",marginTop:4}}>Rotates every player through positions and at-bats as evenly as the roster and round count allow. No second team needed -- see warnings and fairness badges below if a constraint gets in the way.</div>
     </div>
 
     {/* 4. Generate / Regenerate */}
     {team&&<div className="fld">
       {!board&&<>
-        <div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>Tap Generate to build the rotation from each player's positions. You can adjust anything after.</div>
+        {/* Direct feedback (audit): a coach with a narrowly-positioned
+            roster (every player set to just one position) had no way to
+            know ahead of time that a field slot with nobody listed for it
+            would simply sit Open -- position eligibility here is a strict
+            requirement, not a soft preference the generator can override. */}
+        <div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>Tap Generate to build the rotation from each player's listed positions -- a strict requirement, not a preference: a slot with nobody listed for it stays Open. You can adjust anything after.</div>
         <button type="button" className="btn primary bmd bfull" onClick={()=>runGenerate(cfg.seed)}>Generate</button>
       </>}
       {board&&!confirmRegen&&<button type="button" className="btn outline bmd bfull" onClick={()=>setConfirmRegen(true)}>Regenerate</button>}
