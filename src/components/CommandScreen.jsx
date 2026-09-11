@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea, menuNeedsToOpenUpward, SCRIMMAGE_FIELD_SLOTS, generateScrimmageBoard, repairScrimmageBoard, summarizeScrimmageFairness, scrimmagePlayerRotation } from "../constants.js";
+import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, chainOnto, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea, menuNeedsToOpenUpward, SCRIMMAGE_FIELD_SLOTS, generateScrimmageBoard, repairScrimmageBoard, summarizeScrimmageFairness, scrimmagePlayerRotation } from "../constants.js";
 import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, saveSessionScrimmageBoard, fetchLatestScrimmageBoard, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, fetchPracticeRunStatus, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
 import { SkillTagPicker } from "./ModalLayer.jsx";
@@ -2430,6 +2430,22 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   // up in Planned vs. Actual.
   const activityLogOpenedAtRef=useRef(null);
   const MIN_LOG_MS=3000;
+  // Real bug found live (audit: "History timing contradicts itself and can
+  // overcount" -- overlapping/duplicate intervals for sequential components
+  // after rapid Next taps). transitionTo's close-old/write/open-new sequence
+  // reads and writes activityLogIdRef across several awaits; with no guard,
+  // a second transitionTo call fired before the first one's awaits settled
+  // could interleave with it -- e.g. call 2's closeCurrentLog reading the ref
+  // before call 1's openLogForActivityEntry had set it, so call 1's newly
+  // opened log never gets closed (a permanently open interval, "no actual
+  // time logged" for whatever ran next) while call 2 opens yet another log
+  // on top of it (two open intervals at once, i.e. the reported overlap).
+  // Chaining every transitionTo call onto this ref forces them to run one at
+  // a time in the order they were issued -- rapid repeat taps or the
+  // Overview jump list no longer race, they just queue -- while the
+  // synchronous local-state update at the top of transitionTo still applies
+  // immediately so the UI itself stays responsive.
+  const transitionChainRef=useRef(Promise.resolve());
 
   // ── Background audio session: a real <audio> element (not a bare
   // AudioContext oscillator, which Safari silently dropped -- see
@@ -3095,10 +3111,12 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     // same-activity transition (entering/exiting a rotation's transition
     // period, advancing/reversing rotation number) leaves it alone.
     if('current_practice_activity_id' in patch)setFocusSt(null);
-    await closeCurrentLog();
-    const updated=await writeSession(fullPatch);
-    if(updated&&logAct)await openLogForActivityEntry(updated,logAct,logStIdx,[...presentIds]);
-    return updated;
+    return chainOnto(transitionChainRef,async()=>{
+      await closeCurrentLog();
+      const updated=await writeSession(fullPatch);
+      if(updated&&logAct)await openLogForActivityEntry(updated,logAct,logStIdx,[...presentIds]);
+      return updated;
+    });
   },[writeSession,closeCurrentLog,openLogForActivityEntry,presentIds]);
 
   // ── Live-group sync: current activity's session_groups, fetched or (for
@@ -3317,7 +3335,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     let groups;
     if(mode==="attribute"){
       const getter=handKey?(p=>p[handKey]||""):(p=>(p.positions&&p.positions[0])||"");
-      const g=groupByAttribute(presentPlayerObjs,groupCount,getter,v=>v);
+      const pairCap=kind==="drill"&&act.grouping==="partners"?2:undefined;
+      const g=groupByAttribute(presentPlayerObjs,groupCount,getter,v=>v,pairCap);
       groups=g.map(x=>(x&&x.ids)||[]);
     }else if(kind==="drill"){
       groups=assignGroups(presentPlayerObjs,act.grouping,act.numGroups).map(g=>g.map(p=>p.id));
@@ -4035,7 +4054,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           <button type="button" className="btn ghost bsm bfull mt10" onClick={()=>setScrimNavOpen(false)}>Close</button>
         </div>
       </div>,document.body)}
-      {isBench&&cur&&<BenchmarkLivePanel activity={cur} practice={practice} team={team} liveSessionId={session&&session.id} coachId={coachId} isDesktop={typeof window!=="undefined"&&window.innerWidth>=1024}/>}
+      {isBench&&cur&&<BenchmarkLivePanel activity={cur} practice={practice} team={team} liveSessionId={session&&session.id} coachId={coachId} presentPlayerIds={[...presentIds]} isDesktop={typeof window!=="undefined"&&window.innerWidth>=1024}/>}
       {!isBlock&&!isCl&&!isScrim&&!isBench&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
         {cur.description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
@@ -4140,7 +4159,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coachingPoints}</div>
           </div>}
           {(()=>{const{equipment,playerGear}=splitEquipFor(rotatedStations[focusSt].equipment,data);return<div style={{marginBottom:10}}><EquipGearRow equipment={equipment} playerGear={playerGear}/></div>;})()}
-          {rotatedStations[focusSt].benchmarkId&&<BenchmarkLivePanel station={rotatedStations[focusSt]} activity={cur} practice={practice} team={team} liveSessionId={session&&session.id} coachId={coachId} isDesktop={typeof window!=="undefined"&&window.innerWidth>=1024}/>}
+          {rotatedStations[focusSt].benchmarkId&&<BenchmarkLivePanel station={rotatedStations[focusSt]} activity={cur} practice={practice} team={team} liveSessionId={session&&session.id} coachId={coachId} presentPlayerIds={[...presentIds]} isDesktop={typeof window!=="undefined"&&window.innerWidth>=1024}/>}
           {rotatedStations[focusSt].grouping&&rotatedStations[focusSt].grouping!=="whole"&&<div style={{borderLeft:"3px solid #c4b5fd",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:10}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
               <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed"}}>👥 {rotatedStations[focusSt].grouping==="partners"?"Partners":"Groups"} at this station</div>

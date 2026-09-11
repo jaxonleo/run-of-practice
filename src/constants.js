@@ -147,6 +147,25 @@ export function canManageTeamInMode(team,coachId,mode){
 }
 export const shuffle=(arr)=>[...arr].sort(()=>Math.random()-.5);
 export function mkGroups(ids,n){const s=shuffle(ids),g=Array.from({length:n},()=>[]);s.forEach((id,i)=>g[i%n].push(id));return g;}
+// Real bug found live (audit: "History timing contradicts itself and can
+// overcount" -- overlapping/duplicate activity-log intervals after rapid
+// Next taps). Forces async calls issued through the same ref to run one at a
+// time, in call order, no matter how their own work happens to resolve --
+// e.g. live practice's transitionTo (close the current activity's log, write
+// the session, open the next log) used to read/write a shared ref across
+// several awaits with no guard, so a second transitionTo fired before the
+// first one settled could interleave: the first call's newly opened log
+// never got closed (a permanently open interval) while the second opened
+// yet another on top of it (an overlap). `ref` is any `{current}` box
+// (a useRef) seeded with `Promise.resolve()`; a rejection from either the
+// queue or `fn` itself is swallowed for queuing purposes only, so one
+// failure can never wedge every call queued after it -- callers still see
+// their own call's real rejection through the returned promise.
+export function chainOnto(ref,fn){
+  const chained=ref.current.then(fn,fn);
+  ref.current=chained.then(()=>{},()=>{});
+  return chained;
+}
 export function rebalanceKeep(stations,presentIds){return stations.map(st=>Object.assign({},st,{assignments:(st.assignments||[]).filter(id=>presentIds.has(id))}));}
 export function rebalanceEven(stations,presentIds,allPlayers){const present=allPlayers.filter(p=>presentIds.has(p.id));const n=stations.length;const s=shuffle(present);const g=Array.from({length:n},()=>[]);s.forEach((p,i)=>g[i%n].push(p.id));return stations.map((st,i)=>Object.assign({},st,{assignments:g[i]||[]}));}
 // Real bug fix: a plain (non-station) drill's live groups used to be
@@ -216,7 +235,18 @@ export const HAND_LABELS={L:"Left",R:"Right",S:"Switch"};
 // player in it shares the exact same value; a group stitched together from
 // two half-empty buckets, or padded out with "none" players, doesn't get
 // one, since there's no single clean word for it.
-export function groupByAttribute(players,n,getValue,getLabel){
+//
+// `maxSize` (optional) caps every group's size -- Partners must stay pairs
+// (maxSize 2), which a whole-bucket dump can't guarantee: a real bug found
+// live had six players' "Bats" attribute split 3/3, and dumping each whole
+// bucket into "whichever group is currently smallest" produced two trios and
+// an empty pair instead of three pairs. When a bucket doesn't fit the
+// smallest group with room, it's placed one player at a time (still filling
+// same-value players together as much as capacity allows) rather than
+// overflowing the cap. Station-style calls that pass no maxSize are
+// unaffected -- capacity is unlimited, so the original whole-bucket-dump
+// behavior is unchanged.
+export function groupByAttribute(players,n,getValue,getLabel,maxSize){
   const groups=Array.from({length:n},()=>[]);
   const groupValues=Array.from({length:n},()=>new Set());
   const buckets={};
@@ -226,16 +256,34 @@ export function groupByAttribute(players,n,getValue,getLabel){
     if(!v){none.push(p);return;}
     (buckets[v]||(buckets[v]=[])).push(p);
   });
+  const smallestWithRoom=()=>{
+    let idx=-1;
+    for(let i=0;i<n;i++){
+      if(maxSize&&groups[i].length>=maxSize)continue;
+      if(idx===-1||groups[i].length<groups[idx].length)idx=i;
+    }
+    return idx;
+  };
   const ordered=Object.entries(buckets).sort((a,b)=>b[1].length-a[1].length);
   ordered.forEach(([value,bucket])=>{
-    let idx=0;
-    for(let i=1;i<n;i++)if(groups[i].length<groups[idx].length)idx=i;
-    groups[idx].push(...bucket);
-    groupValues[idx].add(value);
+    const idx=smallestWithRoom();
+    if(idx===-1)return;
+    const room=maxSize?maxSize-groups[idx].length:Infinity;
+    if(bucket.length<=room){
+      groups[idx].push(...bucket);
+      groupValues[idx].add(value);
+    }else{
+      bucket.forEach(p=>{
+        const gi=smallestWithRoom();
+        if(gi===-1)return;
+        groups[gi].push(p);
+        groupValues[gi].add(value);
+      });
+    }
   });
-  none.forEach((p,i)=>{
-    let idx=0;
-    for(let j=1;j<n;j++)if(groups[j].length<groups[idx].length)idx=j;
+  none.forEach(p=>{
+    const idx=smallestWithRoom();
+    if(idx===-1)return;
     groups[idx].push(p);
   });
   return groups.map((g,i)=>({

@@ -12,6 +12,7 @@ import {
   comparableAssessments,
   isEligibleAssessment,
   eligibleAssessments,
+  missingBenchmarkParticipants,
   previousEligibleAssessment,
   seasonBaselineAssessment,
   roundTo,
@@ -504,6 +505,33 @@ describe('precision helpers', () => {
   it('roundTo rounds half away from zero and normalises -0', () => {
     expect(roundTo(4.715, 2)).toBe(4.72)
     expect(roundTo(-0.0001, 2)).toBe(0)
+  })
+})
+
+describe('missingBenchmarkParticipants (late-arrival reconciliation)', () => {
+  const participant = (playerId) => ({ participant_id: 'p_' + playerId, player_id: playerId, is_team_subject: false })
+
+  it('audit repro: a player who joins live attendance after recording started is not on the frozen roster', () => {
+    // rop-11-benchmark-missing-late-arrival.jpg: Finley joined at 6/6 attendance
+    // mid-practice but the station recorder still only listed the original five.
+    const participants = ['alex', 'blake', 'casey', 'drew', 'ellis'].map(participant)
+    const present = ['alex', 'blake', 'casey', 'drew', 'ellis', 'finley']
+    expect(missingBenchmarkParticipants(present, participants)).toEqual(['finley'])
+  })
+
+  it('returns nothing once every present player has a participant row', () => {
+    const participants = ['alex', 'blake'].map(participant)
+    expect(missingBenchmarkParticipants(['alex', 'blake'], participants)).toEqual([])
+  })
+
+  it('does not count a team-subject row as covering any player id (callers gate this off subjectMode)', () => {
+    const participants = [{ participant_id: 't1', is_team_subject: true }]
+    expect(missingBenchmarkParticipants(['alex'], participants)).toEqual(['alex'])
+  })
+
+  it('handles no participants yet and no present players without throwing', () => {
+    expect(missingBenchmarkParticipants([], [])).toEqual([])
+    expect(missingBenchmarkParticipants(null, null)).toEqual([])
   })
 })
 

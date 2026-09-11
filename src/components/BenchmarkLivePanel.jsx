@@ -7,6 +7,7 @@ import {
   createBenchmarkRecordingGrant, revokeBenchmarkRecordingGrant, addBenchmarkParticipant,
 } from "../supabase.js";
 import { outboxScopeForUser, outboxClearScope } from "../benchmarkOutbox.js";
+import { missingBenchmarkParticipants } from "../benchmarks.js";
 
 // Coach-side live recording for a benchmark activity or station. Capture runs
 // on its own write path -- it does NOT use the practice controller's write
@@ -14,7 +15,7 @@ import { outboxScopeForUser, outboxClearScope } from "../benchmarkOutbox.js";
 // signed-in team coach can record; finalize / reopen / grants gate on the
 // server (can_finalize / can_manage) and this only mirrors that in the UI.
 
-export default function BenchmarkLivePanel({ activity, station, practice, team, liveSessionId, coachId, isDesktop, assessmentId: assessmentIdProp }) {
+export default function BenchmarkLivePanel({ activity, station, practice, team, liveSessionId, coachId, presentPlayerIds, isDesktop, assessmentId: assessmentIdProp }) {
   // Standalone mode: the caller (Measure Again -> record now) has already
   // created the assessment and passes its id; there is no live activity or
   // station to resolve an occurrence for.
@@ -33,6 +34,7 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
   const [confirmFinalize, setConfirmFinalize] = useState(null); // counts object
   const [grantToken, setGrantToken] = useState("");
   const [grantScope, setGrantScope] = useState(null); // 'players' | 'team'
+  const [addingId, setAddingId] = useState(null);
   const pollRef = useRef(null);
 
   const refresh = useCallback(async (aid) => {
@@ -95,6 +97,26 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
   const canManage = !!payload.can_manage;
   const recording = state === "recording";
 
+  // Late arrival (ROP-Benchmarks handoff 5.2): the roster was seeded once
+  // from who was present the moment recording started, so a player who
+  // checks in afterward never appears here on their own -- a real audit
+  // finding, since the recorder had no way to add them and their existing
+  // teammates' attempts must stay untouched. Only meaningful for a live
+  // individual assessment tied to today's actual attendance; standalone
+  // (Measure Again) callers don't pass presentPlayerIds, so this is skipped.
+  const missingIds = (subjectMode === "individual" && recording && presentPlayerIds)
+    ? missingBenchmarkParticipants(presentPlayerIds, payload.participants || [])
+    : [];
+  const missingPlayers = missingIds.map(id => (team && team.players || []).find(p => p.id === id)).filter(Boolean);
+  const doAddParticipant = async (playerId) => {
+    setAddingId(playerId);
+    setActionErr("");
+    const { error } = await addBenchmarkParticipant(assessmentId, playerId);
+    setAddingId(null);
+    if (error) { setActionErr("Could not add that player."); return; }
+    await refresh();
+  };
+
   const saveAttempt = (participantId, slotIndex, values, opId, expectedRowVersion) =>
     saveBenchmarkAttempt({
       assessmentId, participantId, slotIndex,
@@ -137,6 +159,16 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
         </div>
         <span className="bdg bs">{a.under_correction ? "Under correction" : state}</span>
       </div>
+
+      {missingPlayers.length > 0 && <div style={{ background: "var(--s2)", borderRadius: 8, padding: 10, marginBottom: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Present but not on this assessment</div>
+        {missingPlayers.map(p => (
+          <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "3px 0" }}>
+            <span>{p.firstName}{p.lastName ? " " + p.lastName : ""}{p.jersey ? " #" + p.jersey : ""}</span>
+            <button type="button" className="btn ghost bxs" disabled={addingId === p.id} onClick={() => doAddParticipant(p.id)}>{addingId === p.id ? "Adding..." : "Add"}</button>
+          </div>
+        ))}
+      </div>}
 
       {(recording) && <BenchmarkRecorder
         protocol={protocol}
