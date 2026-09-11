@@ -295,6 +295,23 @@ function actLabel(a){
   if(a.type==="station_block")return a.name||"Station Block";
   return a.name||(a.type==="checklist"?"Checklist":"Activity");
 }
+// Direct feedback (audit): the big Next button used one generic "Next >"
+// label for every scrimmage phase -- starting round 1, stepping between
+// rounds, and (only on the final round) actually leaving the scrimmage for
+// a different activity entirely all looked identical, so a coach couldn't
+// tell what a tap would do without trying it. Mirrors advance()'s own
+// isScrim branching (CommandScreen) just for display; every non-scrimmage
+// activity's label is unchanged -- isBlock's existing "End Block"/"Next >"
+// split predates this and isn't the reported defect.
+export function advanceButtonLabel({isBlock,blockRotate,isScrim,inBlockIntro,scrimRoundIdx,scrimRoundCount,roundLabel,idx,liveActs}){
+  if(isScrim){
+    if(inBlockIntro)return "Start "+(roundLabel||"Round")+" 1";
+    if(scrimRoundIdx<scrimRoundCount-1)return "Next "+(roundLabel||"Round");
+    const next=liveActs&&liveActs[idx+1];
+    return next?"Next Activity: "+actLabel(next):"Finish Practice";
+  }
+  return isBlock&&!blockRotate?"End Block":"Next >";
+}
 function equipNamesFor(ids,data){
   return (Array.isArray(ids)?ids:[]).map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?{name:a.name,acquired:a.acquired!==false,type:a.type}:null;}).filter(Boolean);
 }
@@ -3958,7 +3975,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     <div className="cc-prog"><div className={"cc-prog-bar"+(isOver?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div>
     {isController&&<div className="cc-controls">
       <button className="btn ghost bmd" style={{minWidth:52}} onClick={goBack} disabled={idx===0&&stIdx===0&&!inTrans}>&lt;</button>
-      <button className="btn primary blg" style={{flex:1}} onClick={advance}>{isBlock&&!blockRotate?"End Block":"Next >"}</button>
+      <button className="btn primary blg" style={{flex:1}} onClick={advance}>{advanceButtonLabel({isBlock,blockRotate,isScrim,inBlockIntro,scrimRoundIdx,scrimRoundCount,roundLabel:scrimCfg&&scrimCfg.roundLabel,idx,liveActs})}</button>
     </div>}
     {/* Assistant-coach handoff §1.3, confirmed decision: this exact spot --
         where advance/+-1min normally sit -- is where a thumb lands out of
@@ -3978,6 +3995,15 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             rather than "nothing to check off here." Blank when there's
             nothing to cover; the real x/y still shows once items exist. */}
         <div className="cc-focus-lbl">{cur.name}{(cur.items||[]).length>0?" - "+Object.values(clState[cur.id]||{}).filter(Boolean).length+"/"+(cur.items||[]).length+" covered":""}</div>
+        {/* Direct feedback (audit): clState is plain component state, never
+            written to the session row -- a coach who rejoins (a refresh, a
+            second device, a dropped connection) genuinely sees every box
+            unchecked again, not a sync bug losing real data. Persisting
+            this is a real gap worth building (a session-row column + a
+            write path), but it's a separate feature; disclosing the
+            current, honest scope here is the audit's own accepted
+            alternative and needs no server change. */}
+        {(cur.items||[]).length>0&&<div style={{fontSize:11,color:"var(--td)",marginTop:-2,marginBottom:6}}>Checked items are local to this device for this session -- rejoining or switching devices starts the list unchecked again.</div>}
         {(cur.items||[]).map(it=>(<div key={it.id} className="cl-item" onClick={()=>toggleCl(cur.id,it.id)}>
           <div className={"cl-check "+((clState[cur.id]||{})[it.id]?"done":"")}>{(clState[cur.id]||{})[it.id]&&<Ic.Check/>}</div>
           <div className={"cl-text "+((clState[cur.id]||{})[it.id]?"done":"")}>{it.text}</div>
@@ -3992,11 +4018,28 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         {!inBlockIntro&&<>
           <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900}}>{(scrimCfg.roundLabel||"Round")} {scrimRoundIdx+1} of {scrimRoundCount}
-              {scrimPerRoundSecs>0&&<span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:600,color:scrimRoundRem<=0?"var(--amber)":"var(--td)",marginLeft:8}}>{fmt(Math.abs(scrimRoundRem))}{scrimRoundRem<=0?" over":""}</span>}
+              {/* Direct feedback (audit): an unlabeled mm:ss sitting right
+                  next to the top-of-screen overall activity timer read as a
+                  second, unexplained clock -- this one only ever counts
+                  down this one round, distinct from the block/activity
+                  timer above. */}
+              {scrimPerRoundSecs>0&&<span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:600,color:scrimRoundRem<=0?"var(--amber)":"var(--td)",marginLeft:8}}><span style={{fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,letterSpacing:".03em"}}>Round timer </span>{fmt(Math.abs(scrimRoundRem))}{scrimRoundRem<=0?" over":""}</span>}
             </div>
-            {isController&&<div style={{display:"flex",gap:6}}>
-              <button className="btn ghost bxs" disabled={scrimRoundIdx===0} onClick={goBack}>◀ Back</button>
-              <button className="btn ghost bxs" disabled={scrimRoundIdx>=scrimRoundCount-1} onClick={advance}>Next ▶</button>
+            {/* Direct feedback (audit): this pair calls the exact same
+                goBack/advance as the big Next/Back bar below, just without
+                scrolling down while reviewing this round's board -- but an
+                unlabeled duplicate control reads as its own separate,
+                unexplained thing. Labeling it against the round (not a bare
+                "Next") plus this note ties it back to the same control
+                explicitly. Unlike the big button, this pair is always
+                disabled at the last round, so it can never itself leave the
+                scrimmage for a different activity. */}
+            {isController&&<div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2}}>
+              <div style={{display:"flex",gap:6}}>
+                <button className="btn ghost bxs" disabled={scrimRoundIdx===0} onClick={goBack}>&#9664; Prev {(scrimCfg.roundLabel||"Round")}</button>
+                <button className="btn ghost bxs" disabled={scrimRoundIdx>=scrimRoundCount-1} onClick={advance}>Next {(scrimCfg.roundLabel||"Round")} &#9654;</button>
+              </div>
+              <div style={{fontSize:10,color:"var(--td)"}}>Same as Next/Back below</div>
             </div>}
           </div>
           {(()=>{
@@ -4081,10 +4124,24 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             {isController&&<button className="btn ghost bxs" onClick={reshuffleGroups}>Reshuffle</button>}
           </div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-            {liveGroups.map((g,i)=>(<div key={i} style={{display:"inline-flex",alignItems:"center",gap:6,border:"1.5px solid #c4b5fd",borderRadius:20,padding:"5px 12px",background:"#fff"}}>
-              <span style={{fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,color:"#7c3aed",flexShrink:0}}>{cur.grouping==="partners"?"P"+(i+1):"G"+(i+1)}</span>
-              <span style={{fontSize:13,fontWeight:600,color:"var(--black)"}}>{g.map(pid=>pname(pid)).join(" · ")}</span>
-            </div>))}
+            {liveGroups.map((g,i)=>{
+              // Direct feedback (audit): an odd present count leaves one
+              // Partners group with a single player, rendered identically
+              // to every real pair -- a coach had to notice the missing
+              // second name and guess what it meant. Flagging it explicitly
+              // (distinct color + "no partner this round") makes the
+              // situation legible without inspecting the roster; deciding
+              // what that player should actually do (join a trio, partner a
+              // coach, sit a rotation) is still the coach's call, same as
+              // today -- this doesn't pick a policy for them, just names
+              // the situation the audit found unexplained.
+              const solo=cur.grouping==="partners"&&g.length===1;
+              return (<div key={i} style={{display:"inline-flex",alignItems:"center",gap:6,border:"1.5px solid "+(solo?"var(--amber)":"#c4b5fd"),borderRadius:20,padding:"5px 12px",background:"#fff"}}>
+                <span style={{fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,color:solo?"var(--amber)":"#7c3aed",flexShrink:0}}>{cur.grouping==="partners"?"P"+(i+1):"G"+(i+1)}</span>
+                <span style={{fontSize:13,fontWeight:600,color:"var(--black)"}}>{g.map(pid=>pname(pid)).join(" · ")}</span>
+                {solo&&<span style={{fontSize:11,color:"var(--amber)",fontWeight:700}}>No partner this round</span>}
+              </div>);
+            })}
           </div>
         </div>}
       </div>}

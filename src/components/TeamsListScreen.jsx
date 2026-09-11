@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { fetchOrgMembers, fetchOrgSentInvites, orgInviteCoach, cancelOrgInvite, updateOrganization, setOrgMemberRole, removeOrgMember, ORG_ROLE_LABELS } from "../supabase.js";
 import { SPORTS, TEAM_COLORS, myTeamRole, menuNeedsToOpenUpward, useBigBrowser } from "../constants.js";
 
@@ -186,6 +187,24 @@ export default function TeamsListScreen({ data, goToTeam, openModal, mode, refre
   // orgCreateTeam instead of createTeam (see ModalLayer.jsx), and lets it
   // restrict/default the new team's sport to one of the org's own sports.
   const addTeamPayload = isOrgMode ? { organizationId: mode.orgId, orgSports: activeOrg && activeOrg.sports } : undefined;
+
+  // Direct feedback (audit): Home's "Create a Team" CTAs (Getting Started,
+  // Development Pulse's empty state) used to just land here, on an empty
+  // list, requiring a second tap on +Team before the actual form showed --
+  // an unnecessary detour when the whole point of tapping was "make a
+  // team." Home now navigates here with `state.openAddTeam`, and this opens
+  // the same +Team modal immediately on arrival, once, exactly the way
+  // RostersTab already deep-links into "open Permissions for this coach"
+  // from a Home notification.
+  const location = useLocation();
+  const [openedFromDeepLink, setOpenedFromDeepLink] = useState(false);
+  useEffect(() => {
+    if (location.state && location.state.openAddTeam && !openedFromDeepLink) {
+      setOpenedFromDeepLink(true);
+      openModal("addTeam", addTeamPayload);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, openedFromDeepLink]);
 
   if (isOrgMode && activeOrg && showOrgDetails) {
     return <OrgDetailsView org={activeOrg} refreshLibrary={refreshLibrary} onBack={() => setShowOrgDetails(false)} coachId={coachId} />;
