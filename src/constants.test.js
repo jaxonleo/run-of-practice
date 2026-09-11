@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { planningState, reconcileGroups, localDateStr, classifyDurationVariance, sumMins, actSecs, rebalanceKeep, rebalanceEven } from './constants.js'
+import { planningState, reconcileGroups, localDateStr, classifyDurationVariance, sumMins, actSecs, rebalanceKeep, rebalanceEven, groupByAttribute, chainOnto } from './constants.js'
 
 describe('planningState', () => {
   it('returns null when the practice has no target duration', () => {
@@ -45,6 +45,123 @@ describe('reconcileGroups', () => {
     const groups = [['a', 'b'], ['c', 'd'], ['e']]
     const present = new Set(['a', 'c', 'd', 'f'])
     expect(reconcileGroups(groups, present)).toEqual([['a'], ['c', 'd'], ['f']])
+  })
+})
+
+describe('groupByAttribute', () => {
+  const player = (id, value) => ({ id, bats: value })
+  const byBats = (players, n, maxSize) => groupByAttribute(players, n, p => p.bats || '', v => v, maxSize)
+
+  it('audit repro: six players with a 3/3 attribute split into 3 pairs must never produce a trio or an empty pair', () => {
+    // rop-05-partners-three-per-pair.jpg: Generate Random Groups -> Group By
+    // Bats produced Pair 1 {Blake, Drew, Finley}, Pair 2 {Alex, Casey, Ellis},
+    // Pair 3 {} -- a bucket of 3 dumped whole into one group, capacity ignored.
+    const players = [player('alex', 'R'), player('blake', 'R'), player('casey', 'R'), player('drew', 'L'), player('ellis', 'L'), player('finley', 'L')]
+    const groups = byBats(players, 3, 2)
+    expect(groups.map(g => g.ids.length)).toEqual([2, 2, 2])
+    expect(new Set(groups.flatMap(g => g.ids))).toEqual(new Set(players.map(p => p.id)))
+  })
+
+  it('keeps a shared-value group labeled when the bucket fits within the cap', () => {
+    const players = [player('a', 'R'), player('b', 'R'), player('c', 'L'), player('d', 'L')]
+    const groups = byBats(players, 2, 2)
+    expect(groups.every(g => g.ids.length === 2)).toBe(true)
+    expect(groups.map(g => g.label).sort()).toEqual(['L', 'R'])
+  })
+
+  it('splits an oversized bucket across groups one at a time instead of overflowing the cap', () => {
+    const players = [player('a', 'R'), player('b', 'R'), player('c', 'R'), player('d', 'R'), player('e', 'L')]
+    // 5 players -> 3 pairs (last one a solo), matching the app's ceil(n/2) sizing.
+    const groups = byBats(players, 3, 2)
+    groups.forEach(g => expect(g.ids.length).toBeLessThanOrEqual(2))
+    expect(groups.reduce((s, g) => s + g.ids.length, 0)).toBe(5)
+  })
+
+  it('never exceeds maxSize even with a single value shared by everyone', () => {
+    const players = ['a', 'b', 'c', 'd', 'e', 'f'].map(id => player(id, 'R'))
+    const groups = byBats(players, 3, 2)
+    expect(groups.map(g => g.ids.length)).toEqual([2, 2, 2])
+  })
+
+  it('without maxSize, still bin-packs whole buckets together (station behavior unchanged)', () => {
+    const players = [player('a', 'R'), player('b', 'R'), player('c', 'R'), player('d', 'L')]
+    const groups = groupByAttribute(players, 2, p => p.bats || '', v => v)
+    // The 3-player R bucket lands together in one group, unconstrained.
+    const rGroup = groups.find(g => g.label === 'R')
+    expect(rGroup.ids.length).toBe(3)
+  })
+})
+
+describe('chainOnto', () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+
+  it('runs queued calls strictly in call order even when an earlier call is slower than a later one', async () => {
+    const ref = { current: Promise.resolve() }
+    const order = []
+    const p1 = chainOnto(ref, async () => { order.push('start1'); await wait(30); order.push('end1') })
+    const p2 = chainOnto(ref, async () => { order.push('start2'); await wait(5); order.push('end2') })
+    await Promise.all([p1, p2])
+    expect(order).toEqual(['start1', 'end1', 'start2', 'end2'])
+  })
+
+  it('lets a later call proceed even after an earlier one rejects, without losing its own rejection', async () => {
+    const ref = { current: Promise.resolve() }
+    const order = []
+    const p1 = chainOnto(ref, async () => { order.push('call1'); throw new Error('boom') })
+    const p2 = chainOnto(ref, async () => { order.push('call2'); return 'ok' })
+    await expect(p1).rejects.toThrow('boom')
+    await expect(p2).resolves.toBe('ok')
+    expect(order).toEqual(['call1', 'call2'])
+  })
+
+  // Models CommandScreen's live-practice transitionTo exactly: each queued
+  // call closes whatever activity-log interval is open, then opens the next
+  // one. Regression for the audit's "History timing contradicts itself and
+  // can overcount" -- rapid repeat taps (Next, Overview jump list) used to
+  // interleave the close-old/open-new sequence across calls sharing one
+  // mutable ref, leaving two intervals open at once (an overlap) or a log
+  // whose close got skipped entirely (an interval with no end, so its
+  // component reads "no actual time logged" while the summary still counts
+  // it). Chaining every call through one queue makes that impossible: at
+  // most one interval is ever open, and every opened interval is closed
+  // before the next opens, regardless of when each call's own network step
+  // happens to settle.
+  it('a real activity-log open/close sequence never has two intervals open at once, even under rapid out-of-order-resolving calls', async () => {
+    const ref = { current: Promise.resolve() }
+    let openLogId = null
+    const intervals = [] // { id, activity, closed }
+    let nextId = 1
+    const closeCurrentLog = async (delay) => {
+      if (openLogId == null) return
+      await wait(delay)
+      intervals.find((i) => i.id === openLogId).closed = true
+      openLogId = null
+    }
+    const openLogFor = async (activity, delay) => {
+      await wait(delay)
+      const id = nextId++
+      intervals.push({ id, activity, closed: false })
+      openLogId = id
+    }
+    const transitionTo = (activity, closeDelay, openDelay) =>
+      chainOnto(ref, async () => { await closeCurrentLog(closeDelay); await openLogFor(activity, openDelay) })
+
+    // Fire three "Next" taps back to back, each with different network
+    // timing (the third resolves fastest, mimicking a rapid tap landing
+    // before the first two's writes settle).
+    await Promise.all([
+      transitionTo('Checklist', 5, 20),
+      transitionTo('Stretch', 15, 5),
+      transitionTo('Closer', 1, 1),
+    ])
+
+    // Every interval but the last must have been closed -- none left
+    // dangling open (the "no actual time logged" gap) and never two
+    // simultaneously open (the "overlapping intervals" overcount).
+    const stillOpen = intervals.filter((i) => !i.closed)
+    expect(stillOpen.length).toBe(1)
+    expect(stillOpen[0].activity).toBe('Closer')
+    expect(intervals.map((i) => i.activity)).toEqual(['Checklist', 'Stretch', 'Closer'])
   })
 })
 

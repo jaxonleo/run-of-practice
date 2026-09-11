@@ -366,13 +366,14 @@ function ManualGroupAssign({act,team,sport,onChange}){
     shuffled.forEach((p,i)=>g[i%groupCount].push(p.id));
     onChange({groupAssignments:g});
   };
+  const pairCap=act.grouping==="partners"?2:undefined;
   const groupByPosition=()=>{
-    const g=groupByAttribute(team.players,groupCount,p=>(p.positions&&p.positions[0])||"",v=>v);
+    const g=groupByAttribute(team.players,groupCount,p=>(p.positions&&p.positions[0])||"",v=>v,pairCap);
     onChange({groupAssignments:g.map(x=>(x&&x.ids)||[])});
     setGroupByOpen(false);
   };
   const groupByHand=key=>{
-    const g=groupByAttribute(team.players,groupCount,p=>p[key]||"",v=>HAND_GROUP_LABELS[v]||v);
+    const g=groupByAttribute(team.players,groupCount,p=>p[key]||"",v=>HAND_GROUP_LABELS[v]||v,pairCap);
     onChange({groupAssignments:g.map(x=>(x&&x.ids)||[])});
     setGroupByOpen(false);
   };

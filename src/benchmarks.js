@@ -503,6 +503,21 @@ export function eligibleAssessments(list) {
   return (list || []).filter(isEligibleAssessment);
 }
 
+// ── Late-arrival reconciliation ─────────────────────────────────────────────
+//
+// An individual assessment's participant roster is seeded once, from
+// whoever was present at the moment recording started (handoff 5.2); a
+// player who checks in afterward never widens that snapshot on their own.
+// `add_benchmark_participant` exists server-side for exactly this, but a
+// coach can only reach for it if the UI tells them who is present now but
+// missing from the roster. Pure set difference, kept here (not in a
+// component) so both the live panel and any future surface can reuse it
+// without re-deriving the exclusion rule.
+export function missingBenchmarkParticipants(presentPlayerIds, participants) {
+  const known = new Set((participants || []).filter((p) => !p.is_team_subject && p.player_id).map((p) => p.player_id));
+  return (presentPlayerIds || []).filter((id) => id && !known.has(id));
+}
+
 // ── Baseline / previous selection (handoff 7.6) ─────────────────────────────
 
 // The immediately preceding eligible assessment of the same version, strictly
