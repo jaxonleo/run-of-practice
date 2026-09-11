@@ -1828,25 +1828,34 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           <button className="btn ghost bmd bfull mt10" onClick={()=>setShowTplPicker(false)}>Cancel</button>
         </div>
       </div>}
-      {/* Add/Remove Practice Components -- which of the 7 types show as
-          one-tap tiles in the section above. Persisted per coach/device
-          (getVisibleComponentTypes), so today's Intro/Closer/Station Block
-          set keeps working unchanged until a coach actually opens this. */}
+      {/* Add a Practice Component -- direct feedback (audit): this used to
+          be a pure settings-style toggle ("which of these show as a
+          tile?"), so a hidden-by-default type like Benchmark or Water Break
+          took two separate visits (open here, turn it on, close, THEN tap
+          the newly-visible tile) to actually add one. Every type is always
+          listed here, and tapping a row now adds it immediately, the exact
+          same action as tapping a tile below -- no type is ever more than
+          one tap from being added once a coach finds the [ellipsis]. The
+          small pin toggle on the right is the only thing still just a
+          preference: whether this type ALSO earns a permanent one-tap tile
+          in the section above, kept as an optional convenience per the
+          audit's own recommendation, not the only way to add it. */}
       {showComponentsPicker&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowComponentsPicker(false);}}>
         <div className="modal">
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>Add/Remove Practice Components</div>
-          <div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>Choose which of these show as one-tap buttons below. You can change this anytime.</div>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>Add a Practice Component</div>
+          <div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>Tap one to add it now. Pin a type to also keep it as a one-tap button below.</div>
           {PRACTICE_COMPONENT_TYPES.filter(t=>t.key!=="scrimmage"||sportSupportsScrimmage(teamSport)).map(t=>{
-            const on=visibleTypeKeys.includes(t.key);
-            return (<div key={t.key} className="li tap" style={{marginBottom:8}} onClick={()=>toggleComponentType(t.key)}>
+            const pinned=visibleTypeKeys.includes(t.key);
+            return (<div key={t.key} className="li tap" style={{marginBottom:8}} onClick={()=>{addComponentType(t.key);setShowComponentsPicker(false);}}>
               <div className="lim">
                 <div className="lin">{t.label}</div>
                 <div className="limt">{t.kind==="station_block"?"2+ stations":t.kind==="scrimmage"?"Everyone rotates positions and at-bats":t.kind==="benchmark"?"Pick from your Library":t.defaultDuration+" min"}</div>
               </div>
-              <span style={{width:22,height:22,borderRadius:"50%",border:"2px solid "+(on?"var(--green)":"var(--b)"),background:on?"var(--green)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{on&&<Ic.Check/>}</span>
+              <span style={{color:"var(--green)",fontSize:18,fontWeight:700,flexShrink:0,marginRight:10}}>+</span>
+              <span role="button" aria-label={pinned?"Unpin "+t.label+" from quick-add tiles":"Pin "+t.label+" as a quick-add tile"} title={pinned?"Pinned as a quick-add tile":"Pin as a quick-add tile"} onClick={e=>{e.stopPropagation();toggleComponentType(t.key);}} style={{width:22,height:22,borderRadius:"50%",border:"2px solid "+(pinned?"var(--green)":"var(--b)"),background:pinned?"var(--green)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{pinned&&<Ic.Check/>}</span>
             </div>);
           })}
-          <button className="btn primary bmd bfull mt10" onClick={()=>setShowComponentsPicker(false)}>Done</button>
+          <button className="btn ghost bmd bfull mt10" onClick={()=>setShowComponentsPicker(false)}>Close</button>
         </div>
       </div>}
       {/* Real gap found live: the sticky action bar above (border-bottom,
@@ -2481,8 +2490,22 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   // not four.
   const [drafts,setDrafts]=useState({});
   const [savingCategoryId,setSavingCategoryId]=useState(null);
+  // Direct feedback (audit): Player Focus saves on blur with no visible
+  // confirmation at all -- the main Save button above is scoped to Basic
+  // Info/Positions/Notes only (isDirty tracks `f`, never `drafts`), so it
+  // stayed disabled even right after a focus note actually saved, which
+  // read as "did that even work?" A per-category flash mirrors the same
+  // saved-toast pattern the main Save button already uses, just scoped to
+  // whichever category's input actually just committed rather than the
+  // whole page.
+  const [savedCategoryId,setSavedCategoryId]=useState(null);
+  const savedTimerRef=useRef(null);
+  useEffect(()=>()=>{if(savedTimerRef.current)clearTimeout(savedTimerRef.current);},[]);
   const draftFor=categoryId=>{const a=areaFor(categoryId);return drafts[categoryId]!==undefined?drafts[categoryId]:(a?a.note||"":"");};
-  const setDraft=(categoryId,v)=>setDrafts(p=>Object.assign({},p,{[categoryId]:v}));
+  const setDraft=(categoryId,v)=>{
+    if(savedCategoryId===categoryId)setSavedCategoryId(null);
+    setDrafts(p=>Object.assign({},p,{[categoryId]:v}));
+  };
   const commitNote=async categoryId=>{
     if(drafts[categoryId]===undefined)return;
     const existing=areaFor(categoryId);
@@ -2492,6 +2515,9 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
     await setPlayerCategoryNote(player.id,categoryId,drafts[categoryId],coachId,existing?existing.id:null);
     await refreshTeams();
     setSavingCategoryId(null);
+    setSavedCategoryId(categoryId);
+    if(savedTimerRef.current)clearTimeout(savedTimerRef.current);
+    savedTimerRef.current=setTimeout(()=>setSavedCategoryId(id=>id===categoryId?null:id),2200);
   };
   const throwsLabel=((HAND_FIELDS_BY_SPORT[team.sport]||[]).find(hf=>hf.key==="throws")||{}).label||"Throws";
 
@@ -2563,7 +2589,11 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
     {!categories.length&&<div className="card mb10"><div style={{fontSize:13,color:"var(--td)"}}>No skill categories set up yet for {team.sport}.</div></div>}
     {categories.length>0&&<div className="card mb10">
       {categories.map(cat=>(<div key={cat.id} style={{marginBottom:12}}>
-        <div style={{fontSize:13,fontWeight:700,color:"var(--black2)",marginBottom:3}}>{cat.name}</div>
+        <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:8,marginBottom:3}}>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--black2)"}}>{cat.name}</div>
+          {savingCategoryId===cat.id&&<span style={{fontSize:11,color:"var(--td)"}}>Saving...</span>}
+          {savedCategoryId===cat.id&&<span style={{fontSize:11,color:"var(--green)",fontWeight:700}}>Saved</span>}
+        </div>
         <input className="inp" placeholder="What's this player working on..." value={draftFor(cat.id)} onChange={e=>setDraft(cat.id,e.target.value)} onBlur={()=>commitNote(cat.id)} disabled={!canManage||savingCategoryId===cat.id}/>
       </div>))}
     </div>}

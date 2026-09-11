@@ -250,6 +250,38 @@ describe('generateScrimmageBoard - pitcher distribution', () => {
   })
 })
 
+describe('generateScrimmageBoard - field slot Open despite eligible players (audit: "clearer constraint handling")', () => {
+  // rop-06-scrimmage-rotation-gaps.jpg: a roster where every player has a
+  // single fixed position produced a repeated-assignment, Open-2B board with
+  // no explanation why -- the only prior warning fired when literally NOBODY
+  // was ever eligible for a slot, not when eligible players existed but were
+  // already committed elsewhere that round (the actually-observed case).
+  it('one player eligible for two single-coverage slots leaves one Open every round, with a named warning', () => {
+    const players = [
+      { id: 'a', name: 'Alex', positions: ['2B', 'SS'] }, // only one eligible for either -- can fill just one per round
+      { id: 'b', name: 'Blake', positions: ['1B'] },
+      { id: 'c', name: 'Casey', positions: ['3B'] },
+      { id: 'd', name: 'Drew', positions: ['LF'] },
+      { id: 'e', name: 'Ellis', positions: ['CF'] },
+      { id: 'f', name: 'Finley', positions: ['RF'] },
+    ]
+    const slots = ['2B', 'SS', '1B', '3B', 'LF', 'CF', 'RF'] // P/C off -- isolates this from the pitcher/catcher warnings above
+    const { board, warnings } = generateScrimmageBoard({ players, rounds: 2, slots, hittersPerRound: 'auto', catcherHold: 2, pitcherRoundsMax: 1, seed: 'audit-open-2b' })
+    const openCount = board.reduce((n, rd) => n + (rd.slots['2B'] ? 0 : 1) + (rd.slots.SS ? 0 : 1), 0)
+    expect(openCount).toBeGreaterThan(0) // Alex can never cover both slots in the same round
+    const w = warnings.find(w => /field slot.*stayed open/i.test(w) || /field slots.*stayed open/i.test(w))
+    expect(w).toBeTruthy()
+    expect(w).toMatch(/eligible/i)
+    expect(w).toMatch(/add|relax|roster|round rules/i) // carries actionable guidance, not just a bare fact
+  })
+
+  it('does not fire when every field slot is fully covered every round', () => {
+    const players = mkRoster(9, { pitchers: 0, catchers: 0 })
+    const { warnings } = generateScrimmageBoard({ players, rounds: 4, slots: ['1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'], hittersPerRound: 'auto', catcherHold: 2, pitcherRoundsMax: 1, seed: 'plenty-eligible' })
+    expect(warnings.some(w => /stayed open/i.test(w))).toBe(false)
+  })
+})
+
 describe('generateScrimmageBoard - catcher holds', () => {
   function catcherRuns(board) {
     const rounds = {}
