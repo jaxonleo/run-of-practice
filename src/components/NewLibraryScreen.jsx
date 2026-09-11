@@ -752,9 +752,9 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
           </div>
         </div>
         {expandedId===act.id&&(<div className="abbody">
-          {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} sport={sport} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags}/>}
+          {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} sport={sport} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags} openModal={openModal}/>}
           {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-          {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={sport} libraryDrills={data.activityLibrary} skillTags={data.skillTags} benchmarks={data.benchmarks}/>}
+          {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={sport} libraryDrills={data.activityLibrary} skillTags={data.skillTags} benchmarks={data.benchmarks} openModal={openModal}/>}
           {act.type==="scrimmage"&&<ScrimmageConfig act={act} team={null} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} teamSport={sport} data={data} coachId={coachId} refreshLibrary={refreshLibrary}/>}
         </div>)}
       </div>

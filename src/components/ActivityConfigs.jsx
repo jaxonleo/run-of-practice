@@ -117,6 +117,38 @@ export function AutoTextarea({className,value,onChange,style,minHeight,...rest})
   return <textarea ref={ref} className={className||"ta"} value={value} onChange={onChange} style={Object.assign({resize:"none",overflow:"hidden",minHeight:minHeight||58},style)} {...rest}/>;
 }
 
+// "Area" (sub-location) picker shared by ActConfig / StationConfig /
+// BenchmarkConfig. It used to render only when the practice's location
+// already had areas defined -- so a coach whose location had none (the
+// common case right after adding one) had no way in to add an area without
+// leaving the Builder for Library > Locations. Now: with areas, a select
+// that also carries a "+ Add an area..." option; without, a plain add
+// button; the add opens the same `addSublocation` modal the Locations tab
+// uses (which refreshes planning, so the new area shows up in the select).
+// Renders nothing if there's no practice location yet. Without openModal
+// (template / live editors) it degrades to the old behaviour: the plain
+// select when areas exist, nothing when they don't.
+export function AreaSelect({loc,value,onChange,openModal}){
+  if(!loc)return null;
+  const subs=loc.sublocations||[];
+  // No areas and no way to add one (template / live editors don't pass
+  // openModal) -> render nothing, same as before this affordance existed.
+  if(subs.length===0&&!openModal)return null;
+  const addArea=()=>openModal&&openModal("addSublocation",{location:loc});
+  const onPick=v=>{ if(v==="__add_area__"){addArea();return;} onChange(v); };
+  return (<div className="fld"><label className="lbl">Area</label>
+    {subs.length>0?(
+      <select className="sel" value={value||""} onChange={e=>onPick(e.target.value)}>
+        <option value="">Any</option>
+        {subs.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+        {openModal&&<option value="__add_area__">+ Add an area...</option>}
+      </select>
+    ):(
+      <button type="button" className="btn ghost bxs" onClick={addArea}>+ Add an area to {loc.name}</button>
+    )}
+  </div>);
+}
+
 // Equipment picker scoping shared by ActConfig/StationConfig: a coach's own
 // equipment, plus -- if this team belongs to an org and the asset is tagged
 // to this activity's own location -- that org's shared equipment too. Lets a
@@ -200,7 +232,7 @@ function DurStepper({value,min,onChange,step}){
   </div>);
 }
 
-export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,coachId,refreshLibrary,libraryDrills,skillTags}){
+export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,coachId,refreshLibrary,libraryDrills,skillTags,openModal}){
   const [newGearOpen,setNewGearOpen]=useState(false);
   // Synchronous guard for the inline "Add new equipment" buttons -- createAsset
   // + refreshLibrary is slow enough that an impatient coach taps several
@@ -255,7 +287,7 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
     <div className="fld"><label className="lbl">Description</label><AutoTextarea value={act.description||""} onChange={e=>onChange({description:e.target.value})}/></div>
     <div className="fld"><label className="lbl">Coaching Points</label><AutoTextarea value={act.coachingPoints||""} onChange={e=>onChange({coachingPoints:e.target.value})}/></div>
     {team&&<div className="fld"><label className="lbl">Coach</label><select className="sel" value={act.coachId||""} onChange={e=>onChange({coachId:e.target.value})}><option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
-    {loc&&loc.sublocations&&loc.sublocations.length>0&&<div className="fld"><label className="lbl">Area</label><select className="sel" value={act.sublocationId||""} onChange={e=>onChange({sublocationId:e.target.value})}><option value="">Any</option>{loc.sublocations.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>}
+    <AreaSelect loc={loc} value={act.sublocationId} onChange={v=>onChange({sublocationId:v})} openModal={openModal}/>
     {/* Player Grouping */}
     <div className="fld"><label className="lbl">Player Grouping</label>
       <div style={{display:"flex",gap:6}}>
@@ -413,7 +445,7 @@ export function ChecklistConfig({act,onChange,onDone}){
   </div>);
 }
 
-export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,refreshLibrary,teamSport,libraryDrills,librarySources,libSource,setLibSource,skillTags,absentPlayerIds,benchmarks}){
+export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,refreshLibrary,teamSport,libraryDrills,librarySources,libSource,setLibSource,skillTags,absentPlayerIds,benchmarks,openModal}){
   const rotate=act.rotate!==false;
   const [newEquipIdx,setNewEquipIdx]=useState(null);
   const [newGearIdx,setNewGearIdx]=useState(null);
@@ -839,11 +871,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
             <button type="button" className="btn ghost bxs" onClick={()=>{onSt(st.id,{helperName:""});setHelperIdx(null);}}>✕</button>
           </div>}
         </div>}
-        {loc&&loc.sublocations&&loc.sublocations.length>0&&<div className="fld"><label className="lbl">Area</label>
-          <select className="sel" value={st.sublocationId||""} onChange={e=>onSt(st.id,{sublocationId:e.target.value})}>
-            <option value="">Any</option>{loc.sublocations.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </div>}
+        <AreaSelect loc={loc} value={st.sublocationId} onChange={v=>onSt(st.id,{sublocationId:v})} openModal={openModal}/>
         <div className="fld"><label className="lbl">Coaching Points</label><AutoTextarea minHeight={40} value={st.coachingPoints||""} onChange={e=>onSt(st.id,{coachingPoints:e.target.value})}/></div>
         <div className="fld"><label className="lbl">Equipment</label>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
@@ -1350,7 +1378,7 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
 // practice-activity wrapper -- its own duration (separate from the measured
 // test window), coach, area, notes, grouping. Results are recorded live or
 // via Measure Again, never here.
-export function BenchmarkConfig({act,team,loc,benchmarks,onChange,onDone}){
+export function BenchmarkConfig({act,team,loc,benchmarks,onChange,onDone,openModal}){
   const bm=(benchmarks||[]).find(b=>b.id===act.benchmarkId);
   const v=bm&&((bm.versions||[]).find(x=>x.id===act.benchmarkVersionId)||bm.latestVersion)||null;
   const dir=!v?"":v.direction==="track"?"track only":(v.direction==="lower"?"lower is better":"higher is better");
@@ -1375,7 +1403,7 @@ export function BenchmarkConfig({act,team,loc,benchmarks,onChange,onDone}){
       <div style={{fontSize:11,color:"var(--td)",marginTop:4}}>How long this slot takes in the run order. It does not change the measured test window.</div>
     </div>
     {team&&<div className="fld"><label className="lbl">Coach</label><select className="sel" value={act.coachId||""} onChange={e=>onChange({coachId:e.target.value})}><option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
-    {loc&&loc.sublocations&&loc.sublocations.length>0&&<div className="fld"><label className="lbl">Area</label><select className="sel" value={act.sublocationId||""} onChange={e=>onChange({sublocationId:e.target.value})}><option value="">Any</option>{loc.sublocations.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>}
+    <AreaSelect loc={loc} value={act.sublocationId} onChange={v=>onChange({sublocationId:v})} openModal={openModal}/>
     <div className="fld"><label className="lbl">Notes for the coach running it</label><AutoTextarea value={act.coachingPoints||""} onChange={e=>onChange({coachingPoints:e.target.value})}/></div>
     {bm&&bm.subjectMode!=="team"&&<div className="fld"><label className="lbl">Player Grouping</label>
       <div style={{display:"flex",gap:6}}>
