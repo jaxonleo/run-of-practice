@@ -13,7 +13,10 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   retries: process.env.CI ? 1 : 0,
-  reporter: 'list',
+  // 'list' for readable console output either way; the HTML report only
+  // matters in CI, where a failure has no local browser to reopen and trace
+  // -- 'never' so it doesn't try to pop a browser tab on the runner itself.
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL,
     trace: 'retain-on-failure',

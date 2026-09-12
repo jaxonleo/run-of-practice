@@ -52,3 +52,44 @@ jobs:
 
       - name: pgTAP tests (RLS/RPC/grants)
         run: npm run test:db
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    # Needs three repo secrets (Settings -> Secrets and variables -> Actions):
+    # STAGING_PROJECT_REF, STAGING_SERVICE_ROLE_KEY, STAGING_ANON_KEY -- the
+    # same three names/values already in .env locally (never commit that
+    # file; these are read from GitHub's own secret store here instead).
+    env:
+      STAGING_PROJECT_REF: ${{ secrets.STAGING_PROJECT_REF }}
+      STAGING_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SERVICE_ROLE_KEY }}
+      STAGING_ANON_KEY: ${{ secrets.STAGING_ANON_KEY }}
+      # npm run dev (Playwright's own webServer) reads these two directly --
+      # Vite gives already-set process.env vars priority over any .env file,
+      # so no .env.local needs to be written in CI.
+      VITE_SUPABASE_URL: https://${{ secrets.STAGING_PROJECT_REF }}.supabase.co
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.STAGING_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install chromium --with-deps
+
+      # Against real staging, never production (same rule as every other
+      # browser-testing convention in this project) -- creates and deletes
+      # its own rows on the shared QA fixture team, see BUILD-STATUS.md.
+      - name: e2e tests (Playwright)
+        run: npm run test:e2e
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
