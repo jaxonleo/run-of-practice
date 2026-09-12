@@ -65,4 +65,18 @@ export default [
       },
     },
   },
+  {
+    // Playwright test files run under Node, but also write inline callbacks
+    // (page.evaluate, etc.) that execute in the browser -- both sets of
+    // globals genuinely apply within the same file.
+    files: ['e2e/**/*.js', 'playwright.config.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+      },
+    },
+  },
 ]

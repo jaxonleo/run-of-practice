@@ -1,5 +1,6 @@
 // build: 20260618
 import { defineConfig } from 'vite'
+import { configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
 
@@ -71,5 +72,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/setupTests.js'],
     globals: true,
+    // e2e/ holds Playwright specs (a separate runner, `npm run test:e2e`) --
+    // vitest's default include glob otherwise picks them up too and fails
+    // to load them (`test()`/`test.use()` aren't vitest's own).
+    exclude: [...configDefaults.exclude, 'e2e/**'],
   },
 })

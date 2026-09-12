@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.3",
@@ -43,6 +44,7 @@
     "db:check:prod": "bash scripts/prod_activity_check.sh",
     "db:push:staging": "bash scripts/db_push_staging.sh",
     "db:push:prod": "bash scripts/db_push_prod.sh",
-    "test:db": "npx supabase test db --local supabase/tests/database"
+    "test:db": "npx supabase test db --local supabase/tests/database",
+    "test:e2e": "playwright test"
   }
 }
