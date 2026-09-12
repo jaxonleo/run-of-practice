@@ -86,10 +86,16 @@ jobs:
       - name: e2e tests (Playwright)
         run: npm run test:e2e
 
-      - name: Upload Playwright report on failure
+      # Screenshots only, not the trace/HTML report -- a Playwright trace
+      # records every real network request the app makes, including the QA
+      # session's Authorization: Bearer <token> header, and the HTML
+      # reporter bundles that trace into playwright-report/ (security
+      # review, 2026-09-12). Screenshots carry no header/credential data.
+      - name: Upload failure screenshots
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
-          path: playwright-report/
+          name: e2e-failure-screenshots
+          path: test-results/**/*.png
           retention-days: 7
+          if-no-files-found: ignore

@@ -13,13 +13,17 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   retries: process.env.CI ? 1 : 0,
-  // 'list' for readable console output either way; the HTML report only
-  // matters in CI, where a failure has no local browser to reopen and trace
-  // -- 'never' so it doesn't try to pop a browser tab on the runner itself.
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  reporter: 'list',
   use: {
     baseURL,
+    // Deliberately NOT uploaded anywhere -- a trace records every real
+    // network request the app makes, including the QA session's
+    // `Authorization: Bearer <token>` header (security review, 2026-09-12).
+    // Kept for local debugging only (`npx playwright show-trace
+    // test-results/.../trace.zip`); CI uploads screenshots instead, which
+    // carry no header/credential data.
     trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
   },
   webServer: {
     command: 'npm run dev',
