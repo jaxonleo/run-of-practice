@@ -187,7 +187,7 @@ export default function BenchmarkRecorder({
     if (!r.error && onRefresh) onRefresh();
     setCellState(s => ({ ...s, [key]: (r.data && r.data.ok) ? "saved" : "retry" }));
   }
-  async function useServer(p, slot) {
+  async function acceptServerValue(p, slot) {
     const key = cellKey(p.participant_id, slot);
     const row = (await outboxList(outboxScope)).find(x => x.participantId === p.participant_id && x.slotIndex === slot && x.status === "conflict");
     if (row) await outboxResolveConflict(row.id);
@@ -244,7 +244,7 @@ export default function BenchmarkRecorder({
         {conflict && <div style={{ fontSize: 11, background: "var(--s2)", borderRadius: 6, padding: 6 }}>
           Server has <b>{isRate ? (conflict.successes + "/" + conflict.opportunities) : isRubric ? conflict.rubric_level_id : fromCanonical(conflict.value_numeric)}</b>.
           <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-            <button type="button" className="btn ghost bxs" onClick={() => useServer(p, slot)}>Use server</button>
+            <button type="button" className="btn ghost bxs" onClick={() => acceptServerValue(p, slot)}>Use server</button>
             <button type="button" className="btn ghost bxs" onClick={() => keepMine(p, slot)}>Reapply mine</button>
           </div>
         </div>}

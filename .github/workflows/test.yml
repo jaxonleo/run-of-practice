@@ -18,6 +18,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       # Not `npm run check` -- that script pipes vite build's output through
       # grep and always exits 0 regardless of whether a real error was found
       # (useful for a quick local eyeball, useless as a CI gate). `npm run
@@ -27,3 +30,25 @@ jobs:
 
       - name: Unit + component tests
         run: npm test
+
+  db-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Docker is preinstalled on ubuntu-latest, so this replays the whole
+      # migrations/ folder from empty into a real disposable Postgres --
+      # exactly the shadow-database check documented in BUILD-STATUS.md's
+      # migration-reconciliation Known Gap, run fresh on every push/PR.
+      - name: Start local Supabase (Docker)
+        run: npx supabase start
+
+      - name: pgTAP tests (RLS/RPC/grants)
+        run: npm run test:db

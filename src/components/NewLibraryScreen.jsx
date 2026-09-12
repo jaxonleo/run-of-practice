@@ -272,7 +272,7 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
   const addNew=async()=>{
     if(!newName.trim())return;
     const sport=(equipTab==="player"||!sportFilter)?newSport:sportFilter;
-    let created=null;
+    let created;
     if(isOrgMode&&!sportFilter){const {data:d}=await createOrgAsset(mode.orgId,{name:newName.trim(),type:equipTab,sport});created=d;}
     else{const {data:d}=await createAsset(coachId,{name:newName.trim(),type:equipTab,sport});created=d;}
     if(created&&newLocationIds.length)await setAssetLocations(created.id,newLocationIds);
