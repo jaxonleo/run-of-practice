@@ -1580,6 +1580,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   // shelf; a shared or org shelf still gets Alphabetical + Group by Skill.
   const effSort=isMine?drillSort:(drillSort==="byskill"?"byskill":"alpha");
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
+  const skillCategoriesById=Object.fromEntries((data.skillCategories||[]).map(c=>[c.id,c]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
   // Only offer tags that at least one drill on this shelf actually has --
   // filtering by a tag with zero drills would just be a dead end.
@@ -1748,7 +1749,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
             {isMine&&<option value="suggested">Suggested</option>}
           </optgroup>
           <optgroup label="Group">
-            <option value="byskill">By skill tag</option>
+            <option value="byskill">By skill category</option>
           </optgroup>
         </select>
         {isMine&&drillSort==="suggested"&&myTeamsForSort.length>1&&<select className="btn ghost bsm" value={suggestedTeamId} onChange={e=>setSuggestedTeamId(e.target.value)} style={{flexShrink:0}}>
@@ -1880,29 +1881,36 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           </div>);
           // Direct feedback: a new grouping mode, distinct from the other
           // three (which just reorder the same flat list) -- headers are
-          // the sport's own skill tags (global, not per-coach), each
-          // listing every drill tagged with it; a multi-tagged drill shows
-          // up under every one of its tags, same "lives in every applicable
-          // spot" rule the untagged-drills deep link already established
-          // for the inverse case. Derived straight from this sport's own
-          // drills (not a separate skill-category fetch), sorted
-          // alphabetically by tag name so the header order is stable.
+          // the sport's own GLOBAL skill categories (skill_categories --
+          // Hitting/Fielding/Pitching/etc, not the finer-grained coach-
+          // addable skill_tags underneath each one), each listing every
+          // drill carrying at least one tag under that category; a drill
+          // whose tags span more than one category shows up under every one
+          // of them, same "lives in every applicable spot" rule the
+          // untagged-drills deep link already established for the inverse
+          // case -- but only once per category, even if it carries two tags
+          // under the same category. Derived from this sport's own drills'
+          // skillTagIds resolved through skillTagsById.categoryId (not a
+          // separate skill-category fetch), sorted alphabetically by
+          // category name so the header order is stable.
           if(effSort==="byskill"){
-            const byTag={};
+            const byCat={};
             const untagged=[];
             sportDrills.forEach(act=>{
               if(!act.skillTagIds||!act.skillTagIds.length){untagged.push(act);return;}
-              act.skillTagIds.forEach(tid=>{(byTag[tid]=byTag[tid]||[]).push(act);});
+              const catIds=new Set(act.skillTagIds.map(tid=>skillTagsById[tid]&&skillTagsById[tid].categoryId).filter(Boolean));
+              if(!catIds.size){untagged.push(act);return;}
+              catIds.forEach(cid=>{(byCat[cid]=byCat[cid]||[]).push(act);});
             });
-            const tagIds=Object.keys(byTag).sort((a,b)=>{
-              const na=(skillTagsById[a]&&skillTagsById[a].name)||"";
-              const nb=(skillTagsById[b]&&skillTagsById[b].name)||"";
+            const catIds=Object.keys(byCat).sort((a,b)=>{
+              const na=(skillCategoriesById[a]&&skillCategoriesById[a].name)||"";
+              const nb=(skillCategoriesById[b]&&skillCategoriesById[b].name)||"";
               return na.localeCompare(nb);
             });
             return (<>
-              {tagIds.map(tid=>(<div key={tid} style={{marginBottom:14}}>
-                <div style={{fontSize:12,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--gbg)"}}>{(skillTagsById[tid]&&skillTagsById[tid].name)||"Tag"} ({byTag[tid].length})</div>
-                {byTag[tid].map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
+              {catIds.map(cid=>(<div key={cid} style={{marginBottom:14}}>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--gbg)"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} ({byCat[cid].length})</div>
+                {byCat[cid].map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
               </div>))}
               {untagged.length>0&&<div style={{marginBottom:14}}>
                 <div style={{fontSize:12,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--s2)"}}>Untagged ({untagged.length})</div>
