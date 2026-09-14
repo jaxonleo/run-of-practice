@@ -1535,6 +1535,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   });
   const teamTemplates=(data.templates||[]).filter(t=>(t.sport||"General")===teamSport||(t.sport||"General")==="General");
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
+  const skillCategoriesById=Object.fromEntries((data.skillCategories||[]).map(c=>[c.id,c]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
   // Same drift check as TemplateWorkspace -- a fresh single-drill add always
   // matches the library (nothing to flag), but stripIdsForCopy(startTpl.
@@ -2193,7 +2194,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                   {act.type==="station_block"&&act.stations.some(s=>s.delegatedTo)&&<div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:8}}>
                     {act.stations.filter(s=>s.delegatedTo).map(s=><StationPresenceIndicator key={s.id} stationId={s.id}/>)}
                   </div>}
-                  {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} libraryDrills={sourceFilteredLib} librarySources={librarySources} libSource={libSource} setLibSource={setLibSource} skillTags={data.skillTags} absentPlayerIds={absentPlayerIds} benchmarks={data.benchmarks} openModal={openModal}/>}
+                  {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={team} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} libraryDrills={sourceFilteredLib} librarySources={librarySources} libSource={libSource} setLibSource={setLibSource} skillTags={data.skillTags} skillCategories={data.skillCategories} absentPlayerIds={absentPlayerIds} benchmarks={data.benchmarks} openModal={openModal}/>}
                   {act.type==="scrimmage"&&<ScrimmageConfig act={act} team={team} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)} teamSport={teamSport} data={data} coachId={coachId} refreshLibrary={refreshLibrary} absentPlayerIds={absentPlayerIds} isBB={isBB}/>}
                   {act.type==="benchmark"&&<BenchmarkConfig act={act} team={team} loc={loc} benchmarks={data.benchmarks} onChange={ch=>updAct(act.id,ch)} onDone={()=>collapseAndScroll(act.id)} openModal={openModal}/>}
                 </div>
@@ -2283,7 +2284,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                 <option value="alpha">Alphabetical</option>
               </optgroup>
               <optgroup label="Group">
-                <option value="byskill">By skill tag</option>
+                <option value="byskill">By skill category</option>
               </optgroup>
             </select>
             {builderAvailableTags.length>0&&<button type="button" className="btn ghost bxs" onClick={()=>setShowBuilderFilter(s=>!s)}>{builderTagFilter.length?"Filter ("+builderTagFilter.length+")":"Filter"}</button>}
@@ -2296,16 +2297,18 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           </div>}
           {builderFilteredLib.length===0&&<div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>No drills here yet.</div>}
           {builderDrillSort==="byskill"?(()=>{
-            const byTag={};const untagged=[];
+            const byCat={};const untagged=[];
             builderFilteredLib.forEach(lib=>{
               if(!lib.skillTagIds||!lib.skillTagIds.length){untagged.push(lib);return;}
-              lib.skillTagIds.forEach(tid=>{(byTag[tid]=byTag[tid]||[]).push(lib);});
+              const catIds=new Set(lib.skillTagIds.map(tid=>skillTagsById[tid]&&skillTagsById[tid].categoryId).filter(Boolean));
+              if(!catIds.size){untagged.push(lib);return;}
+              catIds.forEach(cid=>{(byCat[cid]=byCat[cid]||[]).push(lib);});
             });
-            const tagIds=Object.keys(byTag).sort((a,b)=>((skillTagsById[a]&&skillTagsById[a].name)||"").localeCompare((skillTagsById[b]&&skillTagsById[b].name)||""));
+            const catIds=Object.keys(byCat).sort((a,b)=>((skillCategoriesById[a]&&skillCategoriesById[a].name)||"").localeCompare((skillCategoriesById[b]&&skillCategoriesById[b].name)||""));
             return (<>
-              {tagIds.map(tid=>(<div key={tid} style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--gbg)"}}>{(skillTagsById[tid]&&skillTagsById[tid].name)||"Tag"} ({byTag[tid].length})</div>
-                {byTag[tid].map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
+              {catIds.map(cid=>(<div key={cid} style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--gbg)"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} ({byCat[cid].length})</div>
+                {byCat[cid].map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
               </div>))}
               {untagged.length>0&&<div style={{marginBottom:12}}>
                 <div style={{fontSize:11,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--s2)"}}>Untagged ({untagged.length})</div>
