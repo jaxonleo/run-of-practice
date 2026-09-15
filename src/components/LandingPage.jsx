@@ -409,7 +409,7 @@ function StationsVisual() {
 }
 
 // Modeled directly on PreviewView (CommandScreen.jsx) -- the actual
-// screen behind "Share Setup Link": dark, standalone, opened by whoever's
+// screen behind "Share Live Link": dark, standalone, opened by whoever's
 // setting up a station before the coach ever gets there. Same literal
 // colors as that component (not the CSS-var palette the rest of the site
 // mocks use) since this dark-on-#0d1512 look IS the real screen, not a

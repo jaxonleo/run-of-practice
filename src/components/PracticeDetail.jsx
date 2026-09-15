@@ -235,7 +235,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
           {practice.seriesId&&<button className="btn danger bsm" onClick={()=>doCancel("future")}>Cancel This &amp; Future</button>}
         </div>
       </div>}
-      {!previewUrl&&!isCancelled&&<button className="btn outline bmd bfull" style={{marginBottom:12}} onClick={shareSetup} disabled={sharing}>{sharing?"Creating link...":"Share Setup Link"}</button>}
+      {!previewUrl&&!isCancelled&&<button className="btn outline bmd bfull" style={{marginBottom:12}} onClick={shareSetup} disabled={sharing}>{sharing?"Creating link...":"Share Live Link"}</button>}
       {previewUrl&&<div style={{background:"var(--field-tint)",border:"1.5px solid var(--field-tint-border)",borderRadius:"var(--radius-lg)",padding:"10px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:10,fontWeight:700,color:"var(--field)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Setup Link Active</div>
