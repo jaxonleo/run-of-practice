@@ -16,7 +16,7 @@ import { missingBenchmarkParticipants } from "../benchmarks.js";
 // signed-in team coach can record; finalize / reopen / grants gate on the
 // server (can_finalize / can_manage) and this only mirrors that in the UI.
 
-export default function BenchmarkLivePanel({ activity, station, practice, team, liveSessionId, coachId, presentPlayerIds, isDesktop, assessmentId: assessmentIdProp }) {
+export default function BenchmarkLivePanel({ activity, station, practice, team, liveSessionId, coachId, presentPlayerIds, assessmentId: assessmentIdProp }) {
   // Standalone mode: the caller (Measure Again -> record now) has already
   // created the assessment and passes its id; there is no live activity or
   // station to resolve an occurrence for.
@@ -168,7 +168,6 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
         setStatus={setStatus}
         onRefresh={refresh}
         readOnly={false}
-        isDesktop={isDesktop}
         reserveParticipant={reserveParticipant}
         releaseParticipant={releaseParticipant}
       />}
@@ -194,7 +193,7 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
         <div className="modal" style={{ maxWidth: 420 }}>
           <div className="mtitle">Finalize with incomplete results?</div>
           <div style={{ fontSize: 13, marginBottom: 10 }}>
-            {confirmFinalize.complete} complete · {confirmFinalize.partial} partial · {confirmFinalize.missing} not measured · {confirmFinalize.skipped} skipped · {confirmFinalize.unable} unable, of {confirmFinalize.expected} expected.
+            {confirmFinalize.complete} complete · {confirmFinalize.partial} partial · {confirmFinalize.missing} waiting · {confirmFinalize.skipped} skipped · {confirmFinalize.unable} unable, of {confirmFinalize.expected} expected.
             Incomplete participants stay out of the official summary.
           </div>
           <div style={{ display: "flex", gap: 8 }}>

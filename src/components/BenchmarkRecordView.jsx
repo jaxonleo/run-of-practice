@@ -86,7 +86,6 @@ export default function BenchmarkRecordView({ token }) {
           onRefresh={load}
           readOnly={closed}
           mineOnlyEdit
-          isDesktop={typeof window !== "undefined" && window.innerWidth >= 900}
           reserveParticipant={reserveParticipant}
           releaseParticipant={releaseParticipant}
         />
