@@ -49,11 +49,11 @@ function StationSummaryCard({ station, blockDurationMinutes, team, assetsById })
   return (<div className="card" style={{ padding: "12px 14px", opacity: .85 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
       <div style={{ fontSize: 14, fontWeight: 700 }}>{station.name || "Untitled station"}</div>
-      <div style={{ fontSize: 12, color: "var(--td)", flexShrink: 0 }}>{blockDurationMinutes}m</div>
+      <div style={{ fontSize: 12, color: "var(--text-dim)", flexShrink: 0 }}>{blockDurationMinutes}m</div>
     </div>
-    {leaderName && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>Leads: {leaderName}</div>}
-    {equipNames.length > 0 && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 4 }}>Equipment: {equipNames.join(", ")}</div>}
-    {station.stationUpdatedAt && <div style={{ fontSize: 11, color: "var(--td)", marginTop: 4 }}>Last edited {timeAgo(station.stationUpdatedAt)}{coachNameFor(team, station.stationUpdatedBy) ? " by " + coachNameFor(team, station.stationUpdatedBy) : ""}</div>}
+    {leaderName && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2 }}>Leads: {leaderName}</div>}
+    {equipNames.length > 0 && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>Equipment: {equipNames.join(", ")}</div>}
+    {station.stationUpdatedAt && <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>Last edited {timeAgo(station.stationUpdatedAt)}{coachNameFor(team, station.stationUpdatedBy) ? " by " + coachNameFor(team, station.stationUpdatedBy) : ""}</div>}
   </div>);
 }
 
@@ -136,14 +136,14 @@ function MyStationEditor({ practiceId, activity, station, initialSnapshot, team,
   };
 
   if (!stillMine) {
-    return (<div className="card" style={{ padding: "14px 16px", border: "1.5px solid var(--amber)" }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--amber)", marginBottom: 6 }}>
+    return (<div className="card" style={{ padding: "14px 16px", border: "1.5px solid var(--caution)" }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--caution)", marginBottom: 6 }}>
         {stillExists ? "You're no longer delegated to plan this station" : "This station was removed from the plan"}
       </div>
-      <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 10 }}>
+      <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 10 }}>
         {stillExists ? "The head coach delegated it to someone else. Your in-progress notes are still here below -- nothing was written to the station." : "The head coach deleted or restructured this part of the plan. Your in-progress notes are still here below -- they were never saved anywhere."}
       </div>
-      <div style={{ fontSize: 13, background: "var(--s2)", borderRadius: "var(--r)", padding: 10, whiteSpace: "pre-wrap" }}>{draft.name}{draft.name && "\n"}{draft.description}{draft.description && "\n"}{draft.coachingPoints}</div>
+      <div style={{ fontSize: 13, background: "var(--surface-soft)", borderRadius: "var(--radius-lg)", padding: 10, whiteSpace: "pre-wrap" }}>{draft.name}{draft.name && "\n"}{draft.description}{draft.description && "\n"}{draft.coachingPoints}</div>
       <button type="button" className="btn ghost bxs" style={{ marginTop: 10 }} onClick={copyDraft}>{copied ? "Copied" : "Copy My Notes"}</button>
     </div>);
   }
@@ -151,19 +151,19 @@ function MyStationEditor({ practiceId, activity, station, initialSnapshot, team,
   return (<div className="card" style={{ padding: "14px 16px" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
       <div style={{ fontSize: 15, fontWeight: 700 }}>{station.name || "Your station"}</div>
-      {presentCoachNames.length > 0 && <div style={{ fontSize: 11, color: "var(--green)", flexShrink: 0 }}>● editing now</div>}
+      {presentCoachNames.length > 0 && <div style={{ fontSize: 11, color: "var(--field)", flexShrink: 0 }}>● editing now</div>}
     </div>
-    {station.stationUpdatedAt && <div style={{ fontSize: 11, color: "var(--td)", marginBottom: 10 }}>Last saved {timeAgo(station.stationUpdatedAt)}{coachNameFor(team, station.stationUpdatedBy) ? " by " + coachNameFor(team, station.stationUpdatedBy) : ""}</div>}
+    {station.stationUpdatedAt && <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 10 }}>Last saved {timeAgo(station.stationUpdatedAt)}{coachNameFor(team, station.stationUpdatedBy) ? " by " + coachNameFor(team, station.stationUpdatedBy) : ""}</div>}
 
     <div className="fld"><label className="lbl">Drill</label>
       <div style={{ display: "flex", gap: 6 }}>
         <input className="inp" style={{ flex: 1 }} placeholder="Drill name" value={draft.name} onChange={e => upd({ name: e.target.value })} />
         <button type="button" className="btn ghost bxs" onClick={() => setShowLibraryPicker(s => !s)}>{showLibraryPicker ? "Close" : "Choose from Library"}</button>
       </div>
-      {showLibraryPicker && <div style={{ marginTop: 8, border: "1.5px solid var(--b)", borderRadius: "var(--r)", padding: 8, maxHeight: 240, overflowY: "auto" }}>
+      {showLibraryPicker && <div style={{ marginTop: 8, border: "1.5px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 8, maxHeight: 240, overflowY: "auto" }}>
         <input className="inp" placeholder="Search drills..." value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} style={{ marginBottom: 8 }} />
-        {filteredLibrary.length === 0 && <div style={{ fontSize: 12, color: "var(--td)" }}>No drills found</div>}
-        {filteredLibrary.map(lib => (<button key={lib.id} type="button" onClick={() => chooseFromLibrary(lib)} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 6px", border: "none", borderBottom: "1px solid var(--b)", background: "none", cursor: "pointer", fontSize: 13 }}>{lib.name}</button>))}
+        {filteredLibrary.length === 0 && <div style={{ fontSize: 12, color: "var(--text-dim)" }}>No drills found</div>}
+        {filteredLibrary.map(lib => (<button key={lib.id} type="button" onClick={() => chooseFromLibrary(lib)} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 6px", border: "none", borderBottom: "1px solid var(--border)", background: "none", cursor: "pointer", fontSize: 13 }}>{lib.name}</button>))}
       </div>}
     </div>
     <div className="fld"><label className="lbl">Description</label><AutoTextarea minHeight={40} value={draft.description} onChange={e => upd({ description: e.target.value })} /></div>
@@ -176,21 +176,21 @@ function MyStationEditor({ practiceId, activity, station, initialSnapshot, team,
     <div className="fld"><label className="lbl">Grouping</label>
       <div style={{ display: "flex", gap: 6 }}>
         {[{ v: "whole", l: "Whole Station" }, { v: "partners", l: "Partners" }, { v: "groups", l: "Groups" }].map(({ v, l }) => (
-          <button key={v} type="button" onClick={() => upd({ grouping: v })} style={{ flex: 1, padding: "8px 4px", borderRadius: "var(--r)", border: "1.5px solid var(--b)", background: draft.grouping === v ? "var(--green)" : "var(--s1)", color: draft.grouping === v ? "#fff" : "var(--black)", fontSize: 13, cursor: "pointer", fontWeight: 700 }}>{l}</button>
+          <button key={v} type="button" onClick={() => upd({ grouping: v })} style={{ flex: 1, padding: "8px 4px", borderRadius: "var(--radius-lg)", border: "1.5px solid var(--border)", background: draft.grouping === v ? "var(--field)" : "var(--surface)", color: draft.grouping === v ? "#fff" : "var(--ink)", fontSize: 13, cursor: "pointer", fontWeight: 700 }}>{l}</button>
         ))}
       </div>
       {draft.grouping === "groups" && <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-        {[2, 3, 4, 5, 6].map(n => (<button key={n} type="button" onClick={() => upd({ numGroups: n })} style={{ flex: 1, padding: "8px 0", borderRadius: "var(--r)", border: "1.5px solid var(--b)", background: (draft.numGroups || 2) === n ? "var(--green)" : "var(--s1)", color: (draft.numGroups || 2) === n ? "#fff" : "var(--black)", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>{n}</button>))}
+        {[2, 3, 4, 5, 6].map(n => (<button key={n} type="button" onClick={() => upd({ numGroups: n })} style={{ flex: 1, padding: "8px 0", borderRadius: "var(--radius-lg)", border: "1.5px solid var(--border)", background: (draft.numGroups || 2) === n ? "var(--field)" : "var(--surface)", color: (draft.numGroups || 2) === n ? "#fff" : "var(--ink)", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>{n}</button>))}
       </div>}
     </div>
     <div className="fld"><label className="lbl">Equipment</label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {teamEquipAssets.map(a => (<EquipmentPickerPill key={a.id} asset={a} selected={draft.equipment.includes(a.id)} onToggle={() => { const has = draft.equipment.includes(a.id); upd({ equipment: has ? draft.equipment.filter(x => x !== a.id) : [...draft.equipment, a.id] }); }} refreshLibrary={refreshLibrary} />))}
-        {teamEquipAssets.length === 0 && <span style={{ fontSize: 12, color: "var(--td)" }}>No team equipment in library</span>}
+        {teamEquipAssets.length === 0 && <span style={{ fontSize: 12, color: "var(--text-dim)" }}>No team equipment in library</span>}
       </div>
     </div>
 
-    {saveError && <div style={{ fontSize: 13, color: "var(--red)", marginBottom: 8 }}>{saveError}</div>}
+    {saveError && <div style={{ fontSize: 13, color: "var(--danger)", marginBottom: 8 }}>{saveError}</div>}
     <button type="button" className="btn primary bmd bfull" disabled={!dirty || saving} onClick={save}>{saving ? "Saving..." : savedFlash ? "Saved" : dirty ? "Save Station" : "Saved"}</button>
   </div>);
 }
@@ -208,7 +208,7 @@ export function StationPresenceIndicator({ stationId }) {
     return subscribeToStationPresence(stationId, null, setNames);
   }, [stationId]);
   if (!names.length) return null;
-  return <span style={{ fontSize: 11, color: "var(--green)", fontWeight: 600 }}>● {names.join(", ")} editing now</span>;
+  return <span style={{ fontSize: 11, color: "var(--field)", fontWeight: 600 }}>● {names.join(", ")} editing now</span>;
 }
 
 export default function MyStationBuilderScreen({ practice, team, data, coachId, coachLabel, refreshPlanning, refreshLibrary, goHome }) {
@@ -264,7 +264,7 @@ export default function MyStationBuilderScreen({ practice, team, data, coachId, 
 
   return (<div style={{ padding: "0 16px calc(var(--tab) + 20px)" }}>
     <div style={{ padding: "16px 0 8px" }}>
-      <div style={{ fontSize: 12, color: "var(--td)", textTransform: "uppercase", letterSpacing: ".05em" }}>{team.name}</div>
+      <div style={{ fontSize: 12, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".05em" }}>{team.name}</div>
       <div style={{ fontSize: 20, fontWeight: 800 }}>{practice.name || "Practice"}{practice.date ? " · " + practice.date : ""}</div>
     </div>
     {[...openStationIds].map(stationId => {
@@ -285,7 +285,7 @@ export default function MyStationBuilderScreen({ practice, team, data, coachId, 
         ))}
       </div>;
       return (<div key={stationId} style={{ marginBottom: 20 }}>
-        {activity && <div style={{ fontSize: 13, fontWeight: 700, color: "var(--td)", marginBottom: 8 }}>{activity.name || "Station Block"}</div>}
+        {activity && <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-dim)", marginBottom: 8 }}>{activity.name || "Station Block"}</div>}
         {isBB ? <TwoPane left={editorEl} right={siblingsEl} /> : <>{editorEl}{siblingsEl}</>}
       </div>);
     })}

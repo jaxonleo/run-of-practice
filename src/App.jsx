@@ -48,31 +48,36 @@ const CSS=`
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
 :root{
-  --bg:#f7f8f6;--s1:#fff;--s2:#f0f2ee;--s3:#e6e9e2;--b:#d8ddd3;
-  --green:#2d6a4f;--green2:#40916c;--gbg:#eaf4ef;--gb:#b7d5c8;
-  --black:#111714;--black2:#2c3830;--red:#c0392b;--rbg:#fdf0ef;--rb:#f5c6c2;
-  --amber:#b45309;--ambg:#fffbeb;--ambb:#fde68a;
-  --tm:#5a6b62;--td:#8a9e94;--r:10px;--rs:6px;--tab:58px;
+  /* ROP Design System v1 -- semantic tokens. Same brand values as before this pass;
+     renamed/split so each name states the role it plays, not the raw color. */
+  --canvas:#f7f8f6;--surface:#fff;--surface-soft:#f0f2ee;--surface-pressed:#e6e9e2;--border:#d8ddd3;
+  --field:#2d6a4f;--field-strong:#2d6a4f;--field-accent:#40916c;--field-tint:#eaf4ef;--field-tint-border:#b7d5c8;
+  --ink:#111714;--ink-soft:#2c3830;
+  --danger:#c0392b;--danger-tint:#fdf0ef;--danger-tint-border:#f5c6c2;
+  --caution:#b45309;--caution-tint:#fffbeb;--caution-tint-border:#fde68a;
+  --text-muted:#5a6b62;--text-dim:#8a9e94;
+  --radius-lg:12px;--radius-md:8px;--radius-sm:6px;--tab:58px;
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;
 }
-body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;font-size:15px;}
+body{background:var(--canvas);color:var(--ink);font-family:'Barlow',sans-serif;font-size:15px;}
 .app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;overflow:hidden;}
 .app-content{flex:1;min-width:0;display:flex;flex-direction:column;height:100%;overflow:hidden;}
 .screen{flex:1;overflow-y:auto;overflow-x:hidden;padding:14px 14px calc(var(--tab)+80px);scrollbar-width:none;}
 .screen::-webkit-scrollbar{display:none;}
-.tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;height:var(--tab);background:var(--s1);border-top:1px solid var(--b);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom,0);}
-.live-resume{position:fixed;bottom:var(--tab);left:50%;transform:translateX(-50%);width:100%;max-width:480px;z-index:99;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 14px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border:none;border-top:1px solid rgba(255,255,255,.15);}
-.ti{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:none;border:none;cursor:pointer;color:var(--td);font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 2px;position:relative;}
-.ti.on{color:var(--green);}.ti svg{width:20px;height:20px;stroke-width:1.8;stroke:var(--td);}.ti.on svg{stroke:var(--green);}
+.tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;height:var(--tab);background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom,0);}
+.live-resume{position:fixed;bottom:var(--tab);left:50%;transform:translateX(-50%);width:100%;max-width:480px;z-index:99;background:var(--field);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 14px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border:none;border-top:1px solid rgba(255,255,255,.15);}
+.ti{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:none;border:none;cursor:pointer;color:var(--text-dim);font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 2px;position:relative;}
+.ti.on{color:var(--field);}.ti svg{width:20px;height:20px;stroke-width:1.8;stroke:var(--text-dim);}.ti.on svg{stroke:var(--field);}
 /* Active-tab underline: color alone (the icon/label turning green) wasn't
    clear enough per direct feedback -- this makes it unambiguous which of
    the three sections you're actually in, same idea as the team-workspace
    top row's own active underline just below the color strip. */
-.ti.on::after{content:"";position:absolute;bottom:0;left:10%;right:10%;height:3px;background:var(--green);border-radius:1px;}
+.ti.on::after{content:"";position:absolute;bottom:0;left:10%;right:10%;height:3px;background:var(--field);border-radius:1px;}
 /* Org mode (per-device Coach/Organization toggle): same three tabs, solid
    green bar as the persistent visual cue -- color alone isn't enough for
    accessibility, so Layout.jsx also shows the org name near the top in
    this mode, this is just the tab bar's own look. */
-.tabbar.org{background:var(--green);border-top-color:var(--green);}
+.tabbar.org{background:var(--field);border-top-color:var(--field);}
 .tabbar.org .ti{color:rgba(255,255,255,.65);}
 .tabbar.org .ti.on{color:#fff;}
 .tabbar.org .ti svg{stroke:rgba(255,255,255,.65);}
@@ -80,9 +85,9 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
 .tabbar.org .ti.on::after{background:#fff;}
 .phdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
 .ptitle{font-size:26px;font-weight:900;letter-spacing:.02em;font-family:'Barlow Condensed',sans-serif;}
-.card{background:var(--s1);border:1px solid var(--b);border-radius:var(--r);padding:14px;margin-bottom:10px;}
-.clbl{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--td);margin-bottom:8px;}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:none;border-radius:var(--rs);cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;transition:opacity .12s;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;margin-bottom:10px;}
+.clbl{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:none;border-radius:var(--radius-md);cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;transition:opacity .12s;}
 /* Real gap found live: every color variant (.primary/.outline/...) sets its
    own solid background/color with no disabled override, so a disabled
    button (e.g. Goals' Save, gated on totals summing to exactly 100%) was
@@ -97,85 +102,85 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
    fell back to exactly text-sized with zero padding. One size up from
    .blg, matching the same padding/font-size/min-height progression. */
 .bxl{padding:16px 22px;font-size:18px;min-height:54px;}
-.primary{background:var(--green);color:#fff;}.primary:active{background:var(--green2);}
-.ghost{background:var(--s2);color:var(--black2);border:1px solid var(--b);}.ghost:active{background:var(--s3);}
-.danger{background:var(--rbg);color:var(--red);border:1px solid var(--rb);}
-.success{background:var(--gbg);color:var(--green);border:1px solid var(--gb);}
-.outline{background:#fff;color:var(--green);border:1.5px solid var(--green);}.outline:active{background:var(--gbg);}
-.warn{background:var(--ambg);color:var(--amber);border:1px solid var(--ambb);}
+.primary{background:var(--field);color:#fff;}.primary:active{background:var(--field-accent);}
+.ghost{background:var(--surface-soft);color:var(--ink-soft);border:1px solid var(--border);}.ghost:active{background:var(--surface-pressed);}
+.danger{background:var(--danger-tint);color:var(--danger);border:1px solid var(--danger-tint-border);}
+.success{background:var(--field-tint);color:var(--field);border:1px solid var(--field-tint-border);}
+.outline{background:#fff;color:var(--field);border:1.5px solid var(--field);}.outline:active{background:var(--field-tint);}
+.warn{background:var(--caution-tint);color:var(--caution);border:1px solid var(--caution-tint-border);}
 .brow{display:flex;gap:8px;}.brow .btn{flex:1;}.bfull{width:100%;}
 .fld{margin-bottom:10px;}
-.lbl{display:block;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--td);margin-bottom:4px;}
-.inp,.sel,.ta{width:100%;background:#fff;border:1.5px solid var(--b);border-radius:var(--rs);color:var(--black);padding:10px 12px;font-family:'Barlow',sans-serif;font-size:16px;-webkit-appearance:none;}
-.inp:focus,.sel:focus,.ta:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px var(--gbg);}
+.lbl{display:block;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:4px;}
+.inp,.sel,.ta{width:100%;background:#fff;border:1.5px solid var(--border);border-radius:var(--radius-md);color:var(--ink);padding:10px 12px;font-family:'Barlow',sans-serif;font-size:16px;-webkit-appearance:none;}
+.inp:focus,.sel:focus,.ta:focus{outline:none;border-color:var(--field);box-shadow:0 0 0 3px var(--field-tint);}
 .ta{resize:vertical;min-height:58px;}
 .sel{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath fill='%238a9e94' d='M5 7L0 0h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:30px;}
-.sel option{background:#fff;color:var(--black);}
+.sel option{background:#fff;color:var(--ink);}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
-.li{display:flex;align-items:center;padding:11px 12px;border:1px solid var(--b);border-radius:var(--r);margin-bottom:7px;background:#fff;gap:9px;}
-.li.tap{cursor:pointer;}.li.tap:active{background:var(--s2);}
-.lim{flex:1;min-width:0;}.lin{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.limt{font-size:12px;color:var(--td);margin-top:2px;}
+.li{display:flex;align-items:center;padding:11px 12px;border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:7px;background:#fff;gap:9px;}
+.li.tap{cursor:pointer;}.li.tap:active{background:var(--surface-soft);}
+.lim{flex:1;min-width:0;}.lin{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.limt{font-size:12px;color:var(--text-dim);margin-top:2px;}
 .lir{display:flex;align-items:center;gap:6px;flex-shrink:0;}
 .bdg{display:inline-flex;align-items:center;padding:3px 8px;border-radius:4px;font-size:11px;font-family:'DM Mono',monospace;font-weight:500;}
-.bp{background:var(--gbg);color:var(--green);border:1px solid var(--gb);}
-.bs{background:var(--s2);color:var(--tm);border:1px solid var(--b);}
-.bk{background:var(--black);color:#fff;}
+.bp{background:var(--field-tint);color:var(--field);border:1px solid var(--field-tint-border);}
+.bs{background:var(--surface-soft);color:var(--text-muted);border:1px solid var(--border);}
+.bk{background:var(--ink);color:#fff;}
 .cgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px;}
-.chip{display:flex;flex-direction:column;align-items:center;padding:8px 4px;border:1.5px solid var(--b);border-radius:var(--rs);background:#fff;cursor:pointer;min-height:48px;justify-content:center;}
-.chip.on{border-color:var(--green);background:var(--gbg);}
-.cn{font-family:'DM Mono',monospace;font-size:13px;color:var(--tm);}.chip.on .cn{color:var(--green);}
-.cf{font-size:11px;font-weight:600;margin-top:1px;color:var(--tm);}.chip.on .cf{color:var(--green);}
-.itabs{display:flex;border-bottom:1.5px solid var(--b);margin-bottom:14px;}
-.itab{padding:9px 14px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--td);cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;background:none;border-top:none;border-left:none;border-right:none;}
-.itab.on{color:var(--green);border-bottom-color:var(--green);}
-.ablk{border:1px solid var(--b);border-radius:var(--r);margin-bottom:9px;overflow:hidden;background:#fff;}
-.abhdr{display:flex;align-items:center;padding:11px 12px;background:var(--s2);gap:8px;cursor:pointer;user-select:none;}
-.abhdr:active{background:var(--s3);}.abbody{padding:12px;border-top:1px solid var(--b);background:#fff;}
+.chip{display:flex;flex-direction:column;align-items:center;padding:8px 4px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:#fff;cursor:pointer;min-height:48px;justify-content:center;}
+.chip.on{border-color:var(--field);background:var(--field-tint);}
+.cn{font-family:'DM Mono',monospace;font-size:13px;color:var(--text-muted);}.chip.on .cn{color:var(--field);}
+.cf{font-size:11px;font-weight:600;margin-top:1px;color:var(--text-muted);}.chip.on .cf{color:var(--field);}
+.itabs{display:flex;border-bottom:1.5px solid var(--border);margin-bottom:14px;}
+.itab{padding:9px 14px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-dim);cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;background:none;border-top:none;border-left:none;border-right:none;}
+.itab.on{color:var(--field);border-bottom-color:var(--field);}
+.ablk{border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:9px;overflow:hidden;background:#fff;}
+.abhdr{display:flex;align-items:center;padding:11px 12px;background:var(--surface-soft);gap:8px;cursor:pointer;user-select:none;}
+.abhdr:active{background:var(--surface-pressed);}.abbody{padding:12px;border-top:1px solid var(--border);background:#fff;}
 .dh{color:var(--b2);padding:4px;flex-shrink:0;display:flex;align-items:center;cursor:grab;}
 .sechdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
-.sectitle{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tm);}
-.pill{background:var(--gbg);border:1px solid var(--gb);border-radius:20px;padding:4px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--green);}
-.pill.over{background:var(--rbg);border-color:var(--rb);color:var(--red);}
-.pill.exceeds{background:var(--ambg);border-color:var(--ambb);color:var(--amber);}
-.confirm-box{background:var(--rbg);border:1.5px solid var(--rb);border-radius:var(--r);padding:14px;margin-top:8px;}
-.confirm-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--red);margin-bottom:4px;}
-.confirm-body{font-size:13px;color:var(--black2);margin-bottom:12px;line-height:1.5;}
+.sectitle{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);}
+.pill{background:var(--field-tint);border:1px solid var(--field-tint-border);border-radius:20px;padding:4px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--field);}
+.pill.over{background:var(--danger-tint);border-color:var(--danger-tint-border);color:var(--danger);}
+.pill.exceeds{background:var(--caution-tint);border-color:var(--caution-tint-border);color:var(--caution);}
+.confirm-box{background:var(--danger-tint);border:1.5px solid var(--danger-tint-border);border-radius:var(--radius-lg);padding:14px;margin-top:8px;}
+.confirm-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--danger);margin-bottom:4px;}
+.confirm-body{font-size:13px;color:var(--ink-soft);margin-bottom:12px;line-height:1.5;}
 .ell-btn{background:none;border:none;cursor:pointer;padding:6px 8px;display:flex;flex-direction:column;gap:3.5px;align-items:center;border-radius:4px;flex-shrink:0;}
-.ell-btn:active{background:var(--s2);}
-.ell-btn span{display:block;width:4px;height:4px;border-radius:50%;background:var(--td);}
-.mini-menu{position:absolute;right:8px;top:calc(100% - 4px);background:#fff;border:1px solid var(--b);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:50;min-width:120px;overflow:hidden;}
-.mm-item{display:block;width:100%;padding:11px 14px;background:none;border:none;cursor:pointer;font-family:'Barlow',sans-serif;font-size:14px;font-weight:500;text-align:left;color:var(--black);}
-.mm-item:active{background:var(--s2);}.mm-danger{color:var(--red);}
-.sort-btn{background:none;border:1px solid var(--b);border-radius:6px;padding:5px 7px;cursor:pointer;display:inline-flex;align-items:center;color:var(--td);}
+.ell-btn:active{background:var(--surface-soft);}
+.ell-btn span{display:block;width:4px;height:4px;border-radius:50%;background:var(--text-dim);}
+.mini-menu{position:absolute;right:8px;top:calc(100% - 4px);background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:50;min-width:120px;overflow:hidden;}
+.mm-item{display:block;width:100%;padding:11px 14px;background:none;border:none;cursor:pointer;font-family:'Barlow',sans-serif;font-size:14px;font-weight:500;text-align:left;color:var(--ink);}
+.mm-item:active{background:var(--surface-soft);}.mm-danger{color:var(--danger);}
+.sort-btn{background:none;border:1px solid var(--border);border-radius:6px;padding:5px 7px;cursor:pointer;display:inline-flex;align-items:center;color:var(--text-dim);}
 .sport-group{margin-bottom:4px;}
-.sport-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--s2);border:1px solid var(--b);border-radius:var(--r);cursor:pointer;margin-bottom:6px;}
-.sport-hdr:active{background:var(--s3);}
-.sport-name{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--black2);}
+.sport-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface-soft);border:1px solid var(--border);border-radius:var(--radius-lg);cursor:pointer;margin-bottom:6px;}
+.sport-hdr:active{background:var(--surface-pressed);}
+.sport-name{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);}
 .movly{position:fixed;inset:0;background:rgba(17,23,20,.55);display:flex;align-items:flex-end;justify-content:center;z-index:200;}
-.modal{background:#fff;border:1px solid var(--b);border-radius:16px 16px 0 0;padding:18px 16px;width:100%;max-width:480px;max-height:88dvh;overflow-y:auto;}
-.mhandle{width:38px;height:4px;background:var(--b);border-radius:2px;margin:0 auto 16px;}
+.modal{background:#fff;border:1px solid var(--border);border-radius:16px 16px 0 0;padding:18px 16px;width:100%;max-width:480px;max-height:88dvh;overflow-y:auto;}
+.mhandle{width:38px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px;}
 .mtitle{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;margin-bottom:14px;}
 .mfooter{display:flex;gap:8px;margin-top:14px;}.mfooter .btn{flex:1;}
 .gpreview{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0;}
-.gcard{background:var(--bg);border:1px solid var(--b);border-radius:var(--rs);padding:10px;}
-.gcardtitle{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;color:var(--td);margin-bottom:5px;letter-spacing:.06em;text-transform:uppercase;}
+.gcard{background:var(--canvas);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px;}
+.gcardtitle{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:5px;letter-spacing:.06em;text-transform:uppercase;}
 .gplayer{font-size:13px;padding:2px 0;}
-.notec{background:#fff;border:1px solid var(--b);border-radius:var(--r);padding:11px 12px;margin-bottom:7px;}
-.notect{font-size:11px;font-family:'DM Mono',monospace;color:var(--td);margin-bottom:3px;}
+.notec{background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:11px 12px;margin-bottom:7px;}
+.notect{font-size:11px;font-family:'DM Mono',monospace;color:var(--text-dim);margin-bottom:3px;}
 .notetx{font-size:14px;line-height:1.5;}
-.empty{text-align:center;padding:36px 20px;color:var(--td);}
+.empty{text-align:center;padding:36px 20px;color:var(--text-dim);}
 .emtx{font-size:14px;line-height:1.5;}
-.live{display:inline-block;width:7px;height:7px;min-width:7px;flex-shrink:0;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;}
+.live{display:inline-block;width:7px;height:7px;min-width:7px;flex-shrink:0;border-radius:50%;background:var(--field);animation:pulse 1.5s infinite;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 .loadmark-hand{transform-origin:50px 50px;animation:tick 1.2s linear infinite;}
 @keyframes tick{to{transform:rotate(360deg)}}
 .row{display:flex;align-items:center;gap:8px;}
 .mt6{margin-top:6px;}.mt8{margin-top:8px;}.mb8{margin-bottom:8px;}.mb10{margin-bottom:10px;}
-.td{color:var(--td);}.tm{color:var(--tm);}.tg{color:var(--green);}
+.td{color:var(--text-dim);}.tm{color:var(--text-muted);}.tg{color:var(--field);}
 .att-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;}
-.att-btn{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--b);border-radius:8px;cursor:pointer;background:var(--s2);text-align:left;width:100%;}
-.att-btn.on{background:var(--gbg);border-color:var(--green);}
+.att-btn{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;background:var(--surface-soft);text-align:left;width:100%;}
+.att-btn.on{background:var(--field-tint);border-color:var(--field);}
 .att-btn-dark{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.15);}
 .att-btn-dark.on{background:rgba(82,183,136,.18);border-color:#52b788;}
 /* Direct feedback (Practice Setup): the normal 10px/12px tiles only fit a
@@ -190,20 +195,20 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
    with no fallback resets the background to transparent, so the circle
    rendered fully invisible (not merely unstyled) against any background,
    light or dark, rather than a visibly "blank/empty" circle. */
-.att-circle{width:26px;height:26px;border-radius:50%;background:var(--s3);border:1.5px solid var(--b);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-sizing:border-box;}
-.att-circle.on{background:var(--green);border-color:var(--green);}
+.att-circle{width:26px;height:26px;border-radius:50%;background:var(--surface-pressed);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-sizing:border-box;}
+.att-circle.on{background:var(--field);border-color:var(--field);}
 .att-circle-dark{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.25);}
 .att-circle-dark.on{background:#52b788;border-color:#52b788;}
 .ccs{display:flex;flex-direction:column;height:100%;overflow:hidden;padding-bottom:0;}
-.cc-header{padding:8px 14px;background:var(--s1);border-bottom:1px solid var(--b);display:flex;flex-direction:column;align-items:stretch;flex-shrink:0;}
+.cc-header{padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;flex-direction:column;align-items:stretch;flex-shrink:0;}
 .cc-header-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .cc-act-name{font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:900;line-height:1;margin:6px 0 2px;width:100%;}
 .cc-timer-row{padding:4px 14px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
-.cc-timer{font-family:'DM Mono',monospace;font-size:64px;font-weight:500;line-height:1;color:var(--green);}
-.cc-timer.urg{color:var(--red);}.cc-timer.over{color:var(--red);animation:pulse .8s infinite;}
-.cc-prog{height:4px;background:var(--s2);flex-shrink:0;}
-.cc-prog-bar{height:100%;background:var(--green);transition:width .5s linear;}
-.cc-prog-bar.over{background:var(--red);}
+.cc-timer{font-family:'DM Mono',monospace;font-size:64px;font-weight:500;line-height:1;color:var(--field);}
+.cc-timer.urg{color:var(--danger);}.cc-timer.over{color:var(--danger);animation:pulse .8s infinite;}
+.cc-prog{height:4px;background:var(--surface-soft);flex-shrink:0;}
+.cc-prog-bar{height:100%;background:var(--field);transition:width .5s linear;}
+.cc-prog-bar.over{background:var(--danger);}
 .cc-controls{padding:6px 14px;display:flex;gap:8px;flex-shrink:0;}
 .cc-body{flex:1;min-height:0;overflow-y:auto;padding:0 14px 8px;display:flex;flex-direction:column;gap:10px;}
 /* Real bug (mobile only): .cc-body is a flex column that's meant to scroll,
@@ -214,17 +219,17 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
    never hit it. Pinning every direct child to its natural height forces the
    scroll onto .cc-body where it belongs. */
 .cc-body>*{flex-shrink:0;}
-.cc-focus{background:var(--gbg);border:1.5px solid var(--gb);border-radius:var(--r);padding:14px;}
-.cc-focus-lbl{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--green2);margin-bottom:6px;}
-.cc-focus-txt{font-size:17px;font-weight:600;color:var(--black);line-height:1.5;}
-.cc-st-card{background:#fff;border:1px solid var(--b);border-radius:var(--r);padding:12px;margin-bottom:6px;}
-.cc-st-card.active{border-color:var(--green);background:var(--gbg);}
+.cc-focus{background:var(--field-tint);border:1.5px solid var(--field-tint-border);border-radius:var(--radius-lg);padding:14px;}
+.cc-focus-lbl{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--field-accent);margin-bottom:6px;}
+.cc-focus-txt{font-size:17px;font-weight:600;color:var(--ink);line-height:1.5;}
+.cc-st-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;margin-bottom:6px;}
+.cc-st-card.active{border-color:var(--field);background:var(--field-tint);}
 .cc-st-name{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;}
-.cc-st-detail{font-size:13px;color:var(--tm);margin-top:4px;line-height:1.7;}
-.cc-trans-card{background:#fff;border:1.5px solid var(--b);border-radius:var(--r);padding:14px;margin-bottom:8px;}
-.cc-trans-names{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:700;color:var(--black);line-height:1.2;margin-bottom:6px;}
-.cc-trans-to{font-size:14px;color:var(--green);font-weight:600;}
-.cc-trans-sub{font-size:12px;color:var(--td);margin-top:2px;}
+.cc-st-detail{font-size:13px;color:var(--text-muted);margin-top:4px;line-height:1.7;}
+.cc-trans-card{background:#fff;border:1.5px solid var(--border);border-radius:var(--radius-lg);padding:14px;margin-bottom:8px;}
+.cc-trans-names{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:700;color:var(--ink);line-height:1.2;margin-bottom:6px;}
+.cc-trans-to{font-size:14px;color:var(--field);font-weight:600;}
+.cc-trans-sub{font-size:12px;color:var(--text-dim);margin-top:2px;}
 /* Direct feedback: Up Next used to just be another card in the same
    flex-gap stack as the current drill's own content, easy to read as a
    continuation of it rather than a preview of something different. A
@@ -232,18 +237,18 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
    pattern used for section breaks elsewhere) plus a real border on the
    card itself gives it its own visual identity. */
 .cc-queue-hdr{display:flex;align-items:center;gap:8px;margin-top:6px;}
-.cc-queue-hdr-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--green);flex-shrink:0;}
-.cc-queue-hdr-line{flex:1;height:1px;background:var(--b);}
-.cc-queue{background:var(--s1);border:1.5px solid var(--b);border-radius:var(--r);overflow:hidden;margin-top:8px;}
-.cc-queue-item{padding:10px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--b);}
+.cc-queue-hdr-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--field);flex-shrink:0;}
+.cc-queue-hdr-line{flex:1;height:1px;background:var(--border);}
+.cc-queue{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-top:8px;}
+.cc-queue-item{padding:10px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
 .cc-queue-item:last-child{border-bottom:none;}
-.cc-note-bar{padding:6px 14px;display:flex;gap:7px;flex-shrink:0;background:var(--s1);border-top:1px solid var(--b);}
+.cc-note-bar{padding:6px 14px;display:flex;gap:7px;flex-shrink:0;background:var(--surface);border-top:1px solid var(--border);}
 .cc-end{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;flex:1;}
-.cl-item{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--b);cursor:pointer;}
+.cl-item{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;}
 .cl-item:last-child{border-bottom:none;}
-.cl-check{width:26px;height:26px;border-radius:50%;border:2px solid var(--b);background:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
-.cl-check.done{background:var(--green);border-color:var(--green);}
-.cl-text{font-size:16px;line-height:1.5;flex:1;}.cl-text.done{text-decoration:line-through;color:var(--td);}
+.cl-check{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);background:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.cl-check.done{background:var(--field);border-color:var(--field);}
+.cl-text{font-size:16px;line-height:1.5;flex:1;}.cl-text.done{text-decoration:line-through;color:var(--text-dim);}
 /* Practice plan PDF export (PracticePlanPrint.jsx): print only that one
    subtree, regardless of what else is mounted in the SPA at the time --
    simplest robust way to get a clean, selectable-text "PDF" out of a
@@ -271,9 +276,9 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
    column instead of a fixed-position bottom row. A normal flex child here,
    not position:fixed -- .app already clips overflow at a fixed 100dvh
    height, so nothing needs to be pulled out of flow to stay visible. */
-.bb .tabbar{position:static;left:auto;bottom:auto;transform:none;width:88px;max-width:88px;height:100%;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:6px;padding:20px 0 12px;border-top:none;border-right:1px solid var(--b);flex-shrink:0;}
+.bb .tabbar{position:static;left:auto;bottom:auto;transform:none;width:88px;max-width:88px;height:100%;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:6px;padding:20px 0 12px;border-top:none;border-right:1px solid var(--border);flex-shrink:0;}
 .bb .ti{flex:0 0 auto;padding:10px 4px;}
-.bb .ti.on::after{content:"";position:absolute;left:0;right:auto;top:14%;bottom:14%;width:3px;height:auto;background:var(--green);border-radius:0 2px 2px 0;}
+.bb .ti.on::after{content:"";position:absolute;left:0;right:auto;top:14%;bottom:14%;width:3px;height:auto;background:var(--field);border-radius:0 2px 2px 0;}
 .bb .rail-gear{margin-top:auto;}
 /* Live-resume and the join bar must stay reachable at BB, not hidden under
    the rail or squeezed to a fixed 480px width -- normal content-column
@@ -302,7 +307,7 @@ body{background:var(--bg);color:var(--black);font-family:'Barlow',sans-serif;fon
      chrome to the left of that edge, so the panel is (viewport / 2) minus
      that. Clamped so it stays usable on a 1024 screen and doesn't get
      absurdly wide on an ultrawide one. */
-  .movly-right>.modal{width:clamp(440px,calc(50vw - 52px),760px);max-width:none!important;height:100%!important;max-height:100%!important;border-radius:0!important;border:none;border-left:1px solid var(--b);box-shadow:-16px 0 48px rgba(0,0,0,.18);}
+  .movly-right>.modal{width:clamp(440px,calc(50vw - 52px),760px);max-width:none!important;height:100%!important;max-height:100%!important;border-radius:0!important;border:none;border-left:1px solid var(--border);box-shadow:-16px 0 48px rgba(0,0,0,.18);}
   .movly-right>.modal>.mhandle{display:none;}
   /* Sign-in screen: on a phone the white card is a bottom sheet under a
      tall hero; on a desktop that reads as "stuck to the bottom of the
@@ -391,36 +396,36 @@ function AuthScreen({onBack}){
     }
     // onAuthStateChange picks up the new session automatically.
   };
-  return (<div className="auth-wrap" style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
+  return (<div className="auth-wrap" style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--ink)",overflowY:"auto"}}>
     {onBack&&<button onClick={onBack} style={{position:"absolute",top:16,left:16,background:"rgba(255,255,255,.08)",border:"none",borderRadius:"50%",width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#fff",fontSize:18,zIndex:10}}>&#8249;</button>}
     <div className="auth-hero" style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
       <div style={{width:96,height:96,borderRadius:22,overflow:"hidden",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
         <img src="/apple-touch-icon.png" style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Run of Practice"/>
       </div>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:38,fontWeight:900,color:"#fff",letterSpacing:"-.01em",lineHeight:1,marginBottom:6,textAlign:"center"}}>Run of Practice</div>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:600,letterSpacing:".12em",textTransform:"uppercase",color:"var(--green)",textAlign:"center"}}>Organize. Execute. Elevate.</div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:600,letterSpacing:".12em",textTransform:"uppercase",color:"var(--field)",textAlign:"center"}}>Organize. Execute. Elevate.</div>
     </div>
     <div className="auth-sheet" style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
-      <div className="mhandle-auth" style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
+      <div className="mhandle-auth" style={{width:36,height:4,background:"var(--border)",borderRadius:2,margin:"0 auto 24px"}}/>
       {!sent&&<div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Welcome, Coach</div>
-        <div style={{fontSize:14,color:"var(--td)",marginBottom:20}}>Enter your email. We'll send you a sign-in code.</div>
+        <div style={{fontSize:14,color:"var(--text-dim)",marginBottom:20}}>Enter your email. We'll send you a sign-in code.</div>
         <div className="fld mb10">
           <label className="lbl">Email</label>
           <input className="inp" autoFocus type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")send();}}/>
         </div>
-        {error&&<div style={{fontSize:13,color:"var(--red)",marginBottom:10}}>{error}</div>}
+        {error&&<div style={{fontSize:13,color:"var(--danger)",marginBottom:10}}>{error}</div>}
         <button className="btn primary bmd bfull" onClick={send} disabled={!email.trim()||sending}>{sending?"Sending...":"Send Code"}</button>
-        <div style={{fontSize:11,color:"var(--td)",marginTop:12,textAlign:"center",lineHeight:1.5}}>By continuing you agree to our <a href="/terms" style={{color:"var(--green)"}}>Terms</a> and <a href="/privacy" style={{color:"var(--green)"}}>Privacy Policy</a>.</div>
+        <div style={{fontSize:11,color:"var(--text-dim)",marginTop:12,textAlign:"center",lineHeight:1.5}}>By continuing you agree to our <a href="/terms" style={{color:"var(--field)"}}>Terms</a> and <a href="/privacy" style={{color:"var(--field)"}}>Privacy Policy</a>.</div>
       </div>}
       {sent&&<div>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>Enter your code</div>
-        <div style={{fontSize:14,color:"var(--td)",marginBottom:20,lineHeight:1.5}}>We sent a code to <strong>{email}</strong>. Enter the full code exactly as it appears in the email.</div>
+        <div style={{fontSize:14,color:"var(--text-dim)",marginBottom:20,lineHeight:1.5}}>We sent a code to <strong>{email}</strong>. Enter the full code exactly as it appears in the email.</div>
         <div className="fld mb10">
           <label className="lbl">Code</label>
           <input className="inp" autoFocus type="text" inputMode="numeric" autoComplete="one-time-code" placeholder="Enter code" value={code} onChange={e=>setCode(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")verify();}}/>
         </div>
-        {error&&<div style={{fontSize:13,color:"var(--red)",marginBottom:10}}>{error}</div>}
+        {error&&<div style={{fontSize:13,color:"var(--danger)",marginBottom:10}}>{error}</div>}
         <button className="btn primary bmd bfull" onClick={verify} disabled={!code.trim()||verifying} style={{marginBottom:10}}>{verifying?"Verifying...":"Verify & Sign In"}</button>
         <button className="btn ghost bmd bfull" onClick={()=>{setSent(false);setCode("");setError("");}}>Use a different email</button>
       </div>}
@@ -437,7 +442,7 @@ function NameScreen({onSave}){
     await onSave(firstName.trim(),lastName.trim());
     setSaving(false);
   };
-  return (<div className="auth-wrap" style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--black)",overflowY:"auto"}}>
+  return (<div className="auth-wrap" style={{height:"100dvh",display:"flex",flexDirection:"column",background:"var(--ink)",overflowY:"auto"}}>
     <div className="auth-hero" style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px 24px"}}>
       <div style={{width:96,height:96,borderRadius:22,overflow:"hidden",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
         <img src="/apple-touch-icon.png" style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Run of Practice"/>
@@ -445,7 +450,7 @@ function NameScreen({onSave}){
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,color:"#fff",letterSpacing:"-.01em",lineHeight:1,marginBottom:6,textAlign:"center"}}>What should we call you?</div>
     </div>
     <div className="auth-sheet" style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"28px 20px 48px"}}>
-      <div className="mhandle-auth" style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 24px"}}/>
+      <div className="mhandle-auth" style={{width:36,height:4,background:"var(--border)",borderRadius:2,margin:"0 auto 24px"}}/>
       <div className="fld mb10">
         <label className="lbl">First name*</label>
         <input className="inp" autoFocus type="text" placeholder="Alex" value={firstName} onChange={e=>setFirstName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")save();}}/>
@@ -454,7 +459,7 @@ function NameScreen({onSave}){
         <label className="lbl">Last name</label>
         <input className="inp" type="text" placeholder="Rivera" value={lastName} onChange={e=>setLastName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")save();}}/>
       </div>
-      <div style={{fontSize:12,color:"var(--td)",marginBottom:16}}>* required</div>
+      <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:16}}>* required</div>
       <button className="btn primary bmd bfull" onClick={save} disabled={!firstName.trim()||saving}>{saving?"Saving...":"Continue"}</button>
     </div>
   </div>);
@@ -465,12 +470,12 @@ function NameScreen({onSave}){
 // leaving the coach stuck looking at a screen with only one working
 // button; nothing changes server-side unless Reactivate is actually tapped.
 function ReactivatePrompt({onReactivate,onExit,busy}){
-  return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"var(--black)",padding:"24px"}}>
+  return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"var(--ink)",padding:"24px"}}>
     <div style={{width:96,height:96,borderRadius:22,overflow:"hidden",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
       <img src="/apple-touch-icon.png" style={{width:"100%",height:"100%",objectFit:"cover"}} alt="Run of Practice"/>
     </div>
     <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:24,fontWeight:900,color:"#fff",textAlign:"center",marginBottom:8}}>Reactivate your account?</div>
-    <div style={{fontSize:14,color:"var(--td)",textAlign:"center",lineHeight:1.5,marginBottom:24,maxWidth:340}}>Your account is currently deactivated. Reactivating brings you back onto your teammates' rosters and picks up right where you left off.</div>
+    <div style={{fontSize:14,color:"var(--text-dim)",textAlign:"center",lineHeight:1.5,marginBottom:24,maxWidth:340}}>Your account is currently deactivated. Reactivating brings you back onto your teammates' rosters and picks up right where you left off.</div>
     <button className="btn primary bmd bfull" style={{maxWidth:340,marginBottom:10}} onClick={onReactivate} disabled={busy}>{busy?"Reactivating...":"Reactivate My Account"}</button>
     <button className="btn ghost bmd bfull" style={{maxWidth:340,color:"#fff",borderColor:"rgba(255,255,255,.25)"}} onClick={onExit} disabled={busy}>Exit Without Reactivating</button>
   </div>);
@@ -708,18 +713,18 @@ export default function App(){
 // vs. this ticking-mark one) purely because the graphic was added to only
 // one of them at first. Same mark, same message style, everywhere now.
 function LoadingScreen({message}){
-  return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",gap:18,alignItems:"center",justifyContent:"center",background:"var(--black)"}}>
+  return (<div style={{height:"100dvh",display:"flex",flexDirection:"column",gap:18,alignItems:"center",justifyContent:"center",background:"var(--ink)"}}>
     <svg width="72" height="72" viewBox="0 0 100 100">
       <rect x="42" y="0" width="16" height="10" rx="5" fill="#fff" opacity=".85"/>
       <rect x="68" y="6" width="16" height="9" rx="4.5" fill="#fff" opacity=".85" transform="rotate(35 76 10)"/>
       <circle cx="50" cy="50" r="40" fill="none" stroke="#fff" strokeOpacity=".18" strokeWidth="5"/>
-      <path d="M 78 76 A 40 40 0 0 0 90 50" fill="none" stroke="var(--green2)" strokeWidth="5" strokeLinecap="round"/>
+      <path d="M 78 76 A 40 40 0 0 0 90 50" fill="none" stroke="var(--field-accent)" strokeWidth="5" strokeLinecap="round"/>
       <g className="loadmark-hand">
-        <line x1="50" y1="50" x2="50" y2="20" stroke="var(--green)" strokeWidth="6" strokeLinecap="round"/>
+        <line x1="50" y1="50" x2="50" y2="20" stroke="var(--field)" strokeWidth="6" strokeLinecap="round"/>
       </g>
-      <circle cx="50" cy="50" r="5" fill="var(--green)"/>
+      <circle cx="50" cy="50" r="5" fill="var(--field)"/>
     </svg>
-    <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--green)"}}>{message}</div>
+    <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:700,color:"var(--field)"}}>{message}</div>
   </div>);
 }
 
@@ -912,7 +917,7 @@ function TeamScheduleRoute(){
   const refreshBoth=useCallback(async()=>{
     await Promise.allSettled([refreshTeamPractices(),refreshGlobalPlanning()]);
   },[refreshTeamPractices,refreshGlobalPlanning]);
-  if(teamPractices===null)return (<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Loading...</div>);
+  if(teamPractices===null)return (<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>Loading...</div>);
   const scopedData=Object.assign({},data,{practices:teamPractices});
   return <ScheduleScreen data={scopedData} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshBoth} fixedTeamId={teamId} setSubViewBack={setSubViewBack} mode={mode}/>;
 }
@@ -1033,10 +1038,10 @@ function RunRoute(){
 function DurStepper({value,min,onChange,step}){
   const s=step||1;
   const mn=min||1;
-  return (<div style={{display:"flex",alignItems:"center",gap:0,border:"1.5px solid var(--b)",borderRadius:"var(--rs)",overflow:"hidden",background:"#fff"}}>
-      <button onClick={()=>onChange(Math.max(mn,value-s))} style={{width:40,height:40,border:"none",background:"var(--s2)",color:"var(--black2)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>-</button>
-      <div style={{flex:1,textAlign:"center",fontFamily:"DM Mono,monospace",fontSize:15,fontWeight:600,color:"var(--black)"}}>{value}m</div>
-      <button onClick={()=>onChange(value+s)} style={{width:40,height:40,border:"none",background:"var(--s2)",color:"var(--black2)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+  return (<div style={{display:"flex",alignItems:"center",gap:0,border:"1.5px solid var(--border)",borderRadius:"var(--radius-md)",overflow:"hidden",background:"#fff"}}>
+      <button onClick={()=>onChange(Math.max(mn,value-s))} style={{width:40,height:40,border:"none",background:"var(--surface-soft)",color:"var(--ink-soft)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>-</button>
+      <div style={{flex:1,textAlign:"center",fontFamily:"DM Mono,monospace",fontSize:15,fontWeight:600,color:"var(--ink)"}}>{value}m</div>
+      <button onClick={()=>onChange(value+s)} style={{width:40,height:40,border:"none",background:"var(--surface-soft)",color:"var(--ink-soft)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
     </div>
   );
 }
@@ -1752,7 +1757,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // page at mobile (unchanged) or at the top of the left pane at BB (per
   // the handoff's own recommendation) -- same ref, same handlers, same
   // JSX either way, just placed differently below.
-  const stickyBarContent=(<div ref={stickyHeaderRef} style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
+  const stickyBarContent=(<div ref={stickyHeaderRef} style={{position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--border)"}}>
       {/* Back-button audit (2026-07-15): was a hardcoded navigate("/") --
           always dropped you on Home regardless of where you actually came
           from (a team's Plan tab, Schedule, Library...). navigate(-1)
@@ -1772,17 +1777,17 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         {(!bottomMode||bottomMode==="")&&<><button className="btn outline bsm" onClick={editP?handleSave:()=>setBottomMode("savechoice")}>Save</button>
         <button className="btn primary bsm" onClick={handleRun} disabled={!isSessionLive&&runTooFarAway} title={!isSessionLive&&runTooFarAway?"Run Now unlocks within 1 hour of the scheduled time":""}>{isSessionLive?"Join Practice":"Run Now"}</button></>}
       </div>
-      {runError&&<div style={{padding:"0 14px 8px",fontSize:12,color:"var(--red)"}}>{runError}</div>}
+      {runError&&<div style={{padding:"0 14px 8px",fontSize:12,color:"var(--danger)"}}>{runError}</div>}
       {editP&&<div style={{padding:"0 14px 8px",display:"flex",alignItems:"baseline",gap:8}}>
-        <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",flexShrink:0}}>Editing</span>
-        <span style={{fontSize:13,fontWeight:700,color:"var(--black)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{team?team.name:"Practice"} · {schedDate?new Date(schedDate+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"No date"}{schedTime?" · "+fmt12(schedTime):""}</span>
+        <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--field)",flexShrink:0}}>Editing</span>
+        <span style={{fontSize:13,fontWeight:700,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{team?team.name:"Practice"} · {schedDate?new Date(schedDate+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"No date"}{schedTime?" · "+fmt12(schedTime):""}</span>
       </div>}
       {!editP&&startTpl&&<div style={{padding:"0 14px 8px",display:"flex",alignItems:"baseline",gap:8}}>
-        <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--green)",flexShrink:0}}>From Template</span>
-        <span style={{fontSize:13,fontWeight:700,color:"var(--black)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{startTpl.name}</span>
+        <span style={{fontSize:10,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--field)",flexShrink:0}}>From Template</span>
+        <span style={{fontSize:13,fontWeight:700,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{startTpl.name}</span>
       </div>}
       {!editP&&bottomMode==="savechoice"&&<div style={{padding:"0 14px 10px"}}>
-        <div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>Save this practice as...</div>
+        <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:8}}>Save this practice as...</div>
         <div className="brow">
           <button className="btn ghost bsm" onClick={()=>setBottomMode(null)}>Cancel</button>
           <button className="btn outline bsm" style={{flex:1}} onClick={()=>{setTplName("");setBottomMode("template");}}>Template</button>
@@ -1803,16 +1808,16 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         <div className="modal">
           {!schedSuccess?<>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>Schedule this practice</div>
-            <div style={{fontSize:13,color:"var(--td)",marginBottom:16}}>Sets the date and time this practice runs. You can still change the plan afterward.</div>
+            <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:16}}>Sets the date and time this practice runs. You can still change the plan afterward.</div>
             <div className="g2 mb10">
               <div className="fld"><label className="lbl">Date</label><input className="inp" type="date" value={schedDate} onChange={e=>setSchedDate(e.target.value)}/></div>
               <div className="fld"><label className="lbl">Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
             </div>
-            <div className="fld mb10"><label className="lbl">Duration (min) <span style={{color:"var(--td)",fontWeight:400}}>(optional)</span></label><input className="inp" type="number" min="1" placeholder="e.g. 60" value={schedDuration} onChange={e=>{const v=e.target.value;setSchedDuration(v===""?"":+v);}}/></div>
+            <div className="fld mb10"><label className="lbl">Duration (min) <span style={{color:"var(--text-dim)",fontWeight:400}}>(optional)</span></label><input className="inp" type="number" min="1" placeholder="e.g. 60" value={schedDuration} onChange={e=>{const v=e.target.value;setSchedDuration(v===""?"":+v);}}/></div>
             <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowScheduleModal(false)}>Cancel</button><button className="btn primary bsm" style={{flex:1}} onClick={()=>doSchedule(schedDate,schedTime)} disabled={!schedDate}>Schedule Practice</button></div>
           </>:<>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>Practice scheduled</div>
-            <div style={{fontSize:13,color:"var(--td)",marginBottom:16}}>{team?team.name:"Practice"} · {new Date(schedDate+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}{schedTime?" · "+fmt12(schedTime):""}</div>
+            <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:16}}>{team?team.name:"Practice"} · {new Date(schedDate+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}{schedTime?" · "+fmt12(schedTime):""}</div>
             <button className="btn primary bmd bfull" onClick={()=>{setShowScheduleModal(false);navigate(-1);}}>Done</button>
           </>}
         </div>
@@ -1821,10 +1826,10 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       {showTplPicker&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowTplPicker(false);}}>
         <div className="modal">
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:12}}>Start with a template</div>
-          {teamTemplates.length===0&&<div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>No templates saved yet for {teamSport}.</div>}
+          {teamTemplates.length===0&&<div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12}}>No templates saved yet for {teamSport}.</div>}
           {teamTemplates.map(tpl=>(<div key={tpl.id} className="li tap" onClick={()=>applyTemplate(tpl)}>
             <div className="lim"><div className="lin">{tpl.name}</div><div className="limt">{(tpl.activities||[]).length} activities · {tpl.durMin||0}min</div></div>
-            <span style={{color:"var(--green)",fontSize:20,fontWeight:700,flexShrink:0}}>+</span>
+            <span style={{color:"var(--field)",fontSize:20,fontWeight:700,flexShrink:0}}>+</span>
           </div>))}
           <button className="btn ghost bmd bfull mt10" onClick={()=>setShowTplPicker(false)}>Cancel</button>
         </div>
@@ -1844,7 +1849,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       {showComponentsPicker&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowComponentsPicker(false);}}>
         <div className="modal">
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>Add a Practice Component</div>
-          <div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>Tap one to add it now. Pin a type to also keep it as a one-tap button below.</div>
+          <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:14}}>Tap one to add it now. Pin a type to also keep it as a one-tap button below.</div>
           {PRACTICE_COMPONENT_TYPES.filter(t=>t.key!=="scrimmage"||sportSupportsScrimmage(teamSport)).map(t=>{
             const pinned=visibleTypeKeys.includes(t.key);
             return (<div key={t.key} className="li tap" style={{marginBottom:8}} onClick={()=>{addComponentType(t.key);setShowComponentsPicker(false);}}>
@@ -1852,8 +1857,8 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                 <div className="lin">{t.label}</div>
                 <div className="limt">{t.kind==="station_block"?"2+ stations":t.kind==="scrimmage"?"Everyone rotates positions and at-bats":t.kind==="benchmark"?"Pick from your Library":t.defaultDuration+" min"}</div>
               </div>
-              <span style={{color:"var(--green)",fontSize:18,fontWeight:700,flexShrink:0,marginRight:10}}>+</span>
-              <span role="button" aria-label={pinned?"Unpin "+t.label+" from quick-add tiles":"Pin "+t.label+" as a quick-add tile"} title={pinned?"Pinned as a quick-add tile":"Pin as a quick-add tile"} onClick={e=>{e.stopPropagation();toggleComponentType(t.key);}} style={{width:22,height:22,borderRadius:"50%",border:"2px solid "+(pinned?"var(--green)":"var(--b)"),background:pinned?"var(--green)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{pinned&&<Ic.Check/>}</span>
+              <span style={{color:"var(--field)",fontSize:18,fontWeight:700,flexShrink:0,marginRight:10}}>+</span>
+              <span role="button" aria-label={pinned?"Unpin "+t.label+" from quick-add tiles":"Pin "+t.label+" as a quick-add tile"} title={pinned?"Pinned as a quick-add tile":"Pin as a quick-add tile"} onClick={e=>{e.stopPropagation();toggleComponentType(t.key);}} style={{width:22,height:22,borderRadius:"50%",border:"2px solid "+(pinned?"var(--field)":"var(--border)"),background:pinned?"var(--field)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{pinned&&<Ic.Check/>}</span>
             </div>);
           })}
           <button className="btn ghost bmd bfull mt10" onClick={()=>setShowComponentsPicker(false)}>Close</button>
@@ -1893,7 +1898,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         {/* Solid black, matching Practice Components/My Drill Library --
             a full-width team-color fill read as too loud; the team still
             shows up here, just as a subtle stripe on the left instead. */}
-        <div onClick={()=>setDetailsOpen(o=>!o)} style={{position:"relative",background:"var(--black)",color:"#fff",padding:"9px 12px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",overflow:"hidden"}}>
+        <div onClick={()=>setDetailsOpen(o=>!o)} style={{position:"relative",background:"var(--ink)",color:"#fff",padding:"9px 12px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",overflow:"hidden"}}>
           {team&&team.colorPrimary&&<span style={{position:"absolute",top:0,left:0,bottom:0,width:6,background:team.colorPrimary}}/>}
           <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flexShrink:0,marginLeft:team&&team.colorPrimary?6:0}}>Practice Details</span>
           {!detailsOpen&&<span style={{fontSize:12,color:"rgba(255,255,255,.65)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{team?team.name:"No team selected"}{loc?" · "+loc.name:""}</span>}
@@ -1986,9 +1991,9 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           sitting on the plain white page background the moment it's
           scrolled past that point. */}
       <div ref={runOfPracticeStartRef} style={{position:"relative"}}>
-        <div style={{position:"absolute",top:0,left:0,right:0,height:runOfPracticeH,background:"var(--green)",borderRadius:"var(--r)",pointerEvents:"none",zIndex:0}}/>
+        <div style={{position:"absolute",top:0,left:0,right:0,height:runOfPracticeH,background:"var(--field-strong)",borderRadius:"var(--radius-lg)",pointerEvents:"none",zIndex:0}}/>
       </div>
-      <div ref={ropHeaderRef} style={{position:"sticky",top:stickyHeaderH,zIndex:9,background:"var(--green)",borderRadius:"var(--r) var(--r) 0 0",display:"flex",alignItems:"center",gap:10,padding:"10px 10px 8px"}}>
+      <div ref={ropHeaderRef} style={{position:"sticky",top:stickyHeaderH,zIndex:9,background:"var(--field-strong)",borderRadius:"var(--radius-lg) var(--radius-lg) 0 0",display:"flex",alignItems:"center",gap:10,padding:"10px 10px 8px"}}>
         <RunOfPracticeMark rotation={handRotation}/>
         <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",letterSpacing:".01em",flex:1,lineHeight:1.1}}>The Run of Practice</span>
         {(()=>{
@@ -2033,20 +2038,20 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           on the common case of a practice that doesn't need one. Dashed
           border + light green fill against the solid green backdrop is the
           "visual distinction from the rest of the practice plan" asked for. */}
-      <div style={{position:"relative",zIndex:1,marginLeft:10,marginRight:10,marginBottom:9,background:"var(--gbg)",border:"2px dashed var(--green2)",borderRadius:"var(--r)",padding:"11px 12px"}}>
+      <div style={{position:"relative",zIndex:1,marginLeft:10,marginRight:10,marginBottom:9,background:"var(--field-tint)",border:"2px dashed var(--field-accent)",borderRadius:"var(--radius-lg)",padding:"11px 12px"}}>
         <button type="button" onClick={()=>setWarmupOpen(o=>!o)} style={{display:"flex",alignItems:"center",width:"100%",background:"none",border:"none",padding:0,cursor:"pointer",gap:8,textAlign:"left"}}>
-          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".05em",textTransform:"uppercase",color:"var(--green)",flex:1}}>Pre-Practice Warmup</span>
-          {!warmupOpen&&prePracticeNotes&&<span style={{fontSize:11,color:"var(--td)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:140}}>{prePracticeNotes}</span>}
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".05em",textTransform:"uppercase",color:"var(--field)",flex:1}}>Pre-Practice Warmup</span>
+          {!warmupOpen&&prePracticeNotes&&<span style={{fontSize:11,color:"var(--text-dim)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:140}}>{prePracticeNotes}</span>}
           <Ic.Chev up={warmupOpen}/>
         </button>
         {warmupOpen&&<>
-          <div style={{fontSize:12,color:"var(--td)",margin:"8px 0"}}>What should players do if they arrive before practice starts (grab a ball, start stretching, etc.)? Shown on the Practice Setup screen. Leave this blank if you'd rather not give arrival guidance.</div>
+          <div style={{fontSize:12,color:"var(--text-dim)",margin:"8px 0"}}>What should players do if they arrive before practice starts (grab a ball, start stretching, etc.)? Shown on the Practice Setup screen. Leave this blank if you'd rather not give arrival guidance.</div>
           <textarea className="ta" value={prePracticeNotes} onChange={e=>setPrePracticeNotes(e.target.value)} placeholder="e.g. Grab a ball and start dribbling." style={{minHeight:64}}/>
         </>}
       </div>
       {acts.length===0&&(<div style={{position:"relative",zIndex:1,textAlign:"center",padding:"8px 22px 18px"}}>
           <div style={{fontSize:13,color:"rgba(255,255,255,.9)",lineHeight:1.7,marginBottom:teamTemplates.length?10:0}}>Nothing added yet.<br/>Add activities {isBB?"from the right":"below"} to begin building your Run of Practice.</div>
-          {teamTemplates.length>0&&<button className="btn bsm" style={{background:"#fff",color:"var(--green)"}} onClick={()=>setShowTplPicker(true)}>Start with a Template</button>}
+          {teamTemplates.length>0&&<button className="btn bsm" style={{background:"#fff",color:"var(--field)"}} onClick={()=>setShowTplPicker(true)}>Start with a Template</button>}
         </div>
       )}
       {/* The "torn edge" strip: a sticky spacer sandwiched between the
@@ -2069,7 +2074,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           moment the IntersectionObserver above reports the first activity
           has scrolled back into view, fully visible the moment it's
           scrolled out. */}
-      {acts.length>1&&(<div style={{position:"sticky",top:ropStickyTop,zIndex:8,height:ropZigzagH,background:"var(--green)",overflow:"hidden"}}>
+      {acts.length>1&&(<div style={{position:"sticky",top:ropStickyTop,zIndex:8,height:ropZigzagH,background:"var(--field-strong)",overflow:"hidden"}}>
         <svg viewBox={"0 0 100 "+ropZigzagH} preserveAspectRatio="none" style={{width:"100%",height:"100%",display:"block"}}>
           <polyline points={"0,"+(ropZigzagH/2)+" 6,"+(ropZigzagH/2)+" 7.5,"+(ropZigzagH*0.6)+" 9,"+(ropZigzagH*0.03)+" 10.5,"+(ropZigzagH*0.97)+" 12,"+(ropZigzagH*0.4)+" 13.5,"+(ropZigzagH/2)+" 100,"+(ropZigzagH/2)} fill="none" stroke="#fff" strokeWidth="2" vectorEffect="non-scaling-stroke" style={{opacity:ropContentHidden?1:0,transition:"opacity .2s ease"}}/>
         </svg>
@@ -2094,7 +2099,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         // collapse, are tall enough to trigger this on a phone viewport.
         // Only the collapsed (single-line) case is ever safe to pin.
         const stickyNow=isLast&&expandedId!==act.id;
-        return (<SortableActivityRow key={act.id} id={act.id} sticky={stickyNow} stickyTop={ropStickyTop+ropZigzagH} stickyBg={stickyNow?"var(--green)":undefined}>{dragHandle=>(<div>
+        return (<SortableActivityRow key={act.id} id={act.id} sticky={stickyNow} stickyTop={ropStickyTop+ropZigzagH} stickyBg={stickyNow?"var(--field)":undefined}>{dragHandle=>(<div>
             <div className="ablk" style={{marginLeft:10,marginRight:10}} ref={el=>{if(el)rowRefs.current[act.id]=el;else delete rowRefs.current[act.id];}}>
               {/* A newly-added row auto-expands (see addAct/addBlock/
                   addComponentType) so the coach sees its content
@@ -2116,13 +2121,13 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {act.type==="station_block"?(act.name||"Station Block"):act.type==="scrimmage"?(act.name||"Scrimmage"):act.type==="benchmark"?(act.name||"Benchmark"):act.name}
-                    {act.type==="benchmark"&&<span style={{fontWeight:700,color:"var(--green)",marginLeft:6,fontSize:11,letterSpacing:".04em"}}>BENCHMARK</span>}
+                    {act.type==="benchmark"&&<span style={{fontWeight:700,color:"var(--field)",marginLeft:6,fontSize:11,letterSpacing:".04em"}}>BENCHMARK</span>}
                     {/* Direct feedback: a coach should be able to tell at a
                         glance who's leading a drill without expanding it --
                         same coach-or-typed-helper-name label the Practice
                         Setup screen already shows, just inline in the title
                         row here instead of its own section. */}
-                    {act.type==="activity"&&<span style={{fontWeight:400,color:"var(--td)"}}> · {act.coachId?((team&&team.coaches.find(c=>c.id===act.coachId))||{}).name||"Unassigned":(act.helperName||"Unassigned")}</span>}
+                    {act.type==="activity"&&<span style={{fontWeight:400,color:"var(--text-dim)"}}> · {act.coachId?((team&&team.coaches.find(c=>c.id===act.coachId))||{}).name||"Unassigned":(act.helperName||"Unassigned")}</span>}
                   </div>
                   {act.type==="benchmark"?<div className="limt">{(()=>{
                     const bm=(data.benchmarks||[]).find(b=>b.id===act.benchmarkId);
@@ -2173,7 +2178,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                       <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 2L18.5 17H1.5L10 2Z" fill="#f59e0b" stroke="#b45309" strokeWidth="1" strokeLinejoin="round"/><rect x="9.1" y="7.5" width="1.8" height="5" rx="0.9" fill="#fff"/><rect x="9.1" y="13.3" width="1.8" height="1.8" rx="0.9" fill="#fff"/></svg>
                     </button>
                     {staleMenuId===act.id&&<div className="mini-menu" style={staleMenuUp?{right:0,minWidth:220,padding:10,top:"auto",bottom:"calc(100% - 4px)"}:{right:0,minWidth:220,padding:10}} onClick={e=>e.stopPropagation()}>
-                      <div style={{fontSize:12,color:"var(--td)",marginBottom:8,lineHeight:1.4}}>This drill has changed in your library since it was added here.</div>
+                      <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:8,lineHeight:1.4}}>This drill has changed in your library since it was added here.</div>
                       <button type="button" className="btn primary bxs bfull" style={{marginBottom:6}} onClick={()=>refreshFromLibrary(act)}>Refresh to Latest</button>
                       <button type="button" className="btn ghost bxs bfull" onClick={()=>setStaleMenuId(null)}>Keep This Version</button>
                     </div>}
@@ -2182,7 +2187,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                       (was between duration and the red X) -- direct
                       feedback was that having it right next to delete
                       risked an accidental removal tap. */}
-                  <span style={{color:"var(--td)",display:"flex"}}><Ic.Chev up={expandedId===act.id}/></span>
+                  <span style={{color:"var(--text-dim)",display:"flex"}}><Ic.Chev up={expandedId===act.id}/></span>
                   {act.type!=="station_block"&&<span className="bdg bp">{act.duration}m</span>}
                   {act.type==="station_block"&&<span className="bdg bp">{act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*act.transitionDuration:0)}m</span>}
                   <button className="btn danger bxs" onClick={e=>{e.stopPropagation();remAct(act.id);}}>x</button>
@@ -2215,7 +2220,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           measured off runOfPracticeEndRef's own bottom edge, so anything
           added to *this* bar's spacing (instead of the sentinel's height)
           shows up as visible space rather than more green. */}
-      <div style={{display:"flex",alignItems:"center",gap:4,background:"var(--black)",color:"#fff",padding:"9px 12px",borderRadius:"var(--r)",marginTop:14,marginBottom:8,minHeight:40}}>
+      <div style={{display:"flex",alignItems:"center",gap:4,background:"var(--ink)",color:"#fff",padding:"9px 12px",borderRadius:"var(--radius-lg)",marginTop:14,marginBottom:8,minHeight:40}}>
         <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flex:1}}>Practice Components</span>
         {/* A literal horizontal ellipsis, not the vertical 3-dot kebab used
             elsewhere in the app (.ell-btn) -- asked for specifically, and
@@ -2225,12 +2230,12 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         <button type="button" onClick={()=>setComponentsOpen(o=>!o)} aria-label={componentsOpen?"Collapse Practice Components":"Expand Practice Components"} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",padding:6,display:"flex",alignItems:"center"}}><Ic.Chev up={componentsOpen}/></button>
       </div>
       {componentsOpen&&(<>
-        {visibleTypeKeys.length===0&&<div style={{fontSize:13,color:"var(--td)",textAlign:"center",padding:"12px 0",marginBottom:8}}>No quick-add types selected. Tap the ⋯ above to choose some.</div>}
+        {visibleTypeKeys.length===0&&<div style={{fontSize:13,color:"var(--text-dim)",textAlign:"center",padding:"12px 0",marginBottom:8}}>No quick-add types selected. Tap the ⋯ above to choose some.</div>}
         {visibleTypeKeys.length>0&&<div className="g2" style={{marginBottom:14}}>
           {PRACTICE_COMPONENT_TYPES.filter(t=>visibleTypeKeys.includes(t.key)).filter(t=>t.key!=="scrimmage"||sportSupportsScrimmage(teamSport)).map(t=>(
             <div key={t.key} className="li tap" style={{marginBottom:0}} onClick={()=>addComponentType(t.key)}>
               <div className="lim"><div className="lin">{t.label}</div><div className="limt">{t.kind==="station_block"?"2+ stations":t.kind==="scrimmage"?"Everyone rotates":t.kind==="benchmark"?"From your Library":t.defaultDuration+" min"}</div></div>
-              <span style={{color:"var(--green)",fontSize:18,fontWeight:700,flexShrink:0}}>+</span>
+              <span style={{color:"var(--field)",fontSize:18,fontWeight:700,flexShrink:0}}>+</span>
             </div>
           ))}
           {/* Direct feedback: an odd number of tiles always leaves one grid
@@ -2239,15 +2244,15 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               Reactive off visibleTypeKeys itself, so this comes back on its
               own any time editing the picker leaves an odd count again,
               never something that has to be dismissed once and remembered. */}
-          {visibleTypeKeys.length%2===1&&<div className="li tap" style={{marginBottom:0,background:"var(--gbg)",border:"1px dashed var(--gb)"}} onClick={()=>setShowComponentsPicker(true)}>
-            <div className="lim"><div className="limt" style={{color:"var(--green2)",lineHeight:1.4}}>Tap ⋯ above to add or remove your default practice components.</div></div>
+          {visibleTypeKeys.length%2===1&&<div className="li tap" style={{marginBottom:0,background:"var(--field-tint)",border:"1px dashed var(--field-tint-border)"}} onClick={()=>setShowComponentsPicker(true)}>
+            <div className="lim"><div className="limt" style={{color:"var(--field-accent)",lineHeight:1.4}}>Tap ⋯ above to add or remove your default practice components.</div></div>
           </div>}
         </div>}
       </>)}
       {/* My Drill Library -- same black bar treatment/thickness as
           Practice Components above, with its own collapse caret too
           (defaults open). */}
-      <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--black)",color:"#fff",padding:"9px 12px",borderRadius:"var(--r)",marginBottom:8,minHeight:40}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--ink)",color:"#fff",padding:"9px 12px",borderRadius:"var(--radius-lg)",marginBottom:8,minHeight:40}}>
         {librarySources.length>1?(
           <select value={libSource} onChange={e=>setLibSource(e.target.value)} onClick={e=>e.stopPropagation()} style={{flex:1,background:"rgba(255,255,255,.12)",color:"#fff",border:"1px solid rgba(255,255,255,.3)",borderRadius:6,padding:"5px 6px",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".04em",textTransform:"uppercase"}}>
             {librarySources.map(s=>(<option key={s.key} value={s.key} style={{color:"#000"}}>{s.label}</option>))}
@@ -2268,12 +2273,12 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
             <div className="lim">
               <div className="lin">{lib.name}</div>
               {lib.description&&<div className="limt">{lib.description}</div>}
-              {lib.coachingPoints&&<div style={{fontSize:11,color:"var(--green2)",marginTop:2}}>{lib.coachingPoints}</div>}
+              {lib.coachingPoints&&<div style={{fontSize:11,color:"var(--field-accent)",marginTop:2}}>{lib.coachingPoints}</div>}
               {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
                 {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
               </div>}
             </div>
-            <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
+            <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--field)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
           </div>
         );
         return (<>
@@ -2291,11 +2296,11 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           </div>
           {showBuilderFilter&&<div className="card" style={{marginBottom:10,padding:10}} onClick={e=>e.stopPropagation()}>
             <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:builderTagFilter.length?8:0}}>
-              {builderAvailableTags.map(t=>(<button key={t.id} type="button" onClick={()=>setBuilderTagFilter(f=>f.includes(t.id)?f.filter(id=>id!==t.id):[...f,t.id])} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:builderTagFilter.includes(t.id)?"var(--green)":"var(--s1)",color:builderTagFilter.includes(t.id)?"#fff":"var(--black)",fontSize:12,cursor:"pointer"}}>{t.name}</button>))}
+              {builderAvailableTags.map(t=>(<button key={t.id} type="button" onClick={()=>setBuilderTagFilter(f=>f.includes(t.id)?f.filter(id=>id!==t.id):[...f,t.id])} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--border)",background:builderTagFilter.includes(t.id)?"var(--field)":"var(--surface)",color:builderTagFilter.includes(t.id)?"#fff":"var(--ink)",fontSize:12,cursor:"pointer"}}>{t.name}</button>))}
             </div>
             {builderTagFilter.length>0&&<button type="button" className="btn ghost bxs" onClick={()=>setBuilderTagFilter([])}>Clear filter</button>}
           </div>}
-          {builderFilteredLib.length===0&&<div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>No drills here yet.</div>}
+          {builderFilteredLib.length===0&&<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:8}}>No drills here yet.</div>}
           {builderDrillSort==="byskill"?(()=>{
             const byCat={};const untagged=[];
             builderFilteredLib.forEach(lib=>{
@@ -2307,11 +2312,11 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
             const catIds=Object.keys(byCat).sort((a,b)=>((skillCategoriesById[a]&&skillCategoriesById[a].sort_order)||0)-((skillCategoriesById[b]&&skillCategoriesById[b].sort_order)||0)||((skillCategoriesById[a]&&skillCategoriesById[a].name)||"").localeCompare((skillCategoriesById[b]&&skillCategoriesById[b].name)||""));
             return (<>
               {catIds.map(cid=>(<div key={cid} style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--gbg)"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} ({byCat[cid].length})</div>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--field)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--field-tint)"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} ({byCat[cid].length})</div>
                 {byCat[cid].map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
               </div>))}
               {untagged.length>0&&<div style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--s2)"}}>Untagged ({untagged.length})</div>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--surface-soft)"}}>Untagged ({untagged.length})</div>
                 {untagged.map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
               </div>}
             </>);
@@ -2349,7 +2354,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               <button type="button" className="btn ghost bxs" onClick={()=>setBenchmarkPickerOpen(false)}>Close</button>
             </div>
             <div style={{overflowY:"auto",flex:1}}>
-              {opts.length===0&&<div style={{fontSize:13,color:"var(--td)",padding:10}}>No benchmarks for {teamSport} yet. Create one in Library &rarr; Benchmarks.</div>}
+              {opts.length===0&&<div style={{fontSize:13,color:"var(--text-dim)",padding:10}}>No benchmarks for {teamSport} yet. Create one in Library &rarr; Benchmarks.</div>}
               {opts.map(b=>{const v=b.latestVersion;const dir=v.direction==="track"?"track only":(v.direction==="lower"?"lower is better":"higher is better");return(
                 <div key={b.id} className="li tap" onClick={()=>addBenchmarkChosen(b)}>
                   <div className="lim"><div className="lin">{b.title}</div><div className="limt">{(b.subjectMode==="team"?"Whole team":"Individual")+" · "+v.metricType+" · "+dir}</div>
@@ -2544,7 +2549,7 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
     <div className="card mb10">
       <div className="clbl mb8">Basic Info</div>
       {canManage?<div className="fld" style={{marginBottom:0}}><label className="lbl">Jersey #</label><input className="inp" type="number" inputMode="numeric" value={f.jersey} onChange={e=>setFld("jersey",e.target.value)}/></div>
-        :<div style={{fontSize:14,color:"var(--black)"}}>{player.jersey?"Jersey #"+player.jersey:"No jersey number set"}</div>}
+        :<div style={{fontSize:14,color:"var(--ink)"}}>{player.jersey?"Jersey #"+player.jersey:"No jersey number set"}</div>}
     </div>
 
     <div className="card mb10">
@@ -2555,11 +2560,11 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
       </>):(<>
         <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:(player.bats||player.throws)?10:0}}>
           {(player.positions||[]).map(pos=>(<span key={pos} className="bdg bs">{pos}</span>))}
-          {!(player.positions&&player.positions.length)&&<div style={{fontSize:13,color:"var(--td)"}}>No positions set</div>}
+          {!(player.positions&&player.positions.length)&&<div style={{fontSize:13,color:"var(--text-dim)"}}>No positions set</div>}
         </div>
         {(player.bats||player.throws)&&<div style={{display:"flex",gap:18}}>
-          {player.bats&&<div><div style={{fontSize:10,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em"}}>Bats</div><div style={{fontSize:14,fontWeight:700}}>{HAND_LABELS[player.bats]||player.bats}</div></div>}
-          {player.throws&&<div><div style={{fontSize:10,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em"}}>{throwsLabel}</div><div style={{fontSize:14,fontWeight:700}}>{HAND_LABELS[player.throws]||player.throws}</div></div>}
+          {player.bats&&<div><div style={{fontSize:10,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".06em"}}>Bats</div><div style={{fontSize:14,fontWeight:700}}>{HAND_LABELS[player.bats]||player.bats}</div></div>}
+          {player.throws&&<div><div style={{fontSize:10,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".06em"}}>{throwsLabel}</div><div style={{fontSize:14,fontWeight:700}}>{HAND_LABELS[player.throws]||player.throws}</div></div>}
         </div>}
       </>)}
     </div>
@@ -2567,7 +2572,7 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
     <div className="card">
       <div className="clbl mb6">General Notes</div>
       {canManage?<textarea className="ta" value={f.notes} onChange={e=>setFld("notes",e.target.value)}/>
-        :(player.notes?<div style={{fontSize:14,color:"var(--black)",lineHeight:1.6}}>{player.notes}</div>:<div style={{fontSize:13,color:"var(--td)"}}>No notes yet.</div>)}
+        :(player.notes?<div style={{fontSize:14,color:"var(--ink)",lineHeight:1.6}}>{player.notes}</div>:<div style={{fontSize:13,color:"var(--text-dim)"}}>No notes yet.</div>)}
     </div>
 
     {/* Save now always present (not just once dirty) -- direct feedback:
@@ -2589,13 +2594,13 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
     </div>}
 
     <div className="clbl mb8" style={{marginTop:16}}>Player Focus</div>
-    {!categories.length&&<div className="card mb10"><div style={{fontSize:13,color:"var(--td)"}}>No skill categories set up yet for {team.sport}.</div></div>}
+    {!categories.length&&<div className="card mb10"><div style={{fontSize:13,color:"var(--text-dim)"}}>No skill categories set up yet for {team.sport}.</div></div>}
     {categories.length>0&&<div className="card mb10">
       {categories.map(cat=>(<div key={cat.id} style={{marginBottom:12}}>
         <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:8,marginBottom:3}}>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--black2)"}}>{cat.name}</div>
-          {savingCategoryId===cat.id&&<span style={{fontSize:11,color:"var(--td)"}}>Saving...</span>}
-          {savedCategoryId===cat.id&&<span style={{fontSize:11,color:"var(--green)",fontWeight:700}}>Saved</span>}
+          <div style={{fontSize:13,fontWeight:700,color:"var(--ink-soft)"}}>{cat.name}</div>
+          {savingCategoryId===cat.id&&<span style={{fontSize:11,color:"var(--text-dim)"}}>Saving...</span>}
+          {savedCategoryId===cat.id&&<span style={{fontSize:11,color:"var(--field)",fontWeight:700}}>Saved</span>}
         </div>
         <input className="inp" placeholder="What's this player working on..." value={draftFor(cat.id)} onChange={e=>setDraft(cat.id,e.target.value)} onBlur={()=>commitNote(cat.id)} disabled={!canManage||savingCategoryId===cat.id}/>
       </div>))}
@@ -2604,10 +2609,10 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
     {playerNotes.length>0&&<div>
       <div className="clbl mb8">Practice Notes</div>
       <div className="card mb10">
-        {playerNotes.map(n=>(<div key={n.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--b)"}}>
+        {playerNotes.map(n=>(<div key={n.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--border)"}}>
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
-            <div style={{fontSize:11,color:"var(--td)",marginBottom:2}}>{playerNoteAuthor(n)} · {new Date(n.createdAt).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</div>
-            {amHeadCoach&&<button type="button" disabled={deletingNoteId===n.id} onClick={()=>deletePlayerNote(n.id)} style={{background:"none",border:"none",padding:0,fontSize:11,color:"var(--red)",cursor:"pointer",flexShrink:0}}>{deletingNoteId===n.id?"Deleting...":"Delete"}</button>}
+            <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:2}}>{playerNoteAuthor(n)} · {new Date(n.createdAt).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</div>
+            {amHeadCoach&&<button type="button" disabled={deletingNoteId===n.id} onClick={()=>deletePlayerNote(n.id)} style={{background:"none",border:"none",padding:0,fontSize:11,color:"var(--danger)",cursor:"pointer",flexShrink:0}}>{deletingNoteId===n.id?"Deleting...":"Delete"}</button>}
           </div>
           <div style={{fontSize:14}}>{n.text}</div>
         </div>))}
@@ -2703,7 +2708,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
   }):[];
   if(viewPlayer)return(<PlayerProfile player={viewPlayer} team={team} data={data} refreshTeams={refreshTeams} coachId={coachId} canManage={canManage} onBack={()=>setViewPlayer(null)} onSaved={()=>{setViewPlayer(null);setSavedNotice(true);}}/>);
   return (<div className={isBB?"bb-centered-page":undefined} style={{paddingBottom:80}} onClick={()=>setOpenMenu(null)}>
-    {savedNotice&&<div style={{position:"fixed",top:12,left:"50%",transform:"translateX(-50%)",zIndex:60,background:"var(--green)",color:"#fff",padding:"8px 16px",borderRadius:20,fontSize:13,fontWeight:600,boxShadow:"0 4px 12px rgba(0,0,0,.2)"}}>Player saved</div>}
+    {savedNotice&&<div style={{position:"fixed",top:12,left:"50%",transform:"translateX(-50%)",zIndex:60,background:"var(--field)",color:"#fff",padding:"8px 16px",borderRadius:20,fontSize:13,fontWeight:600,boxShadow:"0 4px 12px rgba(0,0,0,.2)"}}>Player saved</div>}
     {!fixedTeamId&&(<div className="sechdr mb8">
       <div>{data.teams.length>1&&<select className="sel" style={{maxWidth:200}} value={teamId} onChange={e=>setTeamId(e.target.value)}>{data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>}</div>
       <button className="btn primary bsm" onClick={e=>{e.stopPropagation();openModal("addTeam");}}>+ Team</button>
@@ -2772,11 +2777,11 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
           const noPos=team.players.filter(p=>!p.positions||!p.positions.length).sort((a,b)=>(a.firstName||"").localeCompare(b.firstName||""));
           return (<>
             {heads.map(pos=>(<div key={pos} style={{marginBottom:12}}>
-              <div style={{fontSize:12,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 4px"}}>{pos} ({byPos(pos).length})</div>
+              <div style={{fontSize:12,fontWeight:700,color:"var(--field)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 4px"}}>{pos} ({byPos(pos).length})</div>
               {byPos(pos).map(p=>playerRow(p,pos+"|"))}
             </div>))}
             {noPos.length>0&&<div style={{marginBottom:12}}>
-              <div style={{fontSize:12,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 4px"}}>No Position ({noPos.length})</div>
+              <div style={{fontSize:12,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 4px"}}>No Position ({noPos.length})</div>
               {noPos.map(p=>playerRow(p,"none|"))}
             </div>}
           </>);
@@ -2817,7 +2822,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
             real active members only) so a head coach can tell "did they
             ever respond" at a glance, per direct feedback that a silently-
             added assistant was confusing. */}
-        {(team.invites||[]).length>0&&(<div className="sechdr mb8" style={{marginTop:16}}><span className="sectitle" style={{fontSize:13,color:"var(--td)"}}>Pending Invites</span></div>)}
+        {(team.invites||[]).length>0&&(<div className="sechdr mb8" style={{marginTop:16}}><span className="sectitle" style={{fontSize:13,color:"var(--text-dim)"}}>Pending Invites</span></div>)}
         {(team.invites||[]).map(inv=>(<div key={inv.id} className="li" style={{position:"relative"}}>
           <div className="lim"><div className="lin">{inv.name}</div><div className="limt">{inv.role} · {inv.status==="pending"?"Invite pending":"Declined"} ({inv.email})</div></div>
           {canManage&&<button className="ell-btn" onClick={e=>{
@@ -2838,14 +2843,14 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
     {confirmRemovePlayer&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setConfirmRemovePlayer(null);}}>
       <div className="modal">
         <div className="mtitle">Remove {confirmRemovePlayer.firstName}?</div>
-        <div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This removes {confirmRemovePlayer.firstName} {confirmRemovePlayer.lastName} from the roster. Cannot be undone.</div>
+        <div style={{fontSize:14,color:"var(--text-dim)",marginBottom:16}}>This removes {confirmRemovePlayer.firstName} {confirmRemovePlayer.lastName} from the roster. Cannot be undone.</div>
         <div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmRemovePlayer(null)}>Cancel</button><button className="btn danger bmd" onClick={doRemovePlayer}>Remove</button></div>
       </div>
     </div>}
     {confirmRemoveCoach&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setConfirmRemoveCoach(null);}}>
       <div className="modal">
         <div className="mtitle">Remove {confirmRemoveCoach.name}?</div>
-        <div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This removes {confirmRemoveCoach.name} from the roster. Cannot be undone.</div>
+        <div style={{fontSize:14,color:"var(--text-dim)",marginBottom:16}}>This removes {confirmRemoveCoach.name} from the roster. Cannot be undone.</div>
         <div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmRemoveCoach(null)}>Cancel</button><button className="btn danger bmd" onClick={doRemoveCoach}>Remove</button></div>
       </div>
     </div>}

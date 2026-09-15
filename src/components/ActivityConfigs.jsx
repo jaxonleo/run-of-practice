@@ -99,7 +99,7 @@ export function SortableActivityRow({id,children,sticky,stickyTop,raised,stickyB
   // (the magnifying-glass loupe) independently of that -- WebkitTouchCallout
   // is the property that actually suppresses it; WebkitUserSelect covers
   // the same long-press turning into a text-selection highlight instead.
-  const handle=(<button type="button" {...attributes} {...listeners} onClick={e=>e.stopPropagation()} style={{background:"none",border:"none",cursor:isDragging?"grabbing":"grab",padding:"6px 4px",marginRight:6,color:"var(--td)",touchAction:"none",WebkitTouchCallout:"none",WebkitUserSelect:"none",userSelect:"none",flexShrink:0,display:"flex",alignItems:"center"}} aria-label="Drag to reorder"><Ic_Grip/></button>);
+  const handle=(<button type="button" {...attributes} {...listeners} onClick={e=>e.stopPropagation()} style={{background:"none",border:"none",cursor:isDragging?"grabbing":"grab",padding:"6px 4px",marginRight:6,color:"var(--text-dim)",touchAction:"none",WebkitTouchCallout:"none",WebkitUserSelect:"none",userSelect:"none",flexShrink:0,display:"flex",alignItems:"center"}} aria-label="Drag to reorder"><Ic_Grip/></button>);
   return <div ref={setNodeRef} style={style}>{children(handle)}</div>;
 }
 
@@ -218,17 +218,17 @@ export function equipmentPickerAssets(pool,selectedIds,allAssets,isType){
 export function EquipmentPickerPill({asset,selected,onToggle,refreshLibrary}){
   const needsAcquire=selected&&asset.acquired===false;
   return (<span style={{display:"inline-flex",alignItems:"stretch"}}>
-    <button type="button" onClick={onToggle} title={needsAcquire?asset.name+" -- not yet acquired":undefined} style={{padding:"4px 10px",borderRadius:needsAcquire?"20px 0 0 20px":20,border:"1.5px solid "+(needsAcquire?"var(--amber)":"var(--b)"),background:needsAcquire?"var(--ambg)":selected?"var(--green)":"var(--s1)",color:needsAcquire?"var(--amber)":selected?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{asset.name}{needsAcquire&&" · Need to acquire"}</button>
-    {needsAcquire&&<button type="button" onClick={async()=>{await updateAsset(asset.id,{acquired:true});if(refreshLibrary)await refreshLibrary();}} title="Mark as acquired" style={{padding:"4px 8px",borderRadius:"0 20px 20px 0",border:"1.5px solid var(--amber)",borderLeft:"none",background:"var(--amber)",color:"#fff",fontSize:12,cursor:"pointer"}}>✓ Got it</button>}
+    <button type="button" onClick={onToggle} title={needsAcquire?asset.name+" -- not yet acquired":undefined} style={{padding:"4px 10px",borderRadius:needsAcquire?"20px 0 0 20px":20,border:"1.5px solid "+(needsAcquire?"var(--caution)":"var(--border)"),background:needsAcquire?"var(--caution-tint)":selected?"var(--field)":"var(--surface)",color:needsAcquire?"var(--caution)":selected?"#fff":"var(--ink)",fontSize:13,cursor:"pointer"}}>{asset.name}{needsAcquire&&" · Need to acquire"}</button>
+    {needsAcquire&&<button type="button" onClick={async()=>{await updateAsset(asset.id,{acquired:true});if(refreshLibrary)await refreshLibrary();}} title="Mark as acquired" style={{padding:"4px 8px",borderRadius:"0 20px 20px 0",border:"1.5px solid var(--caution)",borderLeft:"none",background:"var(--caution)",color:"#fff",fontSize:12,cursor:"pointer"}}>✓ Got it</button>}
   </span>);
 }
 
 function DurStepper({value,min,onChange,step}){
   const s=step||1;const mn=min||1;
-  return (<div style={{display:"flex",alignItems:"center",gap:0,border:"1.5px solid var(--b)",borderRadius:"var(--rs)",overflow:"hidden",background:"#fff"}}>
-    <button onClick={()=>onChange(Math.max(mn,value-s))} style={{width:40,height:40,border:"none",background:"var(--s2)",color:"var(--black2)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>-</button>
-    <div style={{flex:1,textAlign:"center",fontFamily:"DM Mono,monospace",fontSize:15,fontWeight:600,color:"var(--black)"}}>{value}m</div>
-    <button onClick={()=>onChange(value+s)} style={{width:40,height:40,border:"none",background:"var(--s2)",color:"var(--black2)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+  return (<div style={{display:"flex",alignItems:"center",gap:0,border:"1.5px solid var(--border)",borderRadius:"var(--radius-md)",overflow:"hidden",background:"#fff"}}>
+    <button onClick={()=>onChange(Math.max(mn,value-s))} style={{width:40,height:40,border:"none",background:"var(--surface-soft)",color:"var(--ink-soft)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>-</button>
+    <div style={{flex:1,textAlign:"center",fontFamily:"DM Mono,monospace",fontSize:15,fontWeight:600,color:"var(--ink)"}}>{value}m</div>
+    <button onClick={()=>onChange(value+s)} style={{width:40,height:40,border:"none",background:"var(--surface-soft)",color:"var(--ink-soft)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
   </div>);
 }
 
@@ -292,15 +292,15 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
     <div className="fld"><label className="lbl">Player Grouping</label>
       <div style={{display:"flex",gap:6}}>
         {[{v:"whole",l:"Whole Team"},{v:"partners",l:"Partners"},{v:"groups",l:"Groups"}].map(({v,l})=>(
-          <button key={v} type="button" onClick={()=>onChange({grouping:v})} style={{flex:1,padding:"8px 4px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(act.grouping||"whole")===v?"var(--green)":"var(--s1)",color:(act.grouping||"whole")===v?"#fff":"var(--black)",fontSize:13,cursor:"pointer",fontWeight:700}}>
+          <button key={v} type="button" onClick={()=>onChange({grouping:v})} style={{flex:1,padding:"8px 4px",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:(act.grouping||"whole")===v?"var(--field)":"var(--surface)",color:(act.grouping||"whole")===v?"#fff":"var(--ink)",fontSize:13,cursor:"pointer",fontWeight:700}}>
             {l}
           </button>
         ))}
       </div>
       {(act.grouping||"whole")==="groups"&&<div style={{marginTop:8}}>
-        <div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>How many groups?</div>
+        <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:6}}>How many groups?</div>
         <div style={{display:"flex",gap:6}}>
-          {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>onChange({numGroups:n})} style={{flex:1,padding:"8px 0",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(act.numGroups||2)===n?"var(--green)":"var(--s1)",color:(act.numGroups||2)===n?"#fff":"var(--black)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
+          {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>onChange({numGroups:n})} style={{flex:1,padding:"8px 0",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:(act.numGroups||2)===n?"var(--field)":"var(--surface)",color:(act.numGroups||2)===n?"#fff":"var(--ink)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
         </div>
       </div>}
       {(act.grouping||"whole")!=="whole"&&team&&team.players&&team.players.length>0&&<ManualGroupAssign act={act} team={team} sport={sport} onChange={onChange}/>}
@@ -309,7 +309,7 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
     <div className="fld"><label className="lbl">Team Equipment</label>
       <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
         {teamEquip.map(a=>(<EquipmentPickerPill key={a.id} asset={a} selected={equip.includes(a.id)} onToggle={()=>toggleEquip(a.id)} refreshLibrary={refreshLibrary}/>))}
-        {teamEquip.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No team equipment in library yet</span>}
+        {teamEquip.length===0&&<span style={{fontSize:12,color:"var(--text-dim)"}}>No team equipment in library yet</span>}
       </div>
       <div style={{display:"flex",gap:6}}>
         <input className="inp" placeholder="Add new equipment..." id="actcfg-equip-inp" style={{flex:1}}/>
@@ -328,7 +328,7 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
       </div>:<button type="button" className="btn ghost bxs" onClick={()=>setNewGearOpen(true)}>+ New Gear</button>}
     </div>}
     {playerGearAssets.length===0&&<div className="fld"><label className="lbl">Player Gear Needed</label>
-      <div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>No player gear for {sport} yet.</div>
+      <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:6}}>No player gear for {sport} yet.</div>
       {newGearOpen?<div style={{display:"flex",gap:6}}>
         <input className="inp" style={{flex:1}} placeholder="Gear name..." id="actcfg-gear-inp" autoFocus/>
         <button type="button" className="btn ghost bxs" onClick={()=>addInline("actcfg-gear-inp","player",sport)}>Add</button>
@@ -388,36 +388,36 @@ function ManualGroupAssign({act,team,sport,onChange}){
   };
   const noun=act.grouping==="partners"?"Pair":"Group";
   return (<div style={{marginTop:8}}>
-    <div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>Manually assign now, or leave blank to randomize once attendance is taken.</div>
+    <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:6}}>Manually assign now, or leave blank to randomize once attendance is taken.</div>
     <div className="brow mb10" style={{flexWrap:"wrap"}}>
       <button type="button" className="btn outline bmd" style={{flex:1}} onClick={genRandom}>Generate Random Groups</button>
       <button type="button" className="btn ghost bmd" style={{flex:1}} onClick={clearGroups}>Clear Groups</button>
       <div style={{position:"relative",flex:1}}>
         <button type="button" className="btn ghost bmd bfull" onClick={()=>setGroupByOpen(o=>!o)}>Group By...</button>
-        {groupByOpen&&<div style={{position:"absolute",top:"100%",left:0,right:0,marginTop:4,background:"#fff",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:8,zIndex:20,boxShadow:"0 4px 16px rgba(0,0,0,.12)"}}>
+        {groupByOpen&&<div style={{position:"absolute",top:"100%",left:0,right:0,marginTop:4,background:"#fff",border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",padding:8,zIndex:20,boxShadow:"0 4px 16px rgba(0,0,0,.12)"}}>
           <button type="button" className="mm-item" onClick={groupByPosition}>Position</button>
           {handFields.map(hf=>(<button key={hf.key} type="button" className="mm-item" onClick={()=>groupByHand(hf.key)}>{hf.label}</button>))}
-          <button type="button" className="mm-item" style={{color:"var(--td)"}} onClick={()=>setGroupByOpen(false)}>Cancel</button>
+          <button type="button" className="mm-item" style={{color:"var(--text-dim)"}} onClick={()=>setGroupByOpen(false)}>Cancel</button>
         </div>}
       </div>
     </div>
     {groups.map((g,gi)=>(<div key={gi} style={{marginBottom:10}}>
-      <div style={{fontSize:11,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--td)",marginBottom:4}}>{noun} {gi+1}</div>
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--text-dim)",marginBottom:4}}>{noun} {gi+1}</div>
       <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
         {team.players.map(p=>{
           const here=g.includes(p.id);
           const otherIdx=!here?groups.findIndex((g2,i2)=>i2!==gi&&g2.includes(p.id)):-1;
           const elsewhere=otherIdx>=0;
-          return (<button key={p.id} type="button" onClick={()=>handleChip(gi,p.id)} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid",borderColor:here?"var(--green)":elsewhere?"#d97706":"var(--b)",background:here?"var(--green)":elsewhere?"#fef3c7":"var(--s1)",color:here?"#fff":elsewhere?"#92400e":"var(--black)",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:3}}>
+          return (<button key={p.id} type="button" onClick={()=>handleChip(gi,p.id)} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid",borderColor:here?"var(--field)":elsewhere?"#d97706":"var(--border)",background:here?"var(--field)":elsewhere?"#fef3c7":"var(--surface)",color:here?"#fff":elsewhere?"#92400e":"var(--ink)",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:3}}>
             {p.jersey?<span style={{fontFamily:"DM Mono,monospace",fontSize:10}}>#{p.jersey}</span>:null}{p.firstName}{elsewhere?" → "+noun[0]+(otherIdx+1):""}
           </button>);
         })}
       </div>
     </div>))}
-    <div style={{fontSize:11,color:"var(--td)",marginTop:2}}>
-      <span style={{color:"var(--green)",fontWeight:700}}>Green</span> = here &nbsp;
+    <div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>
+      <span style={{color:"var(--field)",fontWeight:700}}>Green</span> = here &nbsp;
       <span style={{color:"#d97706",fontWeight:700}}>Yellow</span> = in another {noun.toLowerCase()} &nbsp;
-      <span style={{color:"var(--td)"}}>Gray</span> = unassigned
+      <span style={{color:"var(--text-dim)"}}>Gray</span> = unassigned
     </div>
   </div>);
 }
@@ -636,11 +636,11 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
         Optional; falls back to "Station Block" everywhere this is blank. */}
     <div className="fld"><label className="lbl">Block Name</label><input className="inp" value={act.name||""} onChange={e=>onChange({name:e.target.value})} placeholder="Station Block" onFocus={e=>e.target.select()}/></div>
     <div className="fld"><label className="lbl">Player Movement</label>
-      <div style={{display:"flex",gap:0,borderRadius:"var(--r)",overflow:"hidden",border:"1.5px solid var(--b)"}}>
-        <button type="button" onClick={()=>onChange({rotate:true})} style={{flex:1,padding:"10px 0",border:"none",background:rotate?"var(--green)":"var(--s1)",color:rotate?"#fff":"var(--black)",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",letterSpacing:".03em"}}>ROTATE</button>
-        <button type="button" onClick={()=>onChange({rotate:false})} style={{flex:1,padding:"10px 0",border:"none",background:!rotate?"var(--green)":"var(--s1)",color:!rotate?"#fff":"var(--black)",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",letterSpacing:".03em"}}>STATIC</button>
+      <div style={{display:"flex",gap:0,borderRadius:"var(--radius-lg)",overflow:"hidden",border:"1.5px solid var(--border)"}}>
+        <button type="button" onClick={()=>onChange({rotate:true})} style={{flex:1,padding:"10px 0",border:"none",background:rotate?"var(--field)":"var(--surface)",color:rotate?"#fff":"var(--ink)",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",letterSpacing:".03em"}}>ROTATE</button>
+        <button type="button" onClick={()=>onChange({rotate:false})} style={{flex:1,padding:"10px 0",border:"none",background:!rotate?"var(--field)":"var(--surface)",color:!rotate?"#fff":"var(--ink)",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",letterSpacing:".03em"}}>STATIC</button>
       </div>
-      <div style={{fontSize:11,color:"var(--td)",marginTop:4}}>{rotate?"Players rotate through all stations on a timer":"Players stay at their assigned station"}</div>
+      <div style={{fontSize:11,color:"var(--text-dim)",marginTop:4}}>{rotate?"Players rotate through all stations on a timer":"Players stay at their assigned station"}</div>
     </div>
     <div className={rotate?"g2":"fld"} style={rotate?{}:{maxWidth:160}}>
       <div className="fld"><label className="lbl">Time at Station (min)</label><DurStepper value={act.stationDuration||10} min={1} onChange={v=>onChange({stationDuration:v})}/></div>
@@ -651,10 +651,10 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
       <button className="btn ghost bmd" style={{flex:1}} onClick={clearGroups}>Clear Groups</button>
       <div style={{position:"relative",flex:1}}>
         <button type="button" className="btn ghost bmd bfull" onClick={()=>setGroupByOpen(o=>!o)}>Group By...{groupByLabel}</button>
-        {groupByOpen&&<div style={{position:"absolute",top:"100%",left:0,right:0,marginTop:4,background:"#fff",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:8,zIndex:20,boxShadow:"0 4px 16px rgba(0,0,0,.12)"}}>
+        {groupByOpen&&<div style={{position:"absolute",top:"100%",left:0,right:0,marginTop:4,background:"#fff",border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",padding:8,zIndex:20,boxShadow:"0 4px 16px rgba(0,0,0,.12)"}}>
           <button type="button" className="mm-item" onClick={groupByPosition}>Position</button>
           {handFields.map(hf=>(<button key={hf.key} type="button" className="mm-item" onClick={()=>groupByHand(hf.key,hf.label)}>{hf.label}</button>))}
-          <button type="button" className="mm-item" style={{color:"var(--td)"}} onClick={()=>setGroupByOpen(false)}>Cancel</button>
+          <button type="button" className="mm-item" style={{color:"var(--text-dim)"}} onClick={()=>setGroupByOpen(false)}>Cancel</button>
         </div>}
       </div>
     </div>}
@@ -663,21 +663,21 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
       const teamEquipAssets=equipmentPickerAssets(teamEquipPool,stEquip,assets,a=>!a.type||a.type==="team");
       const playerGearAssets=equipmentPickerAssets(playerGearPool,stEquip,assets,a=>a.type==="player");
       const collapsed=collapsedStations.has(st.id);
-      return(<div key={st.id} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 12px 10px",marginBottom:10}}>
+      return(<div key={st.id} style={{background:"var(--surface)",border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"12px 12px 10px",marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:collapsed?0:10}}>
-          <button type="button" onClick={()=>toggleStationCollapsed(st.id)} aria-label={collapsed?"Expand station":"Collapse station"} style={{background:"none",border:"none",color:"var(--green)",cursor:"pointer",padding:"2px 6px 2px 0",display:"flex",alignItems:"center",gap:8,minWidth:0,flex:1}}>
+          <button type="button" onClick={()=>toggleStationCollapsed(st.id)} aria-label={collapsed?"Expand station":"Collapse station"} style={{background:"none",border:"none",color:"var(--field)",cursor:"pointer",padding:"2px 6px 2px 0",display:"flex",alignItems:"center",gap:8,minWidth:0,flex:1}}>
             <Ic.Chev up={!collapsed}/>
             <span style={{minWidth:0,overflow:"hidden"}}>
-              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:900,color:"var(--green)",letterSpacing:".05em"}}>STATION {si+1}</span>
-              {collapsed&&<span style={{display:"block",fontSize:12,color:"var(--black2)",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{st.activityName||st.name||"No drill set yet"}</span>}
+              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:900,color:"var(--field)",letterSpacing:".05em"}}>STATION {si+1}</span>
+              {collapsed&&<span style={{display:"block",fontSize:12,color:"var(--ink-soft)",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{st.activityName||st.name||"No drill set yet"}</span>}
               {/* At-a-glance delegation status, visible even collapsed --
                   direct feedback: the head coach needs to see whether a
                   delegated station is actually done, or whether they need
                   to step in themselves, without opening every station. */}
-              {collapsed&&st.delegatedTo&&<span style={{display:"block",fontSize:11,fontWeight:700,color:stationIsPlanned(st)?"var(--green)":"var(--amber)"}}>{stationIsPlanned(st)?"✓ Planned":"Needs Planning"} · {((team&&team.coaches||[]).find(c=>c.id===st.delegatedTo)||{}).name||"delegated"}</span>}
+              {collapsed&&st.delegatedTo&&<span style={{display:"block",fontSize:11,fontWeight:700,color:stationIsPlanned(st)?"var(--field)":"var(--caution)"}}>{stationIsPlanned(st)?"✓ Planned":"Needs Planning"} · {((team&&team.coaches||[]).find(c=>c.id===st.delegatedTo)||{}).name||"delegated"}</span>}
             </span>
           </button>
-          {act.stations.length>1&&<button type="button" onClick={()=>removeStation(si)} style={{background:"none",border:"none",color:"var(--td)",fontSize:12,cursor:"pointer",padding:"2px 6px",flexShrink:0}}>Remove</button>}
+          {act.stations.length>1&&<button type="button" onClick={()=>removeStation(si)} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:12,cursor:"pointer",padding:"2px 6px",flexShrink:0}}>Remove</button>}
         </div>
         {!collapsed&&<>
         <div className="fld">
@@ -688,9 +688,9 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
             <button type="button" className="btn ghost bxs mt6" onClick={()=>setBenchmarkPickerIdx(si)}>{st.benchmarkId?"Change Benchmark":"Set a Benchmark"}</button>
           </div>
           {st.benchmarkId&&(()=>{const bm=benchmarkOpts.find(b=>b.id===st.benchmarkId)||(benchmarks||[]).find(b=>b.id===st.benchmarkId);const bv=bm&&((bm.versions||[]).find(x=>x.id===st.benchmarkVersionId)||bm.latestVersion);return(
-            <div className="card" style={{background:"var(--gbg)",border:"1px solid var(--green2)",marginTop:6}}>
-              <div style={{fontSize:10,fontWeight:900,letterSpacing:".06em",color:"var(--green)"}}>BENCHMARK{bv?" · v"+bv.versionNumber:""}</div>
-              {bv?<div style={{fontSize:12,marginTop:2}}>{(bm.subjectMode==="team"?"Whole team":"Individual")} · {bv.metricType} · {bv.scoredAttempts} attempt{bv.scoredAttempts===1?"":"s"} · {bv.direction==="track"?"track only":bv.direction+" is better"}</div>:<div style={{fontSize:12,color:"var(--red)",marginTop:2}}>Unavailable</div>}
+            <div className="card" style={{background:"var(--field-tint)",border:"1px solid var(--field-accent)",marginTop:6}}>
+              <div style={{fontSize:10,fontWeight:900,letterSpacing:".06em",color:"var(--field)"}}>BENCHMARK{bv?" · v"+bv.versionNumber:""}</div>
+              {bv?<div style={{fontSize:12,marginTop:2}}>{(bm.subjectMode==="team"?"Whole team":"Individual")} · {bv.metricType} · {bv.scoredAttempts} attempt{bv.scoredAttempts===1?"":"s"} · {bv.direction==="track"?"track only":bv.direction+" is better"}</div>:<div style={{fontSize:12,color:"var(--danger)",marginTop:2}}>Unavailable</div>}
               <label style={{fontSize:12,display:"flex",alignItems:"center",gap:6,marginTop:6}}>
                 <input type="checkbox" checked={!!st.benchmarkSharedOccurrence} onChange={e=>onSt(st.id,{benchmarkSharedOccurrence:e.target.checked})}/>
                 Share one assessment with other stations in this block running the same benchmark
@@ -705,7 +705,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
                 <button type="button" className="btn ghost bxs" onClick={()=>setBenchmarkPickerIdx(null)}>Close</button>
               </div>
               <div style={{overflowY:"auto",flex:1,padding:"0 20px calc(20px + var(--tab) + env(safe-area-inset-bottom,0px))"}}>
-                {benchmarkOpts.length===0&&<div style={{padding:10,fontSize:13,color:"var(--td)"}}>No benchmarks for {teamSport} yet. Create one in Library &rarr; Benchmarks.</div>}
+                {benchmarkOpts.length===0&&<div style={{padding:10,fontSize:13,color:"var(--text-dim)"}}>No benchmarks for {teamSport} yet. Create one in Library &rarr; Benchmarks.</div>}
                 {benchmarkOpts.map(b=>{const bv=b.latestVersion;return(<div key={b.id} className="li tap" onClick={()=>chooseBenchmark(si,b)}>
                   <div className="lim"><div className="lin">{b.title}</div><div className="limt">{(b.subjectMode==="team"?"Whole team":"Individual")} · {bv.metricType} · {bv.direction==="track"?"track only":bv.direction+" is better"}</div></div>
                 </div>);})}
@@ -751,7 +751,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
                   home-indicator device on top of that, gives the real
                   last row somewhere to scroll to. */}
               <div style={{overflowY:"auto",flex:1,padding:"0 20px calc(20px + var(--tab) + env(safe-area-inset-bottom,0px))"}}>
-                {filteredLibrary.length===0&&<div style={{padding:10,fontSize:13,color:"var(--td)"}}>No drills in this library for {sport} yet.</div>}
+                {filteredLibrary.length===0&&<div style={{padding:10,fontSize:13,color:"var(--text-dim)"}}>No drills in this library for {sport} yet.</div>}
                 {(()=>{
                   const drillRow=(lib,keyPrefix)=>(<div key={(keyPrefix||"")+lib.id} className="li tap" onClick={()=>chooseFromLibrary(si,lib)}>
                     <div className="lim">
@@ -780,11 +780,11 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
                     const catIds=Object.keys(byCat).sort((a,b)=>((skillCategoriesById[a]&&skillCategoriesById[a].sort_order)||0)-((skillCategoriesById[b]&&skillCategoriesById[b].sort_order)||0)||((skillCategoriesById[a]&&skillCategoriesById[a].name)||"").localeCompare((skillCategoriesById[b]&&skillCategoriesById[b].name)||""));
                     return (<>
                       {catIds.map(cid=>(<div key={cid} style={{marginBottom:10}}>
-                        <div style={{fontSize:11,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 0"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} ({byCat[cid].length})</div>
+                        <div style={{fontSize:11,fontWeight:700,color:"var(--field)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 0"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} ({byCat[cid].length})</div>
                         {byCat[cid].map(lib=>drillRow(lib,cid+"|"))}
                       </div>))}
                       {untagged.length>0&&<div style={{marginBottom:10}}>
-                        <div style={{fontSize:11,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 0"}}>Untagged ({untagged.length})</div>
+                        <div style={{fontSize:11,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 0"}}>Untagged ({untagged.length})</div>
                         {untagged.map(lib=>drillRow(lib,"u|"))}
                       </div>}
                     </>);
@@ -810,17 +810,17 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
             const planned=stationIsPlanned(st);
             return (<div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:8}}>
               <span style={{fontSize:13,fontWeight:600}}>Delegated to {delegate?delegate.name:"a former coach"}</span>
-              <span style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:planned?"var(--gbg)":"var(--ambg)",color:planned?"var(--green)":"var(--amber)"}}>{planned?"Planned":"Needs Planning"}</span>
-              {st.stationUpdatedAt&&<span style={{fontSize:11,color:"var(--td)"}}>last saved {timeAgo(st.stationUpdatedAt)}</span>}
+              <span style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:planned?"var(--field-tint)":"var(--caution-tint)",color:planned?"var(--field)":"var(--caution)"}}>{planned?"Planned":"Needs Planning"}</span>
+              {st.stationUpdatedAt&&<span style={{fontSize:11,color:"var(--text-dim)"}}>last saved {timeAgo(st.stationUpdatedAt)}</span>}
               <button type="button" className="btn ghost bxs" onClick={()=>onSt(st.id,{delegatedTo:""})}>Remove</button>
             </div>);
           })():delegatePickerIdx===si?<div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
             {(team.coaches||[]).filter(c=>c.canBuildPractices).map(c=>(
-              <button key={c.id} type="button" onClick={()=>{onSt(st.id,{delegatedTo:c.id});setDelegatePickerIdx(null);}} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:"#fff",color:"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{c.name}</button>
+              <button key={c.id} type="button" onClick={()=>{onSt(st.id,{delegatedTo:c.id});setDelegatePickerIdx(null);}} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--border)",background:"#fff",color:"var(--ink)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{c.name}</button>
             ))}
             <button type="button" className="btn ghost bxs" onClick={()=>setDelegatePickerIdx(null)}>Cancel</button>
           </div>:(team.coaches||[]).filter(c=>c.canBuildPractices).length===0?
-            <div style={{fontSize:12,color:"var(--td)"}}>No assistant has Share Practice Planning yet -- grant it from the roster's Permissions to delegate a station to them.</div>
+            <div style={{fontSize:12,color:"var(--text-dim)"}}>No assistant has Share Practice Planning yet -- grant it from the roster's Permissions to delegate a station to them.</div>
             :<button type="button" className="btn ghost bxs" onClick={()=>setDelegatePickerIdx(si)}>+ Delegate to a Coach</button>}
         </div>}
         <div className="fld"><label className="lbl">Description</label><AutoTextarea minHeight={40} value={st.description||""} onChange={e=>onSt(st.id,{description:e.target.value})}/></div>
@@ -831,15 +831,15 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
         <div className="fld"><label className="lbl">Player Grouping (within this station)</label>
           <div style={{display:"flex",gap:6}}>
             {[{v:"whole",l:"Whole Station"},{v:"partners",l:"Partners"},{v:"groups",l:"Groups"}].map(({v,l})=>(
-              <button key={v} type="button" onClick={()=>onSt(st.id,{grouping:v})} style={{flex:1,padding:"8px 4px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(st.grouping||"whole")===v?"var(--green)":"var(--s1)",color:(st.grouping||"whole")===v?"#fff":"var(--black)",fontSize:13,cursor:"pointer",fontWeight:700}}>
+              <button key={v} type="button" onClick={()=>onSt(st.id,{grouping:v})} style={{flex:1,padding:"8px 4px",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:(st.grouping||"whole")===v?"var(--field)":"var(--surface)",color:(st.grouping||"whole")===v?"#fff":"var(--ink)",fontSize:13,cursor:"pointer",fontWeight:700}}>
                 {l}
               </button>
             ))}
           </div>
           {(st.grouping||"whole")==="groups"&&<div style={{marginTop:8}}>
-            <div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>How many groups?</div>
+            <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:6}}>How many groups?</div>
             <div style={{display:"flex",gap:6}}>
-              {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>onSt(st.id,{numGroups:n})} style={{flex:1,padding:"8px 0",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(st.numGroups||2)===n?"var(--green)":"var(--s1)",color:(st.numGroups||2)===n?"#fff":"var(--black)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
+              {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>onSt(st.id,{numGroups:n})} style={{flex:1,padding:"8px 0",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:(st.numGroups||2)===n?"var(--field)":"var(--surface)",color:(st.numGroups||2)===n?"#fff":"var(--ink)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
             </div>
           </div>}
         </div>
@@ -872,7 +872,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
                   return;
                 }
                 onSt(st.id,{coachId:c.id,helperName:""});
-              }} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid "+(isHere?"var(--green)":isElsewhere?"#fbbf24":"var(--b)"),background:isHere?"var(--green)":isElsewhere?"#fef3c7":"#fff",color:isHere?"#fff":isElsewhere?"#92400e":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{label}</button>);
+              }} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid "+(isHere?"var(--field)":isElsewhere?"#fbbf24":"var(--border)"),background:isHere?"var(--field)":isElsewhere?"#fef3c7":"#fff",color:isHere?"#fff":isElsewhere?"#92400e":"var(--ink)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{label}</button>);
             })}
           </div>}
           {!st.helperName&&<button type="button" className="btn ghost bxs" onClick={()=>{setHelperIdx(si);onSt(st.id,{coachId:""});}}>+ Assign a Helper (not on roster)</button>}
@@ -886,7 +886,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
         <div className="fld"><label className="lbl">Equipment</label>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
             {teamEquipAssets.map(a=>(<EquipmentPickerPill key={a.id} asset={a} selected={stEquip.includes(a.id)} onToggle={()=>{const has=stEquip.includes(a.id);onSt(st.id,{equipment:has?stEquip.filter(x=>x!==a.id):[...stEquip,a.id]});}} refreshLibrary={refreshLibrary}/>))}
-            {teamEquipAssets.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No team equipment in library</span>}
+            {teamEquipAssets.length===0&&<span style={{fontSize:12,color:"var(--text-dim)"}}>No team equipment in library</span>}
           </div>
           {newEquipIdx===si?<div style={{display:"flex",gap:6}}>
             <input className="inp" style={{flex:1}} placeholder="Equipment name..." id={"new-st-equip-"+si} autoFocus/>
@@ -906,7 +906,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
         </div>}
         {playerGearAssets.length===0&&newGearIdx!==si&&<div className="fld">
           <label className="lbl">Player Gear Needed</label>
-          <div style={{fontSize:12,color:"var(--td)",marginBottom:4}}>No player gear for {sport} yet.</div>
+          <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:4}}>No player gear for {sport} yet.</div>
           <button type="button" className="btn ghost bxs" onClick={()=>setNewGearIdx(si)}>+ Add Gear</button>
         </div>}
         {players.length>0&&<div className="fld"><label className="lbl">Players</label>
@@ -917,19 +917,19 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
               const here=!out&&(st.assignments||[]).includes(p.id);
               const otherIdx=!out&&!here?act.stations.findIndex((s2,i2)=>i2!==si&&(s2.assignments||[]).includes(p.id)):-1;
               const elsewhere=otherIdx>=0;
-              return(<button key={p.id} type="button" onClick={()=>{if(!out)handleChip(si,p);}} disabled={out} title={out?p.firstName+" is marked out for this practice":undefined} style={{padding:"7px 12px",borderRadius:8,border:"1.5px solid",borderColor:out?"var(--b)":here?"var(--green)":elsewhere?"#d97706":"var(--b)",background:out?"var(--s2)":here?"var(--green)":elsewhere?"#fef3c7":"var(--s1)",color:out?"var(--td)":here?"#fff":elsewhere?"#92400e":"var(--black)",fontSize:13,cursor:out?"not-allowed":"pointer",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:1,minWidth:72,opacity:out?0.7:1}}>
+              return(<button key={p.id} type="button" onClick={()=>{if(!out)handleChip(si,p);}} disabled={out} title={out?p.firstName+" is marked out for this practice":undefined} style={{padding:"7px 12px",borderRadius:8,border:"1.5px solid",borderColor:out?"var(--border)":here?"var(--field)":elsewhere?"#d97706":"var(--border)",background:out?"var(--surface-soft)":here?"var(--field)":elsewhere?"#fef3c7":"var(--surface)",color:out?"var(--text-dim)":here?"#fff":elsewhere?"#92400e":"var(--ink)",fontSize:13,cursor:out?"not-allowed":"pointer",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:1,minWidth:72,opacity:out?0.7:1}}>
                 <span style={{fontWeight:700,textDecoration:out?"line-through":"none"}}>{p.jersey?<span style={{fontFamily:"DM Mono,monospace",fontSize:11,marginRight:3}}>#{p.jersey}</span>:null}{p.firstName}</span>
-                {out&&<span style={{fontSize:10,fontWeight:700,color:"var(--red)"}}>Out</span>}
+                {out&&<span style={{fontSize:10,fontWeight:700,color:"var(--danger)"}}>Out</span>}
                 {elsewhere&&<span style={{fontSize:10,opacity:.85}}>→ St {otherIdx+1}</span>}
                 {here&&<span style={{fontSize:10,opacity:.8}}>✓ here</span>}
               </button>);
             })}
           </div>
-          <div style={{fontSize:11,color:"var(--td)",marginTop:4}}>
-            <span style={{color:"var(--green)",fontWeight:700}}>Green</span> = here &nbsp;
+          <div style={{fontSize:11,color:"var(--text-dim)",marginTop:4}}>
+            <span style={{color:"var(--field)",fontWeight:700}}>Green</span> = here &nbsp;
             <span style={{color:"#d97706",fontWeight:700}}>Yellow</span> = other station &nbsp;
-            <span style={{color:"var(--td)"}}>Gray</span> = unassigned &nbsp;
-            <span style={{color:"var(--red)",fontWeight:700}}>Out</span> = marked out for this practice
+            <span style={{color:"var(--text-dim)"}}>Gray</span> = unassigned &nbsp;
+            <span style={{color:"var(--danger)",fontWeight:700}}>Out</span> = marked out for this practice
           </div>
         </div>}
         </>}
@@ -949,10 +949,10 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
 // defaults. `team` is null in the template editor -- config only, no board.
 function CountStepper({value,min,max,onChange,suffix,fill}){
   const mn=min==null?1:min;
-  return (<div style={{display:"flex",alignItems:"center",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",overflow:"hidden",background:"#fff",...(fill?{flex:1,minWidth:0}:null)}}>
-    <button type="button" onClick={()=>onChange(Math.max(mn,value-1))} style={{width:40,height:40,border:"none",background:"var(--s2)",color:"var(--black2)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0}}>-</button>
-    <div style={{flex:1,textAlign:"center",fontFamily:"DM Mono,monospace",fontSize:15,fontWeight:600,color:"var(--black)"}}>{value}{suffix||""}</div>
-    <button type="button" onClick={()=>onChange(max!=null?Math.min(max,value+1):value+1)} style={{width:40,height:40,border:"none",background:"var(--s2)",color:"var(--black2)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0}}>+</button>
+  return (<div style={{display:"flex",alignItems:"center",border:"1.5px solid var(--border)",borderRadius:"var(--radius-md)",overflow:"hidden",background:"#fff",...(fill?{flex:1,minWidth:0}:null)}}>
+    <button type="button" onClick={()=>onChange(Math.max(mn,value-1))} style={{width:40,height:40,border:"none",background:"var(--surface-soft)",color:"var(--ink-soft)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0}}>-</button>
+    <div style={{flex:1,textAlign:"center",fontFamily:"DM Mono,monospace",fontSize:15,fontWeight:600,color:"var(--ink)"}}>{value}{suffix||""}</div>
+    <button type="button" onClick={()=>onChange(max!=null?Math.min(max,value+1):value+1)} style={{width:40,height:40,border:"none",background:"var(--surface-soft)",color:"var(--ink-soft)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0}}>+</button>
   </div>);
 }
 
@@ -1126,20 +1126,20 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
         <CountStepper value={board?board.length:cfg.rounds} min={1} max={40} onChange={setRounds}/>
       </div>
     </div>
-    <div style={{fontSize:11,color:"var(--td)",marginTop:-4,marginBottom:8}}>Duration and {label.toLowerCase()}s are set separately.{cfg.perRoundTimer?" With the per-"+label.toLowerCase()+" timer on, each "+label.toLowerCase()+" gets "+(cfg.rounds>0?Math.max(1,Math.round((act.duration||60)/((board?board.length:cfg.rounds)||1))):(act.duration||60))+" min (duration ÷ "+label.toLowerCase()+"s).":""}</div>
+    <div style={{fontSize:11,color:"var(--text-dim)",marginTop:-4,marginBottom:8}}>Duration and {label.toLowerCase()}s are set separately.{cfg.perRoundTimer?" With the per-"+label.toLowerCase()+" timer on, each "+label.toLowerCase()+" gets "+(cfg.rounds>0?Math.max(1,Math.round((act.duration||60)/((board?board.length:cfg.rounds)||1))):(act.duration||60))+" min (duration ÷ "+label.toLowerCase()+"s).":""}</div>
 
     {/* 3. Format pill row -- one option today, shown so the coach sees what
         they got and a future second format has a home. */}
     <div className="fld"><label className="lbl">Format</label>
       <div style={{display:"flex",gap:6}}>
-        <span style={{padding:"8px 14px",borderRadius:20,background:"var(--green)",color:"#fff",fontSize:13,fontWeight:700}}>Everyone Rotates</span>
+        <span style={{padding:"8px 14px",borderRadius:20,background:"var(--field)",color:"#fff",fontSize:13,fontWeight:700}}>Everyone Rotates</span>
       </div>
       {/* Direct feedback (audit): this used to promise unconditionally even
           rotation ("Every player rotates... evenly"), which a narrow roster
           (too few rounds, or players locked to one position) genuinely
           can't always deliver -- the warnings and fairness badges below say
           so when it happens, so the intro copy shouldn't contradict them. */}
-      <div style={{fontSize:11,color:"var(--td)",marginTop:4}}>Rotates every player through positions and at-bats as evenly as the roster and round count allow. No second team needed -- see warnings and fairness badges below if a constraint gets in the way.</div>
+      <div style={{fontSize:11,color:"var(--text-dim)",marginTop:4}}>Rotates every player through positions and at-bats as evenly as the roster and round count allow. No second team needed -- see warnings and fairness badges below if a constraint gets in the way.</div>
     </div>
 
     {/* 4. Generate / Regenerate */}
@@ -1150,20 +1150,20 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
             know ahead of time that a field slot with nobody listed for it
             would simply sit Open -- position eligibility here is a strict
             requirement, not a soft preference the generator can override. */}
-        <div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>Tap Generate to build the rotation from each player's listed positions -- a strict requirement, not a preference: a slot with nobody listed for it stays Open. You can adjust anything after.</div>
+        <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:8}}>Tap Generate to build the rotation from each player's listed positions -- a strict requirement, not a preference: a slot with nobody listed for it stays Open. You can adjust anything after.</div>
         <button type="button" className="btn primary bmd bfull" onClick={()=>runGenerate(cfg.seed)}>Generate</button>
       </>}
       {board&&!confirmRegen&&<button type="button" className="btn outline bmd bfull" onClick={()=>setConfirmRegen(true)}>Regenerate</button>}
-      {board&&confirmRegen&&<div style={{border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:12}}>
+      {board&&confirmRegen&&<div style={{border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",padding:12}}>
         <div style={{fontSize:13,marginBottom:10}}>This reshuffles every {label.toLowerCase()}. Locks are kept.</div>
         <div className="brow"><button type="button" className="btn ghost bsm" style={{flex:1}} onClick={()=>setConfirmRegen(false)}>Never Mind</button>
         <button type="button" className="btn primary bsm" style={{flex:1}} onClick={()=>runGenerate(uid())}>Regenerate</button></div>
       </div>}
     </div>}
-    {!team&&<div style={{fontSize:12,color:"var(--td)",padding:"8px 0"}}>The rotation board is built once this template is used for a real practice.</div>}
+    {!team&&<div style={{fontSize:12,color:"var(--text-dim)",padding:"8px 0"}}>The rotation board is built once this template is used for a real practice.</div>}
 
     {/* warnings */}
-    {board&&(warnings||[]).length>0&&<div style={{background:"var(--ambg)",border:"1.5px solid var(--amber)",borderRadius:"var(--r)",padding:"10px 12px",marginBottom:10}}>
+    {board&&(warnings||[]).length>0&&<div style={{background:"var(--caution-tint)",border:"1.5px solid var(--caution)",borderRadius:"var(--radius-lg)",padding:"10px 12px",marginBottom:10}}>
       {warnings.map((w,i)=>(<div key={i} style={{fontSize:12,color:"#92400e",marginBottom:i<warnings.length-1?4:0}}>{w}</div>))}
     </div>}
 
@@ -1174,16 +1174,16 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
         {pool.map(p=>{
           const lk=playerLock(p.id);
           const locked=lk.position||lk.noHit||lk.noPitch||lk.noCatch;
-          return (<button key={p.id} type="button" onClick={()=>setRotationPlayerId(p.id)} style={{padding:"5px 9px",borderRadius:14,border:"1.5px solid var(--b)",background:"var(--s1)",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:3,color:"var(--black)"}}>
+          return (<button key={p.id} type="button" onClick={()=>setRotationPlayerId(p.id)} style={{padding:"5px 9px",borderRadius:14,border:"1.5px solid var(--border)",background:"var(--surface)",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:3,color:"var(--ink)"}}>
             {p.jersey?<span style={{fontFamily:"DM Mono,monospace",fontSize:10}}>#{p.jersey}</span>:null}{p.firstName}
-            {locked&&<span title="Has a lock" style={{color:"var(--green)"}}>&#128274;</span>}
-            {warnPlayerIds.has(p.id)&&<span style={{width:6,height:6,borderRadius:"50%",background:"var(--red)"}}/>}
+            {locked&&<span title="Has a lock" style={{color:"var(--field)"}}>&#128274;</span>}
+            {warnPlayerIds.has(p.id)&&<span style={{width:6,height:6,borderRadius:"50%",background:"var(--danger)"}}/>}
           </button>);
         })}
       </div>
       {/* fairness badges */}
       {fairness&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
-        <span className="bdg bs" style={{background:fairness.hits.even?"var(--gbg)":"var(--ambg)",color:fairness.hits.even?"var(--green)":"var(--amber)"}}>
+        <span className="bdg bs" style={{background:fairness.hits.even?"var(--field-tint)":"var(--caution-tint)",color:fairness.hits.even?"var(--field)":"var(--caution)"}}>
           {fairness.hits.even?"Hits: even":"Hits: uneven ("+fairness.hits.lowNames.slice(0,3).join(", ")+" "+fairness.hits.min+", others "+fairness.hits.max+")"}
         </span>
         <span className="bdg bs">Pitch: {fairness.pitch.used} of {fairness.pitch.eligible} pitchers used</span>
@@ -1198,20 +1198,20 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
         {isBB?(
           <table style={{borderCollapse:"collapse",width:"100%",fontSize:12}}>
             <thead><tr>
-              <th style={{position:"sticky",left:0,background:"#fff",textAlign:"left",padding:"6px 8px",borderBottom:"2px solid var(--b)"}}>{label}</th>
-              {activeSlotsForRound().map(s=>(<th key={s} style={{padding:"6px 8px",borderBottom:"2px solid var(--b)",whiteSpace:"nowrap"}}>{/^H\d+$/.test(s)?"Bat "+s.slice(1):s}</th>))}
+              <th style={{position:"sticky",left:0,background:"#fff",textAlign:"left",padding:"6px 8px",borderBottom:"2px solid var(--border)"}}>{label}</th>
+              {activeSlotsForRound().map(s=>(<th key={s} style={{padding:"6px 8px",borderBottom:"2px solid var(--border)",whiteSpace:"nowrap"}}>{/^H\d+$/.test(s)?"Bat "+s.slice(1):s}</th>))}
             </tr></thead>
             <tbody>
               {board.map((rd,ri)=>(<tr key={ri} id={"scrim-card-"+act.id+"-"+ri}>
-                <td style={{position:"sticky",left:0,background:"#fff",fontWeight:700,padding:"6px 8px",borderBottom:"1px solid var(--b)",whiteSpace:"nowrap"}}>{label} {ri+1}
-                  <button type="button" onClick={()=>removeHalfInning(ri)} title="Delete" style={{marginLeft:6,background:"none",border:"none",color:"var(--td)",cursor:"pointer"}}>&#128465;</button>
+                <td style={{position:"sticky",left:0,background:"#fff",fontWeight:700,padding:"6px 8px",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap"}}>{label} {ri+1}
+                  <button type="button" onClick={()=>removeHalfInning(ri)} title="Delete" style={{marginLeft:6,background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer"}}>&#128465;</button>
                 </td>
                 {activeSlotsForRound().map(s=>{
                   const a=slotOccupant(ri,s);
                   const isPicked=picked&&picked.round===ri&&picked.slot===s;
                   const isTarget=picked&&picked.round===ri&&!isPicked;
-                  return (<td key={s} onClick={()=>doSwap(ri,s)} style={{padding:"5px 8px",borderBottom:"1px solid var(--b)",cursor:"pointer",whiteSpace:"nowrap",background:isPicked?"var(--green)":isTarget?"var(--gbg)":undefined,color:isPicked?"#fff":undefined}}>
-                    {assigneeLabel(a)||<span style={{color:"var(--td)"}}>Open</span>}
+                  return (<td key={s} onClick={()=>doSwap(ri,s)} style={{padding:"5px 8px",borderBottom:"1px solid var(--border)",cursor:"pointer",whiteSpace:"nowrap",background:isPicked?"var(--field)":isTarget?"var(--field-tint)":undefined,color:isPicked?"#fff":undefined}}>
+                    {assigneeLabel(a)||<span style={{color:"var(--text-dim)"}}>Open</span>}
                   </td>);
                 })}
               </tr>))}
@@ -1227,15 +1227,15 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
             const IN_ORDER=["1B","2B","SS","3B"],OUT_ORDER=["LF","CF","RF"];
             const leftCol=[...IN_ORDER.filter(s=>otherSlots.includes(s)),...otherSlots.filter(s=>!IN_ORDER.includes(s)&&!OUT_ORDER.includes(s))];
             const rightCol=OUT_ORDER.filter(s=>otherSlots.includes(s));
-            return (<div key={ri} id={"scrim-card-"+act.id+"-"+ri} style={{border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 12px",marginBottom:8,background:"var(--s1)"}}>
+            return (<div key={ri} id={"scrim-card-"+act.id+"-"+ri} style={{border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"10px 12px",marginBottom:8,background:"var(--surface)"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                <span style={{fontFamily:"Barlow Condensed,sans-serif",fontWeight:900,color:"var(--green)"}}>{label} {ri+1}</span>
-                <button type="button" onClick={()=>removeHalfInning(ri)} title={"Delete "+label.toLowerCase()} style={{background:"none",border:"none",color:"var(--td)",fontSize:12,cursor:"pointer"}}>Delete</button>
+                <span style={{fontFamily:"Barlow Condensed,sans-serif",fontWeight:900,color:"var(--field)"}}>{label} {ri+1}</span>
+                <button type="button" onClick={()=>removeHalfInning(ri)} title={"Delete "+label.toLowerCase()} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:12,cursor:"pointer"}}>Delete</button>
               </div>
               <div style={{fontSize:13,marginBottom:6}}>
-                <span onClick={()=>doSwap(ri,"P")} style={{cursor:"pointer",fontWeight:600,padding:"2px 6px",borderRadius:6,background:picked&&picked.round===ri&&picked.slot==="P"?"var(--green)":picked&&picked.round===ri?"var(--gbg)":undefined,color:picked&&picked.round===ri&&picked.slot==="P"?"#fff":undefined}}>P: {(cfg.slots||FIELD_ALL).includes("P")?(P||"Open"):"Coach Pitch"}</span>
-                <span style={{margin:"0 4px",color:"var(--td)"}}>&middot;</span>
-                <span onClick={()=>doSwap(ri,"C")} style={{cursor:"pointer",fontWeight:600,padding:"2px 6px",borderRadius:6,background:picked&&picked.round===ri&&picked.slot==="C"?"var(--green)":picked&&picked.round===ri?"var(--gbg)":undefined,color:picked&&picked.round===ri&&picked.slot==="C"?"#fff":undefined}}>C: {(cfg.slots||FIELD_ALL).includes("C")?(C||"Open"):"n/a"}</span>
+                <span onClick={()=>doSwap(ri,"P")} style={{cursor:"pointer",fontWeight:600,padding:"2px 6px",borderRadius:6,background:picked&&picked.round===ri&&picked.slot==="P"?"var(--field)":picked&&picked.round===ri?"var(--field-tint)":undefined,color:picked&&picked.round===ri&&picked.slot==="P"?"#fff":undefined}}>P: {(cfg.slots||FIELD_ALL).includes("P")?(P||"Open"):"Coach Pitch"}</span>
+                <span style={{margin:"0 4px",color:"var(--text-dim)"}}>&middot;</span>
+                <span onClick={()=>doSwap(ri,"C")} style={{cursor:"pointer",fontWeight:600,padding:"2px 6px",borderRadius:6,background:picked&&picked.round===ri&&picked.slot==="C"?"var(--field)":picked&&picked.round===ri?"var(--field-tint)":undefined,color:picked&&picked.round===ri&&picked.slot==="C"?"#fff":undefined}}>C: {(cfg.slots||FIELD_ALL).includes("C")?(C||"Open"):"n/a"}</span>
               </div>
               <div style={{display:"flex",gap:16}}>
                 {[leftCol,rightCol].map((col,ci)=>col.length>0&&(<div key={ci} style={{flex:1,display:"flex",flexDirection:"column",gap:3}}>
@@ -1243,48 +1243,48 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
                     const a=slotOccupant(ri,s);
                     const isPicked=picked&&picked.round===ri&&picked.slot===s;
                     const isTarget=picked&&picked.round===ri&&!isPicked;
-                    return (<div key={s} onClick={()=>doSwap(ri,s)} style={{fontSize:12,cursor:"pointer",padding:"3px 6px",borderRadius:6,background:isPicked?"var(--green)":isTarget?"var(--gbg)":undefined,color:isPicked?"#fff":undefined}}>
-                      <span style={{color:isPicked?"rgba(255,255,255,.8)":"var(--td)",fontFamily:"DM Mono,monospace",marginRight:4}}>{s}</span>{assigneeLabel(a)||"Open"}
+                    return (<div key={s} onClick={()=>doSwap(ri,s)} style={{fontSize:12,cursor:"pointer",padding:"3px 6px",borderRadius:6,background:isPicked?"var(--field)":isTarget?"var(--field-tint)":undefined,color:isPicked?"#fff":undefined}}>
+                      <span style={{color:isPicked?"rgba(255,255,255,.8)":"var(--text-dim)",fontFamily:"DM Mono,monospace",marginRight:4}}>{s}</span>{assigneeLabel(a)||"Open"}
                     </div>);
                   })}
                 </div>))}
               </div>
               {hitters.length>0&&<div style={{marginTop:6,fontSize:12}}>
-                <span style={{color:"var(--td)",fontWeight:700}}>Hitting ({cfg.absPerHitter||2} ABs each): </span>
+                <span style={{color:"var(--text-dim)",fontWeight:700}}>Hitting ({cfg.absPerHitter||2} ABs each): </span>
                 {hitters.map((k,i)=>{
                   const a=slotOccupant(ri,k);
                   const isPicked=picked&&picked.round===ri&&picked.slot===k;
                   const isTarget=picked&&picked.round===ri&&!isPicked;
-                  return (<span key={k} onClick={()=>doSwap(ri,k)} style={{cursor:"pointer",padding:"2px 6px",borderRadius:6,marginRight:4,background:isPicked?"var(--green)":isTarget?"var(--gbg)":undefined,color:isPicked?"#fff":undefined}}>{assigneeLabel(a)||"Open"}{i<hitters.length-1?",":""}</span>);
+                  return (<span key={k} onClick={()=>doSwap(ri,k)} style={{cursor:"pointer",padding:"2px 6px",borderRadius:6,marginRight:4,background:isPicked?"var(--field)":isTarget?"var(--field-tint)":undefined,color:isPicked?"#fff":undefined}}>{assigneeLabel(a)||"Open"}{i<hitters.length-1?",":""}</span>);
                 })}
               </div>}
-              {(cfg.coachRoles||[]).length>0&&<div style={{marginTop:6,fontSize:11,color:"var(--td)"}}>
+              {(cfg.coachRoles||[]).length>0&&<div style={{marginTop:6,fontSize:11,color:"var(--text-dim)"}}>
                 {(cfg.coachRoles||[]).map(r=>r.label+": "+(assigneeLabel((rd.coachRoles||{})[r.id])||"Open")).join("  ·  ")}
               </div>}
             </div>);
           })
         )}
       </div>
-      {picked&&<div style={{fontSize:11,color:"var(--green2)",marginBottom:6}}>Tap another slot in the same {label.toLowerCase()} to swap, or tap the same slot to cancel.</div>}
+      {picked&&<div style={{fontSize:11,color:"var(--field-accent)",marginBottom:6}}>Tap another slot in the same {label.toLowerCase()} to swap, or tap the same slot to cancel.</div>}
       <button type="button" className="btn ghost bsm bfull" onClick={addHalfInning}>+ Add {label}</button>
     </div>}
 
     {/* 6. Round rules disclosure */}
     <div className="fld">
-      <button type="button" onClick={()=>setRulesOpen(o=>!o)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13,color:"var(--black)"}}>
+      <button type="button" onClick={()=>setRulesOpen(o=>!o)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--surface)",border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13,color:"var(--ink)"}}>
         Round rules <Ic.Chev up={rulesOpen}/>
       </button>
-      {rulesOpen&&<div style={{border:"1.5px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)",padding:"12px"}}>
+      {rulesOpen&&<div style={{border:"1.5px solid var(--border)",borderTop:"none",borderRadius:"0 0 var(--radius-lg) var(--radius-lg)",padding:"12px"}}>
         <div className="fld"><label className="lbl">Hitters per {label.toLowerCase()}</label>
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
-            <button type="button" className="btn ghost bxs" style={{flexShrink:0,alignSelf:"stretch",background:(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")?"var(--green)":undefined,color:(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")?"#fff":undefined}} onClick={()=>setCfg({hittersPerRound:"auto"})}>Auto</button>
+            <button type="button" className="btn ghost bxs" style={{flexShrink:0,alignSelf:"stretch",background:(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")?"var(--field)":undefined,color:(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")?"#fff":undefined}} onClick={()=>setCfg({hittersPerRound:"auto"})}>Auto</button>
             {typeof cfg.hittersPerRound==="number"&&<CountStepper fill value={cfg.hittersPerRound} min={1} max={12} onChange={n=>setCfg({hittersPerRound:n})}/>}
             {(cfg.hittersPerRound==null||cfg.hittersPerRound==="auto")&&<button type="button" className="btn ghost bxs" style={{flex:1}} onClick={()=>setCfg({hittersPerRound:Math.max(1,pool.length-(cfg.slots||FIELD_ALL).length)})}>Pin a number</button>}
           </div>
         </div>
         <div className="fld"><label className="lbl">At-bats per hitter</label>
           <CountStepper value={cfg.absPerHitter||2} min={1} max={6} onChange={n=>setCfg({absPerHitter:n})}/>
-          <div style={{fontSize:11,color:"var(--td)",marginTop:2}}>Shown on the board and the live view. Not enforced by the generator.</div>
+          <div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>Shown on the board and the live view. Not enforced by the generator.</div>
         </div>
         <div className="fld"><label className="lbl">Catcher holds (consecutive {label.toLowerCase()}s)</label>
           <CountStepper value={cfg.catcherHold||2} min={1} max={Math.max(1,cfg.rounds)} onChange={n=>setCfg({catcherHold:n})}/>
@@ -1299,35 +1299,35 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
               return (<button key={s} type="button" onClick={()=>{
                 const next=on?activeFieldSlots.filter(x=>x!==s):FIELD_ALL.filter(x=>activeFieldSlots.includes(x)||x===s);
                 setCfg({slots:next});
-              }} style={{padding:"5px 10px",borderRadius:14,border:"1.5px solid "+(on?"var(--green)":"var(--b)"),background:on?"var(--green)":"var(--s1)",color:on?"#fff":"var(--black)",fontSize:12,cursor:"pointer"}}>{s}</button>);
+              }} style={{padding:"5px 10px",borderRadius:14,border:"1.5px solid "+(on?"var(--field)":"var(--border)"),background:on?"var(--field)":"var(--surface)",color:on?"#fff":"var(--ink)",fontSize:12,cursor:"pointer"}}>{s}</button>);
             })}
           </div>
-          <div style={{fontSize:11,color:"var(--td)",marginTop:3}}>Turn P off for coach pitch. Turn outfield spots off for a small roster.</div>
+          <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>Turn P off for coach pitch. Turn outfield spots off for a small roster.</div>
         </div>
         <div className="fld"><label className="lbl">{label} label</label>
           <input className="inp" value={cfg.roundLabel||"Round"} onChange={e=>setCfg({roundLabel:e.target.value})} onFocus={e=>e.target.select()}/>
         </div>
         <div className="fld">
-          <button type="button" onClick={()=>setCfg({perRoundTimer:!cfg.perRoundTimer})} style={{display:"flex",alignItems:"center",gap:8,background:"none",border:"none",padding:0,cursor:"pointer",color:"var(--black)"}}>
-            <span style={{width:20,height:20,borderRadius:"50%",border:"2px solid "+(cfg.perRoundTimer?"var(--green)":"var(--b)"),background:cfg.perRoundTimer?"var(--green)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{cfg.perRoundTimer&&<Ic.Check/>}</span>
+          <button type="button" onClick={()=>setCfg({perRoundTimer:!cfg.perRoundTimer})} style={{display:"flex",alignItems:"center",gap:8,background:"none",border:"none",padding:0,cursor:"pointer",color:"var(--ink)"}}>
+            <span style={{width:20,height:20,borderRadius:"50%",border:"2px solid "+(cfg.perRoundTimer?"var(--field)":"var(--border)"),background:cfg.perRoundTimer?"var(--field)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{cfg.perRoundTimer&&<Ic.Check/>}</span>
             <span style={{fontSize:13,fontWeight:600}}>Show a timer for each {label.toLowerCase()}</span>
           </button>
-          <div style={{fontSize:11,color:"var(--td)",marginTop:3}}>A small pacing countdown on the live board (block duration ÷ {label.toLowerCase()}s). Off by default; the overall block timer is always shown.</div>
+          <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>A small pacing countdown on the live board (block duration ÷ {label.toLowerCase()}s). Off by default; the overall block timer is always shown.</div>
         </div>
         {data&&<div className="fld"><label className="lbl">Skill tags</label>
           <SkillTagPicker data={data} coachId={coachId} sport={teamSport||"General"} selectedIds={cfg.skillTagIds||[]} onChange={ids=>setCfg({skillTagIds:ids})} refreshLibrary={refreshLibrary}/>
-          <div style={{fontSize:11,color:"var(--td)",marginTop:3}}>A scrimmage counts a little toward every area. Remove tags to focus it.</div>
+          <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3}}>A scrimmage counts a little toward every area. Remove tags to focus it.</div>
         </div>}
       </div>}
     </div>
 
     {/* 7. Coach roles disclosure */}
     {team&&<div className="fld">
-      <button type="button" onClick={()=>setRolesOpen(o=>!o)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13,color:"var(--black)"}}>
+      <button type="button" onClick={()=>setRolesOpen(o=>!o)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--surface)",border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13,color:"var(--ink)"}}>
         Coach roles <Ic.Chev up={rolesOpen}/>
       </button>
-      {rolesOpen&&<div style={{border:"1.5px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)",padding:"12px"}}>
-        <div style={{fontSize:11,color:"var(--td)",marginBottom:8}}>Optional here. Practice Setup is the usual place to decide who umpires.</div>
+      {rolesOpen&&<div style={{border:"1.5px solid var(--border)",borderTop:"none",borderRadius:"0 0 var(--radius-lg) var(--radius-lg)",padding:"12px"}}>
+        <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:8}}>Optional here. Practice Setup is the usual place to decide who umpires.</div>
         {(cfg.coachRoles||[]).map(r=>{
           const a=(cfg.roleAssignees||{})[r.id]||null;
           return (<div key={r.id} style={{marginBottom:8}}>
@@ -1360,8 +1360,8 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
       const lk=playerLock(rotationPlayerId);
       return createPortal(<div className="movly" onClick={e=>{if(e.target===e.currentTarget){setRotationPlayerId(null);setLockPlayerId(null);}}}>
         <div className="modal">
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900}}>{p.firstName} {p.lastName||""} {p.jersey?<span style={{color:"var(--td)"}}>#{p.jersey}</span>:null}</div>
-          <div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>{(p.positions||[]).join(" · ")||"No positions set"}</div>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900}}>{p.firstName} {p.lastName||""} {p.jersey?<span style={{color:"var(--text-dim)"}}>#{p.jersey}</span>:null}</div>
+          <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:8}}>{(p.positions||[]).join(" · ")||"No positions set"}</div>
           {/* lock controls */}
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
             <select className="sel" style={{maxWidth:150}} value={lk.position||""} onChange={e=>setPlayerLock(rotationPlayerId,{position:e.target.value||undefined})}>
@@ -1369,17 +1369,17 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
               {activeFieldSlots.map(s=>(<option key={s} value={s}>{s} every {label.toLowerCase()}</option>))}
             </select>
             {[["noHit","Never hits"],["noPitch","Never pitches"],["noCatch","Never catches"],["sitOut","Sit out this scrimmage"]].map(([k,lbl])=>(
-              <button key={k} type="button" onClick={()=>setPlayerLock(rotationPlayerId,{[k]:!lk[k]||undefined})} style={{padding:"5px 10px",borderRadius:14,border:"1.5px solid "+(lk[k]?"var(--green)":"var(--b)"),background:lk[k]?"var(--green)":"var(--s1)",color:lk[k]?"#fff":"var(--black)",fontSize:12,cursor:"pointer"}}>{lbl}</button>
+              <button key={k} type="button" onClick={()=>setPlayerLock(rotationPlayerId,{[k]:!lk[k]||undefined})} style={{padding:"5px 10px",borderRadius:14,border:"1.5px solid "+(lk[k]?"var(--field)":"var(--border)"),background:lk[k]?"var(--field)":"var(--surface)",color:lk[k]?"#fff":"var(--ink)",fontSize:12,cursor:"pointer"}}>{lbl}</button>
             ))}
           </div>
           {board&&<>
             <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
               {Object.keys(rot.counts).map(k=>(<span key={k} className="bdg bs">{k==="Hit"?"Hit":k} {rot.counts[k]}</span>))}
             </div>
-            <div style={{maxHeight:220,overflowY:"auto",border:"1px solid var(--b)",borderRadius:"var(--r)"}}>
+            <div style={{maxHeight:220,overflowY:"auto",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)"}}>
               {rot.timeline.map((t,i)=>{
                 const inHold=rot.holds.some(([a,b2])=>i>=a&&i<=b2);
-                return (<div key={i} onClick={()=>{setRotationPlayerId(null);setJumpRound(t.round);}} style={{padding:"7px 10px",borderBottom:i<rot.timeline.length-1?"1px solid var(--b)":"none",fontSize:13,cursor:"pointer",borderLeft:inHold?"3px solid var(--green)":"3px solid transparent"}}>
+                return (<div key={i} onClick={()=>{setRotationPlayerId(null);setJumpRound(t.round);}} style={{padding:"7px 10px",borderBottom:i<rot.timeline.length-1?"1px solid var(--border)":"none",fontSize:13,cursor:"pointer",borderLeft:inHold?"3px solid var(--field)":"3px solid transparent"}}>
                   {label} {t.round+1}: <strong>{t.slot||"Sitting"}</strong>
                 </div>);
               })}
@@ -1407,20 +1407,20 @@ export function BenchmarkConfig({act,team,loc,benchmarks,onChange,onDone,openMod
     : v.scoredAttempts+" attempt"+(v.scoredAttempts===1?"":"s")):"";
   const rule=v&&(v.scoredAttempts>1||v.resultRule==="pooled")?", "+({single:"one attempt",best:"best valid attempt",average:"average of valid attempts",total:"total of valid attempts",pooled:"pooled successes / opportunities"}[v.resultRule]||v.resultRule):"";
   return (<div>
-    <div className="card" style={{background:"var(--gbg)",border:"1px solid var(--green2)",marginBottom:10}}>
-      <div style={{fontSize:11,fontWeight:900,letterSpacing:".06em",color:"var(--green)"}}>BENCHMARK PROTOCOL{v?" · v"+v.versionNumber:""}</div>
-      {!v&&<div style={{fontSize:13,color:"var(--red)",marginTop:4}}>This benchmark is no longer available.</div>}
+    <div className="card" style={{background:"var(--field-tint)",border:"1px solid var(--field-accent)",marginBottom:10}}>
+      <div style={{fontSize:11,fontWeight:900,letterSpacing:".06em",color:"var(--field)"}}>BENCHMARK PROTOCOL{v?" · v"+v.versionNumber:""}</div>
+      {!v&&<div style={{fontSize:13,color:"var(--danger)",marginTop:4}}>This benchmark is no longer available.</div>}
       {v&&<>
         <div style={{fontSize:14,fontWeight:800,marginTop:4}}>{bm.title}</div>
         <div style={{fontSize:12,marginTop:2}}>{(bm.subjectMode==="team"?"Whole team":"Individual players")} · {v.metricType}{v.displayUnit?" ("+v.displayUnit+")":""} · {attempts}{rule} · {dir}</div>
-        <div style={{fontSize:12,whiteSpace:"pre-wrap",marginTop:6,color:"var(--black2)"}}>{v.instructions}</div>
+        <div style={{fontSize:12,whiteSpace:"pre-wrap",marginTop:6,color:"var(--ink-soft)"}}>{v.instructions}</div>
         {(v.tagSnapshot||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{v.tagSnapshot.map((t,i)=><span key={i} className="bdg bs">{t}</span>)}</div>}
-        <div style={{fontSize:11,color:"var(--td)",marginTop:6}}>The protocol is fixed. Change the test setup from Library &rarr; Benchmarks (a new version); this activity stays on v{v.versionNumber} until updated.</div>
+        <div style={{fontSize:11,color:"var(--text-dim)",marginTop:6}}>The protocol is fixed. Change the test setup from Library &rarr; Benchmarks (a new version); this activity stays on v{v.versionNumber} until updated.</div>
       </>}
     </div>
     <div className="fld"><label className="lbl">Activity name</label><input className="inp" value={act.name||""} onChange={e=>onChange({name:e.target.value})}/></div>
     <div className="fld"><label className="lbl">Practice minutes</label><DurStepper value={act.duration||10} min={1} onChange={x=>onChange({duration:x})}/>
-      <div style={{fontSize:11,color:"var(--td)",marginTop:4}}>How long this slot takes in the run order. It does not change the measured test window.</div>
+      <div style={{fontSize:11,color:"var(--text-dim)",marginTop:4}}>How long this slot takes in the run order. It does not change the measured test window.</div>
     </div>
     {team&&<div className="fld"><label className="lbl">Coach</label><select className="sel" value={act.coachId||""} onChange={e=>onChange({coachId:e.target.value})}><option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
     <AreaSelect loc={loc} value={act.sublocationId} onChange={v=>onChange({sublocationId:v})} openModal={openModal}/>
@@ -1428,11 +1428,11 @@ export function BenchmarkConfig({act,team,loc,benchmarks,onChange,onDone,openMod
     {bm&&bm.subjectMode!=="team"&&<div className="fld"><label className="lbl">Player Grouping</label>
       <div style={{display:"flex",gap:6}}>
         {[{v:"whole",l:"Whole Team"},{v:"partners",l:"Partners"},{v:"groups",l:"Groups"}].map(({v:gv,l})=>(
-          <button key={gv} type="button" onClick={()=>onChange({grouping:gv})} style={{flex:1,padding:"8px 4px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(act.grouping||"whole")===gv?"var(--green)":"var(--s1)",color:(act.grouping||"whole")===gv?"#fff":"var(--black)",fontSize:13,cursor:"pointer",fontWeight:700}}>{l}</button>
+          <button key={gv} type="button" onClick={()=>onChange({grouping:gv})} style={{flex:1,padding:"8px 4px",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:(act.grouping||"whole")===gv?"var(--field)":"var(--surface)",color:(act.grouping||"whole")===gv?"#fff":"var(--ink)",fontSize:13,cursor:"pointer",fontWeight:700}}>{l}</button>
         ))}
       </div>
       {(act.grouping||"whole")==="groups"&&<div style={{display:"flex",gap:6,marginTop:8}}>
-        {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>onChange({numGroups:n})} style={{flex:1,padding:"8px 0",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(act.numGroups||2)===n?"var(--green)":"var(--s1)",color:(act.numGroups||2)===n?"#fff":"var(--black)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
+        {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>onChange({numGroups:n})} style={{flex:1,padding:"8px 0",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:(act.numGroups||2)===n?"var(--field)":"var(--surface)",color:(act.numGroups||2)===n?"#fff":"var(--ink)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
       </div>}
     </div>}
     <button type="button" className="btn ghost bsm bfull mt10" onClick={onDone}>Done</button>

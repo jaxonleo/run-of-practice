@@ -46,16 +46,16 @@ function TeamAssignmentsSection({data,coachId,refreshTeams}){
     setBusyId(null);
     setConfirmLeaveId(null);
   };
-  if(mine.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>You're not on any teams yet.</div>;
+  if(mine.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>You're not on any teams yet.</div>;
   return(<div>
-    <div style={{fontSize:13,color:"var(--td)",marginBottom:14,lineHeight:1.4}}>Every team you're on, across every organization. "Show on Home" controls where the team's practices show up in your own Home agenda. Turning it off doesn't remove you from the team, and you'll still see everything if you open the team directly.</div>
+    <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:14,lineHeight:1.4}}>Every team you're on, across every organization. "Show on Home" controls where the team's practices show up in your own Home agenda. Turning it off doesn't remove you from the team, and you'll still see everything if you open the team directly.</div>
     {mine.map(({team,staff,role})=>{
       const isOwner=team.ownerUserId===coachId;
       return(<div key={team.id} className="card" style={{marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
           <div>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{team.name}</div>
-            <div style={{fontSize:12,color:"var(--td)"}}>{role}{team.organizationId?" · org team":""}</div>
+            <div style={{fontSize:12,color:"var(--text-dim)"}}>{role}{team.organizationId?" · org team":""}</div>
           </div>
           {!isOwner&&(confirmLeaveId===team.id?(
             <div className="row" style={{gap:6}}>
@@ -63,12 +63,12 @@ function TeamAssignmentsSection({data,coachId,refreshTeams}){
               <button className="btn danger bxs" disabled={busyId===team.id} onClick={()=>doLeave(team.id)}>{busyId===team.id?"Leaving...":"Confirm Leave"}</button>
             </div>
           ):(
-            <button className="btn ghost bxs" style={{color:"var(--red)"}} onClick={()=>setConfirmLeaveId(team.id)}>Leave</button>
+            <button className="btn ghost bxs" style={{color:"var(--danger)"}} onClick={()=>setConfirmLeaveId(team.id)}>Leave</button>
           ))}
         </div>
         {staff&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <span style={{fontSize:13}}>Show on Home</span>
-          <button type="button" onClick={()=>toggleShowOnHome(staff.id,!staff.showOnHome)} disabled={busyId===staff.id} style={{width:44,height:26,borderRadius:13,border:"none",cursor:"pointer",background:staff.showOnHome?"var(--green)":"var(--s2)",position:"relative",flexShrink:0}}>
+          <button type="button" onClick={()=>toggleShowOnHome(staff.id,!staff.showOnHome)} disabled={busyId===staff.id} style={{width:44,height:26,borderRadius:13,border:"none",cursor:"pointer",background:staff.showOnHome?"var(--field)":"var(--surface-soft)",position:"relative",flexShrink:0}}>
             <span style={{position:"absolute",top:2,left:staff.showOnHome?20:2,width:22,height:22,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
           </button>
         </div>}
@@ -100,9 +100,9 @@ function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate,navi
     <div className="clbl mb8">Your Info</div>
     <div className="fld mb10"><label className="lbl">First Name</label><input className="inp" value={firstName} onChange={e=>setFirstName(e.target.value)}/></div>
     <div className="fld mb10"><label className="lbl">Last Name</label><input className="inp" placeholder="(optional)" value={lastName} onChange={e=>setLastName(e.target.value)}/></div>
-    <div className="fld" style={{marginBottom:12}}><label className="lbl">Email</label><div style={{fontSize:14,color:"var(--td)",padding:"8px 0"}}>{coachEmail||"--"}</div></div>
+    <div className="fld" style={{marginBottom:12}}><label className="lbl">Email</label><div style={{fontSize:14,color:"var(--text-dim)",padding:"8px 0"}}>{coachEmail||"--"}</div></div>
     {dirty&&<button className="btn primary bmd bfull" style={{marginBottom:24}} onClick={save} disabled={!firstName.trim()||saving}>{saving?"Saving...":"Save Changes"}</button>}
-    {!dirty&&saved&&<div style={{fontSize:13,color:"var(--green)",marginBottom:24}}>Saved.</div>}
+    {!dirty&&saved&&<div style={{fontSize:13,color:"var(--field)",marginBottom:24}}>Saved.</div>}
     {!dirty&&!saved&&<div style={{marginBottom:24}}/>}
 
     {/* Moved here from the main Settings list -- that top-level list is
@@ -115,18 +115,18 @@ function AccountSection({profile,coachEmail,saveName,onSignOut,onDeactivate,navi
       <div className="clbl mb8">Membership</div>
       <div className="card" style={{marginBottom:24,padding:"14px 16px"}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700,marginBottom:4}}>Part of an organization with multiple teams?</div>
-        <div style={{fontSize:13,color:"var(--td)",marginBottom:10,lineHeight:1.4}}>Organizations give a director (or a few) visibility across every team they oversee. Request a consultation and we'll walk through how Run of Practice can support your organization.</div>
+        <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:10,lineHeight:1.4}}>Organizations give a director (or a few) visibility across every team they oversee. Request a consultation and we'll walk through how Run of Practice can support your organization.</div>
         <button type="button" className="btn outline bmd bfull" onClick={()=>setShowConsult(true)}>Request a Consultation</button>
       </div>
       {showConsult&&<ConsultationRequestForm coachId={coachId} coachEmail={coachEmail} pageContext="Settings > Account" onClose={()=>setShowConsult(false)}/>}
     </>}
 
     <div className="clbl mb8">Legal</div>
-    <div className="li tap" style={{marginBottom:6}} onClick={()=>navigate("/terms",{state:{openSection:"account"}})}><div className="lim"><div className="lin">Terms of Service</div></div><span style={{color:"var(--td)",fontSize:18}}>&#8250;</span></div>
-    <div className="li tap" style={{marginBottom:24}} onClick={()=>navigate("/privacy",{state:{openSection:"account"}})}><div className="lim"><div className="lin">Privacy Policy</div></div><span style={{color:"var(--td)",fontSize:18}}>&#8250;</span></div>
+    <div className="li tap" style={{marginBottom:6}} onClick={()=>navigate("/terms",{state:{openSection:"account"}})}><div className="lim"><div className="lin">Terms of Service</div></div><span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span></div>
+    <div className="li tap" style={{marginBottom:24}} onClick={()=>navigate("/privacy",{state:{openSection:"account"}})}><div className="lim"><div className="lin">Privacy Policy</div></div><span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span></div>
 
     <div className="clbl mb8">Deactivate Account</div>
-    {!confirmDeactivate&&<button className="btn ghost bmd bfull" style={{marginBottom:24,color:"var(--red)"}} onClick={()=>setConfirmDeactivate(true)}>Deactivate Account</button>}
+    {!confirmDeactivate&&<button className="btn ghost bmd bfull" style={{marginBottom:24,color:"var(--danger)"}} onClick={()=>setConfirmDeactivate(true)}>Deactivate Account</button>}
     {confirmDeactivate&&<div className="confirm-box" style={{marginBottom:24}}>
       <div className="confirm-title">Deactivate your account?</div>
       <div className="confirm-body">You'll be signed out and hidden from rosters. All your teams, practices, and data stay exactly as they are. To pick up right where you left off, sign in and reactivate your account.</div>
@@ -201,9 +201,9 @@ function LivePracticeAudioSection(){
   };
   const chooseVoice=uri=>{setVoiceURI(uri);setVoiceURIPref(uri);previewVoice(uri);};
   const VoiceRow=({selected,label,sub,onClick})=>(
-    <button onClick={onClick} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 10px",border:"none",background:selected?"var(--gbg)":"transparent",borderRadius:8,cursor:"pointer",textAlign:"left",width:"100%"}}>
-      <span style={{fontSize:14,color:"var(--black)",fontWeight:selected?700:500}}>{label}{sub&&<span style={{color:"var(--td)",fontWeight:400,fontSize:11,marginLeft:6}}>{sub}</span>}</span>
-      {selected&&<span style={{color:"var(--green)",fontWeight:700}}>&#10003;</span>}
+    <button onClick={onClick} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 10px",border:"none",background:selected?"var(--field-tint)":"transparent",borderRadius:8,cursor:"pointer",textAlign:"left",width:"100%"}}>
+      <span style={{fontSize:14,color:"var(--ink)",fontWeight:selected?700:500}}>{label}{sub&&<span style={{color:"var(--text-dim)",fontWeight:400,fontSize:11,marginLeft:6}}>{sub}</span>}</span>
+      {selected&&<span style={{color:"var(--field)",fontWeight:700}}>&#10003;</span>}
     </button>
   );
   return (<div>
@@ -212,12 +212,12 @@ function LivePracticeAudioSection(){
       {AUDIO_CUES.map(c=>(<button key={c.id} className={"btn bsm "+(cue===c.id?"primary":"outline")} onClick={()=>chooseCue(c.id)}>{c.label}</button>))}
     </div>
     <div className="clbl mb8">Announcer Voice</div>
-    {loadingVoices&&<div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>Loading voices...</div>}
-    {!loadingVoices&&<div style={{display:"flex",flexDirection:"column",gap:2,marginBottom:10,maxHeight:340,overflowY:"auto",border:"1px solid var(--b)",borderRadius:"var(--r)",padding:4}}>
+    {loadingVoices&&<div style={{fontSize:13,color:"var(--text-dim)",marginBottom:10}}>Loading voices...</div>}
+    {!loadingVoices&&<div style={{display:"flex",flexDirection:"column",gap:2,marginBottom:10,maxHeight:340,overflowY:"auto",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:4}}>
       <VoiceRow selected={!voiceURI} label="Default" sub="(Daniel, if available)" onClick={()=>chooseVoice("")}/>
       {voices.map(v=>(<VoiceRow key={v.voiceURI} selected={voiceURI===v.voiceURI} label={v.name} sub={v.lang} onClick={()=>chooseVoice(v.voiceURI)}/>))}
     </div>}
-    <div style={{fontSize:12,color:"var(--td)",lineHeight:1.5}}>Select a sound and voice for live practice audio.</div>
+    <div style={{fontSize:12,color:"var(--text-dim)",lineHeight:1.5}}>Select a sound and voice for live practice audio.</div>
   </div>);
 }
 
@@ -250,18 +250,18 @@ function AdminsSection(){
   };
   return(<div>
     <div className="sechdr mb10"><span className="sectitle">{admins.length} Admin{admins.length!==1?"s":""}</span></div>
-    <div style={{fontSize:13,color:"var(--td)",marginBottom:14,lineHeight:1.4}}>Admins can add, edit, and remove Public Library drills and manage the global skill-tag taxonomy for every sport.</div>
-    {loading&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Loading...</div>}
+    <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:14,lineHeight:1.4}}>Admins can add, edit, and remove Public Library drills and manage the global skill-tag taxonomy for every sport.</div>
+    {loading&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>Loading...</div>}
     {!loading&&admins.map(a=>(<div key={a.user_id} className="card" style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-      <div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700}}>{a.name||a.email}</div>{a.name&&<div style={{fontSize:12,color:"var(--td)"}}>{a.email}</div>}</div>
-      {admins.length>1&&<button className="btn ghost bxs" style={{color:"var(--red)"}} onClick={()=>remove(a.user_id)}>Remove</button>}
+      <div><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700}}>{a.name||a.email}</div>{a.name&&<div style={{fontSize:12,color:"var(--text-dim)"}}>{a.email}</div>}</div>
+      {admins.length>1&&<button className="btn ghost bxs" style={{color:"var(--danger)"}} onClick={()=>remove(a.user_id)}>Remove</button>}
     </div>))}
     <div className="fld"><label className="lbl">Grant admin by email</label>
       <div style={{display:"flex",gap:6}}>
         <input className="inp" type="email" placeholder="coach@example.com" style={{flex:1}} value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()}/>
         <button type="button" className="btn primary bxs" onClick={add}>Grant</button>
       </div>
-      {error&&<div style={{fontSize:12,color:"var(--red)",marginTop:6}}>{error}</div>}
+      {error&&<div style={{fontSize:12,color:"var(--danger)",marginTop:6}}>{error}</div>}
     </div>
   </div>);
 }
@@ -340,7 +340,7 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
     <div style={{padding:"0 16px"}}>
       {NAV_ITEMS.map(item=>(<div key={item.id} className="li tap" style={{marginBottom:8}} onClick={()=>setSection(item.id)}>
         <div className="lim"><div className="lin">{item.label}</div>{item.sub&&<div className="limt">{item.sub}</div>}</div>
-        <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+        <span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span>
       </div>))}
       {/* Brings back the Home checklist for a coach who hid it (see
           HomeScreen.jsx's GettingStartedCard) -- a no-op if it was never
@@ -348,7 +348,7 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
           only shows the card when there's still something left to do. */}
       <div className="li tap" style={{marginBottom:8}} onClick={()=>{setGettingStartedHidden(coachId,false);navigate("/");}}>
         <div className="lim"><div className="lin">Getting Started</div><div className="limt">Show the setup checklist on Home again</div></div>
-        <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+        <span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span>
       </div>
       {/* Per-org rows to "switch to Organization mode" were removed here --
           Home's own Coach/Org toggle already covers this, and duplicating
@@ -374,11 +374,11 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
       )}
       {isAdmin&&<div className="li tap" style={{marginBottom:8}} onClick={()=>navigate("/admin/metrics")}>
         <div className="lim"><div className="lin">Founder Metrics</div></div>
-        <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+        <span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span>
       </div>}
       {isAdmin&&<div className="li tap" style={{marginBottom:8}} onClick={()=>setSection("admins")}>
         <div className="lim"><div className="lin">Admins</div><div className="limt">Who can manage the Public Library and skill tags</div></div>
-        <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+        <span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span>
       </div>}
     </div>
   </div>);

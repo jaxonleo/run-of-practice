@@ -91,7 +91,7 @@ function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
           <div className="fld" style={{ marginBottom: 8 }}>
             <label className="lbl">Color</label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {TEAM_COLORS.map(c => (<button key={c} type="button" onClick={() => setColor(c)} style={{ width: 32, height: 32, borderRadius: "50%", background: c, border: color === c ? "3px solid var(--black)" : "3px solid transparent", cursor: "pointer", padding: 0 }} />))}
+              {TEAM_COLORS.map(c => (<button key={c} type="button" onClick={() => setColor(c)} style={{ width: 32, height: 32, borderRadius: "50%", background: c, border: color === c ? "3px solid var(--ink)" : "3px solid transparent", cursor: "pointer", padding: 0 }} />))}
             </div>
           </div>
           <button className="btn primary bxs" disabled={saving || !name.trim()} onClick={saveOrgDetails}>{saving ? "Saving..." : "Save"}</button>
@@ -100,8 +100,8 @@ function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
             {org.color && <span style={{ width: 14, height: 14, borderRadius: "50%", background: org.color, flexShrink: 0 }} />}
             <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900 }}>{org.name}</div>
           </div>
-          {org.sports && org.sports.length > 0 && <div style={{ fontSize: 13, color: "var(--td)", marginTop: 4 }}>{org.sports.join(", ")}</div>}
-          {memberSince && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 4 }}>Member since {memberSince}</div>}
+          {org.sports && org.sports.length > 0 && <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 4 }}>{org.sports.join(", ")}</div>}
+          {memberSince && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>Member since {memberSince}</div>}
         </div>)}
       </div>
 
@@ -145,7 +145,7 @@ function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
             <div className="brow" style={{ marginBottom: 8 }}>
               {Object.entries(ORG_ROLE_LABELS).map(([val, label]) => (<button key={val} type="button" className={"btn bsm " + (draftRole === val ? "primary" : "ghost")} onClick={() => setDraftRole(val)}>{label}</button>))}
             </div>
-            {isSelf && draftRole !== m.role && <div style={{ fontSize: 12, color: "var(--red)", marginBottom: 8 }}>This changes your own role.</div>}
+            {isSelf && draftRole !== m.role && <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 8 }}>This changes your own role.</div>}
             <div className="brow">
               <button className="btn ghost bsm" onClick={() => setEditingMemberId(null)}>Cancel</button>
               <button className="btn primary bsm" style={{ flex: 1 }} disabled={busyMemberId === m.id} onClick={() => saveRole(m.id)}>{busyMemberId === m.id ? "Saving..." : "Save"}</button>
@@ -220,9 +220,9 @@ export default function TeamsListScreen({ data, goToTeam, openModal, mode, refre
         {activeOrg.color && <span style={{ width: 14, height: 14, borderRadius: "50%", background: activeOrg.color, flexShrink: 0 }} />}
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900 }}>{activeOrg.name}</div>
-          {activeOrg.sports && activeOrg.sports.length > 0 && <div style={{ fontSize: 12, color: "var(--td)" }}>{activeOrg.sports.join(", ")}</div>}
+          {activeOrg.sports && activeOrg.sports.length > 0 && <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{activeOrg.sports.join(", ")}</div>}
         </div>
-        <span style={{ color: "var(--green)", fontSize: 22 }}>&#8250;</span>
+        <span style={{ color: "var(--field)", fontSize: 22 }}>&#8250;</span>
       </div>
     </div>}
     <div style={{ padding: "0 16px" }}>
@@ -236,9 +236,9 @@ export default function TeamsListScreen({ data, goToTeam, openModal, mode, refre
               (myTeamRole), so a coach juggling several teams gets the same
               at-a-glance context here, not just on Home. Org membership is
               already covered by the organizationName segment above. */}
-          {!isOrgMode && myTeamRole(t, coachId) && <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--td)", marginTop: 2 }}>{myTeamRole(t, coachId)}</div>}
+          {!isOrgMode && myTeamRole(t, coachId) && <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--text-dim)", marginTop: 2 }}>{myTeamRole(t, coachId)}</div>}
         </div>
-        <span style={{ color: "var(--green)", fontSize: 22 }}>&#8250;</span>
+        <span style={{ color: "var(--field)", fontSize: 22 }}>&#8250;</span>
       </div>))}
       </div>
     </div>

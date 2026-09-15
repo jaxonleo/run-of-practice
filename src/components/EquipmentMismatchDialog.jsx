@@ -21,7 +21,7 @@ export default function EquipmentMismatchDialog({ drillName, missing, context, o
     <div className="modal">
       <div className="mhandle" />
       <div className="mtitle">Missing Equipment</div>
-      <div style={{ fontSize: 14, color: "var(--black2)", lineHeight: 1.5, marginBottom: 18 }}>
+      <div style={{ fontSize: 14, color: "var(--ink-soft)", lineHeight: 1.5, marginBottom: 18 }}>
         {drillName} uses equipment you don't have yet: {missingList}. What would you like to do?
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

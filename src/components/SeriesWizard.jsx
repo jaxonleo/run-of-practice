@@ -105,7 +105,7 @@ export default function SeriesWizard({ data, coachId, mode, presetTeamId, refres
         </div>
         <div className="fld mb6"><label className="lbl">Days &amp; Time</label>
           <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
-            {DOW.map((d, i) => (<button key={i} type="button" onClick={() => toggleDay(i)} style={{ flex: 1, padding: "8px 0", borderRadius: "var(--rs)", border: "1.5px solid " + (days.has(i) ? "var(--green)" : "var(--b)"), background: days.has(i) ? "var(--green)" : "#fff", color: days.has(i) ? "#fff" : "var(--black)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{d}</button>))}
+            {DOW.map((d, i) => (<button key={i} type="button" onClick={() => toggleDay(i)} style={{ flex: 1, padding: "8px 0", borderRadius: "var(--radius-md)", border: "1.5px solid " + (days.has(i) ? "var(--field)" : "var(--border)"), background: days.has(i) ? "var(--field)" : "#fff", color: days.has(i) ? "#fff" : "var(--ink)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{d}</button>))}
           </div>
         </div>
         <div className="g2 mb10">
@@ -116,7 +116,7 @@ export default function SeriesWizard({ data, coachId, mode, presetTeamId, refres
           <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">Start Date</label><input className="inp" type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)} /></div>
           <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">End Date</label><input className="inp" type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} /></div>
         </div>
-        <div className="fld mb10"><label className="lbl">Location <span style={{ color: "var(--td)", fontWeight: 400 }}>(optional)</span></label>
+        <div className="fld mb10"><label className="lbl">Location <span style={{ color: "var(--text-dim)", fontWeight: 400 }}>(optional)</span></label>
           {data.locations.length > 0 ? (<select className="sel" value={locationId} onChange={e => { const v = e.target.value; if (v === "__add_new__") { setShowAddLocation(true); return; } setLocationId(v); }}>
             <option value="">None</option>
             {data.locations.map(l => (<option key={l.id} value={l.id}>{l.name}</option>))}
@@ -125,25 +125,25 @@ export default function SeriesWizard({ data, coachId, mode, presetTeamId, refres
             <button type="button" className="btn outline bsm bfull" onClick={() => setShowAddLocation(true)}>+ Add a Location</button>
           )}
         </div>
-        {rangeEnd < rangeStart && <div style={{ fontSize: 12, color: "var(--red)", marginBottom: 10 }}>End date can't be before the start date.</div>}
+        {rangeEnd < rangeStart && <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 10 }}>End date can't be before the start date.</div>}
         <div className="brow"><button className="btn ghost bsm" onClick={onClose}>Cancel</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={() => setStep("preview")} disabled={!detailsValid}>Next</button></div>
       </div>}
 
       {step === "preview" && <div>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, marginBottom: 4 }}>Review</div>
-        <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>This will create {selectedOccurrences.length} practice{selectedOccurrences.length === 1 ? "" : "s"}.</div>
-        {selectedOccurrences.length > 60 && <div style={{ fontSize: 12, color: "var(--amber)", marginBottom: 10 }}>That's a lot -- youth seasons typically run 20-60 practices. Double-check your date range.</div>}
-        {error && <div style={{ fontSize: 13, color: "var(--red)", marginBottom: 10 }}>{error}</div>}
+        <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 12 }}>This will create {selectedOccurrences.length} practice{selectedOccurrences.length === 1 ? "" : "s"}.</div>
+        {selectedOccurrences.length > 60 && <div style={{ fontSize: 12, color: "var(--caution)", marginBottom: 10 }}>That's a lot -- youth seasons typically run 20-60 practices. Double-check your date range.</div>}
+        {error && <div style={{ fontSize: 13, color: "var(--danger)", marginBottom: 10 }}>{error}</div>}
         <div style={{ maxHeight: 280, overflowY: "auto", marginBottom: 12 }}>
           {occurrences.map(ds => {
             const off = deselected.has(ds), conflict = conflicts.has(ds);
             return (<label key={ds} className="li" style={{ marginBottom: 4, opacity: off ? .5 : 1, cursor: "pointer" }}>
-              <div className="lim"><div className="lin">{new Date(ds + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>{conflict && !off && <div className="limt" style={{ color: "var(--amber)" }}>Conflicts with another practice at this time</div>}</div>
+              <div className="lim"><div className="lin">{new Date(ds + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>{conflict && !off && <div className="limt" style={{ color: "var(--caution)" }}>Conflicts with another practice at this time</div>}</div>
               <input type="checkbox" checked={!off} onChange={() => setDeselected(s => { const n = new Set(s); if (n.has(ds)) n.delete(ds); else n.add(ds); return n; })} />
             </label>);
           })}
         </div>
-        {saving && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 10 }}>Creating {selectedOccurrences.length} practice{selectedOccurrences.length === 1 ? "" : "s"}, this can take a few seconds for a full season. Please wait, don't tap again.</div>}
+        {saving && <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 10 }}>Creating {selectedOccurrences.length} practice{selectedOccurrences.length === 1 ? "" : "s"}, this can take a few seconds for a full season. Please wait, don't tap again.</div>}
         <div className="brow"><button className="btn ghost bsm" onClick={() => setStep("details")} disabled={saving}>Back</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={confirm} disabled={saving || selectedOccurrences.length === 0}>{saving ? "Creating..." : "Create Schedule"}</button></div>
       </div>}
     </div>

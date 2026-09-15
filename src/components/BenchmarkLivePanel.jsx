@@ -85,8 +85,8 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
     return () => clearInterval(pollRef.current);
   }, [assessmentId, refresh]);
 
-  if (busy) return <Box><div style={{ color: "var(--td)", fontSize: 13 }}>Starting recording...</div></Box>;
-  if (err) return <Box><div style={{ color: "var(--red)", fontSize: 13 }}>{err}</div></Box>;
+  if (busy) return <Box><div style={{ color: "var(--text-dim)", fontSize: 13 }}>Starting recording...</div></Box>;
+  if (err) return <Box><div style={{ color: "var(--danger)", fontSize: 13 }}>{err}</div></Box>;
   if (!payload) return null;
 
   const a = payload.assessment || {};
@@ -160,7 +160,7 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
         <span className="bdg bs">{a.under_correction ? "Under correction" : state}</span>
       </div>
 
-      {missingPlayers.length > 0 && <div style={{ background: "var(--s2)", borderRadius: 8, padding: 10, marginBottom: 10 }}>
+      {missingPlayers.length > 0 && <div style={{ background: "var(--surface-soft)", borderRadius: 8, padding: 10, marginBottom: 10 }}>
         <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Present but not on this assessment</div>
         {missingPlayers.map(p => (
           <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "3px 0" }}>
@@ -182,7 +182,7 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
         readOnly={false}
         isDesktop={isDesktop}
       />}
-      {!recording && <div style={{ fontSize: 13, color: "var(--td)" }}>
+      {!recording && <div style={{ fontSize: 13, color: "var(--text-dim)" }}>
         This assessment is {state}. {canManage && state === "finalized" ? "Reopen it to correct a result." : "Results are locked."}
       </div>}
 
@@ -191,13 +191,13 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
         {state === "finalized" && canManage && <button type="button" className="btn ghost bsm" onClick={async () => { setActionErr(""); await reopenBenchmarkAssessment(assessmentId); await refresh(); }}>Reopen for correction</button>}
         {recording && canFinalize && <button type="button" className="btn ghost bsm" onClick={() => addHelper(subjectMode === "team" ? "team" : "players")}>Add a recording helper</button>}
       </div>
-      {actionErr && <div style={{ color: "var(--red)", fontSize: 13, marginTop: 6 }}>{actionErr}</div>}
+      {actionErr && <div style={{ color: "var(--danger)", fontSize: 13, marginTop: 6 }}>{actionErr}</div>}
 
-      {grantToken && recording && <div style={{ marginTop: 10, background: "var(--s2)", borderRadius: 8, padding: 10 }}>
+      {grantToken && recording && <div style={{ marginTop: 10, background: "var(--surface-soft)", borderRadius: 8, padding: 10 }}>
         <div style={{ fontSize: 12, fontWeight: 700 }}>Recording link ({grantScope === "team" ? "team result" : "all listed players"})</div>
         <div style={{ fontSize: 12, wordBreak: "break-all", margin: "4px 0" }}>{recordLink}</div>
         <button type="button" className="btn ghost bxs" onClick={() => { try { navigator.clipboard.writeText(recordLink); } catch (e) {} }}>Copy recording link</button>
-        <div style={{ fontSize: 11, color: "var(--td)", marginTop: 4 }}>Expires in 12 hours. Finalizing or archiving revokes it.</div>
+        <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>Expires in 12 hours. Finalizing or archiving revokes it.</div>
       </div>}
 
       {(payload.active_grants || []).length > 0 && <div style={{ marginTop: 10 }}>
@@ -226,5 +226,5 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
 }
 
 function Box({ children }) {
-  return <div style={{ border: "1.5px solid var(--green2)", background: "var(--gbg)", borderRadius: "var(--r)", padding: 12, marginBottom: 10 }}>{children}</div>;
+  return <div style={{ border: "1.5px solid var(--field-accent)", background: "var(--field-tint)", borderRadius: "var(--radius-lg)", padding: 12, marginBottom: 10 }}>{children}</div>;
 }

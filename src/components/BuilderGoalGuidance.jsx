@@ -99,49 +99,49 @@ export default function BuilderGoalGuidance({ team, teamId, data, coachId, acts,
 
   const zeroCategories = baselineCategories.filter(c => !(draft.byCategory[c.skillCategoryId] > 0));
 
-  return (<div className="mb10" style={{ border: "1px solid var(--b)", borderRadius: "var(--r)", overflow: "hidden" }}>
+  return (<div className="mb10" style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "hidden" }}>
     {highlightedSkillCategoryId && <style>{GOAL_GUIDANCE_HIGHLIGHT_CSS}</style>}
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", cursor: "pointer", background: "var(--s1)" }} onClick={() => setOpen(o => !o)}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", cursor: "pointer", background: "var(--surface)" }} onClick={() => setOpen(o => !o)}>
       <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 13, fontWeight: 900, letterSpacing: ".06em", textTransform: "uppercase", flexShrink: 0 }}>Goal Guidance</span>
-      <span style={{ fontSize: 12, color: "var(--td)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{collapsedSummary}</span>
-      <span style={{ color: "var(--td)" }}>{open ? "▾" : "▸"}</span>
+      <span style={{ fontSize: 12, color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{collapsedSummary}</span>
+      <span style={{ color: "var(--text-dim)" }}>{open ? "▾" : "▸"}</span>
     </div>
 
-    {open && <div style={{ padding: 14, borderTop: "1px solid var(--b)" }}>
-      {!team && <div style={{ fontSize: 13, color: "var(--td)" }}>Select a team to see goal guidance.</div>}
-      {team && report && !hasGoals && <div style={{ fontSize: 13, color: "var(--td)" }}>
+    {open && <div style={{ padding: 14, borderTop: "1px solid var(--border)" }}>
+      {!team && <div style={{ fontSize: 13, color: "var(--text-dim)" }}>Select a team to see goal guidance.</div>}
+      {team && report && !hasGoals && <div style={{ fontSize: 13, color: "var(--text-dim)" }}>
         This team does not have practice-time goals yet.
         {canManageLoosely && <div style={{ marginTop: 6, fontSize: 12 }}>Set targets from this team's Goals &amp; Insights tab.</div>}
       </div>}
-      {team && report === null && <div style={{ fontSize: 13, color: "var(--td)" }}>Loading...</div>}
+      {team && report === null && <div style={{ fontSize: 13, color: "var(--text-dim)" }}>Loading...</div>}
 
       {team && hasGoals && (<>
-        {source === "planned" && <div style={{ fontSize: 12, color: "var(--amber)", marginBottom: 10 }}>Based on planned practice time until actual timing is available.</div>}
-        {source === "goal_only" && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 10 }}>No practice history yet -- showing your goal mix as a starting point.</div>}
-        {!duration && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 10 }}>Set a practice duration to see minute recommendations -- percentages only for now.</div>}
+        {source === "planned" && <div style={{ fontSize: 12, color: "var(--caution)", marginBottom: 10 }}>Based on planned practice time until actual timing is available.</div>}
+        {source === "goal_only" && <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 10 }}>No practice history yet -- showing your goal mix as a starting point.</div>}
+        {!duration && <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 10 }}>Set a practice duration to see minute recommendations -- percentages only for now.</div>}
 
         <div className="clbl mb8" style={{ fontSize: 11 }}>What to Consider Planning</div>
-        {below.length === 0 && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 12 }}>Every category is at or above its goal right now.</div>}
+        {below.length === 0 && <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 12 }}>Every category is at or above its goal right now.</div>}
         {below.map(g => (<div key={g.skillCategoryId} className={g.skillCategoryId === highlightedSkillCategoryId ? "goal-guidance-row-highlighted" : undefined} style={{ marginBottom: 8, fontSize: 12, padding: "2px 4px" }}>
-          <span style={{ fontWeight: 700 }}>{g.name}</span> <span style={{ color: "var(--td)" }}>{g.gapPts} pt{g.gapPts === 1 ? "" : "s"} below goal</span>
-          {g.goalMixMinutes != null && <span style={{ color: "var(--td)" }}> · goal mix {g.goalMixMinutes}m</span>}
-          {g.minutesNeeded != null && g.closable && <span style={{ color: "var(--td)" }}> · ~{g.minutesNeeded}m to fully close the gap</span>}
-          {g.minutesNeeded != null && g.closable === false && <span style={{ color: "var(--amber)" }}> · can't be fully closed in one practice</span>}
+          <span style={{ fontWeight: 700 }}>{g.name}</span> <span style={{ color: "var(--text-dim)" }}>{g.gapPts} pt{g.gapPts === 1 ? "" : "s"} below goal</span>
+          {g.goalMixMinutes != null && <span style={{ color: "var(--text-dim)" }}> · goal mix {g.goalMixMinutes}m</span>}
+          {g.minutesNeeded != null && g.closable && <span style={{ color: "var(--text-dim)" }}> · ~{g.minutesNeeded}m to fully close the gap</span>}
+          {g.minutesNeeded != null && g.closable === false && <span style={{ color: "var(--caution)" }}> · can't be fully closed in one practice</span>}
         </div>))}
 
         <div className="clbl mb8" style={{ fontSize: 11, marginTop: 12 }}>What You've Planned So Far</div>
-        <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 6 }}>
+        <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 6 }}>
           {Math.round(draft.totalMinutes)} minute{Math.round(draft.totalMinutes) === 1 ? "" : "s"} planned{duration ? " of " + duration + " scheduled" : ""}
           {draft.untaggedMinutes > 0 && <> · {Math.round(draft.untaggedMinutes)}m untagged</>}
         </div>
-        {zeroCategories.length > 0 && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 10 }}>No time planned yet for: {zeroCategories.map(c => c.name).join(", ")}.</div>}
+        {zeroCategories.length > 0 && <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 10 }}>No time planned yet for: {zeroCategories.map(c => c.name).join(", ")}.</div>}
 
         <div className="clbl mb8" style={{ fontSize: 11, marginTop: 12 }}>Projected Rolling Impact</div>
         {impact.map(i => (<div key={i.skillCategoryId} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
           <span>{i.name}</span>
-          <span style={{ color: "var(--td)" }}>{i.currentPct}% &#8594; {i.projectedPct}% <span style={{ color: i.result === "Closer to goal" ? "var(--green2)" : i.result === "Farther from goal" ? "var(--red)" : "var(--td)" }}>({i.result})</span></span>
+          <span style={{ color: "var(--text-dim)" }}>{i.currentPct}% &#8594; {i.projectedPct}% <span style={{ color: i.result === "Closer to goal" ? "var(--field-accent)" : i.result === "Farther from goal" ? "var(--danger)" : "var(--text-dim)" }}>({i.result})</span></span>
         </div>))}
-        <div style={{ fontSize: 11, color: "var(--td)", marginTop: 8 }}>Projection assumes the practice runs as currently planned.</div>
+        <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}>Projection assumes the practice runs as currently planned.</div>
       </>)}
     </div>}
   </div>);

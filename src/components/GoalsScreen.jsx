@@ -31,11 +31,11 @@ const fmtSavedAt = iso => iso ? new Date(iso).toLocaleString(undefined, { month:
 // aggregate from get_team_goal_report).
 function SkillBar({ label, pct, color }) {
   return (<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-    <span style={{ width: 50, fontSize: 10, color: "var(--td)", flexShrink: 0, textTransform: "uppercase", letterSpacing: ".04em", fontWeight: 700 }}>{label}</span>
-    <div style={{ flex: 1, height: 8, background: "var(--s2)", borderRadius: 4, overflow: "hidden" }}>
+    <span style={{ width: 50, fontSize: 10, color: "var(--text-dim)", flexShrink: 0, textTransform: "uppercase", letterSpacing: ".04em", fontWeight: 700 }}>{label}</span>
+    <div style={{ flex: 1, height: 8, background: "var(--surface-soft)", borderRadius: 4, overflow: "hidden" }}>
       <div style={{ height: "100%", width: Math.min(100, pct) + "%", background: color, borderRadius: 4 }} />
     </div>
-    <span style={{ width: 38, textAlign: "right", fontSize: 11, fontFamily: "DM Mono,monospace", color: "var(--tm)" }}>{pct}%</span>
+    <span style={{ width: 38, textAlign: "right", fontSize: 11, fontFamily: "DM Mono,monospace", color: "var(--text-muted)" }}>{pct}%</span>
   </div>);
 }
 
@@ -47,7 +47,7 @@ function SkillRow({ skill }) {
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5, gap: 8 }}>
       <span style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{skill.name}</span>
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-        {hasTarget && <span style={{ fontSize: 11, color: "var(--td)" }}>target {skill.target_pct}%</span>}
+        {hasTarget && <span style={{ fontSize: 11, color: "var(--text-dim)" }}>target {skill.target_pct}%</span>}
         {showDelta && <span className={"bdg " + (delta < 0 ? "bs" : "bp")}>{delta > 0 ? "+" : ""}{delta} pts vs target</span>}
       </div>
     </div>
@@ -55,10 +55,10 @@ function SkillRow({ skill }) {
       {/* CSS calc() only allows a length-percentage multiplied by a unitless
           number, not by another percentage -- target_pct/100 (a number),
           not "target_pct%", is what makes this valid. */}
-      {hasTarget && <div style={{ position: "absolute", left: "calc(56px + (100% - 94px) * " + (Math.min(100, skill.target_pct) / 100) + ")", top: -3, bottom: -3, width: 2, background: "var(--black)", zIndex: 2 }} />}
+      {hasTarget && <div style={{ position: "absolute", left: "calc(56px + (100% - 94px) * " + (Math.min(100, skill.target_pct) / 100) + ")", top: -3, bottom: -3, width: 2, background: "var(--ink)", zIndex: 2 }} />}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <SkillBar label="Planned" pct={skill.planned_pct} color="var(--gb)" />
-        <SkillBar label="Actual" pct={skill.actual_pct} color="var(--green)" />
+        <SkillBar label="Planned" pct={skill.planned_pct} color="var(--field-tint-border)" />
+        <SkillBar label="Actual" pct={skill.actual_pct} color="var(--field)" />
       </div>
     </div>
   </div>);
@@ -130,16 +130,16 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
 
   return (<div className="card mb10">
     <div className="clbl mb8">Goals</div>
-    <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>Set targets for how your team spends practice time. The total must reach exactly 100% (or 0% to clear all goals) before saving.</div>
+    <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 12 }}>Set targets for how your team spends practice time. The total must reach exactly 100% (or 0% to clear all goals) before saving.</div>
 
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: "var(--r)", marginBottom: 14, background: total === 100 ? "var(--gbg)" : total > 100 ? "#fef2f2" : "var(--s1)", border: "1px solid " + (total === 100 ? "var(--gb)" : total > 100 ? "#fecaca" : "var(--b)") }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: "var(--radius-lg)", marginBottom: 14, background: total === 100 ? "var(--field-tint)" : total > 100 ? "#fef2f2" : "var(--surface)", border: "1px solid " + (total === 100 ? "var(--field-tint-border)" : total > 100 ? "#fecaca" : "var(--border)") }}>
       <span style={{ fontWeight: 700, fontSize: 14 }}>{total}% allocated</span>
-      <span style={{ fontSize: 12, color: total === 100 ? "var(--green2)" : total > 100 ? "var(--red)" : "var(--td)" }}>
+      <span style={{ fontSize: 12, color: total === 100 ? "var(--field-accent)" : total > 100 ? "var(--danger)" : "var(--text-dim)" }}>
         {total === 100 ? "Ready to save" : total > 100 ? (total - 100) + "% over, reduce before saving" : (100 - total) + "% remaining"}
       </span>
     </div>
 
-    {categories.length === 0 && <div style={{ fontSize: 12, color: "var(--td)" }}>No skill categories set up for {team.sport} yet.</div>}
+    {categories.length === 0 && <div style={{ fontSize: 12, color: "var(--text-dim)" }}>No skill categories set up for {team.sport} yet.</div>}
     {categories.map(cat => {
       const v = values[cat.id] || 0;
       return (<div key={cat.id} style={{ marginBottom: 10 }}>
@@ -151,21 +151,21 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
               slider too since it's still the faster way to get in the
               right neighborhood. */}
           <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <input type="number" min="0" max="100" value={v} onChange={e => setValue(cat.id, e.target.value === "" ? 0 : Number(e.target.value))} style={{ width: 48, textAlign: "right", fontFamily: "DM Mono,monospace", fontSize: 13, color: "var(--tm)", border: "1px solid var(--b)", borderRadius: 4, padding: "2px 4px" }} />
-            <span style={{ fontFamily: "DM Mono,monospace", fontSize: 13, color: "var(--tm)" }}>%</span>
+            <input type="number" min="0" max="100" value={v} onChange={e => setValue(cat.id, e.target.value === "" ? 0 : Number(e.target.value))} style={{ width: 48, textAlign: "right", fontFamily: "DM Mono,monospace", fontSize: 13, color: "var(--text-muted)", border: "1px solid var(--border)", borderRadius: 4, padding: "2px 4px" }} />
+            <span style={{ fontFamily: "DM Mono,monospace", fontSize: 13, color: "var(--text-muted)" }}>%</span>
           </div>
         </div>
-        <input type="range" min="0" max="100" step="1" value={v} onChange={e => setValue(cat.id, Number(e.target.value))} style={{ width: "100%", accentColor: "var(--green)" }} />
+        <input type="range" min="0" max="100" step="1" value={v} onChange={e => setValue(cat.id, Number(e.target.value))} style={{ width: "100%", accentColor: "var(--field)" }} />
       </div>);
     })}
 
-    {error && <div style={{ fontSize: 12, color: "var(--red)", marginBottom: 10 }}>{error}</div>}
+    {error && <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 10 }}>{error}</div>}
     {/* Direct feedback: once a save succeeds, Save should gray out again
         until something actually changes -- canSave alone (totals=100)
         stayed true after a successful save, so the button looked exactly
         as clickable as before even though there was nothing left to save. */}
     <button className="btn primary bmd bfull" onClick={save} disabled={!canSave || saving || !dirty}>{saving ? "Saving..." : "Save Goals"}</button>
-    {savedAt && <div style={{ fontSize: 11, color: "var(--td)", textAlign: "center", marginTop: 6 }}>Last saved {fmtSavedAt(savedAt)}</div>}
+    {savedAt && <div style={{ fontSize: 11, color: "var(--text-dim)", textAlign: "center", marginTop: 6 }}>Last saved {fmtSavedAt(savedAt)}</div>}
   </div>);
 }
 
@@ -222,18 +222,18 @@ function GlanceView({ report, emphasizeUntagged, team, teamId, canManage, onRevi
           · last
           <input type="number" min="1" max="12" className="inp" style={{ width: 40, padding: "2px 4px", fontSize: 12, textAlign: "center" }} value={windowWeeks} onChange={e => setWindowWeeks(Math.max(1, Math.min(12, Number(e.target.value) || 1)))} onBlur={saveWindow} />
           week{windowWeeks === 1 ? "" : "s"}
-          {savingWindow && <span style={{ fontSize: 10, color: "var(--td)" }}>Saving...</span>}
+          {savingWindow && <span style={{ fontSize: 10, color: "var(--text-dim)" }}>Saving...</span>}
         </span>
       ) : (
         <span style={{ textTransform: "none", fontWeight: 400 }}>· last {report.window_weeks} week{report.window_weeks === 1 ? "" : "s"}</span>
       )}
     </div>
-    {skills.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>No goals set and nothing tagged yet this window.</div>}
+    {skills.length === 0 && <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No goals set and nothing tagged yet this window.</div>}
     {skills.map(s => (<SkillRow key={s.skill_category_id} skill={s} />))}
 
-    <div className={emphasizeUntagged ? "untagged-row-highlighted" : undefined} style={{ borderTop: "1px solid var(--b)", paddingTop: 10, marginTop: skills.length ? 4 : 0 }}>
+    <div className={emphasizeUntagged ? "untagged-row-highlighted" : undefined} style={{ borderTop: "1px solid var(--border)", paddingTop: 10, marginTop: skills.length ? 4 : 0 }}>
       <SkillRow skill={{ name: "Untagged", target_pct: null, planned_pct: untagged.planned_pct, actual_pct: untagged.actual_pct }} />
-      <div style={{ fontSize: 12, color: "var(--td)", marginTop: -6, marginBottom: 10 }}>
+      <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: -6, marginBottom: 10 }}>
         Other / transitions: ~{otherPerPractice} min/practice between drills
       </div>
       {/* Direct feedback: once every drill in the library is already
@@ -243,10 +243,10 @@ function GlanceView({ report, emphasizeUntagged, team, teamId, canManage, onRevi
           a practice), which this screen has no way to retroactively fix.
           Say so instead of repeating advice that's already been followed,
           and drop the CTA since there's nothing left to tag. */}
-      {untaggedHigh && !allDrillsTagged && <div style={{ fontSize: 12, color: "var(--amber)", background: "var(--ambg)", border: "1px solid var(--ambb)", borderRadius: "var(--rs)", padding: "8px 10px", marginBottom: canManage ? 8 : 0 }}>
+      {untaggedHigh && !allDrillsTagged && <div style={{ fontSize: 12, color: "var(--caution)", background: "var(--caution-tint)", border: "1px solid var(--caution-tint-border)", borderRadius: "var(--radius-md)", padding: "8px 10px", marginBottom: canManage ? 8 : 0 }}>
         A lot of practice time isn't tagged to a skill. Linking drills to the library when you build a practice will make this report more useful.
       </div>}
-      {hasUntaggedTime && allDrillsTagged && <div style={{ fontSize: 12, color: "var(--td)", background: "var(--s1)", border: "1px solid var(--b)", borderRadius: "var(--rs)", padding: "8px 10px" }}>
+      {hasUntaggedTime && allDrillsTagged && <div style={{ fontSize: 12, color: "var(--text-dim)", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "8px 10px" }}>
         Every drill in your library is already tagged. This remaining untagged time is from activities that weren't added from your library -- as you build future practices with tagged drills, this report will keep getting more accurate.
       </div>}
       {/* Only a manager can actually go tag drills for this team's library
@@ -257,7 +257,7 @@ function GlanceView({ report, emphasizeUntagged, team, teamId, canManage, onRevi
           allDrillsTagged -- the CTA has nothing left to send them to. */}
       {canManage && team && !allDrillsTagged && <button type="button" className="btn outline bsm" onClick={() => onReviewUntaggedDrills && onReviewUntaggedDrills()}>Tag Untagged Drills</button>}
     </div>
-    {denomActual === 0 && completedCount === 0 && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 8 }}>No completed practices in this window yet.</div>}
+    {denomActual === 0 && completedCount === 0 && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 8 }}>No completed practices in this window yet.</div>}
   </div>);
 }
 
@@ -283,7 +283,7 @@ const fmtSec = s => s == null ? null : Math.round(s / 60 * 10) / 10;
 
 function ScoreTile({ label, value }) {
   return (<div>
-    <div style={{ fontSize: 10, color: "var(--td)", textTransform: "uppercase", letterSpacing: ".04em", fontWeight: 700 }}>{label}</div>
+    <div style={{ fontSize: 10, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".04em", fontWeight: 700 }}>{label}</div>
     <div style={{ fontSize: 15, fontWeight: 700 }}>{value}</div>
   </div>);
 }
@@ -295,10 +295,10 @@ const EXECUTION_GROUP_LABELS = {
 function ExecutionGroup({ groupKey, items }) {
   if (!items.length) return null;
   return (<div style={{ marginBottom: 10 }}>
-    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--green2)", marginBottom: 4 }}>{EXECUTION_GROUP_LABELS[groupKey]} ({items.length})</div>
+    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--field-accent)", marginBottom: 4 }}>{EXECUTION_GROUP_LABELS[groupKey]} ({items.length})</div>
     {items.map(a => (<div key={a.unit_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0" }}>
-      <span>{a.name}{a.category_names.length > 0 && <span style={{ color: "var(--td)" }}> · {a.category_names.join(", ")}</span>}</span>
-      <span style={{ color: "var(--tm)", fontFamily: "DM Mono,monospace", flexShrink: 0, marginLeft: 8 }}>
+      <span>{a.name}{a.category_names.length > 0 && <span style={{ color: "var(--text-dim)" }}> · {a.category_names.join(", ")}</span>}</span>
+      <span style={{ color: "var(--text-muted)", fontFamily: "DM Mono,monospace", flexShrink: 0, marginLeft: 8 }}>
         {fmtSec(a.planned_seconds)}m planned{a.actual_seconds != null ? " · " + fmtSec(a.actual_seconds) + "m actual" : " · not logged"}
       </span>
     </div>))}
@@ -311,7 +311,7 @@ function ExecutionGroup({ groupKey, items }) {
 // classifyDurationVariance/ON_PLAN_TOLERANCE_SECONDS Drill Insights also
 // uses, so "extended"/"shortened" means the same thing in both places.
 function PracticeExecutionScorecard({ scorecard }) {
-  if (!scorecard) return (<div style={{ fontSize: 12, color: "var(--td)", padding: "8px 0" }}>Loading execution scorecard...</div>);
+  if (!scorecard) return (<div style={{ fontSize: 12, color: "var(--text-dim)", padding: "8px 0" }}>Loading execution scorecard...</div>);
 
   const groups = { extended: [], shortened: [], on_plan: [], skipped: [], manual: [] };
   (scorecard.activities || []).forEach(a => {
@@ -325,7 +325,7 @@ function PracticeExecutionScorecard({ scorecard }) {
 
   return (<div className="card mb10">
     <div className="clbl mb8">Practice Execution</div>
-    {scorecard.excluded && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>This session is excluded from rolling Goals &amp; Insights, but the scorecard below still reflects what actually happened.</div>}
+    {scorecard.excluded && <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 8 }}>This session is excluded from rolling Goals &amp; Insights, but the scorecard below still reflects what actually happened.</div>}
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
       <ScoreTile label="Planned Duration" value={scorecard.planned_duration_minutes != null ? scorecard.planned_duration_minutes + "m" : "Not set"} />
       <ScoreTile label="Actual Duration" value={scorecard.actual_wall_minutes + "m"} />
@@ -334,10 +334,10 @@ function PracticeExecutionScorecard({ scorecard }) {
       <ScoreTile label="Plan Completion" value={scorecard.plan_completion_count + " of " + scorecard.plan_total_count + " logged"} />
       <ScoreTile label="Attendance" value={scorecard.attendance_present_count + " of " + scorecard.roster_count} />
     </div>
-    {pctCaptured != null && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 12 }}>{pctCaptured}% of planned activity minutes captured · ~{scorecard.other_transition_minutes}m other/transition time</div>}
+    {pctCaptured != null && <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 12 }}>{pctCaptured}% of planned activity minutes captured · ~{scorecard.other_transition_minutes}m other/transition time</div>}
 
     {noLogsAtAll ? (
-      <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>No actual activity timing was captured for this practice.</div>
+      <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 8 }}>No actual activity timing was captured for this practice.</div>
     ) : (<>
       <ExecutionGroup groupKey="extended" items={groups.extended} />
       <ExecutionGroup groupKey="shortened" items={groups.shortened} />
@@ -346,8 +346,8 @@ function PracticeExecutionScorecard({ scorecard }) {
       <ExecutionGroup groupKey="manual" items={groups.manual} />
     </>)}
 
-    {scorecard.category_comparison.length > 0 && <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--b)" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--td)", marginBottom: 4 }}>Planned vs. Actual, This Practice</div>
+    {scorecard.category_comparison.length > 0 && <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--text-dim)", marginBottom: 4 }}>Planned vs. Actual, This Practice</div>
       {scorecard.category_comparison.slice(0, 3).map(c => (<div key={c.skill_category_id} style={{ fontSize: 12, marginBottom: 2 }}>{c.name}: planned {c.planned_pct}%, actual {c.actual_pct}%</div>))}
     </div>}
   </div>);
@@ -386,7 +386,7 @@ function TimeRangeForm({ start, end, setStart, setEnd, onSave, onCancel, busy, s
   const onDurationChange = mins => { if (date && startMin != null) setEnd(date + "T" + fromMin(startMin + mins)); };
   const invalid = durationMin != null && durationMin <= 0;
 
-  return (<div style={{ background: "var(--s2)", borderRadius: "var(--rs)", padding: 10, marginTop: 6 }}>
+  return (<div style={{ background: "var(--surface-soft)", borderRadius: "var(--radius-md)", padding: 10, marginTop: 6 }}>
     <div className="g2 mb6">
       <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">Start</label><input className="inp" type="time" value={startTime} onChange={e => onStartTimeChange(e.target.value)} /></div>
       <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">End</label><input className="inp" type="time" value={endTime} onChange={e => onEndTimeChange(e.target.value)} /></div>
@@ -395,7 +395,7 @@ function TimeRangeForm({ start, end, setStart, setEnd, onSave, onCancel, busy, s
       <label className="lbl">Duration (min)</label>
       <input className="inp" type="number" min="1" style={{ maxWidth: 100 }} value={durationMin != null && durationMin > 0 ? durationMin : ""} onChange={e => { const v = Number(e.target.value); if (v > 0) onDurationChange(v); }} disabled={startMin == null} />
     </div>
-    {invalid && <div style={{ fontSize: 12, color: "var(--red)", marginBottom: 6 }}>End must be after start.</div>}
+    {invalid && <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 6 }}>End must be after start.</div>}
     <div className="brow">
       <button className="btn ghost bxs" onClick={onCancel}>Cancel</button>
       <button className="btn primary bxs" onClick={onSave} disabled={busy || !start || !end || invalid}>{saveLabel || "Save"}</button>
@@ -498,7 +498,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
   const taggedPlayerNames = ids => (ids || []).map(id => { const p = team && team.players.find(p => p.id === id); return p ? p.firstName + (p.lastName ? " " + p.lastName[0] + "." : "") : null; }).filter(Boolean);
 
   if (!practice) return (<div style={{ paddingBottom: 80 }}>{!setSubViewBack && <div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>&#8249; History</button></div>}<div className="empty"><div className="emtx">Practice not found.</div></div></div>);
-  if (logs === null) return (<div style={{ padding: "40px 0", textAlign: "center", color: "var(--td)" }}>Loading...</div>);
+  if (logs === null) return (<div style={{ padding: "40px 0", textAlign: "center", color: "var(--text-dim)" }}>Loading...</div>);
 
   const logsForActivity = actId => meaningfulLogs(logs.filter(l => l.practiceActivityId === actId));
   const logsForStation = stId => meaningfulLogs(logs.filter(l => l.stationId === stId));
@@ -596,16 +596,16 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
             separate delete (x) on every note -- those per-row affordances
             below only render while this is on. */}
         <button className="btn ghost bxs" onClick={() => setEditMode(e => !e)}>{editMode ? "Done Editing" : "Edit"}</button>
-        <button className="btn ghost bxs" style={{ color: "var(--red)" }} onClick={doDeletePractice} disabled={deleting}>{deleting ? "Deleting..." : "Delete"}</button>
+        <button className="btn ghost bxs" style={{ color: "var(--danger)" }} onClick={doDeletePractice} disabled={deleting}>{deleting ? "Deleting..." : "Delete"}</button>
       </div>}
     </div>
-    <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>
+    <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 12 }}>
       {session.wall_minutes}min wall time · {session.attendance_count} attended
-      {session.status === "abandoned" && <span className="bdg" style={{ marginLeft: 6, background: "var(--ambg)", color: "var(--amber)" }}>Abandoned</span>}
+      {session.status === "abandoned" && <span className="bdg" style={{ marginLeft: 6, background: "var(--caution-tint)", color: "var(--caution)" }}>Abandoned</span>}
       {session.excluded && <span className="bdg bs" style={{ marginLeft: 6 }}>Excluded from goals</span>}
       {session.adjusted && <span className="bdg bp" style={{ marginLeft: 6 }}>Adjusted</span>}
     </div>
-    {session.status === "abandoned" && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 12 }}>This practice was never properly ended, so it doesn't count toward Goals &amp; Insights -- only the time logged before it was abandoned is shown below.</div>}
+    {session.status === "abandoned" && <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 12 }}>This practice was never properly ended, so it doesn't count toward Goals &amp; Insights -- only the time logged before it was abandoned is shown below.</div>}
 
     {/* Direct feedback: Run Now belongs at the top, alongside Save as
         Template -- same look/actions HistoryViewer (Schedule/Home's own
@@ -616,7 +616,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
         regardless of delegated build access (Delegated Planning spec §6). */}
     {canManage && showTplInput && <div style={{ marginBottom: 8 }}>
       <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder={(team ? team.name : "Practice") + " Template"} value={tplNameInput} onChange={e => { setTplNameInput(e.target.value); if (tplError) setTplError(""); }} onKeyDown={e => e.key === "Enter" && handleSaveAsTpl()} /></div>
-      {tplError && <div style={{ fontSize: 12, color: "var(--red)", marginBottom: 6 }}>{tplError}</div>}
+      {tplError && <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 6 }}>{tplError}</div>}
       <div className="brow"><button className="btn ghost bsm" onClick={() => setShowTplInput(false)}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsTpl} disabled={!tplNameInput.trim() || savingTpl}>{savingTpl ? "Saving..." : "Save"}</button></div>
     </div>}
     {canManage && !showTplInput && <button className="btn ghost bmd bfull" style={{ marginBottom: 8 }} onClick={() => setShowTplInput(true)}>{tplSaved ? "Saved as Template" : "Save as Template"}</button>}
@@ -628,17 +628,17 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
     <div className="clbl mb8">Planned vs. Actual</div>
     {(practice.activities || []).map(act => {
       if (act.type === "station_block") return (<div key={act.id} className="ablk mb8">
-        <div style={{ padding: "10px 12px", background: "var(--s2)", fontFamily: "Barlow Condensed,sans-serif", fontWeight: 700, fontSize: 14 }}>Station Block · planned {act.stationDuration}m/station</div>
+        <div style={{ padding: "10px 12px", background: "var(--surface-soft)", fontFamily: "Barlow Condensed,sans-serif", fontWeight: 700, fontSize: 14 }}>Station Block · planned {act.stationDuration}m/station</div>
         {(act.stations || []).map(st => {
           const stLogs = logsForStation(st.id);
           const stTotalMin = stLogs.reduce((s, l) => s + (logMinutes(l) || 0), 0);
-          return (<div key={st.id} style={{ padding: "10px 12px", borderTop: "1px solid var(--b)" }}>
+          return (<div key={st.id} style={{ padding: "10px 12px", borderTop: "1px solid var(--border)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
               <span style={{ fontSize: 13, fontWeight: 600 }}>{st.name}{st.activityName ? ": " + st.activityName : ""}</span>
-              {stLogs.length > 1 && <span style={{ fontSize: 11, fontFamily: "DM Mono,monospace", color: "var(--tm)" }}>{stTotalMin}m total</span>}
+              {stLogs.length > 1 && <span style={{ fontSize: 11, fontFamily: "DM Mono,monospace", color: "var(--text-muted)" }}>{stTotalMin}m total</span>}
             </div>
-            {stLogs.length === 0 && <div style={{ fontSize: 12, color: "var(--td)" }}>No actual time logged.{canManage && editMode && <button className="btn ghost bxs" style={{ marginLeft: 8 }} onClick={() => startAddRow(null, st.id)}>Log actual time</button>}</div>}
-            {stLogs.map(l => (<div key={l.id} style={{ fontSize: 12, color: "var(--tm)", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+            {stLogs.length === 0 && <div style={{ fontSize: 12, color: "var(--text-dim)" }}>No actual time logged.{canManage && editMode && <button className="btn ghost bxs" style={{ marginLeft: 8 }} onClick={() => startAddRow(null, st.id)}>Log actual time</button>}</div>}
+            {stLogs.map(l => (<div key={l.id} style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
               Actual: {fmtClock(l.startedAt)}{l.endedAt ? " - " + fmtClock(l.endedAt) : " (ongoing)"}
               {l.endedAt && <span style={{ fontFamily: "DM Mono,monospace" }}>&middot; {logMinutes(l)}m</span>}
               {l.adjustedAt && <span className="bdg bp">adjusted</span>}
@@ -657,16 +657,16 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
           <span style={{ fontSize: 14, fontWeight: 600 }}>{act.name}</span>
           <span className="bdg bp">{act.duration}m planned</span>
         </div>
-        {actLogs.length === 0 && <div style={{ fontSize: 12, color: "var(--td)" }}>No actual time logged{act.type === "break" ? " (break)" : ""}.
+        {actLogs.length === 0 && <div style={{ fontSize: 12, color: "var(--text-dim)" }}>No actual time logged{act.type === "break" ? " (break)" : ""}.
           {canManage && editMode && act.type !== "break" && <button className="btn ghost bxs" style={{ marginLeft: 8 }} onClick={() => startAddRow(act.id, null)}>Log actual time</button>}
         </div>}
-        {actLogs.map(l => (<div key={l.id} style={{ fontSize: 12, color: "var(--tm)", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+        {actLogs.map(l => (<div key={l.id} style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
           Actual: {fmtClock(l.startedAt)}{l.endedAt ? " - " + fmtClock(l.endedAt) : " (ongoing)"}
           {l.endedAt && <span style={{ fontFamily: "DM Mono,monospace" }}>&middot; {logMinutes(l)}m</span>}
           {l.adjustedAt && <span className="bdg bp">adjusted</span>}
           {canManage && editMode && <button className="btn ghost bxs" onClick={() => startAdjust(l)}>Edit</button>}
         </div>))}
-        {actLogs.length > 1 && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--black2)", marginTop: 4 }}>Total actual: {actTotalMin}m</div>}
+        {actLogs.length > 1 && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-soft)", marginTop: 4 }}>Total actual: {actTotalMin}m</div>}
         {addingFor && addingFor.practiceActivityId === act.id && <TimeRangeForm start={addStart} end={addEnd} setStart={setAddStart} setEnd={setAddEnd} onSave={saveAddRow} onCancel={() => setAddingFor(null)} busy={busy} saveLabel="Log time" fallbackDate={session.ended_at} />}
         {actLogs.some(l => l.id === editingLogId) && <TimeRangeForm start={editStart} end={editEnd} setStart={setEditStart} setEnd={setEditEnd} onSave={saveAdjust} onCancel={() => setEditingLogId(null)} busy={busy} fallbackDate={session.ended_at} />}
       </div>);
@@ -677,7 +677,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
     {(session.top_skills || []).length > 0 && <div className="card mb10">
       <div className="clbl mb8">Skill Minutes</div>
       {session.top_skills.map(s => (<div key={s.skill_tag_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-        <span>{s.name}</span><span style={{ fontFamily: "DM Mono,monospace", color: "var(--tm)" }}>{s.minutes}m</span>
+        <span>{s.name}</span><span style={{ fontFamily: "DM Mono,monospace", color: "var(--text-muted)" }}>{s.minutes}m</span>
       </div>))}
     </div>}
 
@@ -690,7 +690,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
         const activityLabel = id => { const a = practice.activities.find(a => a.id === id); return a ? (a.type === "station_block" ? "Station Block" : a.name) : "Drill"; };
         const renderNote = n => (<div key={n.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, color: "var(--td)", marginBottom: 2 }}>{noteAuthorLabel(n, team)} · {new Date(n.createdAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</div>
+            <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 2 }}>{noteAuthorLabel(n, team)} · {new Date(n.createdAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</div>
             <div style={{ fontSize: 13 }}>{n.text}</div>
             {n.playerIds && n.playerIds.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>{taggedPlayerNames(n.playerIds).map(name => (<span key={name} className="bdg bs" style={{ fontSize: 10 }}>{name}</span>))}</div>}
           </div>
@@ -698,11 +698,11 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
         </div>);
         return (<div>
           {Object.keys(byActivity).map(actId => (<div key={actId} style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--green2)", marginBottom: 4 }}>{activityLabel(actId)}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--field-accent)", marginBottom: 4 }}>{activityLabel(actId)}</div>
             {byActivity[actId].map(renderNote)}
           </div>))}
           {general.length > 0 && <div>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--green2)", marginBottom: 4 }}>End of Practice</div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--field-accent)", marginBottom: 4 }}>End of Practice</div>
             {general.map(renderNote)}
           </div>}
         </div>);
@@ -727,20 +727,20 @@ function HistoryList({ history, data, canManage, onOpen }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {canManage && s.has_unviewed_notes && <span title="Has a note you haven't reviewed yet" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--red)", flexShrink: 0 }} />}
+              {canManage && s.has_unviewed_notes && <span title="Has a note you haven't reviewed yet" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--danger)", flexShrink: 0 }} />}
               <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700 }}>
                 {s.ended_at ? new Date(s.ended_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "In progress"}
               </div>
             </div>
-            <div style={{ fontSize: 12, color: "var(--td)" }}>
+            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
               {s.wall_minutes}min · {s.attendance_count} attended
               {(() => { const names = (s.top_skills || []).slice(0, 3).map(sk => sk.name).join(", "); return names && " · " + names; })()}
-              {s.status === "abandoned" && <span className="bdg" style={{ marginLeft: 6, background: "var(--ambg)", color: "var(--amber)" }}>Abandoned</span>}
+              {s.status === "abandoned" && <span className="bdg" style={{ marginLeft: 6, background: "var(--caution-tint)", color: "var(--caution)" }}>Abandoned</span>}
               {s.excluded && <span className="bdg bs" style={{ marginLeft: 6 }}>Excluded</span>}
               {s.adjusted && <span className="bdg bp" style={{ marginLeft: 6 }}>Adjusted</span>}
             </div>
           </div>
-          <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>
+          <span style={{ color: "var(--text-dim)", fontSize: 18 }}>&#8250;</span>
         </div>
       </div>);
     })}
@@ -756,15 +756,15 @@ function GoalsSubnav({ view, setView, anyUnviewed }) {
   // Direct feedback: sat flush against the team workspace's own top tab
   // row (Schedule/Roster/Equipment/Goals & Insights) with no breathing
   // room -- marginTop gives it real separation from that row.
-  return (<div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3, marginTop: 14, marginBottom: 14 }}>
+  return (<div style={{ display: "flex", gap: 0, background: "var(--surface-soft)", borderRadius: "var(--radius-lg)", padding: 3, marginTop: 14, marginBottom: 14 }}>
     {[{ k: "overview", label: "Overview" }, { k: "trends", label: "Trends" }, { k: "benchmarks", label: "Benchmarks" }, { k: "history", label: "History" }].map(t => (
-      <button key={t.k} onClick={() => setView(t.k)} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: view === t.k ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: view === t.k ? "var(--black)" : "var(--td)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+      <button key={t.k} onClick={() => setView(t.k)} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--radius-lg) - 2px)", background: view === t.k ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: view === t.k ? "var(--ink)" : "var(--text-dim)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
         {t.label}
         {/* Direct feedback: a coach had no way to tell a session had an
             unreviewed note without already being on the History tab --
             same red dot HistoryList already puts on the row itself,
             surfaced here too so it's visible from Overview/Trends. */}
-        {t.k === "history" && anyUnviewed && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--red)", flexShrink: 0 }} />}
+        {t.k === "history" && anyUnviewed && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--danger)", flexShrink: 0 }} />}
       </button>
     ))}
   </div>);
@@ -798,11 +798,11 @@ function WeeklyTrendChart({ weeks, targetPct }) {
   const toPoints = run => run.map(p => p.join(",")).join(" ");
 
   return (<svg viewBox={"0 0 " + W + " " + H} style={{ width: "100%", height: H, display: "block" }} role="img" aria-label={"Weekly actual and planned trend" + (targetPct != null ? ", target " + targetPct + "%" : "")}>
-    {targetPct != null && <line x1={PAD} x2={W - PAD} y1={y(targetPct)} y2={y(targetPct)} stroke="var(--black)" strokeWidth="1.5" strokeDasharray="1,3" />}
-    {plannedRuns.map((run, i) => (<polyline key={"p" + i} points={toPoints(run)} fill="none" stroke="var(--gb)" strokeWidth="2" strokeDasharray="4,3" />))}
+    {targetPct != null && <line x1={PAD} x2={W - PAD} y1={y(targetPct)} y2={y(targetPct)} stroke="var(--ink)" strokeWidth="1.5" strokeDasharray="1,3" />}
+    {plannedRuns.map((run, i) => (<polyline key={"p" + i} points={toPoints(run)} fill="none" stroke="var(--field-tint-border)" strokeWidth="2" strokeDasharray="4,3" />))}
     {actualRuns.map((run, i) => (<g key={"a" + i}>
-      <polyline points={toPoints(run)} fill="none" stroke="var(--green)" strokeWidth="2.5" />
-      {run.map((p, j) => (<circle key={j} cx={p[0]} cy={p[1]} r="2.5" fill="var(--green)" />))}
+      <polyline points={toPoints(run)} fill="none" stroke="var(--field)" strokeWidth="2.5" />
+      {run.map((p, j) => (<circle key={j} cx={p[0]} cy={p[1]} r="2.5" fill="var(--field)" />))}
     </g>))}
   </svg>);
 }
@@ -836,22 +836,22 @@ function GoalTrendCard({ cat }) {
   return (<div className="card mb10">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", cursor: "pointer" }} onClick={() => setExpanded(e => !e)}>
       <span style={{ fontSize: 15, fontWeight: 700 }}>{cat.skill_category_name}</span>
-      <span style={{ color: "var(--td)", fontSize: 16 }}>{expanded ? "▾" : "▸"}</span>
+      <span style={{ color: "var(--text-dim)", fontSize: 16 }}>{expanded ? "▾" : "▸"}</span>
     </div>
-    <div style={{ display: "flex", gap: 10, fontSize: 11, color: "var(--td)", marginTop: 2, marginBottom: 8, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", gap: 10, fontSize: 11, color: "var(--text-dim)", marginTop: 2, marginBottom: 8, flexWrap: "wrap" }}>
       <span>Target {cat.target_pct}%</span>
       <span>Planned {currentPlannedPct != null ? currentPlannedPct + "%" : "–"}</span>
       <span>Actual {currentActualPct != null ? currentActualPct + "%" : "–"}</span>
-      {variance != null && <span style={{ fontWeight: 700, color: Math.abs(variance) < TREND_FLAT_THRESHOLD_PCT ? "var(--td)" : (variance < 0 ? "var(--red)" : "var(--green2)") }}>{variance > 0 ? "+" : ""}{variance} pts vs target</span>}
+      {variance != null && <span style={{ fontWeight: 700, color: Math.abs(variance) < TREND_FLAT_THRESHOLD_PCT ? "var(--text-dim)" : (variance < 0 ? "var(--danger)" : "var(--field-accent)") }}>{variance > 0 ? "+" : ""}{variance} pts vs target</span>}
     </div>
     <WeeklyTrendChart weeks={weeks} targetPct={cat.target_pct} />
-    <div style={{ fontSize: 12, color: "var(--td)", marginTop: 8 }}>{summary}</div>
-    {expanded && <div style={{ marginTop: 10, borderTop: "1px solid var(--b)", paddingTop: 8 }}>
-      {weeks.map(w => (<div key={w.week_start_local} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0", borderBottom: "1px solid var(--s2)" }}>
-        <span style={{ color: "var(--td)" }}>{new Date(w.week_start_local + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}–{new Date(w.week_end_local + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+    <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 8 }}>{summary}</div>
+    {expanded && <div style={{ marginTop: 10, borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+      {weeks.map(w => (<div key={w.week_start_local} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0", borderBottom: "1px solid var(--surface-soft)" }}>
+        <span style={{ color: "var(--text-dim)" }}>{new Date(w.week_start_local + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}–{new Date(w.week_end_local + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
         <span>Planned {w.planned_pct != null ? w.planned_pct + "%" : "–"}</span>
         <span>Actual {w.actual_pct != null ? w.actual_pct + "%" : "–"}</span>
-        <span style={{ color: "var(--td)" }}>Target {cat.target_pct}%</span>
+        <span style={{ color: "var(--text-dim)" }}>Target {cat.target_pct}%</span>
       </div>))}
     </div>}
   </div>);
@@ -867,11 +867,11 @@ function TrendsView({ teamId, team, canManage, isBB }) {
   const [trends, setTrends] = useState(null);
   useEffect(() => { setTrends(null); fetchTeamGoalTrends(teamId).then(setTrends); }, [teamId]);
 
-  if (trends === null) return (<div style={{ padding: "40px 0", textAlign: "center", color: "var(--td)" }}>Loading...</div>);
+  if (trends === null) return (<div style={{ padding: "40px 0", textAlign: "center", color: "var(--text-dim)" }}>Loading...</div>);
   const categories = trends.categories || [];
   if (categories.length === 0) return (<div className="empty">
     <div className="emtx">Set team goals to see development trends.</div>
-    {canManage && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 6 }}>Switch to Overview to set targets for this team's skill categories.</div>}
+    {canManage && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 6 }}>Switch to Overview to set targets for this team's skill categories.</div>}
   </div>);
   if (!trends.has_any_completed_sessions) return (<div className="empty"><div className="emtx">Run a practice live to begin building actual-time trends.</div></div>);
 
@@ -880,7 +880,7 @@ function TrendsView({ teamId, team, canManage, isBB }) {
   // its width to whatever container it's given (viewBox + width:100%,
   // fixed pixel height), confirmed live rather than assumed.
   return (<div>
-    <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 12 }}>Compared with the team's current goals.</div>
+    <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 12 }}>Compared with the team's current goals.</div>
     <div className={isBB ? "bb-trend-grid" : undefined}>
       {categories.map(cat => (<GoalTrendCard key={cat.skill_category_id} cat={cat} />))}
     </div>
@@ -907,21 +907,21 @@ function drillsForCategory(categoryId, data, coachId) {
 function CategoryGapRow({ g, practiceDuration, data, coachId }) {
   const [expanded, setExpanded] = useState(false);
   const drills = expanded ? drillsForCategory(g.skillCategoryId, data, coachId) : [];
-  return (<div style={{ marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid var(--b)" }}>
+  return (<div style={{ marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid var(--border)" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", cursor: "pointer" }} onClick={() => setExpanded(e => !e)}>
       <div style={{ fontSize: 13, fontWeight: 700 }}>{g.name} is {g.gapPts} point{g.gapPts === 1 ? "" : "s"} below goal.</div>
-      <span style={{ color: "var(--td)", fontSize: 14, flexShrink: 0, marginLeft: 8 }}>{expanded ? "▾" : "▸"}</span>
+      <span style={{ color: "var(--text-dim)", fontSize: 14, flexShrink: 0, marginLeft: 8 }}>{expanded ? "▾" : "▸"}</span>
     </div>
-    <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>
+    <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2 }}>
       {g.goalMixMinutes != null && <>A goal-balanced {practiceDuration}-minute practice would include {g.goalMixMinutes} minute{g.goalMixMinutes === 1 ? "" : "s"}. </>}
       {g.minutesNeeded != null && g.closable && <>Approximately {g.minutesNeeded} minute{g.minutesNeeded === 1 ? "" : "s"} would be needed to fully close the current rolling gap in one practice.</>}
       {g.minutesNeeded != null && g.closable === false && <>This gap cannot be fully closed in one practice.</>}
     </div>
     {expanded && (<div style={{ marginTop: 8 }}>
-      {drills.length === 0 && <div style={{ fontSize: 12, color: "var(--td)" }}>No drills in your library are tagged to {g.name} yet. Tag a drill with this category from your Library to see it here.</div>}
+      {drills.length === 0 && <div style={{ fontSize: 12, color: "var(--text-dim)" }}>No drills in your library are tagged to {g.name} yet. Tag a drill with this category from your Library to see it here.</div>}
       {drills.map(d => (<div key={d.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0" }}>
         <span>{d.name}</span>
-        <span style={{ color: "var(--tm)", fontFamily: "DM Mono,monospace", flexShrink: 0, marginLeft: 8 }}>{d.duration}m</span>
+        <span style={{ color: "var(--text-muted)", fontFamily: "DM Mono,monospace", flexShrink: 0, marginLeft: 8 }}>{d.duration}m</span>
       </div>))}
     </div>)}
   </div>);
@@ -961,14 +961,14 @@ function NextPracticeGuidance({ team, teamId, data, report, canManage, coachId }
 
   return (<div className="card mb10">
     <div className="clbl mb8">Next Practice Guidance</div>
-    {source === "planned" && <div style={{ fontSize: 12, color: "var(--amber)", marginBottom: 8 }}>Based on planned practice time until actual timing is available.</div>}
-    {source === "goal_only" && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>No practice history yet -- showing your goal mix as a starting point.</div>}
-    {!practiceDuration && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>Schedule a practice to see minute recommendations -- percentages only for now.</div>}
+    {source === "planned" && <div style={{ fontSize: 12, color: "var(--caution)", marginBottom: 8 }}>Based on planned practice time until actual timing is available.</div>}
+    {source === "goal_only" && <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 8 }}>No practice history yet -- showing your goal mix as a starting point.</div>}
+    {!practiceDuration && <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 8 }}>Schedule a practice to see minute recommendations -- percentages only for now.</div>}
 
-    {below.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>Every category is at or above its goal right now.</div>}
+    {below.length === 0 && <div style={{ fontSize: 13, color: "var(--text-dim)" }}>Every category is at or above its goal right now.</div>}
     {shown.map(g => (<CategoryGapRow key={g.skillCategoryId} g={g} practiceDuration={practiceDuration} data={data} coachId={coachId} />))}
     {below.length > 3 && !showAll && <button className="btn ghost bxs" onClick={() => setShowAll(true)}>Show all categories</button>}
-    {anyUnclosable && below.length > 1 && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 4 }}>The current gaps cannot all be closed in one practice. Prioritize the areas that matter most for this team right now.</div>}
+    {anyUnclosable && below.length > 1 && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>The current gaps cannot all be closed in one practice. Prioritize the areas that matter most for this team right now.</div>}
   </div>);
 }
 
@@ -1049,7 +1049,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
   };
 
   if (!team) return null;
-  if (goals === null || report === null || history === null) return (<div style={{ padding: "40px 0", textAlign: "center", color: "var(--td)" }}>Loading...</div>);
+  if (goals === null || report === null || history === null) return (<div style={{ padding: "40px 0", textAlign: "center", color: "var(--text-dim)" }}>Loading...</div>);
 
   // BB layout pass: at mobile, opening a session still fully replaces this
   // screen (unchanged). At BB, the detail renders beside the list instead

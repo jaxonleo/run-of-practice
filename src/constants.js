@@ -731,7 +731,7 @@ export function summarizeCategoryTrend(weeks,targetPct){
 // Thresholds kept in one place, per the spec, so they can be tuned later
 // without touching UI logic in multiple files.
 export const DRILL_HEAT_TIERS=[
-  {min:21,id:"very_hot",label:"Very frequently used",color:"var(--red)"},
+  {min:21,id:"very_hot",label:"Very frequently used",color:"var(--danger)"},
   {min:11,id:"hot",label:"Frequently used",color:"#EA580C"},
   {min:6,id:"active",label:"Actively used",color:"#D97706"},
   {min:3,id:"warming",label:"Occasionally used",color:"#0891B2"},

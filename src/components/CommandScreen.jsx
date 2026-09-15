@@ -55,7 +55,7 @@ export function usePracticePresence(practiceId, me) {
 // tab's own JS is what's actually stuck -- which no in-app retry logic
 // can fix from inside itself.
 function SyncBadge({health}){
-  const color=health==="stale"?"var(--red)":health==="warn"?"var(--amber)":"var(--green)";
+  const color=health==="stale"?"var(--danger)":health==="warn"?"var(--caution)":"var(--field)";
   const label=health==="stale"?"Refresh":health==="warn"?"Reconnecting…":"Live";
   return (<button type="button" onClick={()=>window.location.reload()} title="Tap to refresh" style={{display:"flex",alignItems:"center",gap:5,background:"none",border:"none",padding:0,cursor:"pointer"}}>
     <span className="live" style={{background:color}}/>
@@ -68,7 +68,7 @@ export function PresenceBadge({ coachNames, anonCount, dark }) {
   const parts = [];
   if (coachNames.length) parts.push(coachNames.join(", "));
   if (anonCount) parts.push(anonCount + (anonCount === 1 ? " person watching" : " people watching"));
-  return (<div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: dark ? "#8fa89b" : "var(--td)", flexWrap: "wrap" }}>
+  return (<div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: dark ? "#8fa89b" : "var(--text-dim)", flexWrap: "wrap" }}>
     <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#52b788", display: "inline-block", flexShrink: 0 }} />
     {parts.join(" · ")}
   </div>);
@@ -78,10 +78,10 @@ export function PresenceBadge({ coachNames, anonCount, dark }) {
 
 function DurStepper({value,min,onChange,step}){
   const s=step||1;const mn=min||1;
-  return (<div style={{display:"flex",alignItems:"center",gap:0,border:"1.5px solid var(--b)",borderRadius:"var(--rs)",overflow:"hidden",background:"#fff"}}>
-    <button onClick={()=>onChange(Math.max(mn,value-s))} style={{width:40,height:40,border:"none",background:"var(--s2)",color:"var(--black2)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>-</button>
-    <div style={{flex:1,textAlign:"center",fontFamily:"DM Mono,monospace",fontSize:15,fontWeight:600,color:"var(--black)"}}>{value}m</div>
-    <button onClick={()=>onChange(value+s)} style={{width:40,height:40,border:"none",background:"var(--s2)",color:"var(--black2)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+  return (<div style={{display:"flex",alignItems:"center",gap:0,border:"1.5px solid var(--border)",borderRadius:"var(--radius-md)",overflow:"hidden",background:"#fff"}}>
+    <button onClick={()=>onChange(Math.max(mn,value-s))} style={{width:40,height:40,border:"none",background:"var(--surface-soft)",color:"var(--ink-soft)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>-</button>
+    <div style={{flex:1,textAlign:"center",fontFamily:"DM Mono,monospace",fontSize:15,fontWeight:600,color:"var(--ink)"}}>{value}m</div>
+    <button onClick={()=>onChange(value+s)} style={{width:40,height:40,border:"none",background:"var(--surface-soft)",color:"var(--ink-soft)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
   </div>);
 }
 
@@ -89,10 +89,10 @@ function StationPlayerChip({pid,team,note}){
   const pl=team&&team.players.find(p=>p.id===pid);
   if(!pl)return null;
   return (<span style={{display:"inline-flex",flexDirection:"column",alignItems:"flex-start",gap:1,maxWidth:note?150:undefined}}>
-    <span style={{background:"var(--s2)",border:"1px solid var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>
-      {pl.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--green)"}}>#{pl.jersey}</span>}{pl.firstName}
+    <span style={{background:"var(--surface-soft)",border:"1px solid var(--border)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>
+      {pl.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--field)"}}>#{pl.jersey}</span>}{pl.firstName}
     </span>
-    {note&&<span style={{fontSize:10,color:"var(--green2)",lineHeight:1.3,whiteSpace:"normal"}}>{note}</span>}
+    {note&&<span style={{fontSize:10,color:"var(--field-accent)",lineHeight:1.3,whiteSpace:"normal"}}>{note}</span>}
   </span>);
 }
 
@@ -113,10 +113,10 @@ function PlayerChipLive({pid,team,note,onProfile}){
   return (<button
     type="button"
     onClick={()=>onProfile(pl)}
-    style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--gb)",background:"var(--gbg)",fontSize:14,fontWeight:600,cursor:"pointer",color:"var(--black)",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2,maxWidth:(note||handText)?200:undefined}}>
-    <span style={{display:"flex",alignItems:"center",gap:5}}>{pl.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:12,color:"var(--green)"}}>#{pl.jersey}</span>}{pl.firstName}</span>
-    {handText&&<span style={{fontSize:11,color:"var(--td)",whiteSpace:"normal",textAlign:"left"}}>{handText}</span>}
-    {note&&<span style={{fontSize:11,fontWeight:500,color:"var(--green2)",whiteSpace:"normal",textAlign:"left",lineHeight:1.3}}>{note}</span>}
+    style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--field-tint-border)",background:"var(--field-tint)",fontSize:14,fontWeight:600,cursor:"pointer",color:"var(--ink)",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2,maxWidth:(note||handText)?200:undefined}}>
+    <span style={{display:"flex",alignItems:"center",gap:5}}>{pl.jersey&&<span style={{fontFamily:"DM Mono,monospace",fontSize:12,color:"var(--field)"}}>#{pl.jersey}</span>}{pl.firstName}</span>
+    {handText&&<span style={{fontSize:11,color:"var(--text-dim)",whiteSpace:"normal",textAlign:"left"}}>{handText}</span>}
+    {note&&<span style={{fontSize:11,fontWeight:500,color:"var(--field-accent)",whiteSpace:"normal",textAlign:"left",lineHeight:1.3}}>{note}</span>}
   </button>);
 }
 
@@ -140,7 +140,7 @@ function UpcomingPreview({item,onClose}){
       </div>}
       {item.stations.length>0&&<div>
         <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#8fa89b",marginBottom:6}}>Stations</div>
-        {item.stations.map((st,i)=>(<div key={i} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--r)",padding:"10px 12px",marginBottom:6}}>
+        {item.stations.map((st,i)=>(<div key={i} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--radius-lg)",padding:"10px 12px",marginBottom:6}}>
           <div style={{fontSize:13,fontWeight:700,color:"#fff",marginBottom:2}}>{st.name}{st.locationName?" · "+st.locationName:""}{" · "+(st.coachName||"Unassigned")}</div>
           {st.equipmentNames.length>0&&<div style={{fontSize:12,color:"#8fa89b",marginBottom:2}}>Equipment: {st.equipmentNames.join(", ")}</div>}
           {st.playerNames.length>0&&<div style={{fontSize:12,color:"#fff"}}>{st.playerNames.join(", ")}</div>}
@@ -162,7 +162,7 @@ function ShareSheet({token,scope,onClose,title}){
   // tell them apart. `title` is built by the caller from the real
   // practice/team, falling back to the old generic text if unavailable.
   const share=()=>{if(navigator.share)navigator.share({title:title||"Run of Practice - Live View",url});else copy();};
-  return (<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:200,display:"flex",alignItems:"flex-end"}}><div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"24px 20px 40px"}}><div style={{width:36,height:4,background:"var(--b)",borderRadius:2,margin:"0 auto 20px"}}/><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>{isAttendance?"Share for Attendance":"Share Live View"}</div><div style={{fontSize:13,color:"var(--td)",marginBottom:20}}>{isAttendance?"Anyone with this link can follow along AND mark players present/absent.":"Anyone with this link can follow along in real time."}</div><div style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:12,wordBreak:"break-all",fontSize:13,color:"var(--black2)",fontFamily:"DM Mono,monospace"}}>{url}</div><div className="brow"><button className="btn outline bmd" style={{flex:1}} onClick={copy}>{copied?"Copied!":"Copy Link"}</button><button className="btn primary bmd" style={{flex:1}} onClick={share}>Share</button></div><button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={onClose}>Done</button></div></div>);
+  return (<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:200,display:"flex",alignItems:"flex-end"}}><div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"24px 20px 40px"}}><div style={{width:36,height:4,background:"var(--border)",borderRadius:2,margin:"0 auto 20px"}}/><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>{isAttendance?"Share for Attendance":"Share Live View"}</div><div style={{fontSize:13,color:"var(--text-dim)",marginBottom:20}}>{isAttendance?"Anyone with this link can follow along AND mark players present/absent.":"Anyone with this link can follow along in real time."}</div><div style={{background:"var(--surface-soft)",border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"12px 14px",marginBottom:12,wordBreak:"break-all",fontSize:13,color:"var(--ink-soft)",fontFamily:"DM Mono,monospace"}}>{url}</div><div className="brow"><button className="btn outline bmd" style={{flex:1}} onClick={copy}>{copied?"Copied!":"Copy Link"}</button><button className="btn primary bmd" style={{flex:1}} onClick={share}>Share</button></div><button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={onClose}>Done</button></div></div>);
 }
 
 // Direct feedback, a real bug: tapping anywhere on a player's row toggled
@@ -192,26 +192,26 @@ function PlayerCardModal({player,team,data,amHeadCoach,onClose}){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
         <div>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900}}>{player.firstName} {player.lastName}</div>
-          {player.jersey&&<div style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"var(--green)"}}>#{player.jersey}</div>}
+          {player.jersey&&<div style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"var(--field)"}}>#{player.jersey}</div>}
         </div>
         <button className="btn ghost bxs" onClick={onClose}>Close</button>
       </div>
       <div className="clbl mb8">Player Focus</div>
-      {areas.length===0&&<div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>No focus areas added yet.</div>}
+      {areas.length===0&&<div style={{fontSize:13,color:"var(--text-dim)",marginBottom:14}}>No focus areas added yet.</div>}
       {areas.length>0&&areas.map(a=>{
         const cat=(data&&data.skillCategories||[]).find(c=>c.id===a.categoryId);
-        return(<div key={a.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
-          <div style={{fontSize:12,fontWeight:700,color:"var(--td)"}}>{cat?cat.name:""}</div>
+        return(<div key={a.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--surface-soft)",borderRadius:"var(--radius-md)"}}>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--text-dim)"}}>{cat?cat.name:""}</div>
           <div style={{fontSize:14,lineHeight:1.5,marginTop:2}}>{a.note}</div>
         </div>);
       })}
       <div className="clbl mb8" style={{marginTop:14}}>Practice Notes</div>
-      {notes===null&&<div style={{fontSize:13,color:"var(--td)"}}>Loading...</div>}
-      {notes&&notes.length===0&&<div style={{fontSize:13,color:"var(--td)"}}>No notes tagging this player yet.</div>}
-      {notes&&notes.map(n=>(<div key={n.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
+      {notes===null&&<div style={{fontSize:13,color:"var(--text-dim)"}}>Loading...</div>}
+      {notes&&notes.length===0&&<div style={{fontSize:13,color:"var(--text-dim)"}}>No notes tagging this player yet.</div>}
+      {notes&&notes.map(n=>(<div key={n.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--surface-soft)",borderRadius:"var(--radius-md)"}}>
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
-          <div style={{fontSize:11,color:"var(--td)",marginBottom:2}}>{noteAuthor(n)} · {new Date(n.createdAt).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</div>
-          {amHeadCoach&&<button type="button" disabled={deletingId===n.id} onClick={()=>deleteNote(n.id)} style={{background:"none",border:"none",padding:0,fontSize:11,color:"var(--red)",cursor:"pointer",flexShrink:0}}>{deletingId===n.id?"Deleting...":"Delete"}</button>}
+          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:2}}>{noteAuthor(n)} · {new Date(n.createdAt).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</div>
+          {amHeadCoach&&<button type="button" disabled={deletingId===n.id} onClick={()=>deleteNote(n.id)} style={{background:"none",border:"none",padding:0,fontSize:11,color:"var(--danger)",cursor:"pointer",flexShrink:0}}>{deletingId===n.id?"Deleting...":"Delete"}</button>}
         </div>
         <div style={{fontSize:14}}>{n.text}</div>
       </div>))}
@@ -241,7 +241,7 @@ function AttendanceScreen({practice,team,data,amHeadCoach,isUpdate,initialPresen
   const playerCard=playerCardId&&team?team.players.find(p=>p.id===playerCardId):null;
   return (<div style={{padding:"14px",paddingBottom:"calc(var(--tab) + 100px)"}}>
     <div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>Back</button><div className="ptitle" style={{fontSize:22}}>{isUpdate?"Attendance":"Practice Setup"}</div></div>
-    <div style={{background:"var(--green)",borderRadius:10,padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+    <div style={{background:"var(--field)",borderRadius:10,padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{color:"#fff",fontFamily:"DM Mono,monospace",fontSize:32,fontWeight:700}}>{pCount}/{total}</div>
       <div style={{color:"rgba(255,255,255,.8)",fontSize:13}}>players present</div>
     </div>
@@ -251,7 +251,7 @@ function AttendanceScreen({practice,team,data,amHeadCoach,isUpdate,initialPresen
         <button type="button" onClick={()=>togP(p.id)} style={{background:"none",border:"none",padding:0,cursor:"pointer",display:"flex",flexShrink:0}} aria-label={present.has(p.id)?"Mark absent":"Mark present"}>
           <div className={"att-circle "+(present.has(p.id)?"on":"")}>{present.has(p.id)&&<Ic.Check/>}</div>
         </button>
-        <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:present.has(p.id)?"var(--black)":"var(--td)"}}>{p.firstName}</div></div>
+        <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:present.has(p.id)?"var(--ink)":"var(--text-dim)"}}>{p.firstName}</div></div>
         <button type="button" className="ell-btn" style={{flexShrink:0}} onClick={()=>setPlayerCardId(p.id)}><span/><span/><span/></button>
       </div>))}
     </div>
@@ -259,12 +259,12 @@ function AttendanceScreen({practice,team,data,amHeadCoach,isUpdate,initialPresen
       <div className="clbl mb8 mt8">Coaches</div>
       {team.coaches.map(c=>(<button key={c.id} onClick={()=>togC(c.id)} className={"att-btn bfull "+(coachPresent.has(c.id)?"on":"")} style={{marginBottom:8}}>
         <div className={"att-circle "+(coachPresent.has(c.id)?"on":"")}>{coachPresent.has(c.id)&&<Ic.Check/>}</div>
-        <div><div style={{fontSize:14,fontWeight:600,color:coachPresent.has(c.id)?"var(--black)":"var(--td)"}}>{c.name}</div><div style={{fontSize:11,color:"var(--td)"}}>{c.role}</div></div>
+        <div><div style={{fontSize:14,fontWeight:600,color:coachPresent.has(c.id)?"var(--ink)":"var(--text-dim)"}}>{c.name}</div><div style={{fontSize:11,color:"var(--text-dim)"}}>{c.role}</div></div>
       </button>))}
     </div>)}
-    <div style={{position:"fixed",bottom:"calc(var(--tab))",left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#fff",borderTop:"1px solid var(--b)",padding:"12px 16px",zIndex:50}}>
+    <div style={{position:"fixed",bottom:"calc(var(--tab))",left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#fff",borderTop:"1px solid var(--border)",padding:"12px 16px",zIndex:50}}>
       {needsBalance&&<div>
-        <div style={{fontSize:12,color:"var(--td)",marginBottom:8,textAlign:"center"}}>Groups need rebalancing for {pCount} players</div>
+        <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:8,textAlign:"center"}}>Groups need rebalancing for {pCount} players</div>
         <div className="brow">
           <button className="btn ghost bmd" onClick={()=>onConfirm({presentIds:present,coachPresentIds:coachPresent,balanceMode:"keep"})}>Keep Groups</button>
           <button className="btn primary bmd" onClick={()=>onConfirm({presentIds:present,coachPresentIds:coachPresent,balanceMode:"rebalance"})}>Rebalance Evenly</button>
@@ -343,7 +343,7 @@ function PlayerGearPill({e}){
 // these cones out" apart from "make sure players brought these."
 function EquipGearRow({equipment,playerGear,labelColor}){
   if((!equipment||!equipment.length)&&(!playerGear||!playerGear.length))return null;
-  const lc=labelColor||"var(--td)";
+  const lc=labelColor||"var(--text-dim)";
   return (<div style={{display:"flex",flexDirection:"column",gap:6}}>
     {equipment&&equipment.length>0&&<div>
       <div style={{fontSize:10,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:lc,marginBottom:3}}>Equipment</div>
@@ -604,14 +604,14 @@ function ScrimmageBoardView({board,cfg,assignee,dark,onlyIdx,onSlotTap,picked,cu
   const rightCol=OUT_ORDER.filter(s=>other.includes(s));
   const roles=(cfg&&cfg.coachRoles)||[];
   const c=dark?{card:"rgba(255,255,255,.05)",bd:"rgba(255,255,255,.12)",txt:"#fff",dim:"#8fa89b",accent:"#52b788"}
-              :{card:"var(--s1)",bd:"var(--b)",txt:"var(--black)",dim:"var(--td)",accent:"var(--green)"};
+              :{card:"var(--surface)",bd:"var(--border)",txt:"var(--ink)",dim:"var(--text-dim)",accent:"var(--field)"};
   const rows=onlyIdx!=null?[[onlyIdx,board[onlyIdx]]].filter(x=>x[1]):board.map((rd,i)=>[i,rd]);
   const cell=(ri,slot,txt,big)=>{
     const isPicked=picked&&picked.round===ri&&picked.slot===slot;
     const isTarget=picked&&picked.round===ri&&!isPicked;
     return (<span key={slot} onClick={onSlotTap?()=>onSlotTap(ri,slot):undefined}
       style={{cursor:onSlotTap?"pointer":"default",padding:"2px 6px",borderRadius:6,fontSize:big?14:12,
-        background:isPicked?c.accent:isTarget?(dark?"rgba(82,183,136,.2)":"var(--gbg)"):undefined,
+        background:isPicked?c.accent:isTarget?(dark?"rgba(82,183,136,.2)":"var(--field-tint)"):undefined,
         color:isPicked?"#fff":undefined,fontWeight:big?700:400,display:"inline-block"}}>
       {txt||<span style={{color:c.dim}}>Open</span>}</span>);
   };
@@ -659,8 +659,8 @@ function ScrimmageGridView({board,cfg,assignee,currentIdx}){
   const roles=(cfg&&cfg.coachRoles)||[];
   const maxHit=Math.max(1,...(board||[]).map(rd=>Object.keys(rd.slots||{}).filter(k=>/^H\d+$/.test(k)).length));
   const cols=[...fieldSlots,...Array.from({length:maxHit},(_,i)=>"H"+(i+1))];
-  const th={position:"sticky",top:0,background:"#fff",zIndex:2,padding:"6px 8px",borderBottom:"2px solid var(--b)",whiteSpace:"nowrap",fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--td)",textAlign:"left"};
-  const firstCol={position:"sticky",left:0,background:"#fff",zIndex:1,padding:"6px 8px",whiteSpace:"nowrap",fontWeight:700,fontSize:12,borderRight:"1px solid var(--b)"};
+  const th={position:"sticky",top:0,background:"#fff",zIndex:2,padding:"6px 8px",borderBottom:"2px solid var(--border)",whiteSpace:"nowrap",fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--text-dim)",textAlign:"left"};
+  const firstCol={position:"sticky",left:0,background:"#fff",zIndex:1,padding:"6px 8px",whiteSpace:"nowrap",fontWeight:700,fontSize:12,borderRight:"1px solid var(--border)"};
   return (<div style={{overflowX:"auto"}}>
     <table style={{borderCollapse:"collapse",fontSize:11}}>
       <thead><tr>
@@ -671,14 +671,14 @@ function ScrimmageGridView({board,cfg,assignee,currentIdx}){
       <tbody>
         {(board||[]).map((rd,ri)=>{
           const past=ri<currentIdx,curr=ri===currentIdx;
-          const rowBg=curr?"var(--gbg)":"#fff";
+          const rowBg=curr?"var(--field-tint)":"#fff";
           return (<tr key={ri} style={{opacity:past?.55:1}}>
-            <td style={{...firstCol,background:rowBg,color:curr?"var(--green)":"var(--black)"}}>{label} {ri+1}{curr?" ·":past?"":""}</td>
+            <td style={{...firstCol,background:rowBg,color:curr?"var(--field)":"var(--ink)"}}>{label} {ri+1}{curr?" ·":past?"":""}</td>
             {cols.map(s=>{
               const v=assignee((rd.slots||{})[s]);
-              return <td key={s} style={{padding:"5px 8px",borderBottom:"1px solid var(--b)",whiteSpace:"nowrap",background:rowBg}}>{v||<span style={{color:"var(--td)"}}>Open</span>}</td>;
+              return <td key={s} style={{padding:"5px 8px",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap",background:rowBg}}>{v||<span style={{color:"var(--text-dim)"}}>Open</span>}</td>;
             })}
-            {roles.map(r=><td key={r.id} style={{padding:"5px 8px",borderBottom:"1px solid var(--b)",whiteSpace:"nowrap",background:rowBg,color:"var(--td)"}}>{assignee((rd.coachRoles||{})[r.id])||"Open"}</td>)}
+            {roles.map(r=><td key={r.id} style={{padding:"5px 8px",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap",background:rowBg,color:"var(--text-dim)"}}>{assignee((rd.coachRoles||{})[r.id])||"Open"}</td>)}
           </tr>);
         })}
       </tbody>
@@ -794,7 +794,7 @@ function SetupScrimmageRow({act,team,data,session,coachId,isController,presentId
       {board&&(()=>{
         const f=summarizeScrimmageFairness(board,roster.filter(p=>presentSet.has(p.id)).map(p=>({id:p.id,name:p.firstName,positions:p.positions||[]})));
         return <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
-          <span className="bdg bs" style={{background:f.hits.even?"var(--gbg)":"var(--ambg)",color:f.hits.even?"var(--green)":"var(--amber)"}}>{f.hits.even?"Hits: even":"Hits: uneven"}</span>
+          <span className="bdg bs" style={{background:f.hits.even?"var(--field-tint)":"var(--caution-tint)",color:f.hits.even?"var(--field)":"var(--caution)"}}>{f.hits.even?"Hits: even":"Hits: uneven"}</span>
           <span className="bdg bs">Pitch: {f.pitch.used}/{f.pitch.eligible}</span>
           <span className="bdg bs">Catch: {f.catch.count}, ~{f.catch.roundsEach} {label.toLowerCase()}s each</span>
         </div>;
@@ -1127,10 +1127,10 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
   };
   const NotesList=({notes})=>{
     if(!notes||!notes.length)return null;
-    return(<div style={{marginTop:8,paddingTop:8,borderTop:"1px dashed var(--b)"}}>
+    return(<div style={{marginTop:8,paddingTop:8,borderTop:"1px dashed var(--border)"}}>
       {notes.map(n=>(<div key={n.id} style={{display:"flex",gap:8,marginBottom:6,alignItems:"flex-start"}}>
-        <span style={{fontSize:11,color:"var(--td)",flexShrink:0,marginTop:2}}>{new Date(n.createdAt).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</span>
-        <span style={{fontSize:13,color:"var(--black)",lineHeight:1.4,flex:1}}>{n.text}</span>
+        <span style={{fontSize:11,color:"var(--text-dim)",flexShrink:0,marginTop:2}}>{new Date(n.createdAt).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</span>
+        <span style={{fontSize:13,color:"var(--ink)",lineHeight:1.4,flex:1}}>{n.text}</span>
       </div>))}
     </div>);
   };
@@ -1142,7 +1142,7 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
         <div className="limt">{actualStart?new Date(actualStart).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"})+" at "+new Date(actualStart).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}):fmtDate(practice.date)+(practice.startTime?" at "+practice.startTime:"")}{loc?" · "+loc.name:""}</div>
       </div>
     </div>
-    {runStat==="abandoned"&&<div style={{background:"var(--ambg)",border:"1.5px solid var(--ambb)",borderRadius:"var(--r)",padding:"8px 12px",marginBottom:12,fontSize:12,color:"var(--amber)",fontWeight:600}}>This practice was aborted before it finished. It doesn't count as a completed run.</div>}
+    {runStat==="abandoned"&&<div style={{background:"var(--caution-tint)",border:"1.5px solid var(--caution-tint-border)",borderRadius:"var(--radius-lg)",padding:"8px 12px",marginBottom:12,fontSize:12,color:"var(--caution)",fontWeight:600}}>This practice was aborted before it finished. It doesn't count as a completed run.</div>}
     {/* Print/PDF export used to only exist on PracticeDetail, which a
         past/run practice never routes to (ScheduleScreen sends those here
         instead) -- so a coach who forgot to print beforehand had no way
@@ -1159,11 +1159,11 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
       const hasNotes=actNotes.length>0;
       return(<div key={act.id} className="ablk" style={{marginBottom:8}}>
         {/* Header row */}
-        <div style={{display:"flex",alignItems:"center",padding:"11px 12px",background:"var(--s2)",gap:8,cursor:"pointer"}} onClick={()=>setExpandedId(isExpanded?null:act.id)}>
+        <div style={{display:"flex",alignItems:"center",padding:"11px 12px",background:"var(--surface-soft)",gap:8,cursor:"pointer"}} onClick={()=>setExpandedId(isExpanded?null:act.id)}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
               {act.type==="station_block"?(act.name||"Station Block"):act.name}
-              {hasNotes&&<span style={{marginLeft:6,fontSize:10,background:"var(--green)",color:"#fff",borderRadius:10,padding:"1px 6px"}}>{actNotes.length} note{actNotes.length>1?"s":""}</span>}
+              {hasNotes&&<span style={{marginLeft:6,fontSize:10,background:"var(--field)",color:"#fff",borderRadius:10,padding:"1px 6px"}}>{actNotes.length} note{actNotes.length>1?"s":""}</span>}
             </div>
             {act.type==="station_block"
               ?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} · {act.stationDuration}m each{act.rotate!==false?" · rotates":""}</div>
@@ -1171,43 +1171,43 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
           </div>
           {act.type!=="station_block"&&<span className="bdg bs">{act.duration}m</span>}
           {act.type==="station_block"&&<span className="bdg bs">{act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*(act.transitionDuration||0):0)}m</span>}
-          <span style={{color:"var(--td)",fontSize:12}}>{isExpanded?"▲":"▼"}</span>
+          <span style={{color:"var(--text-dim)",fontSize:12}}>{isExpanded?"▲":"▼"}</span>
         </div>
         {/* Expanded detail */}
-        {isExpanded&&<div style={{padding:"10px 12px",borderTop:"1px solid var(--b)"}}>
+        {isExpanded&&<div style={{padding:"10px 12px",borderTop:"1px solid var(--border)"}}>
           {act.type==="activity"&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
             {act.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:8}}>
               <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
               <div style={{fontSize:13,lineHeight:1.5}}>{act.coachingPoints}</div>
             </div>}
-            {subName(act.sublocationId,act.sublocationNameSnapshot)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Location: </span>{subName(act.sublocationId,act.sublocationNameSnapshot)}</div>}
-            {equipNames(act.equipment)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Equipment: </span>{equipNames(act.equipment)}</div>}
-            {act.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Player Gear: </span>{act.playerGear}</div>}
-            {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Grouping: </span>{act.grouping==="partners"?"Partners":act.numGroups+" Groups"}</div>}
-            {act.assignments&&act.assignments.length>0&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Players: </span>{pnames(act.assignments)}</div>}
+            {subName(act.sublocationId,act.sublocationNameSnapshot)&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Location: </span>{subName(act.sublocationId,act.sublocationNameSnapshot)}</div>}
+            {equipNames(act.equipment)&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Equipment: </span>{equipNames(act.equipment)}</div>}
+            {act.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Player Gear: </span>{act.playerGear}</div>}
+            {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Grouping: </span>{act.grouping==="partners"?"Partners":act.numGroups+" Groups"}</div>}
+            {act.assignments&&act.assignments.length>0&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Players: </span>{pnames(act.assignments)}</div>}
             <NotesList notes={notesForActivity(act.id)}/>
           </div>}
           {act.type==="checklist"&&<div>
-            {(act.items||[]).map(it=>(<div key={it.id} style={{fontSize:13,padding:"4px 0",borderBottom:"1px solid var(--b)",color:"var(--black)"}}>{it.text}</div>))}
+            {(act.items||[]).map(it=>(<div key={it.id} style={{fontSize:13,padding:"4px 0",borderBottom:"1px solid var(--border)",color:"var(--ink)"}}>{it.text}</div>))}
             <NotesList notes={notesForActivity(act.id)}/>
           </div>}
           {act.type==="station_block"&&<div>
             {act.stations.map(st=>{
               const stNotes=notesForStation(st.id);
-              return(<div key={st.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--b)"}}>
-                <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:"var(--green)",letterSpacing:".05em",marginBottom:4}}>
+              return(<div key={st.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--border)"}}>
+                <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:"var(--field)",letterSpacing:".05em",marginBottom:4}}>
                   {st.name}{st.activityName&&st.activityName!==st.name?": "+st.activityName:""}
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                  {coachName(st.coachId)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Coach: </span>{coachName(st.coachId)}</div>}
-                  {subName(st.sublocationId,st.sublocationNameSnapshot)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Area: </span>{subName(st.sublocationId,st.sublocationNameSnapshot)}</div>}
+                  {coachName(st.coachId)&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Coach: </span>{coachName(st.coachId)}</div>}
+                  {subName(st.sublocationId,st.sublocationNameSnapshot)&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Area: </span>{subName(st.sublocationId,st.sublocationNameSnapshot)}</div>}
                   {st.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:8,marginTop:2}}>
                     <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
                     <div style={{fontSize:13,lineHeight:1.5}}>{st.coachingPoints}</div>
                   </div>}
-                  {equipNames(st.equipment)&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Equipment: </span>{equipNames(st.equipment)}</div>}
-                  {st.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Player Gear: </span>{st.playerGear}</div>}
-                  {st.assignments&&st.assignments.length>0&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Players: </span>{pnames(st.assignments)}</div>}
+                  {equipNames(st.equipment)&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Equipment: </span>{equipNames(st.equipment)}</div>}
+                  {st.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Player Gear: </span>{st.playerGear}</div>}
+                  {st.assignments&&st.assignments.length>0&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Players: </span>{pnames(st.assignments)}</div>}
                   <NotesList notes={stNotes}/>
                 </div>
               </div>);
@@ -1223,11 +1223,11 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,marginBottom:8}}>End of Practice Notes</div>
       <NotesList notes={generalNotes}/>
     </div>}
-    {(canManage||canBuildPractices)&&<div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--b)"}}>
+    {(canManage||canBuildPractices)&&<div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--border)"}}>
       <button className="btn primary bxl bfull" style={{marginBottom:8}} onClick={onRunAgain}>Run Again</button>
       {canManage&&showTplInput&&<div>
         <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder={(team?team.name:"Practice")+" Template"} value={tplNameInput} onChange={e=>{setTplNameInput(e.target.value);if(tplError)setTplError("");}} onKeyDown={e=>e.key==="Enter"&&handleSaveAsTpl()}/></div>
-        {tplError&&<div style={{fontSize:12,color:"var(--red)",marginBottom:6}}>{tplError}</div>}
+        {tplError&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:6}}>{tplError}</div>}
         <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowTplInput(false)}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsTpl} disabled={!tplNameInput.trim()||savingTpl}>{savingTpl?"Saving...":"Save"}</button></div>
       </div>}
       {canManage&&!showTplInput&&<button className="btn ghost bmd bfull" onClick={()=>setShowTplInput(true)}>{tplSaved?"Saved as Template":"Save as Template"}</button>}
@@ -1527,10 +1527,10 @@ function computeHelperElapsed(session,nowMs){
 // (the pre-tap-to-focus views) renders a plain name-only chip.
 function HelperPlayerChip({p,focus}){
   return (<span style={{display:"inline-flex",flexDirection:"column",alignItems:"flex-start",gap:1,maxWidth:focus?150:undefined}}>
-    <span style={{background:"var(--s2)",border:"1px solid var(--b)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>
-      {p.jersey_number&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--green)"}}>#{p.jersey_number}</span>}{p.first_name} {p.last_initial}.
+    <span style={{background:"var(--surface-soft)",border:"1px solid var(--border)",borderRadius:8,padding:"3px 8px",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>
+      {p.jersey_number&&<span style={{fontFamily:"DM Mono,monospace",fontSize:11,color:"var(--field)"}}>#{p.jersey_number}</span>}{p.first_name} {p.last_initial}.
     </span>
-    {focus&&<span style={{fontSize:10,color:"var(--green2)",lineHeight:1.3,whiteSpace:"normal"}}>{focus}</span>}
+    {focus&&<span style={{fontSize:10,color:"var(--field-accent)",lineHeight:1.3,whiteSpace:"normal"}}>{focus}</span>}
   </span>);
 }
 
@@ -1592,8 +1592,8 @@ function NoteComposer({roster,currentActivityLabel,onSubmit,showAuthorLabel}){
   return (<div className="card mb10">
     {showAuthorLabel&&<input className="inp mb8" placeholder="Your name (optional)" value={authorLabel} onChange={e=>setAuthorLabel(e.target.value)} maxLength={100}/>}
     {currentActivityLabel&&<div style={{display:"flex",gap:6,marginBottom:8}}>
-      <button type="button" onClick={()=>setEndOfPractice(false)} style={{flex:1,padding:"8px 6px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:!endOfPractice?"var(--green)":"var(--s1)",color:!endOfPractice?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer"}}>{currentActivityLabel}</button>
-      <button type="button" onClick={()=>setEndOfPractice(true)} style={{flex:1,padding:"8px 6px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:endOfPractice?"var(--green)":"var(--s1)",color:endOfPractice?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer"}}>General</button>
+      <button type="button" onClick={()=>setEndOfPractice(false)} style={{flex:1,padding:"8px 6px",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:!endOfPractice?"var(--field)":"var(--surface)",color:!endOfPractice?"#fff":"var(--ink)",fontSize:12,fontWeight:700,cursor:"pointer"}}>{currentActivityLabel}</button>
+      <button type="button" onClick={()=>setEndOfPractice(true)} style={{flex:1,padding:"8px 6px",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:endOfPractice?"var(--field)":"var(--surface)",color:endOfPractice?"#fff":"var(--ink)",fontSize:12,fontWeight:700,cursor:"pointer"}}>General</button>
     </div>}
     <div style={{position:"relative"}}>
       <textarea ref={taRef} className="ta" placeholder="Add a note... type @ to tag a player" value={body} onChange={handleChange} maxLength={500}/>
@@ -1602,11 +1602,11 @@ function NoteComposer({roster,currentActivityLabel,onSubmit,showAuthorLabel}){
       </div>}
     </div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
-      <span style={{fontSize:11,color:"var(--td)"}}>{body.length}/500</span>
+      <span style={{fontSize:11,color:"var(--text-dim)"}}>{body.length}/500</span>
       <button className="btn primary bsm" disabled={submitting||!body.trim()} onClick={submit}>{submitting?"Saving...":"Add Note"}</button>
     </div>
-    {error&&<div style={{fontSize:12,color:"var(--red)",marginTop:4}}>{error}</div>}
-    {justSaved&&<div style={{fontSize:12,color:"var(--green)",marginTop:4}}>Note added.</div>}
+    {error&&<div style={{fontSize:12,color:"var(--danger)",marginTop:4}}>{error}</div>}
+    {justSaved&&<div style={{fontSize:12,color:"var(--field)",marginTop:4}}>Note added.</div>}
   </div>);
 }
 // Author-role labeling (handoff §2.3): resolve a staff note's real name +
@@ -1811,14 +1811,14 @@ function HelperView({token}){
       <div className="modal">
         <div className="mhandle"/>
         <div className="mtitle">Turn On Audio?</div>
-        <div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>Run of Practice can call out the two-minute warning and time's up, so you don't need to keep watching the screen.</div>
+        <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:10}}>Run of Practice can call out the two-minute warning and time's up, so you don't need to keep watching the screen.</div>
         {/* Direct feedback: also remind the coach to turn their device's
             volume up. Browsers don't expose the device's actual output
             volume level to a web page (no Web Audio/media API reads system
             or hardware volume, only in-page gain) -- there's no way to tell
             whether it's already loud enough, so this always shows rather
             than only below some volume threshold. */}
-        <div style={{fontSize:13,fontWeight:700,color:"var(--amber)",background:"var(--ambg)",border:"1.5px solid var(--ambb)",borderRadius:8,padding:"8px 10px",marginBottom:14}}>🔉 Reminder: Turn up your device's volume.</div>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--caution)",background:"var(--caution-tint)",border:"1.5px solid var(--caution-tint-border)",borderRadius:8,padding:"8px 10px",marginBottom:14}}>🔉 Reminder: Turn up your device's volume.</div>
         <button className="btn primary bmd bfull mb8" onClick={()=>{
           if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}startBgAudioSession();}
           spokenRef.current={};buzzedRef.current=false;setAudioOn(true);setShowAudioPrompt(false);
@@ -1829,39 +1829,39 @@ function HelperView({token}){
     <div className="cc-header">
       <div className="cc-header-top" style={{justifyContent:"flex-end"}}>
         <div className="row" style={{gap:6,flexShrink:0}}>
-          {pTotal>0&&<button onClick={()=>setShowAtt(s=>!s)} style={{display:"flex",alignItems:"center",gap:5,background:pCount<pTotal?"var(--ambg)":"var(--gbg)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--ambb)":"var(--gb)",borderRadius:20,padding:"4px 10px",cursor:"pointer"}}>
-            <span style={{color:pCount<pTotal?"var(--amber)":"var(--green)",display:"flex"}}><Ic.Person/></span>
-            <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
+          {pTotal>0&&<button onClick={()=>setShowAtt(s=>!s)} style={{display:"flex",alignItems:"center",gap:5,background:pCount<pTotal?"var(--caution-tint)":"var(--field-tint)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--caution-tint-border)":"var(--field-tint-border)",borderRadius:20,padding:"4px 10px",cursor:"pointer"}}>
+            <span style={{color:pCount<pTotal?"var(--caution)":"var(--field)",display:"flex"}}><Ic.Person/></span>
+            <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--caution)":"var(--field)"}}>{pCount}/{pTotal}</span>
           </button>}
           <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowNotes(s=>!s)}>Notes<Ic.Chev up={showNotes}/></button>
           <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowROS(s=>!s)}>Overview<Ic.Chev up={showROS}/></button>
-          <button onClick={()=>{if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}startBgAudioSession();}else{stopBgAudioSession();}spokenRef.current={};buzzedRef.current=false;setAudioOn(a=>!a);}} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 8px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:13,lineHeight:1}}>{audioOn?"🔊":"🔇"}</span><span>{audioOn?"On":"Off"}</span></button>
+          <button onClick={()=>{if(!audioOn){try{const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}startBgAudioSession();}else{stopBgAudioSession();}spokenRef.current={};buzzedRef.current=false;setAudioOn(a=>!a);}} style={{background:audioOn?"var(--field-tint)":"var(--surface-soft)",border:"1.5px solid var(--border)",borderRadius:"var(--radius-md)",padding:"4px 8px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--field)":"var(--text-dim)",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:13,lineHeight:1}}>{audioOn?"🔊":"🔇"}</span><span>{audioOn?"On":"Off"}</span></button>
         </div>
       </div>
       <div className="row" style={{gap:6,flexWrap:"wrap",marginTop:6}}>
-        <span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Live</span><span style={{fontSize:11,color:"var(--td)"}}>Helper View</span>
+        <span className="live"/><span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--field)"}}>Live</span><span style={{fontSize:11,color:"var(--text-dim)"}}>Helper View</span>
         <PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount}/>
       </div>
       <div className="cc-act-name">{phaseLabel}</div>
-      {!isBlock&&cur&&(cur.coach_name||cur.sublocation_name)&&<div style={{fontSize:13,fontWeight:600,color:"var(--td)",marginTop:2,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
+      {!isBlock&&cur&&(cur.coach_name||cur.sublocation_name)&&<div style={{fontSize:13,fontWeight:600,color:"var(--text-dim)",marginTop:2,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
         {cur.coach_name&&<span className="bdg bp">Coach: {cur.coach_name}</span>}
         {cur.coach_name&&cur.sublocation_name&&<span>·</span>}
         {cur.sublocation_name&&<span>{cur.sublocation_name}</span>}
       </div>}
-      {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>{(cur.name?cur.name+" · ":"")+stations.length+" Stations"}</div>}
+      {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--text-dim)"}}>{(cur.name?cur.name+" · ":"")+stations.length+" Stations"}</div>}
     </div>
-    {showNotes&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",padding:"12px 14px",flexShrink:0}}>
-      <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Add a Note</div>
+    {showNotes&&<div style={{background:"var(--surface)",borderBottom:"1px solid var(--border)",padding:"12px 14px",flexShrink:0}}>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--text-dim)",marginBottom:8}}>Add a Note</div>
       <NoteComposer roster={mentionRoster} currentActivityLabel={cur?cur.name:null} onSubmit={submitHelperNote} showAuthorLabel/>
       <button className="btn ghost bxs" onClick={()=>setShowNotes(false)}>Close</button>
     </div>}
-    {showAtt&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",padding:"12px 14px",maxHeight:280,overflowY:"auto",flexShrink:0}}>
-      <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Attendance ({pCount}/{pTotal}){canMark?"":" · view only"}</div>
+    {showAtt&&<div style={{background:"var(--surface)",borderBottom:"1px solid var(--border)",padding:"12px 14px",maxHeight:280,overflowY:"auto",flexShrink:0}}>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--text-dim)",marginBottom:8}}>Attendance ({pCount}/{pTotal}){canMark?"":" · view only"}</div>
       {!canMark&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
-        {roster.map(p=>(<span key={p.id} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid",borderColor:p.status==="present"?"var(--green)":"var(--b)",background:p.status==="present"?"var(--gbg)":"var(--s2)",color:p.status==="present"?"var(--green)":"var(--td)",fontSize:13,fontWeight:600}}>{p.jersey_number?"#"+p.jersey_number+" ":""}{p.first_name} {p.last_initial}.</span>))}
+        {roster.map(p=>(<span key={p.id} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid",borderColor:p.status==="present"?"var(--field)":"var(--border)",background:p.status==="present"?"var(--field-tint)":"var(--surface-soft)",color:p.status==="present"?"var(--field)":"var(--text-dim)",fontSize:13,fontWeight:600}}>{p.jersey_number?"#"+p.jersey_number+" ":""}{p.first_name} {p.last_initial}.</span>))}
       </div>}
-      {canMark&&roster.map(p=>(<div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--b)"}}>
-        <span style={{fontSize:14,fontWeight:600,color:"var(--black)"}}>{p.jersey_number?"#"+p.jersey_number+" ":""}{p.first_name} {p.last_initial}.</span>
+      {canMark&&roster.map(p=>(<div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--border)"}}>
+        <span style={{fontSize:14,fontWeight:600,color:"var(--ink)"}}>{p.jersey_number?"#"+p.jersey_number+" ":""}{p.first_name} {p.last_initial}.</span>
         <div className="row" style={{gap:4}}>
           <button disabled={markingId===p.id} onClick={()=>markAttendance(p.id,"present")} className={"btn bxs "+(p.status==="present"?"primary":"ghost")}>Present</button>
           <button disabled={markingId===p.id} onClick={()=>markAttendance(p.id,"absent")} className={"btn bxs "+(p.status==="absent"?"danger":"ghost")}>Absent</button>
@@ -1870,13 +1870,13 @@ function HelperView({token}){
       </div>))}
       <button className="btn ghost bxs" style={{marginTop:8}} onClick={()=>setShowAtt(false)}>Close</button>
     </div>}
-    {showROS&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",maxHeight:200,overflowY:"auto",flexShrink:0}}>
-      {!allActivities.length&&<div style={{padding:"12px 14px",fontSize:13,color:"var(--td)"}}>Nothing in this practice yet.</div>}
+    {showROS&&<div style={{background:"var(--surface)",borderBottom:"1px solid var(--border)",maxHeight:200,overflowY:"auto",flexShrink:0}}>
+      {!allActivities.length&&<div style={{padding:"12px 14px",fontSize:13,color:"var(--text-dim)"}}>Nothing in this practice yet.</div>}
       {allActivities.map((a,i)=>{
         const isCur=a.id===session.current_practice_activity_id;
         const isPast=curPosition>=0&&a.position<curPosition;
-        return(<button key={a.id||i} type="button" onClick={()=>setPreviewUpcoming(toPreviewItem(a))} style={{display:"flex",alignItems:"center",width:"100%",border:"none",background:isCur?"var(--gbg)":"none",cursor:"pointer",textAlign:"left",padding:"8px 14px",borderBottom:"1px solid var(--b)",opacity:isPast?0.5:1}}>
-          <div style={{flex:1,fontSize:14,color:isCur?"var(--green)":isPast?"var(--td)":"var(--black)",textDecoration:isPast?"line-through":"none"}}>{isCur?">> ":""}{actLabel(a)}</div>
+        return(<button key={a.id||i} type="button" onClick={()=>setPreviewUpcoming(toPreviewItem(a))} style={{display:"flex",alignItems:"center",width:"100%",border:"none",background:isCur?"var(--field-tint)":"none",cursor:"pointer",textAlign:"left",padding:"8px 14px",borderBottom:"1px solid var(--border)",opacity:isPast?0.5:1}}>
+          <div style={{flex:1,fontSize:14,color:isCur?"var(--field)":isPast?"var(--text-dim)":"var(--ink)",textDecoration:isPast?"line-through":"none"}}>{isCur?">> ":""}{actLabel(a)}</div>
           <span className="bdg bs">{upcomingMins(a)}m</span>
         </button>);
       })}
@@ -1896,14 +1896,14 @@ function HelperView({token}){
           const nx=scrimBoard[scrimRoundIdx+1];if(!nx)return null;
           const P=scrimHelperAssignee(nx.slots.P),C=scrimHelperAssignee(nx.slots.C);
           const hitters=Object.keys(nx.slots).filter(k=>/^H\d+$/.test(k)).map(k=>scrimHelperAssignee(nx.slots[k])).filter(Boolean);
-          return <div style={{fontSize:12,color:"var(--td)",borderTop:"1px solid var(--b)",paddingTop:8}}><strong>Next {(scrimCfg&&scrimCfg.roundLabel||"Round").toLowerCase()}:</strong> P {P||"Open"} · C {C||"Open"} · Hitting {hitters.join(", ")}</div>;
+          return <div style={{fontSize:12,color:"var(--text-dim)",borderTop:"1px solid var(--border)",paddingTop:8}}><strong>Next {(scrimCfg&&scrimCfg.roundLabel||"Round").toLowerCase()}:</strong> P {P||"Open"} · C {C||"Open"} · Hitting {hitters.join(", ")}</div>;
         })()}
         {!inBlockIntro&&<button type="button" className="btn ghost bxs" style={{alignSelf:"flex-start"}} onClick={()=>setHelperScrimNavOpen(true)}>Coming Up / Past</button>}
       </div>}
       {helperScrimNavOpen&&scrimBoard&&createPortal(<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setHelperScrimNavOpen(false);}}>
         <div className="modal" style={{maxHeight:"82vh",display:"flex",flexDirection:"column"}}>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,marginBottom:2}}>Every {(scrimCfg&&scrimCfg.roundLabel||"Round").toLowerCase()}</div>
-          <div style={{fontSize:11,color:"var(--td)",marginBottom:8}}>Preview only. Green row is now, faded rows are done.</div>
+          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:8}}>Preview only. Green row is now, faded rows are done.</div>
           <div style={{overflowY:"auto",flex:1}}>
             <ScrimmageGridView board={scrimBoard} cfg={scrimCfg} assignee={scrimHelperAssignee} currentIdx={scrimRoundIdx}/>
           </div>
@@ -1911,13 +1911,13 @@ function HelperView({token}){
         </div>
       </div>,document.body)}
       {!isBlock&&!isCl&&!isScrim&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {cur.description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
-          <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{cur.description}</div>
+        {cur.description&&<div style={{borderLeft:"3px solid var(--ink)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--ink)",marginBottom:4}}>Description</div>
+          <div style={{fontSize:14,color:"var(--ink)",lineHeight:1.5}}>{cur.description}</div>
         </div>}
         {cur.coaching_points&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
-          <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{cur.coaching_points}</div>
+          <div style={{fontSize:15,color:"var(--ink)",lineHeight:1.5}}>{cur.coaching_points}</div>
         </div>}
         {cur.skill_tags&&cur.skill_tags.length>0&&<button type="button" className="btn ghost bsm" style={{alignSelf:"flex-start"}} onClick={()=>setShowPlayerFocus(true)}>Player Focus</button>}
         <EquipGearRow equipment={cur.equipment} playerGear={cur.player_gear}/>
@@ -1930,9 +1930,9 @@ function HelperView({token}){
             </div>))}
           </div>
         </div>}
-        {groups.length===0&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:3}}>👥 Players</div>
-          <div style={{fontSize:14,color:"var(--black)"}}>Whole Team Together</div>
+        {groups.length===0&&<div style={{borderLeft:"3px solid var(--border)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--text-dim)",marginBottom:3}}>👥 Players</div>
+          <div style={{fontSize:14,color:"var(--ink)"}}>Whole Team Together</div>
         </div>}
       </div>}
       {/* Direct feedback: this screen still looked like a plain light card,
@@ -1943,11 +1943,11 @@ function HelperView({token}){
           header-row layout (station # / area / coach), same fields, same
           order, coaching points and skill tags dropped since the coach's
           own version never shows them here either. */}
-      {isBlock&&inBlockIntro&&stations.length>0&&<div style={{background:"#0d1512",borderRadius:"var(--r)",padding:"14px 12px",marginBottom:4}}>
+      {isBlock&&inBlockIntro&&stations.length>0&&<div style={{background:"#0d1512",borderRadius:"var(--radius-lg)",padding:"14px 12px",marginBottom:4}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b",marginBottom:12}}>Get everyone to their station</div>
         {stations.map((st,i)=>{
           const g=groups[i];
-          return(<div key={st.id||i} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
+          return(<div key={st.id||i} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--radius-lg)",padding:"12px 14px",marginBottom:8}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
               <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#52b788"}}>Station {i+1}</div>
               {st.sublocation_name&&<div style={{fontSize:11,color:"#52b788",fontWeight:600}}>{st.sublocation_name}</div>}
@@ -1973,24 +1973,24 @@ function HelperView({token}){
               exact field order: title, group, coach+area combined on one
               line, description, coaching focus, equipment, players. */}
           <button className="btn ghost bxs" style={{marginBottom:10}} onClick={()=>setFocusSt(null)}>&#8249; All Stations</button>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {focusSt+1}</div>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:6}}>{rotatedStations[focusSt].name||"Station "+(focusSt+1)}</div>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--field)",marginBottom:2}}>Station {focusSt+1}</div>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--ink)",lineHeight:1,marginBottom:6}}>{rotatedStations[focusSt].name||"Station "+(focusSt+1)}</div>
           {rotatedStations[focusSt].group_label&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {rotatedStations[focusSt].group_label}</span></div>}
-          {(rotatedStations[focusSt].coach_name||rotatedStations[focusSt].sublocation_name)&&<div style={{fontSize:14,fontWeight:600,color:"var(--green2)",marginBottom:10,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
+          {(rotatedStations[focusSt].coach_name||rotatedStations[focusSt].sublocation_name)&&<div style={{fontSize:14,fontWeight:600,color:"var(--field-accent)",marginBottom:10,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
             {rotatedStations[focusSt].coach_name&&<span>{rotatedStations[focusSt].coach_name}</span>}
             {rotatedStations[focusSt].coach_name&&rotatedStations[focusSt].sublocation_name&&<span>·</span>}
             {rotatedStations[focusSt].sublocation_name&&<span>{rotatedStations[focusSt].sublocation_name}</span>}
           </div>}
-          {rotatedStations[focusSt].description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
-            <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].description}</div>
+          {rotatedStations[focusSt].description&&<div style={{borderLeft:"3px solid var(--ink)",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--ink)",marginBottom:4}}>Description</div>
+            <div style={{fontSize:14,color:"var(--ink)",lineHeight:1.5}}>{rotatedStations[focusSt].description}</div>
           </div>}
           {rotatedStations[focusSt].coaching_points&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
-            <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coaching_points}</div>
+            <div style={{fontSize:15,color:"var(--ink)",lineHeight:1.5}}>{rotatedStations[focusSt].coaching_points}</div>
           </div>}
           <div style={{marginBottom:10}}><EquipGearRow equipment={rotatedStations[focusSt].equipment} playerGear={rotatedStations[focusSt].player_gear}/></div>
-          <div><div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div>
+          <div><div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--text-dim)",marginBottom:8}}>Players at this station</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(rotatedStations[focusSt].players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p} focus={rotatedStations[focusSt].player_focus&&rotatedStations[focusSt].player_focus[p.id]}/>))}</div></div>
         </div>}
         {focusSt===null&&<div>
@@ -2001,15 +2001,15 @@ function HelperView({token}){
               not something to show at a glance across every station. Also:
               one clear hint here (sized up, not repeated at the bottom of
               every card) instead of two. */}
-          <div style={{fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+n+" · Tap a station to focus":"Tap a station to focus"}</div>
-          {rotatedStations.map((st,i)=>(<div key={st.id||i} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
+          <div style={{fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--text-dim)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+n+" · Tap a station to focus":"Tap a station to focus"}</div>
+          {rotatedStations.map((st,i)=>(<div key={st.id||i} onClick={()=>setFocusSt(i)} style={{background:"var(--surface)",border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}}>
-              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Station {i+1}</div>
-              {st.coach_name&&<div style={{fontSize:11,color:"var(--td)"}}>{st.coach_name}</div>}
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--field)"}}>Station {i+1}</div>
+              {st.coach_name&&<div style={{fontSize:11,color:"var(--text-dim)"}}>{st.coach_name}</div>}
             </div>
-            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.name||"Station "+(i+1)}</div>
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--ink)",lineHeight:1.1,marginBottom:4}}>{st.name||"Station "+(i+1)}</div>
             {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
-            {st.sublocation_name&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{st.sublocation_name}</div>}
+            {st.sublocation_name&&<div style={{fontSize:11,color:"var(--field-accent)",fontWeight:600,marginBottom:4}}>{st.sublocation_name}</div>}
             {(st.equipment&&st.equipment.length>0||st.player_gear&&st.player_gear.length>0)&&<div style={{marginBottom:6}}><EquipGearRow equipment={st.equipment} playerGear={st.player_gear}/></div>}
             <div style={{display:"flex",flexWrap:"wrap",gap:5}} onClick={e=>e.stopPropagation()}>{(st.players||[]).map(p=>(<HelperPlayerChip key={p.id} p={p}/>))}</div>
           </div>))}
@@ -2021,7 +2021,7 @@ function HelperView({token}){
           got the same treatment, so a helper had no visual cue a rotation
           was happening. Same background/card styling and the same
           from/to labels (station + area + coach) as the coach's view now. */}
-      {isBlock&&inTrans&&rotatedStations&&<div style={{background:"#0d1512",borderRadius:"var(--r)",padding:"14px 12px",marginBottom:4}}>
+      {isBlock&&inTrans&&rotatedStations&&<div style={{background:"#0d1512",borderRadius:"var(--radius-lg)",padding:"14px 12px",marginBottom:4}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"#f87171",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Rotate Now</div>
         {/* Same fixed area-sequence summary the coach's own live view shows
             -- the station order (and so this sequence) never changes across
@@ -2038,7 +2038,7 @@ function HelperView({token}){
           const nextSt=stations[(i+1)%n];
           const fromLabel="Station "+(i+1)+(st.sublocation_name?": "+st.sublocation_name:"")+(st.coach_name?" · "+st.coach_name:"")+(st.name?" · "+st.name:"");
           const toLabel="Station "+((i+1)%n+1)+(nextSt.sublocation_name?": "+nextSt.sublocation_name:"")+(nextSt.coach_name?" · "+nextSt.coach_name:"")+(nextSt.name?" · "+nextSt.name:"");
-          return(<div key={st.id||i} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--r)",padding:"14px",marginBottom:8}}>
+          return(<div key={st.id||i} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--radius-lg)",padding:"14px",marginBottom:8}}>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",lineHeight:1.2,marginBottom:6}}>{(st.players||[]).map(p=>p.first_name).join(", ")||"--"}</div>
             {st.group_label&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.group_label}</span></div>}
             <div style={{fontSize:13,fontWeight:700,color:"#52b788",marginBottom:3}}>TO: <span style={{fontWeight:400}}>{toLabel}</span></div>
@@ -2062,7 +2062,7 @@ function HelperView({token}){
         <div className="cc-queue-hdr"><span className="cc-queue-hdr-label">Up Next</span><span className="cc-queue-hdr-line"/></div>
         <div className="cc-queue" style={{maxHeight:220,overflowY:"auto"}}>
           {upcoming.map((a,i)=>(<button key={i} type="button" className="cc-queue-item" style={{width:"100%",border:"none",background:"none",cursor:"pointer",textAlign:"left"}} onClick={()=>setPreviewUpcoming(toPreviewItem(a))}>
-            <span style={{fontSize:14,color:"var(--black2)"}}>{actLabel(a)}</span>
+            <span style={{fontSize:14,color:"var(--ink-soft)"}}>{actLabel(a)}</span>
             <span className="bdg bs">{upcomingMins(a)}m</span>
           </button>))}
         </div>
@@ -2072,14 +2072,14 @@ function HelperView({token}){
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="mhandle"/>
         <div className="mtitle">Player Focus</div>
-        <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>What each present player is working on for {(cur.skill_tags||[]).join(", ")||"this drill"}.</div>
+        <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12}}>What each present player is working on for {(cur.skill_tags||[]).join(", ")||"this drill"}.</div>
         {(()=>{
           const focus=cur.player_focus||{};
           const withNotes=roster.filter(p=>p.status==="present"&&focus[p.id]);
-          if(!withNotes.length)return <div style={{fontSize:14,color:"var(--td)",textAlign:"center",padding:"16px 0"}}>No player notes set for this yet.</div>;
-          return withNotes.map(p=>(<div key={p.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
-            <div style={{fontSize:14,fontWeight:700,color:"var(--black)"}}>{p.jersey_number?"#"+p.jersey_number+" ":""}{p.first_name}</div>
-            <div style={{fontSize:13,color:"var(--black2)",marginTop:2}}>{focus[p.id]}</div>
+          if(!withNotes.length)return <div style={{fontSize:14,color:"var(--text-dim)",textAlign:"center",padding:"16px 0"}}>No player notes set for this yet.</div>;
+          return withNotes.map(p=>(<div key={p.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--surface-soft)",borderRadius:"var(--radius-md)"}}>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--ink)"}}>{p.jersey_number?"#"+p.jersey_number+" ":""}{p.first_name}</div>
+            <div style={{fontSize:13,color:"var(--ink-soft)",marginTop:2}}>{focus[p.id]}</div>
           </div>));
         })()}
         <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>setShowPlayerFocus(false)}>Close</button>
@@ -2089,14 +2089,14 @@ function HelperView({token}){
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="mhandle"/>
         <div className="mtitle">Player Focus -- {transitionFocus.label}</div>
-        <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>What this group is working on for {(transitionFocus.skillTags||[]).join(", ")||"this drill"}.</div>
+        <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12}}>What this group is working on for {(transitionFocus.skillTags||[]).join(", ")||"this drill"}.</div>
         {(()=>{
           const focus=transitionFocus.playerFocus||{};
           const withNotes=roster.filter(p=>(transitionFocus.playerIds||[]).includes(p.id)&&focus[p.id]);
-          if(!withNotes.length)return <div style={{fontSize:14,color:"var(--td)",textAlign:"center",padding:"16px 0"}}>No player notes set for this yet.</div>;
-          return withNotes.map(p=>(<div key={p.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
-            <div style={{fontSize:14,fontWeight:700,color:"var(--black)"}}>{p.jersey_number?"#"+p.jersey_number+" ":""}{p.first_name}</div>
-            <div style={{fontSize:13,color:"var(--black2)",marginTop:2}}>{focus[p.id]}</div>
+          if(!withNotes.length)return <div style={{fontSize:14,color:"var(--text-dim)",textAlign:"center",padding:"16px 0"}}>No player notes set for this yet.</div>;
+          return withNotes.map(p=>(<div key={p.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--surface-soft)",borderRadius:"var(--radius-md)"}}>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--ink)"}}>{p.jersey_number?"#"+p.jersey_number+" ":""}{p.first_name}</div>
+            <div style={{fontSize:13,color:"var(--ink-soft)",marginTop:2}}>{focus[p.id]}</div>
           </div>));
         })()}
         <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>setTransitionFocus(null)}>Close</button>
@@ -2240,13 +2240,13 @@ function LiveEditBuilder({data,coachId,refreshLibrary,liveActs,team,loc,onSaveRe
   };
 
   return (<div style={{padding:"0 0 calc(var(--tab) + 20px)"}}>
-    <div ref={stickyHeaderRef} style={{padding:"10px 14px",display:"flex",gap:6,position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--b)"}}>
+    <div ref={stickyHeaderRef} style={{padding:"10px 14px",display:"flex",gap:6,position:"sticky",top:0,zIndex:10,background:"#fff",borderBottom:"1px solid var(--border)"}}>
       <button className="btn ghost bsm" style={{flex:1}} onClick={onBack} disabled={saving}>Cancel</button>
       <button className="btn primary bsm" style={{flex:2}} disabled={saving} onClick={async()=>{setSaving(true);await onSaveResume(acts);}}>{saving?"Saving...":"Save & Resume"}</button>
     </div>
     <div style={{padding:"14px 14px 0"}}>
-      {acts.length===0&&(<div style={{textAlign:"center",padding:"20px 16px",background:"var(--s2)",borderRadius:"var(--r)",marginBottom:10,border:"1.5px dashed var(--b)"}}>
-        <div style={{fontSize:13,color:"var(--td)",lineHeight:1.7}}>Nothing left in this practice.<br/>Select activities below to add more.</div>
+      {acts.length===0&&(<div style={{textAlign:"center",padding:"20px 16px",background:"var(--surface-soft)",borderRadius:"var(--radius-lg)",marginBottom:10,border:"1.5px dashed var(--border)"}}>
+        <div style={{fontSize:13,color:"var(--text-dim)",lineHeight:1.7}}>Nothing left in this practice.<br/>Select activities below to add more.</div>
       </div>)}
       {acts.length>0&&(<div className="sechdr mb8">
         <span className="sectitle">{acts.length} Activities</span>
@@ -2260,7 +2260,7 @@ function LiveEditBuilder({data,coachId,refreshLibrary,liveActs,team,loc,onSaveRe
             <div style={{flex:1,minWidth:0}}>
               <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                 {act.type==="station_block"?(act.name||"Station Block"):act.name}
-                {act.type==="activity"&&<span style={{fontWeight:400,color:"var(--td)"}}> · {leaderName(act)}</span>}
+                {act.type==="activity"&&<span style={{fontWeight:400,color:"var(--text-dim)"}}> · {leaderName(act)}</span>}
               </div>
               {act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m</div>:
               <div className="limt">{(()=>{
@@ -2286,17 +2286,17 @@ function LiveEditBuilder({data,coachId,refreshLibrary,liveActs,team,loc,onSaveRe
       </div>)}</SortableActivityRow>
       ))}
       </ActivityDndContext>)}
-      <div style={{borderTop:"1px solid var(--b)",paddingTop:14}}>
+      <div style={{borderTop:"1px solid var(--border)",paddingTop:14}}>
         <div className="sechdr mb8"><span className="sectitle">Add Drills</span></div>
         <div className="g2" style={{marginBottom:6}}>
-          <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(false)}><div className="lim"><div className="lin">Intro</div><div className="limt">Checklist</div></div><span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span></div>
-          <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(true)}><div className="lim"><div className="lin">Closer</div><div className="limt">Checklist</div></div><span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span></div>
+          <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(false)}><div className="lim"><div className="lin">Intro</div><div className="limt">Checklist</div></div><span style={{color:"var(--field)",fontSize:18,fontWeight:700}}>+</span></div>
+          <div className="li tap" style={{marginBottom:0}} onClick={()=>addChecklist(true)}><div className="lim"><div className="lin">Closer</div><div className="limt">Checklist</div></div><span style={{color:"var(--field)",fontSize:18,fontWeight:700}}>+</span></div>
         </div>
-        <div className="li tap" style={{marginBottom:6,background:"var(--gbg)",borderColor:"var(--gb)"}} onClick={addBlock}>
-          <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">2 stations, add or remove as needed</div></div>
-          <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
+        <div className="li tap" style={{marginBottom:6,background:"var(--field-tint)",borderColor:"var(--field-tint-border)"}} onClick={addBlock}>
+          <div className="lim"><div className="lin" style={{color:"var(--field)"}}>Station Block</div><div className="limt">2 stations, add or remove as needed</div></div>
+          <span style={{color:"var(--field)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--black)",color:"#fff",padding:"9px 12px",borderRadius:"var(--r)",marginBottom:8,minHeight:40}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--ink)",color:"#fff",padding:"9px 12px",borderRadius:"var(--radius-lg)",marginBottom:8,minHeight:40}}>
           {librarySources.length>1?(
             <select value={libSource} onChange={e=>setLibSource(e.target.value)} style={{flex:1,background:"rgba(255,255,255,.12)",color:"#fff",border:"1px solid rgba(255,255,255,.3)",borderRadius:6,padding:"5px 6px",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".04em",textTransform:"uppercase"}}>
               {librarySources.map(s=>(<option key={s.key} value={s.key} style={{color:"#000"}}>{s.label}</option>))}
@@ -2304,10 +2304,10 @@ function LiveEditBuilder({data,coachId,refreshLibrary,liveActs,team,loc,onSaveRe
           ):(<span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",flex:1}}>My Library</span>)}
         </div>
         {team&&<div className="clbl" style={{marginBottom:8}}>{teamSport} + General</div>}
-        {sourceFilteredLib.length===0&&<div style={{fontSize:12,color:"var(--td)",marginBottom:8}}>No drills here yet.</div>}
+        {sourceFilteredLib.length===0&&<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:8}}>No drills here yet.</div>}
         {sourceFilteredLib.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>addActChecked(lib)}>
           <div className="lim"><div className="lin">{lib.name}</div><div className="limt">{lib.description||""}</div></div>
-          <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
+          <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--field)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
         </div>))}
       </div>
     </div>
@@ -3862,24 +3862,24 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(noteText.trim()&&!window.confirm("You have an unsaved note. Leave without saving it?"))return;
     setLiveId(null);setStage("pick");goHome();
   };
-  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:endReason==="abandoned"?"var(--amber)":"var(--green)",marginBottom:4}}>{endReason==="abandoned"?"Practice Aborted":"Practice Complete"}</div><div style={{fontSize:16,color:"var(--tm)",marginBottom:24,lineHeight:1.5}}>{endReason==="abandoned"?(team&&team.name)+" practice aborted -- it won't count as completed. Start a fresh run any time.":(team&&team.name)+" practice complete."}</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><div style={{position:"relative"}}><textarea ref={noteTaRef} className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time... (type @ to tag a player)" onChange={onNoteTextChange}/>{noteMentionQuery!==null&&noteMentionMatches.length>0&&<div className="mini-menu" style={noteMentionUp?{position:"absolute",top:"auto",bottom:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}:{position:"absolute",top:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}}>{noteMentionMatches.map(p=>(<button key={p.id} type="button" className="mm-item" onClick={()=>pickNoteMention(p)}>{p.firstName} {p.lastName}</button>))}</div>}</div>{noteError&&<div style={{fontSize:12,color:"var(--red)",marginTop:4}}>{noteError}</div>}<button className="btn primary bsm bfull mt6" onClick={saveEndNote} disabled={savingNote}>{savingNote?"Saving...":"Save Note"}</button></div><button className="btn ghost bmd bfull" style={{marginTop:32}} onClick={finishPractice}>Done</button></div></div>);
+  if(stage==="end")return (<div className="ccs"><div className="cc-end"><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:endReason==="abandoned"?"var(--caution)":"var(--field)",marginBottom:4}}>{endReason==="abandoned"?"Practice Aborted":"Practice Complete"}</div><div style={{fontSize:16,color:"var(--text-muted)",marginBottom:24,lineHeight:1.5}}>{endReason==="abandoned"?(team&&team.name)+" practice aborted -- it won't count as completed. Start a fresh run any time.":(team&&team.name)+" practice complete."}</div><div style={{width:"100%",marginBottom:16}}><label className="lbl">End of Practice Notes</label><div style={{position:"relative"}}><textarea ref={noteTaRef} className="ta" style={{minHeight:80}} value={noteText} placeholder="Observations for next time... (type @ to tag a player)" onChange={onNoteTextChange}/>{noteMentionQuery!==null&&noteMentionMatches.length>0&&<div className="mini-menu" style={noteMentionUp?{position:"absolute",top:"auto",bottom:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}:{position:"absolute",top:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}}>{noteMentionMatches.map(p=>(<button key={p.id} type="button" className="mm-item" onClick={()=>pickNoteMention(p)}>{p.firstName} {p.lastName}</button>))}</div>}</div>{noteError&&<div style={{fontSize:12,color:"var(--danger)",marginTop:4}}>{noteError}</div>}<button className="btn primary bsm bfull mt6" onClick={saveEndNote} disabled={savingNote}>{savingNote?"Saving...":"Save Note"}</button></div><button className="btn ghost bmd bfull" style={{marginTop:32}} onClick={finishPractice}>Done</button></div></div>);
 
   if(!cur)return null;
 
   const phaseLabel=isScrim
     ?(inBlockIntro?"GET TO YOUR SPOTS":((scrimCfg.roundLabel||"HALF-INNING").toUpperCase()+" "+(scrimRoundIdx+1)+" OF "+scrimRoundCount))
     :isBlock?(inBlockIntro?"INTRODUCE STATIONS":blockRotate?(inTrans?"TRANSITION":"ROTATION "+(stIdx+1)+" of "+cur.stations.length):"STATION BREAKOUTS"):((cur&&cur.name)||"").toUpperCase();
-  const schedBadge=schedDelta===null?null:(Math.abs(schedDelta)<1?<span style={{background:"var(--gbg)",color:"var(--green)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>On time</span>:schedDelta>0?<span style={{background:"var(--ambg)",color:"var(--amber)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>+{schedDelta}m behind</span>:<span style={{background:"var(--gbg)",color:"var(--green)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>{Math.abs(schedDelta)}m ahead</span>);
+  const schedBadge=schedDelta===null?null:(Math.abs(schedDelta)<1?<span style={{background:"var(--field-tint)",color:"var(--field)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>On time</span>:schedDelta>0?<span style={{background:"var(--caution-tint)",color:"var(--caution)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>+{schedDelta}m behind</span>:<span style={{background:"var(--field-tint)",color:"var(--field)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>{Math.abs(schedDelta)}m ahead</span>);
 
   return (<div className="ccs">
-    {syncOffline&&<div style={{background:"var(--rbg)",borderBottom:"1px solid var(--rb)",padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
-      <span style={{width:8,height:8,borderRadius:"50%",background:"var(--red)",flexShrink:0}}/>
-      <span style={{fontSize:12,color:"var(--red)",fontWeight:600}}>Offline. Will sync automatically when reconnected.</span>
+    {syncOffline&&<div style={{background:"var(--danger-tint)",borderBottom:"1px solid var(--danger-tint-border)",padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
+      <span style={{width:8,height:8,borderRadius:"50%",background:"var(--danger)",flexShrink:0}}/>
+      <span style={{fontSize:12,color:"var(--danger)",fontWeight:600}}>Offline. Will sync automatically when reconnected.</span>
     </div>}
-    {!isController&&<div style={{background:"var(--ambg)",borderBottom:"1px solid var(--ambb)",padding:"8px 14px"}}>
-      <span style={{fontSize:12,color:"var(--amber)",fontWeight:600}}>Read-only · {controllerName} has control</span>
+    {!isController&&<div style={{background:"var(--caution-tint)",borderBottom:"1px solid var(--caution-tint-border)",padding:"8px 14px"}}>
+      <span style={{fontSize:12,color:"var(--caution)",fontWeight:600}}>Read-only · {controllerName} has control</span>
     </div>}
-    {controlToast&&<div style={{position:"fixed",top:12,left:"50%",transform:"translateX(-50%)",zIndex:50,background:"var(--black2)",color:"#fff",padding:"8px 16px",borderRadius:20,fontSize:13,fontWeight:600,boxShadow:"0 4px 12px rgba(0,0,0,.3)"}}>{controlToast}</div>}
+    {controlToast&&<div style={{position:"fixed",top:12,left:"50%",transform:"translateX(-50%)",zIndex:50,background:"var(--ink-soft)",color:"#fff",padding:"8px 16px",borderRadius:20,fontSize:13,fontWeight:600,boxShadow:"0 4px 12px rgba(0,0,0,.3)"}}>{controlToast}</div>}
     <div className="cc-header">
       {/* Direct feedback: the ellipsis used to share this row with the
           Live dot/label/schedule badge on the left (justify-content:
@@ -3892,9 +3892,9 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           real fix, kept here too since this row has more room regardless. */}
       <div className="cc-header-top" style={{justifyContent:"flex-end"}}>
         <div className="row" style={{gap:6,flexShrink:0}}>
-          <button onClick={()=>setShowAtt(true)} style={{background:pCount<pTotal?"var(--ambg)":"var(--gbg)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--ambb)":"var(--gb)",borderRadius:20,padding:"4px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-            <span style={{color:pCount<pTotal?"var(--amber)":"var(--green)",display:"flex"}}><Ic.Person/></span>
-            <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--amber)":"var(--green)"}}>{pCount}/{pTotal}</span>
+          <button onClick={()=>setShowAtt(true)} style={{background:pCount<pTotal?"var(--caution-tint)":"var(--field-tint)",border:"1.5px solid",borderColor:pCount<pTotal?"var(--caution-tint-border)":"var(--field-tint-border)",borderRadius:20,padding:"4px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+            <span style={{color:pCount<pTotal?"var(--caution)":"var(--field)",display:"flex"}}><Ic.Person/></span>
+            <span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:700,color:pCount<pTotal?"var(--caution)":"var(--field)"}}>{pCount}/{pTotal}</span>
           </button>
           <button className="btn ghost bxs" style={{display:"flex",alignItems:"center",gap:4}} onClick={()=>setShowROS(s=>!s)}>Overview<Ic.Chev up={showROS}/></button>
           <button onClick={()=>{
@@ -3910,7 +3910,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
               stopBgAudioSession();
             }
             spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);
-          }} style={{background:audioOn?"var(--gbg)":"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--rs)",padding:"4px 8px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--green)":"var(--td)",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:13,lineHeight:1}}>{audioOn?"🔊":"🔇"}</span><span>{audioOn?"On":"Off"}</span></button>
+          }} style={{background:audioOn?"var(--field-tint)":"var(--surface-soft)",border:"1.5px solid var(--border)",borderRadius:"var(--radius-md)",padding:"4px 8px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--field)":"var(--text-dim)",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:13,lineHeight:1}}>{audioOn?"🔊":"🔇"}</span><span>{audioOn?"On":"Off"}</span></button>
           <div style={{position:"relative"}}>
             <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
             {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
@@ -3934,36 +3934,36 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           for a plain drill/checklist (one coach, one area); a station
           block already shows each station's own coach/area on its own
           card, so there's no single one to put here. */}
-      {!isBlock&&cur&&(leaderLabel(cur,team)||subName(cur.sublocationId))&&<div style={{fontSize:13,fontWeight:600,color:"var(--td)",marginTop:2,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
+      {!isBlock&&cur&&(leaderLabel(cur,team)||subName(cur.sublocationId))&&<div style={{fontSize:13,fontWeight:600,color:"var(--text-dim)",marginTop:2,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
         {leaderLabel(cur,team)&&<span className="bdg bp">Coach: {leaderLabel(cur,team)}</span>}
         {leaderLabel(cur,team)&&subName(cur.sublocationId)&&<span>·</span>}
         {subName(cur.sublocationId)&&<span>{subName(cur.sublocationId)}</span>}
       </div>}
-      {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)"}}>
+      {isBlock&&<div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--text-dim)"}}>
         {(()=>{const n2=cur.stations?cur.stations.length:0;const totalMins=n2*(cur.stationDuration||0)+Math.max(0,n2-1)*(blockRotate?(cur.transitionDuration||0):0);return (cur.name?cur.name+" · ":"")+n2+" Stations · "+totalMins+"min total";})()}
       </div>}
     </div>
-    {showROS&&<div style={{background:"var(--s1)",borderBottom:"1px solid var(--b)",maxHeight:200,overflowY:"auto",flexShrink:0}}>
+    {showROS&&<div style={{background:"var(--surface)",borderBottom:"1px solid var(--border)",maxHeight:200,overflowY:"auto",flexShrink:0}}>
       {(()=>{
         const byUserId=id=>{const c=team&&team.coaches.find(c=>c.userId===id);return c?c.name:null;};
         const createdName=byUserId(practice&&practice.createdBy);
         const editedName=byUserId(practice&&practice.lastEditedBy);
         const sameAuthor=createdName&&editedName&&practice.createdBy===practice.lastEditedBy;
         if(!createdName&&!editedName)return null;
-        return (<div style={{padding:"8px 14px",fontSize:12,color:"var(--td)",borderBottom:"1px solid var(--b)"}}>
+        return (<div style={{padding:"8px 14px",fontSize:12,color:"var(--text-dim)",borderBottom:"1px solid var(--border)"}}>
           {createdName&&<span>Planned by {createdName}</span>}
           {!sameAuthor&&editedName&&<span>{createdName?" · ":""}Last edited by {editedName}</span>}
         </div>);
       })()}
-      {liveActs.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--b)",background:i===idx?"var(--gbg)":"#fff",cursor:isController?"pointer":"default",opacity:i<idx?0.5:1}} onClick={()=>{if(isController)jumpTo(i);}}>
-        <div style={{flex:1,fontSize:14,color:i===idx?"var(--green)":i<idx?"var(--td)":"var(--black)",textDecoration:i<idx?"line-through":"none"}}>{i===idx?">> ":""}{actLabel(a)}</div>
+      {liveActs.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--border)",background:i===idx?"var(--field-tint)":"#fff",cursor:isController?"pointer":"default",opacity:i<idx?0.5:1}} onClick={()=>{if(isController)jumpTo(i);}}>
+        <div style={{flex:1,fontSize:14,color:i===idx?"var(--field)":i<idx?"var(--text-dim)":"var(--ink)",textDecoration:i<idx?"line-through":"none"}}>{i===idx?">> ":""}{actLabel(a)}</div>
         <span className="bs bdg" style={{fontSize:11}}>{a.type==="station_block"?(a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
       </div>))}
       <div style={{padding:"8px 14px"}}><button className="btn ghost bxs" onClick={()=>setShowROS(false)}>Close</button></div>
     </div>}
     <div className="cc-timer-row">
       <div className={"cc-timer"+(urg?" urg":"")+(isOver?" over":"")}>{fmt(rem)}</div>
-      {isController&&<button onClick={togglePlay} style={{width:52,height:52,borderRadius:"50%",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:isOver?"var(--red)":running?"var(--s3)":"var(--green)",color:isOver?"#fff":running?"var(--black2)":"#fff",boxShadow:running?"none":"0 2px 8px rgba(45,106,79,.35)"}}>
+      {isController&&<button onClick={togglePlay} style={{width:52,height:52,borderRadius:"50%",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:isOver?"var(--danger)":running?"var(--surface-pressed)":"var(--field)",color:isOver?"#fff":running?"var(--ink-soft)":"#fff",boxShadow:running?"none":"0 2px 8px rgba(45,106,79,.35)"}}>
         {running?<Ic.Pause/>:<Ic.Play/>}
       </button>}
       <div style={{flex:1}}/>
@@ -3984,7 +3984,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         driving plus a deliberately low-emphasis (outline, not primary)
         take-control affordance solves both at once. */}
     {!isController&&<div className="cc-controls" style={{flexDirection:"column",alignItems:"stretch",gap:6}}>
-      <div style={{textAlign:"center",fontSize:13,color:"var(--td)"}}>{controllerName?controllerName+" is running this":"Someone else is running this"}</div>
+      <div style={{textAlign:"center",fontSize:13,color:"var(--text-dim)"}}>{controllerName?controllerName+" is running this":"Someone else is running this"}</div>
       <button className="btn outline bmd" onClick={takeControlNow}>Take Control</button>
     </div>}
     <div className="cc-body">
@@ -4003,15 +4003,15 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             write path), but it's a separate feature; disclosing the
             current, honest scope here is the audit's own accepted
             alternative and needs no server change. */}
-        {(cur.items||[]).length>0&&<div style={{fontSize:11,color:"var(--td)",marginTop:-2,marginBottom:6}}>Checked items are local to this device for this session -- rejoining or switching devices starts the list unchecked again.</div>}
+        {(cur.items||[]).length>0&&<div style={{fontSize:11,color:"var(--text-dim)",marginTop:-2,marginBottom:6}}>Checked items are local to this device for this session -- rejoining or switching devices starts the list unchecked again.</div>}
         {(cur.items||[]).map(it=>(<div key={it.id} className="cl-item" onClick={()=>toggleCl(cur.id,it.id)}>
           <div className={"cl-check "+((clState[cur.id]||{})[it.id]?"done":"")}>{(clState[cur.id]||{})[it.id]&&<Ic.Check/>}</div>
           <div className={"cl-text "+((clState[cur.id]||{})[it.id]?"done":"")}>{it.text}</div>
         </div>))}
-        {cur.notes&&<div style={{fontSize:13,color:"var(--black2)",marginTop:8,fontStyle:"italic"}}>{cur.notes}</div>}
+        {cur.notes&&<div style={{fontSize:13,color:"var(--ink-soft)",marginTop:8,fontStyle:"italic"}}>{cur.notes}</div>}
       </div>}
       {isScrim&&cur&&scrimBoard&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {inBlockIntro&&<div style={{background:"#0d1512",borderRadius:"var(--r)",padding:"14px 12px",marginBottom:4}}>
+        {inBlockIntro&&<div style={{background:"#0d1512",borderRadius:"var(--radius-lg)",padding:"14px 12px",marginBottom:4}}>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b",marginBottom:8}}>Get everyone to their {(scrimCfg.roundLabel||"Round").toLowerCase()} 1 positions</div>
           <ScrimmageBoardView board={scrimBoard} cfg={scrimCfg} assignee={scrimAssignee} dark onlyIdx={0}/>
         </div>}
@@ -4023,7 +4023,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
                   second, unexplained clock -- this one only ever counts
                   down this one round, distinct from the block/activity
                   timer above. */}
-              {scrimPerRoundSecs>0&&<span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:600,color:scrimRoundRem<=0?"var(--amber)":"var(--td)",marginLeft:8}}><span style={{fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,letterSpacing:".03em"}}>Round timer </span>{fmt(Math.abs(scrimRoundRem))}{scrimRoundRem<=0?" over":""}</span>}
+              {scrimPerRoundSecs>0&&<span style={{fontFamily:"DM Mono,monospace",fontSize:13,fontWeight:600,color:scrimRoundRem<=0?"var(--caution)":"var(--text-dim)",marginLeft:8}}><span style={{fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,letterSpacing:".03em"}}>Round timer </span>{fmt(Math.abs(scrimRoundRem))}{scrimRoundRem<=0?" over":""}</span>}
             </div>
             {/* Direct feedback (audit): this pair calls the exact same
                 goBack/advance as the big Next/Back bar below, just without
@@ -4039,13 +4039,13 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
                 <button className="btn ghost bxs" disabled={scrimRoundIdx===0} onClick={goBack}>&#9664; Prev {(scrimCfg.roundLabel||"Round")}</button>
                 <button className="btn ghost bxs" disabled={scrimRoundIdx>=scrimRoundCount-1} onClick={advance}>Next {(scrimCfg.roundLabel||"Round")} &#9654;</button>
               </div>
-              <div style={{fontSize:10,color:"var(--td)"}}>Same as Next/Back below</div>
+              <div style={{fontSize:10,color:"var(--text-dim)"}}>Same as Next/Back below</div>
             </div>}
           </div>
           {(()=>{
             const f=summarizeScrimmageFairness(scrimBoard,((team&&team.players)||[]).filter(p=>presentIds.has(p.id)).map(p=>({id:p.id,name:p.firstName,positions:p.positions||[]})));
             return <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              <span className="bdg bs" style={{background:f.hits.even?"var(--gbg)":"var(--ambg)",color:f.hits.even?"var(--green)":"var(--amber)"}}>{f.hits.even?"Hits: even":"Hits: uneven"}</span>
+              <span className="bdg bs" style={{background:f.hits.even?"var(--field-tint)":"var(--caution-tint)",color:f.hits.even?"var(--field)":"var(--caution)"}}>{f.hits.even?"Hits: even":"Hits: uneven"}</span>
               <span className="bdg bs">Pitch: {f.pitch.used}/{f.pitch.eligible}</span>
               <span className="bdg bs">Catch: {f.catch.count}</span>
             </div>;
@@ -4062,12 +4062,12 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
               return null;
             });
           }:undefined}/>
-          {scrimPicked&&<div style={{fontSize:11,color:"var(--green2)"}}>Tap another slot in this {(scrimCfg.roundLabel||"round").toLowerCase()} to swap, or the same slot to cancel.</div>}
+          {scrimPicked&&<div style={{fontSize:11,color:"var(--field-accent)"}}>Tap another slot in this {(scrimCfg.roundLabel||"round").toLowerCase()} to swap, or the same slot to cancel.</div>}
           {scrimRoundIdx<scrimRoundCount-1&&(()=>{
             const nx=scrimBoard[scrimRoundIdx+1];if(!nx)return null;
             const P=scrimAssignee(nx.slots.P),C=scrimAssignee(nx.slots.C);
             const hitters=Object.keys(nx.slots).filter(k=>/^H\d+$/.test(k)).map(k=>scrimAssignee(nx.slots[k])).filter(Boolean);
-            return <div style={{fontSize:12,color:"var(--td)",borderTop:"1px solid var(--b)",paddingTop:8}}><strong>Next {(scrimCfg.roundLabel||"Round").toLowerCase()}:</strong> P {P||"Open"} · C {C||"Open"} · Hitting {hitters.join(", ")}</div>;
+            return <div style={{fontSize:12,color:"var(--text-dim)",borderTop:"1px solid var(--border)",paddingTop:8}}><strong>Next {(scrimCfg.roundLabel||"Round").toLowerCase()}:</strong> P {P||"Open"} · C {C||"Open"} · Hitting {hitters.join(", ")}</div>;
           })()}
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             <button type="button" className="btn ghost bxs" onClick={()=>setScrimNavOpen(true)}>Coming Up / Past</button>
@@ -4078,10 +4078,10 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       {scrimSitOpen&&createPortal(<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setScrimSitOpen(false);}}>
         <div className="modal">
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,marginBottom:4}}>Sit a player out</div>
-          <div style={{fontSize:12,color:"var(--td)",marginBottom:10}}>They come off the board from {(scrimCfg&&scrimCfg.roundLabel||"round").toLowerCase()} {scrimRoundIdx+1} on, and the rest of the scrimmage re-fills around them. Rounds already played are left as they were.</div>
+          <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:10}}>They come off the board from {(scrimCfg&&scrimCfg.roundLabel||"round").toLowerCase()} {scrimRoundIdx+1} on, and the rest of the scrimmage re-fills around them. Rounds already played are left as they were.</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
             {((team&&team.players)||[]).filter(p=>presentIds.has(p.id)&&scrimActivePlayerIds.has(p.id)).sort((a,b)=>(a.firstName||"").localeCompare(b.firstName||"")).map(p=>(
-              <button key={p.id} type="button" onClick={async()=>{setScrimSitOpen(false);await sitScrimPlayerOut(p.id);}} style={{padding:"7px 12px",borderRadius:14,border:"1.5px solid var(--b)",background:"var(--s1)",fontSize:13,cursor:"pointer"}}>{p.jersey?"#"+p.jersey+" ":""}{p.firstName}</button>
+              <button key={p.id} type="button" onClick={async()=>{setScrimSitOpen(false);await sitScrimPlayerOut(p.id);}} style={{padding:"7px 12px",borderRadius:14,border:"1.5px solid var(--border)",background:"var(--surface)",fontSize:13,cursor:"pointer"}}>{p.jersey?"#"+p.jersey+" ":""}{p.firstName}</button>
             ))}
           </div>
           <button type="button" className="btn ghost bsm bfull mt10" onClick={()=>setScrimSitOpen(false)}>Cancel</button>
@@ -4090,7 +4090,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       {scrimNavOpen&&scrimBoard&&createPortal(<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setScrimNavOpen(false);}}>
         <div className="modal" style={{maxHeight:"82vh",maxWidth:"min(92vw,720px)",display:"flex",flexDirection:"column"}}>
           <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,marginBottom:2}}>Every {(scrimCfg&&scrimCfg.roundLabel||"Round").toLowerCase()}</div>
-          <div style={{fontSize:11,color:"var(--td)",marginBottom:8}}>Preview only. Green row is now, faded rows are done. Scroll sideways for hitters and coach roles.</div>
+          <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:8}}>Preview only. Green row is now, faded rows are done. Scroll sideways for hitters and coach roles.</div>
           <div style={{overflowY:"auto",flex:1}}>
             <ScrimmageGridView board={scrimBoard} cfg={scrimCfg} assignee={scrimAssignee} currentIdx={scrimRoundIdx}/>
           </div>
@@ -4099,24 +4099,24 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       </div>,document.body)}
       {isBench&&cur&&<BenchmarkLivePanel activity={cur} practice={practice} team={team} liveSessionId={session&&session.id} coachId={coachId} presentPlayerIds={[...presentIds]} isDesktop={typeof window!=="undefined"&&window.innerWidth>=1024}/>}
       {!isBlock&&!isCl&&!isScrim&&!isBench&&cur&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {cur.description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
-          <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{cur.description}</div>
+        {cur.description&&<div style={{borderLeft:"3px solid var(--ink)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--ink)",marginBottom:4}}>Description</div>
+          <div style={{fontSize:14,color:"var(--ink)",lineHeight:1.5}}>{cur.description}</div>
         </div>}
         {cur.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
-          <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{cur.coachingPoints}</div>
+          <div style={{fontSize:15,color:"var(--ink)",lineHeight:1.5}}>{cur.coachingPoints}</div>
         </div>}
-        {isController&&untaggedOwnLibraryId(cur.libraryId)&&<button type="button" onClick={()=>openTagPicker(cur.libraryId)} style={{textAlign:"left",background:"var(--ambg)",border:"1px solid var(--ambb)",borderRadius:8,padding:"8px 10px",fontSize:12,color:"var(--amber)",fontWeight:600,cursor:"pointer"}}>No skill tag yet -- tap to add one</button>}
+        {isController&&untaggedOwnLibraryId(cur.libraryId)&&<button type="button" onClick={()=>openTagPicker(cur.libraryId)} style={{textAlign:"left",background:"var(--caution-tint)",border:"1px solid var(--caution-tint-border)",borderRadius:8,padding:"8px 10px",fontSize:12,color:"var(--caution)",fontWeight:600,cursor:"pointer"}}>No skill tag yet -- tap to add one</button>}
         {categoryIdsForLibraryId(cur.libraryId).length>0&&<button type="button" className="btn ghost bsm" style={{alignSelf:"flex-start"}} onClick={()=>setShowPlayerFocus(true)}>Player Focus</button>}
         {(()=>{const{equipment,playerGear}=splitEquipFor(cur.equipment,data);return<EquipGearRow equipment={equipment} playerGear={playerGear}/>;})()}
-        {(!cur.grouping||cur.grouping==="whole")&&<div style={{borderLeft:"3px solid var(--b)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
-          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:3}}>👥 Players</div>
-          <div style={{fontSize:14,color:"var(--black)"}}>Whole Team Together</div>
+        {(!cur.grouping||cur.grouping==="whole")&&<div style={{borderLeft:"3px solid var(--border)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--text-dim)",marginBottom:3}}>👥 Players</div>
+          <div style={{fontSize:14,color:"var(--ink)"}}>Whole Team Together</div>
         </div>}
         {cur.grouping&&cur.grouping!=="whole"&&!liveGroups&&<div style={{borderLeft:"3px solid #c4b5fd",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#7c3aed",marginBottom:3}}>👥 {cur.grouping==="partners"?"Partners":"Groups"}</div>
-          <div style={{fontSize:13,color:"var(--td)"}}>Assigning groups...</div>
+          <div style={{fontSize:13,color:"var(--text-dim)"}}>Assigning groups...</div>
         </div>}
         {liveGroups&&liveGroups.length>0&&<div style={{borderLeft:"3px solid #7c3aed",paddingLeft:10,paddingTop:4,paddingBottom:4}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -4136,10 +4136,10 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
               // today -- this doesn't pick a policy for them, just names
               // the situation the audit found unexplained.
               const solo=cur.grouping==="partners"&&g.length===1;
-              return (<div key={i} style={{display:"inline-flex",alignItems:"center",gap:6,border:"1.5px solid "+(solo?"var(--amber)":"#c4b5fd"),borderRadius:20,padding:"5px 12px",background:"#fff"}}>
-                <span style={{fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,color:solo?"var(--amber)":"#7c3aed",flexShrink:0}}>{cur.grouping==="partners"?"P"+(i+1):"G"+(i+1)}</span>
-                <span style={{fontSize:13,fontWeight:600,color:"var(--black)"}}>{g.map(pid=>pname(pid)).join(" · ")}</span>
-                {solo&&<span style={{fontSize:11,color:"var(--amber)",fontWeight:700}}>No partner this round</span>}
+              return (<div key={i} style={{display:"inline-flex",alignItems:"center",gap:6,border:"1.5px solid "+(solo?"var(--caution)":"#c4b5fd"),borderRadius:20,padding:"5px 12px",background:"#fff"}}>
+                <span style={{fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,color:solo?"var(--caution)":"#7c3aed",flexShrink:0}}>{cur.grouping==="partners"?"P"+(i+1):"G"+(i+1)}</span>
+                <span style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>{g.map(pid=>pname(pid)).join(" · ")}</span>
+                {solo&&<span style={{fontSize:11,color:"var(--caution)",fontWeight:700}}>No partner this round</span>}
               </div>);
             })}
           </div>
@@ -4162,7 +4162,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           movePlayer/movePlayerToStation which already resolve the right
           raw group index -- stIdx is still 0 at this point in the block, so
           no rotation offset to account for yet. */}
-      {isBlock&&inBlockIntro&&cur.stations&&<div style={{background:"#0d1512",borderRadius:"var(--r)",padding:"14px 12px",marginBottom:4}}>
+      {isBlock&&inBlockIntro&&cur.stations&&<div style={{background:"#0d1512",borderRadius:"var(--radius-lg)",padding:"14px 12px",marginBottom:4}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"#8fa89b",marginBottom:4}}>Get everyone to their station</div>
         {isController&&<div style={{fontSize:11,color:"#8fa89b",marginBottom:8}}>{movePlayer?"Tap the dashed spot in another station to move them there.":"Tap a player to move them."}</div>}
         {cur.stations.map((st,i)=>{
@@ -4170,7 +4170,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           const assignments=liveGroups?(liveGroups[i]||[]):[];
           const groupLabel=(liveGroupLabels&&liveGroupLabels[i])||st.groupLabel||"";
           const isSourceOfSelection=movePlayer&&assignments.includes(movePlayer);
-          return(<div key={st.id} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8}}>
+          return(<div key={st.id} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--radius-lg)",padding:"12px 14px",marginBottom:8}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
               <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#52b788"}}>Station {i+1}</div>
               {subName(st.sublocationId)&&<div style={{fontSize:11,color:"#52b788",fontWeight:600}}>{subName(st.sublocationId)}</div>}
@@ -4198,22 +4198,22 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       {isBlock&&!inBlockIntro&&!inTrans&&rotatedStations&&<div>
         {focusSt!==null&&<div>
           <button className="btn ghost bxs" style={{marginBottom:10}} onClick={()=>setFocusSt(null)}>&#8249; All Stations</button>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)",marginBottom:2}}>Station {focusSt+1}</div>
-          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--black)",lineHeight:1,marginBottom:6}}>{rotatedStations[focusSt].activityName||rotatedStations[focusSt].name||"Station "+(focusSt+1)}</div>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--field)",marginBottom:2}}>Station {focusSt+1}</div>
+          <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:36,fontWeight:900,color:"var(--ink)",lineHeight:1,marginBottom:6}}>{rotatedStations[focusSt].activityName||rotatedStations[focusSt].name||"Station "+(focusSt+1)}</div>
           {rotatedStations[focusSt].groupLabel&&<div style={{marginBottom:6}}><span className="bdg bp">Group: {rotatedStations[focusSt].groupLabel}</span></div>}
-          {(leadName(rotatedStations[focusSt])||subName(rotatedStations[focusSt].sublocationId)||isController)&&<div style={{fontSize:14,fontWeight:600,color:"var(--green2)",marginBottom:10,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
+          {(leadName(rotatedStations[focusSt])||subName(rotatedStations[focusSt].sublocationId)||isController)&&<div style={{fontSize:14,fontWeight:600,color:"var(--field-accent)",marginBottom:10,display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
             {isController?<button type="button" onClick={()=>setReassignStationId(rotatedStations[focusSt].id)} style={{background:"none",border:"none",padding:0,font:"inherit",color:"inherit",cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{leadName(rotatedStations[focusSt])||"Assign a coach"}</button>
               :leadName(rotatedStations[focusSt])&&<span>{leadName(rotatedStations[focusSt])}</span>}
             {leadName(rotatedStations[focusSt])&&subName(rotatedStations[focusSt].sublocationId)&&<span> · </span>}
             {subName(rotatedStations[focusSt].sublocationId)&&<span>{subName(rotatedStations[focusSt].sublocationId)}</span>}
           </div>}
-          {rotatedStations[focusSt].description&&<div style={{borderLeft:"3px solid var(--black)",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--black)",marginBottom:4}}>Description</div>
-            <div style={{fontSize:14,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].description}</div>
+          {rotatedStations[focusSt].description&&<div style={{borderLeft:"3px solid var(--ink)",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--ink)",marginBottom:4}}>Description</div>
+            <div style={{fontSize:14,color:"var(--ink)",lineHeight:1.5}}>{rotatedStations[focusSt].description}</div>
           </div>}
           {rotatedStations[focusSt].coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:10,paddingTop:4,paddingBottom:8,marginBottom:4}}>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
-            <div style={{fontSize:15,color:"var(--black)",lineHeight:1.5}}>{rotatedStations[focusSt].coachingPoints}</div>
+            <div style={{fontSize:15,color:"var(--ink)",lineHeight:1.5}}>{rotatedStations[focusSt].coachingPoints}</div>
           </div>}
           {(()=>{const{equipment,playerGear}=splitEquipFor(rotatedStations[focusSt].equipment,data);return<div style={{marginBottom:10}}><EquipGearRow equipment={equipment} playerGear={playerGear}/></div>;})()}
           {rotatedStations[focusSt].benchmarkId&&<BenchmarkLivePanel station={rotatedStations[focusSt]} activity={cur} practice={practice} team={team} liveSessionId={session&&session.id} coachId={coachId} presentPlayerIds={[...presentIds]} isDesktop={typeof window!=="undefined"&&window.innerWidth>=1024}/>}
@@ -4225,13 +4225,13 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
               {(stationSubGroups[rotatedStations[focusSt].id]||[]).map((g,i)=>(<div key={i} style={{display:"inline-flex",alignItems:"center",gap:6,border:"1.5px solid #c4b5fd",borderRadius:20,padding:"5px 12px",background:"#fff"}}>
                 <span style={{fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700,color:"#7c3aed",flexShrink:0}}>{rotatedStations[focusSt].grouping==="partners"?"P"+(i+1):"G"+(i+1)}</span>
-                <span style={{fontSize:13,fontWeight:600,color:"var(--black)"}}>{g.map(pid=>{const pl=team&&team.players.find(p=>p.id===pid);return pl?pl.firstName:null;}).filter(Boolean).join(" · ")}</span>
+                <span style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>{g.map(pid=>{const pl=team&&team.players.find(p=>p.id===pid);return pl?pl.firstName:null;}).filter(Boolean).join(" · ")}</span>
               </div>))}
-              {!(stationSubGroups[rotatedStations[focusSt].id]||[]).length&&<span style={{fontSize:12,color:"var(--td)"}}>Assigning...</span>}
+              {!(stationSubGroups[rotatedStations[focusSt].id]||[]).length&&<span style={{fontSize:12,color:"var(--text-dim)"}}>Assigning...</span>}
             </div>
           </div>}
           <div>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Players at this station</div>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--text-dim)",marginBottom:8}}>Players at this station</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
               {(rotatedStations[focusSt].assignments||[]).map(pid=>isController
                 ?<PlayerChipLive key={pid} pid={pid} team={team} note={noteForPlayerAtDrill(pid,rotatedStations[focusSt].libraryId)} onProfile={pl=>setLivePlayerProfile(pl)}/>
@@ -4247,18 +4247,18 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
               coaching points and per-player focus notes are what tapping in
               reveals, not something to see at a glance across every station
               at once. */}
-          <div style={{fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+cur.stations.length+" · Tap a station to focus":"Tap a station to focus"}</div>
+          <div style={{fontSize:13,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--text-dim)",marginBottom:8}}>{blockRotate?"Round "+(stIdx+1)+" of "+cur.stations.length+" · Tap a station to focus":"Tap a station to focus"}</div>
           {rotatedStations.map((st,i)=>{
             const{equipment:equipNames,playerGear:gearNames}=splitEquipFor(st.equipment,data);
-            return (<div key={st.id} onClick={()=>setFocusSt(i)} style={{background:"var(--s1)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
+            return (<div key={st.id} onClick={()=>setFocusSt(i)} style={{background:"var(--surface)",border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"12px 14px",marginBottom:8,cursor:"pointer"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}}>
-                <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--green)"}}>Station {i+1}</div>
-                {isController?<button type="button" onClick={e=>{e.stopPropagation();setReassignStationId(st.id);}} style={{background:"none",border:"none",padding:0,fontSize:11,color:"var(--td)",cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{leadName(st)||"Assign a coach"}</button>
-                  :leadName(st)&&<div style={{fontSize:11,color:"var(--td)"}}>{leadName(st)}</div>}
+                <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--field)"}}>Station {i+1}</div>
+                {isController?<button type="button" onClick={e=>{e.stopPropagation();setReassignStationId(st.id);}} style={{background:"none",border:"none",padding:0,fontSize:11,color:"var(--text-dim)",cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{leadName(st)||"Assign a coach"}</button>
+                  :leadName(st)&&<div style={{fontSize:11,color:"var(--text-dim)"}}>{leadName(st)}</div>}
               </div>
-              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--black)",lineHeight:1.1,marginBottom:4}}>{st.activityName||st.name||"Station "+(i+1)}</div>
+              <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,color:"var(--ink)",lineHeight:1.1,marginBottom:4}}>{st.activityName||st.name||"Station "+(i+1)}</div>
               {st.groupLabel&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}
-              {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--green2)",fontWeight:600,marginBottom:4}}>{subName(st.sublocationId)}</div>}
+              {subName(st.sublocationId)&&<div style={{fontSize:11,color:"var(--field-accent)",fontWeight:600,marginBottom:4}}>{subName(st.sublocationId)}</div>}
               {(equipNames.length>0||gearNames.length>0)&&<div style={{marginBottom:6}}><EquipGearRow equipment={equipNames} playerGear={gearNames}/></div>}
               {/* Stopped from bubbling into the card's own onClick so
                   tapping a player's card doesn't also jump into that
@@ -4279,7 +4279,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
               <div>
                 <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900}}>{livePlayerProfile.firstName} {livePlayerProfile.lastName}</div>
-                {livePlayerProfile.jersey&&<div style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"var(--green)"}}>#{livePlayerProfile.jersey}</div>}
+                {livePlayerProfile.jersey&&<div style={{fontFamily:"DM Mono,monospace",fontSize:13,color:"var(--field)"}}>#{livePlayerProfile.jersey}</div>}
               </div>
               <button className="btn ghost bxs" onClick={()=>setLivePlayerProfile(null)}>Close</button>
             </div>
@@ -4288,13 +4288,13 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
                 <div className="clbl mb8">Player Focus</div>
                 {livePlayerProfile.focusAreas.map(a=>{
                   const cat=(data.skillCategories||[]).find(c=>c.id===a.categoryId);
-                  return(<div key={a.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
-                    <div style={{fontSize:12,fontWeight:700,color:"var(--td)"}}>{cat?cat.name:""}</div>
+                  return(<div key={a.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--surface-soft)",borderRadius:"var(--radius-md)"}}>
+                    <div style={{fontSize:12,fontWeight:700,color:"var(--text-dim)"}}>{cat?cat.name:""}</div>
                     {a.note&&<div style={{fontSize:14,lineHeight:1.5,marginTop:2}}>{a.note}</div>}
                   </div>);
                 })}
               </div>}
-              {(!livePlayerProfile.focusAreas||livePlayerProfile.focusAreas.length===0)&&<div style={{fontSize:14,color:"var(--td)",textAlign:"center",padding:"16px 0"}}>No focus areas added yet.</div>}
+              {(!livePlayerProfile.focusAreas||livePlayerProfile.focusAreas.length===0)&&<div style={{fontSize:14,color:"var(--text-dim)",textAlign:"center",padding:"16px 0"}}>No focus areas added yet.</div>}
             </div>
           </div>
         </div>}
@@ -4310,7 +4310,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         <div className="modal">
           <div className="mhandle"/>
           <div className="mtitle">Add a Skill Tag</div>
-          <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>This updates the drill in your library, so it's tagged going forward too.</div>
+          <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12}}>This updates the drill in your library, so it's tagged going forward too.</div>
           {/* Reuses Library's own SkillTagPicker so the tags come grouped by
               skill category (not one flat uncategorized wall) and the coach
               can add a new tag inside any category right here, mid-practice,
@@ -4319,7 +4319,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
               "tap to add one" reminder to get here. */}
           {tagPickerHasCategories
             ?<div style={{marginBottom:14}}><SkillTagPicker data={data} coachId={coachId} sport={tagPickerSport} selectedIds={tagPickerSel} onChange={setTagPickerSel} refreshLibrary={refreshLibrary} initialOpen/></div>
-            :<div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>No skill categories exist for {tagPickerSport} yet -- add one from Library first.</div>}
+            :<div style={{fontSize:13,color:"var(--text-dim)",marginBottom:14}}>No skill categories exist for {tagPickerSport} yet -- add one from Library first.</div>}
           <button className="btn primary bmd bfull mb8" disabled={!tagPickerSel.length||tagPickerSaving} onClick={saveTagPicker}>{tagPickerSaving?"Saving...":"Save"}</button>
           <button className="btn ghost bmd bfull" onClick={()=>setTagPickerLibraryId(null)}>Cancel</button>
         </div>
@@ -4327,7 +4327,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       {/* Same dark practice-setup palette as the block-intro screen above --
           a rotation transition is another "getting organized, not
           coaching" moment. */}
-      {isBlock&&inTrans&&rotatedStations&&<div style={{background:"#0d1512",borderRadius:"var(--r)",padding:"14px 12px",marginBottom:4}}>
+      {isBlock&&inTrans&&rotatedStations&&<div style={{background:"#0d1512",borderRadius:"var(--radius-lg)",padding:"14px 12px",marginBottom:4}}>
         <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:900,color:"#f87171",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>Rotate Now</div>
         {/* Direct feedback: a coach scanning card-by-card for "who's coming
             to my station" had to piece the whole rotation together in their
@@ -4349,7 +4349,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           const fromLabel="Station "+(i+1)+(fromLoc?": "+fromLoc:"")+(leadName(st)?" · "+leadName(st):"")+(st.activityName?" · "+st.activityName:"");
           const toLabel="Station "+((i+1)%cur.stations.length+1)+(toLoc?": "+toLoc:"")+(leadName(nextSt)?" · "+leadName(nextSt):"")+(nextSt.activityName?" · "+nextSt.activityName:"");
           const nextCatIds=categoryIdsForLibraryId(nextSt.libraryId);
-          return (<div key={st.id} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--r)",padding:"14px",marginBottom:8}}>
+          return (<div key={st.id} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:"var(--radius-lg)",padding:"14px",marginBottom:8}}>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",lineHeight:1.2,marginBottom:6}}>{pnames(st.assignments)||"--"}</div>
             {st.groupLabel&&<div style={{marginBottom:4}}><span className="bdg bp">Group: {st.groupLabel}</span></div>}
             <div style={{fontSize:13,fontWeight:700,color:"#52b788",marginBottom:3}}>TO: <span style={{fontWeight:400}}>{toLabel}</span></div>
@@ -4398,7 +4398,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             stations:a.type==="station_block"?a.stations.map((st,si)=>({name:st.name||"",locationName:subName(st.sublocationId)||"",coachName:leaderLabel(st,team),equipmentNames:(Array.isArray(st.equipment)?st.equipment:[]).map(id=>{const x=(data.assets||[]).find(x=>x.id===id);return x?x.name:null;}).filter(Boolean),playerNames:((liveStationGroups&&liveStationGroups.length)?(liveStationGroups[si]||[]):(st.assignments||[])).map(pid=>{const p=team&&team.players.find(p=>p.id===pid);return p?(p.jersey?"#"+p.jersey+" ":"")+p.firstName:null;}).filter(Boolean)})):[],
           });
         }}>
-          <span style={{fontSize:14,color:"var(--td)"}}>{actLabel(a)}</span>
+          <span style={{fontSize:14,color:"var(--text-dim)"}}>{actLabel(a)}</span>
           <span className="bdg bs">{a.type==="station_block"?(a.stations.length*a.stationDuration+Math.max(0,a.stations.length-1)*a.transitionDuration)+"m":a.duration+"m"}</span>
         </button>))}
         </div>
@@ -4424,14 +4424,14 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         <div className="modal">
           <div className="mhandle"/>
           <div className="mtitle">Turn On Audio?</div>
-          <div style={{fontSize:13,color:"var(--td)",marginBottom:10}}>Run of Practice can call out the two-minute warning and time's up, so you don't need to keep watching the screen.</div>
+          <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:10}}>Run of Practice can call out the two-minute warning and time's up, so you don't need to keep watching the screen.</div>
         {/* Direct feedback: also remind the coach to turn their device's
             volume up. Browsers don't expose the device's actual output
             volume level to a web page (no Web Audio/media API reads system
             or hardware volume, only in-page gain) -- there's no way to tell
             whether it's already loud enough, so this always shows rather
             than only below some volume threshold. */}
-        <div style={{fontSize:13,fontWeight:700,color:"var(--amber)",background:"var(--ambg)",border:"1.5px solid var(--ambb)",borderRadius:8,padding:"8px 10px",marginBottom:14}}>🔉 Reminder: Turn up your device's volume.</div>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--caution)",background:"var(--caution-tint)",border:"1.5px solid var(--caution-tint-border)",borderRadius:8,padding:"8px 10px",marginBottom:14}}>🔉 Reminder: Turn up your device's volume.</div>
           <button className="btn primary bmd bfull mb8" onClick={()=>{
             if(!audioOn){try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance("Audio on");u.rate=1;u.volume=1;window.speechSynthesis.speak(u);}catch(e){}startBgAudioSession();}
             spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(true);setShowAudioPrompt(false);
@@ -4443,8 +4443,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         <div className="modal">
           <div className="mhandle"/>
           <div className="mtitle">{unassignedStations.length===1?"A Station Has No Leader":unassignedStations.length+" Stations Have No Leader"}</div>
-          <div style={{fontSize:13,color:"var(--td)",marginBottom:14}}>That's fine if players there are independent enough to work unsupervised -- otherwise assign a coach or helper now, and share the live link with them right away.</div>
-          {unassignedStations.map(st=>(<div key={st.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"10px 12px",marginBottom:8}}>
+          <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:14}}>That's fine if players there are independent enough to work unsupervised -- otherwise assign a coach or helper now, and share the live link with them right away.</div>
+          {unassignedStations.map(st=>(<div key={st.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"10px 12px",marginBottom:8}}>
             <div style={{fontWeight:700,fontSize:14}}>{st.name||"Station"}</div>
             <div className="row" style={{gap:6}}>
               <button className="btn outline bxs" onClick={()=>{setShowStationWarning(false);setReassignStationId(st.id);}}>Assign</button>
@@ -4458,15 +4458,15 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         <div className="modal" onClick={e=>e.stopPropagation()}>
           <div className="mhandle"/>
           <div className="mtitle">Player Focus</div>
-          <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>What each present player is working on for {tagNamesForLibraryId(cur.libraryId).join(", ")||"this drill"}.</div>
+          <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12}}>What each present player is working on for {tagNamesForLibraryId(cur.libraryId).join(", ")||"this drill"}.</div>
           {(()=>{
             const catIds=categoryIdsForLibraryId(cur.libraryId);
             const present=(team?team.players:[]).filter(p=>presentIds.has(p.id));
             const withNotes=present.map(p=>({p,notes:(p.focusAreas||[]).filter(a=>catIds.includes(a.categoryId)&&a.note)})).filter(x=>x.notes.length>0);
-            if(!withNotes.length)return <div style={{fontSize:14,color:"var(--td)",textAlign:"center",padding:"16px 0"}}>No player notes set for this yet.</div>;
-            return withNotes.map(({p,notes})=>(<div key={p.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
-              <div style={{fontSize:14,fontWeight:700,color:"var(--black)"}}>{p.jersey?"#"+p.jersey+" ":""}{p.firstName}</div>
-              {notes.map(n=>(<div key={n.id} style={{fontSize:13,color:"var(--black2)",marginTop:2}}>{n.note}</div>))}
+            if(!withNotes.length)return <div style={{fontSize:14,color:"var(--text-dim)",textAlign:"center",padding:"16px 0"}}>No player notes set for this yet.</div>;
+            return withNotes.map(({p,notes})=>(<div key={p.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--surface-soft)",borderRadius:"var(--radius-md)"}}>
+              <div style={{fontSize:14,fontWeight:700,color:"var(--ink)"}}>{p.jersey?"#"+p.jersey+" ":""}{p.firstName}</div>
+              {notes.map(n=>(<div key={n.id} style={{fontSize:13,color:"var(--ink-soft)",marginTop:2}}>{n.note}</div>))}
             </div>));
           })()}
           <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>setShowPlayerFocus(false)}>Close</button>
@@ -4476,15 +4476,15 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         <div className="modal" onClick={e=>e.stopPropagation()}>
           <div className="mhandle"/>
           <div className="mtitle">Player Focus -- {transitionFocus.label}</div>
-          <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>What this group is working on for {tagNamesForLibraryId(transitionFocus.libraryId).join(", ")||"this drill"}.</div>
+          <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12}}>What this group is working on for {tagNamesForLibraryId(transitionFocus.libraryId).join(", ")||"this drill"}.</div>
           {(()=>{
             const catIds=categoryIdsForLibraryId(transitionFocus.libraryId);
             const incoming=(team?team.players:[]).filter(p=>(transitionFocus.playerIds||[]).includes(p.id));
             const withNotes=incoming.map(p=>({p,notes:(p.focusAreas||[]).filter(a=>catIds.includes(a.categoryId)&&a.note)})).filter(x=>x.notes.length>0);
-            if(!withNotes.length)return <div style={{fontSize:14,color:"var(--td)",textAlign:"center",padding:"16px 0"}}>No player notes set for this yet.</div>;
-            return withNotes.map(({p,notes})=>(<div key={p.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--s2)",borderRadius:"var(--rs)"}}>
-              <div style={{fontSize:14,fontWeight:700,color:"var(--black)"}}>{p.jersey?"#"+p.jersey+" ":""}{p.firstName}</div>
-              {notes.map(n=>(<div key={n.id} style={{fontSize:13,color:"var(--black2)",marginTop:2}}>{n.note}</div>))}
+            if(!withNotes.length)return <div style={{fontSize:14,color:"var(--text-dim)",textAlign:"center",padding:"16px 0"}}>No player notes set for this yet.</div>;
+            return withNotes.map(({p,notes})=>(<div key={p.id} style={{marginBottom:8,padding:"10px 12px",background:"var(--surface-soft)",borderRadius:"var(--radius-md)"}}>
+              <div style={{fontSize:14,fontWeight:700,color:"var(--ink)"}}>{p.jersey?"#"+p.jersey+" ":""}{p.firstName}</div>
+              {notes.map(n=>(<div key={n.id} style={{fontSize:13,color:"var(--ink-soft)",marginTop:2}}>{n.note}</div>))}
             </div>));
           })()}
           <button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={()=>setTransitionFocus(null)}>Close</button>
@@ -4502,7 +4502,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           Clearing `top` alongside `bottom` fixes it. */}
       {noteMentionQuery!==null&&noteMentionMatches.length>0&&<div className="mini-menu" style={{position:"absolute",top:"auto",bottom:"100%",left:0,right:0,zIndex:5,maxHeight:160,overflowY:"auto"}}>{noteMentionMatches.map(p=>(<button key={p.id} type="button" className="mm-item" onClick={()=>pickNoteMention(p)}>{p.firstName} {p.lastName}</button>))}</div>}
     </div>
-    {noteError&&<div style={{padding:"0 14px 8px",fontSize:12,color:"var(--red)"}}>{noteError}</div>}
+    {noteError&&<div style={{padding:"0 14px 8px",fontSize:12,color:"var(--danger)"}}>{noteError}</div>}
     {showShare&&shareToken&&<ShareSheet token={shareToken} scope={shareScope} onClose={()=>setShowShare(false)} title={"Help with the "+(practice&&practice.date?new Date(practice.date+"T12:00:00").toLocaleDateString(undefined,{month:"long",day:"numeric"})+" ":"")+(team?team.name+" ":"")+"Run of Practice"}/>}
   </div>);
 }

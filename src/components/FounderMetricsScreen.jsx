@@ -38,22 +38,22 @@ function heroDelta(current, previous) {
 }
 
 function Subtitle({ children }) {
-  return <div style={{ fontSize: 11, color: "var(--td)", marginTop: 2, marginBottom: 10, lineHeight: 1.4 }}>{children}</div>;
+  return <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2, marginBottom: 10, lineHeight: 1.4 }}>{children}</div>;
 }
 function SectionTitle({ children }) {
-  return <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontWeight: 700, fontSize: 15, textTransform: "uppercase", letterSpacing: ".03em", color: "var(--black2)" }}>{children}</div>;
+  return <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontWeight: 700, fontSize: 15, textTransform: "uppercase", letterSpacing: ".03em", color: "var(--ink-soft)" }}>{children}</div>;
 }
 function Card({ children, style }) {
-  return <div style={{ background: "var(--s1)", border: "1px solid var(--b)", borderRadius: "var(--r)", padding: 14, ...style }}>{children}</div>;
+  return <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 14, ...style }}>{children}</div>;
 }
 
 function HeroCard({ label, value, delta, isNorthStar }) {
-  const dirColor = delta && delta.dir === "up" ? "var(--green)" : delta && delta.dir === "down" ? "var(--red)" : "var(--td)";
+  const dirColor = delta && delta.dir === "up" ? "var(--field)" : delta && delta.dir === "down" ? "var(--danger)" : "var(--text-dim)";
   const arrow = delta && delta.dir === "up" ? "▲" : delta && delta.dir === "down" ? "▼" : "";
   return (
     <Card style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--tm)" }}>{label}</div>
-      <div style={{ fontFamily: "DM Mono,monospace", fontSize: 26, fontWeight: 500, color: isNorthStar ? "var(--amber)" : "var(--black)", marginTop: 4 }}>{value}</div>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--text-muted)" }}>{label}</div>
+      <div style={{ fontFamily: "DM Mono,monospace", fontSize: 26, fontWeight: 500, color: isNorthStar ? "var(--caution)" : "var(--ink)", marginTop: 4 }}>{value}</div>
       {delta && <div style={{ fontSize: 11, color: dirColor, marginTop: 3 }}>{arrow} {delta.text}</div>}
     </Card>
   );
@@ -72,7 +72,7 @@ function ChartCard({ title, subtitle, children, height = 180 }) {
 }
 
 function RetentionGrid({ retention, cohortSizes }) {
-  if (!retention || !retention.length) return <div style={{ fontSize: 12, color: "var(--td)" }}>Not enough cohort data yet.</div>;
+  if (!retention || !retention.length) return <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Not enough cohort data yet.</div>;
   const sizeByWk = {};
   (cohortSizes || []).forEach(c => { sizeByWk[c.cohort_wk] = c.signups; });
   const cellByKey = {};
@@ -88,8 +88,8 @@ function RetentionGrid({ retention, cohortSizes }) {
       <table style={{ borderCollapse: "collapse", fontSize: 11, width: "100%" }}>
         <thead>
           <tr>
-            <th style={{ textAlign: "left", padding: "4px 6px", color: "var(--tm)", fontWeight: 700 }}>Cohort</th>
-            {offsets.map(o => <th key={o} style={{ padding: "4px 6px", color: "var(--tm)", fontWeight: 700 }}>W{o}</th>)}
+            <th style={{ textAlign: "left", padding: "4px 6px", color: "var(--text-muted)", fontWeight: 700 }}>Cohort</th>
+            {offsets.map(o => <th key={o} style={{ padding: "4px 6px", color: "var(--text-muted)", fontWeight: 700 }}>W{o}</th>)}
           </tr>
         </thead>
         <tbody>
@@ -100,7 +100,7 @@ function RetentionGrid({ retention, cohortSizes }) {
               <tr key={wk}>
                 <td style={{ padding: "4px 6px", whiteSpace: "nowrap", fontWeight: 600 }}>{fmtWeek(wk)}</td>
                 {offsets.map(o => {
-                  if (o > weeksElapsed) return <td key={o} style={{ padding: "4px 6px", textAlign: "center", color: "var(--td)" }}>–</td>;
+                  if (o > weeksElapsed) return <td key={o} style={{ padding: "4px 6px", textAlign: "center", color: "var(--text-dim)" }}>–</td>;
                   const active = cellByKey[wk + "|" + o] || 0;
                   const rate = size > 0 ? active / size : 0;
                   return (
@@ -139,22 +139,22 @@ export default function FounderMetricsScreen() {
     <div style={{ height: "100dvh", overflowY: "auto", maxWidth: 480, margin: "0 auto", padding: "16px 14px 40px", display: "flex", flexDirection: "column", gap: 14 }}>
       <button className="btn ghost bxs" style={{ alignSelf: "flex-start" }} onClick={() => navigate(-1)}>Back</button>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontWeight: 900, fontSize: 22, color: "var(--black)" }}>Founder Metrics</div>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontWeight: 900, fontSize: 22, color: "var(--ink)" }}>Founder Metrics</div>
         <div style={{ display: "flex", gap: 4 }}>
           {RANGES.map(r => (
             <button key={r} onClick={() => setWeeks(r)}
               style={{
-                border: "1px solid var(--b)", borderRadius: "var(--rs)", padding: "5px 9px", fontSize: 11, fontWeight: 700,
-                background: weeks === r ? "var(--green)" : "var(--s1)", color: weeks === r ? "#fff" : "var(--tm)", cursor: "pointer",
+                border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "5px 9px", fontSize: 11, fontWeight: 700,
+                background: weeks === r ? "var(--field)" : "var(--surface)", color: weeks === r ? "#fff" : "var(--text-muted)", cursor: "pointer",
               }}>{r}w</button>
           ))}
         </div>
       </div>
-      <div style={{ fontSize: 11, color: "var(--td)", marginTop: -8 }}>
+      <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: -8 }}>
         Self-instrumented from in-app events. Directional, not exact. Treat trends over absolute counts as the managed quantity.
       </div>
 
-      {!summary && <div style={{ padding: "40px 0", textAlign: "center", color: "var(--td)" }}>Loading...</div>}
+      {!summary && <div style={{ padding: "40px 0", textAlign: "center", color: "var(--text-dim)" }}>Loading...</div>}
 
       {summary && (<>
         <div style={{ display: "flex", gap: 10 }}>
@@ -166,38 +166,38 @@ export default function FounderMetricsScreen() {
 
         <ChartCard title="Live practices run" subtitle="The north star. If this isn't climbing, nothing else here matters yet." height={190}>
           <ComposedChart data={weekly}>
-            <CartesianGrid stroke="var(--b)" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="wk" tickFormatter={fmtWeek} tick={{ fontSize: 10, fill: "var(--tm)" }} axisLine={{ stroke: "var(--b)" }} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: "var(--tm)" }} axisLine={false} tickLine={false} width={26} allowDecimals={false} />
+            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="wk" tickFormatter={fmtWeek} tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={{ stroke: "var(--border)" }} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} width={26} allowDecimals={false} />
             <Tooltip labelFormatter={fmtWeek} contentStyle={{ fontSize: 12, borderRadius: 6 }} />
-            <Area type="monotone" dataKey="live_practices" stroke="var(--amber)" fill="var(--ambg)" fillOpacity={0.7} isAnimationActive={ANIM} />
-            <Line type="monotone" dataKey="weekly_active_coaches" stroke="var(--tm)" strokeWidth={1.5} dot={false} strokeDasharray="4 3" isAnimationActive={ANIM} />
+            <Area type="monotone" dataKey="live_practices" stroke="var(--caution)" fill="var(--caution-tint)" fillOpacity={0.7} isAnimationActive={ANIM} />
+            <Line type="monotone" dataKey="weekly_active_coaches" stroke="var(--text-muted)" strokeWidth={1.5} dot={false} strokeDasharray="4 3" isAnimationActive={ANIM} />
           </ComposedChart>
         </ChartCard>
 
         <ChartCard title="Plan → run conversion (4w)" subtitle="Falling toward 0 means ROP is a planning tool, not an execution tool." height={90}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, height: "100%" }}>
-            <div style={{ fontFamily: "DM Mono,monospace", fontSize: 28, color: "var(--green)" }}>
+            <div style={{ fontFamily: "DM Mono,monospace", fontSize: 28, color: "var(--field)" }}>
               {summary.plan_to_run_trailing4 ? pct(summary.plan_to_run_trailing4.rate) : "—"}
             </div>
-            <div style={{ fontSize: 11, color: "var(--td)" }}>
+            <div style={{ fontSize: 11, color: "var(--text-dim)" }}>
               {summary.plan_to_run_trailing4 ? summary.plan_to_run_trailing4.ran_count + " of " + summary.plan_to_run_trailing4.planned_count + " planned practices ran live" : "No planned practices yet"}
             </div>
           </div>
         </ChartCard>
       </>)}
 
-      {!detail && summary && <div style={{ padding: "20px 0", textAlign: "center", color: "var(--td)", fontSize: 12 }}>Loading funnel &amp; retention…</div>}
+      {!detail && summary && <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-dim)", fontSize: 12 }}>Loading funnel &amp; retention…</div>}
 
       {detail && (<>
         <ChartCard title="Activation funnel" subtitle="Signup → team → plan → live run, 14-day window per step, latest cohorts." height={200}>
           <BarChart data={funnelRows} layout="vertical" margin={{ left: 0 }}>
-            <CartesianGrid stroke="var(--b)" strokeDasharray="3 3" horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 10, fill: "var(--tm)" }} axisLine={false} tickLine={false} allowDecimals={false} />
-            <YAxis type="category" dataKey="step" tick={{ fontSize: 11, fill: "var(--black2)" }} axisLine={false} tickLine={false} width={90} />
+            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} allowDecimals={false} />
+            <YAxis type="category" dataKey="step" tick={{ fontSize: 11, fill: "var(--ink-soft)" }} axisLine={false} tickLine={false} width={90} />
             <Tooltip contentStyle={{ fontSize: 12, borderRadius: 6 }} />
             {latestFunnel.map((c, idx) => (
-              <Bar key={idx} dataKey={"c" + idx} name={fmtWeek(c.cohort_wk)} fill={idx === latestFunnel.length - 1 ? "var(--green)" : "var(--gb)"} isAnimationActive={ANIM} />
+              <Bar key={idx} dataKey={"c" + idx} name={fmtWeek(c.cohort_wk)} fill={idx === latestFunnel.length - 1 ? "var(--field)" : "var(--field-tint-border)"} isAnimationActive={ANIM} />
             ))}
           </BarChart>
         </ChartCard>
@@ -210,32 +210,32 @@ export default function FounderMetricsScreen() {
 
         <ChartCard title="Library reuse rate" subtitle="Rising means the compounding-value story (reusing past drills, not rebuilding from scratch) is real." height={160}>
           <LineChart data={detail.library_reuse}>
-            <CartesianGrid stroke="var(--b)" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="wk" tickFormatter={fmtWeek} tick={{ fontSize: 10, fill: "var(--tm)" }} axisLine={{ stroke: "var(--b)" }} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: "var(--tm)" }} axisLine={false} tickLine={false} width={32} tickFormatter={v => Math.round(v * 100) + "%"} />
+            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="wk" tickFormatter={fmtWeek} tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={{ stroke: "var(--border)" }} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} width={32} tickFormatter={v => Math.round(v * 100) + "%"} />
             <Tooltip labelFormatter={fmtWeek} formatter={v => pct(v)} contentStyle={{ fontSize: 12, borderRadius: 6 }} />
-            <Line type="monotone" dataKey="reuse_rate" stroke="var(--green)" strokeWidth={2} dot={{ r: 2 }} isAnimationActive={ANIM} />
+            <Line type="monotone" dataKey="reuse_rate" stroke="var(--field)" strokeWidth={2} dot={{ r: 2 }} isAnimationActive={ANIM} />
           </LineChart>
         </ChartCard>
 
         <Card>
           <SectionTitle>Goals adoption</SectionTitle>
           <Subtitle>% of active teams (practice built in the last 4 weeks) with a goal set.</Subtitle>
-          <div style={{ fontFamily: "DM Mono,monospace", fontSize: 24, color: "var(--green)" }}>
+          <div style={{ fontFamily: "DM Mono,monospace", fontSize: 24, color: "var(--field)" }}>
             {detail.goals_adoption ? pct(detail.goals_adoption.adoption_rate) : "—"}
           </div>
-          <div style={{ fontSize: 11, color: "var(--td)" }}>
+          <div style={{ fontSize: 11, color: "var(--text-dim)" }}>
             {detail.goals_adoption ? "of " + detail.goals_adoption.active_team_count + " active teams" : ""}
           </div>
         </Card>
 
         <ChartCard title="Weekly signups" subtitle="Growth, below the fold on purpose. Validation metrics matter more right now." height={150}>
           <BarChart data={weekly || []}>
-            <CartesianGrid stroke="var(--b)" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="wk" tickFormatter={fmtWeek} tick={{ fontSize: 10, fill: "var(--tm)" }} axisLine={{ stroke: "var(--b)" }} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: "var(--tm)" }} axisLine={false} tickLine={false} width={26} allowDecimals={false} />
+            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="wk" tickFormatter={fmtWeek} tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={{ stroke: "var(--border)" }} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} width={26} allowDecimals={false} />
             <Tooltip labelFormatter={fmtWeek} contentStyle={{ fontSize: 12, borderRadius: 6 }} />
-            <Bar dataKey="signups" fill="var(--green2)" radius={[3, 3, 0, 0]} isAnimationActive={ANIM} />
+            <Bar dataKey="signups" fill="var(--field-accent)" radius={[3, 3, 0, 0]} isAnimationActive={ANIM} />
           </BarChart>
         </ChartCard>
 
@@ -243,7 +243,7 @@ export default function FounderMetricsScreen() {
           <SectionTitle>Landing traffic</SectionTitle>
           <Subtitle>No self-instrumented visitor funnel yet. Vercel Web Analytics is the traffic source of truth for now.</Subtitle>
           <a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer"
-            style={{ display: "inline-block", fontSize: 12, fontWeight: 700, color: "var(--green)", textDecoration: "none" }}>
+            style={{ display: "inline-block", fontSize: 12, fontWeight: 700, color: "var(--field)", textDecoration: "none" }}>
             View traffic in Vercel Analytics &#8250;
           </a>
         </Card>

@@ -20,13 +20,13 @@ export default function FuturePracticeGuardModal({ practice, team, onCancel, onR
     <div className="modal">
       <div className="mhandle" />
       <div className="mtitle">This practice isn't scheduled for a while</div>
-      <div style={{ fontSize: 14, color: "var(--td)", marginBottom: 16, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 16, lineHeight: 1.5 }}>
         {team ? team.name : "This practice"} isn't scheduled to start for over 2 hours. What would you like to do?
       </div>
       <button className="btn primary bmd bfull" style={{ marginBottom: 8 }} disabled={busy} onClick={() => run(onRunAsNew)}>Run This Plan as a New Practice</button>
-      <div style={{ fontSize: 11, color: "var(--td)", marginBottom: 14, lineHeight: 1.4 }}>Creates a new practice from this plan, right now -- the original stays scheduled as planned.</div>
+      <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 14, lineHeight: 1.4 }}>Creates a new practice from this plan, right now -- the original stays scheduled as planned.</div>
       <button className="btn outline bmd bfull" style={{ marginBottom: 8 }} disabled={busy} onClick={() => run(onRunNow)}>Run This Practice Now</button>
-      <div style={{ fontSize: 11, color: "var(--td)", marginBottom: 14, lineHeight: 1.4 }}>Starts the actual scheduled practice early -- use this if you're just getting set up ahead of time.</div>
+      <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 14, lineHeight: 1.4 }}>Starts the actual scheduled practice early -- use this if you're just getting set up ahead of time.</div>
       <button className="btn ghost bmd bfull" disabled={busy} onClick={onCancel}>Cancel</button>
     </div>
   </div>);
