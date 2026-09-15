@@ -32,10 +32,13 @@ import {
 //   onRefresh()   re-fetch participants from the server
 //   readOnly      assessment finalized / grant closed
 //   mineOnlyEdit  helper mode: an attempt not authored under this grant is read-only
+//   reserveParticipant(participantId, takeOver) -> { data:{reserved, held_by, expires_at} } | { error }
+//   releaseParticipant(participantId) -> {}     (both undefined = reservations off, e.g. finalized)
 
 export default function BenchmarkRecorder({
   protocol, participants, assessmentId, subjectMode, outboxScope,
   saveAttempt, setStatus, onRefresh, readOnly, mineOnlyEdit, isDesktop,
+  reserveParticipant, releaseParticipant,
 }) {
   const N = Math.max(1, protocol.scoredAttempts || 1);
   const isTeam = subjectMode === "team";
@@ -49,6 +52,27 @@ export default function BenchmarkRecorder({
   const [conflicts, setConflicts] = useState({}); // key -> server attempt
   const [pending, setPending] = useState([]); // outbox rows for this scope
   const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
+  const [reserveCheck, setReserveCheck] = useState(null); // latest reserve() result for the current mobile-sheet player
+
+  // Reservation heartbeat (design system v1 SS11: "Being recorded by {tester}").
+  // Mobile sheet only -- it's the one mode where a tester actually "opens" a
+  // single participant; the desktop grid and team-subject views have no such
+  // selection moment. Re-reserves every 30s while this player stays open so
+  // the server-side ~90s expiry never lapses under normal use; closing the
+  // sheet (unmount / picking someone else) releases it immediately, and a
+  // dropped tab still self-expires with no explicit cleanup needed.
+  const rosterIds = participants.filter(p => !p.is_team_subject).map(p => p.participant_id).join(",");
+  useEffect(() => {
+    if (!reserveParticipant || isTeam || isDesktop || readOnly) return;
+    const ids = rosterIds ? rosterIds.split(",") : [];
+    const pid = ids[Math.min(idx, ids.length - 1)];
+    if (!pid) return;
+    let alive = true;
+    const beat = async () => { const r = await reserveParticipant(pid); if (alive) setReserveCheck(r.data || null); };
+    beat();
+    const t = setInterval(beat, 30000);
+    return () => { alive = false; clearInterval(t); if (releaseParticipant) releaseParticipant(pid); };
+  }, [idx, rosterIds, isTeam, isDesktop, readOnly, reserveParticipant, releaseParticipant]);
 
   const refreshPending = useCallback(async () => { setPending(await outboxList(outboxScope)); }, [outboxScope]);
   useEffect(() => { refreshPending(); }, [refreshPending]);
@@ -327,12 +351,30 @@ export default function BenchmarkRecorder({
   if (!p) return <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No participants.</div>;
   const r = provisional(p);
   const doneCount = roster.filter(x => x.status === "complete").length;
+  // "Being recorded by" reads from this component's own last reserve() call
+  // first (immediate, doesn't wait on the parent's poll), falling back to the
+  // server-reported reserved_* fields on the participant itself.
+  const heldByOther = (reserveCheck && reserveCheck.reserved === false)
+    ? { label: reserveCheck.held_by, expiresAt: reserveCheck.expires_at }
+    : (p.reserved_label && !p.reserved_by_me && p.reserved_expires_at && new Date(p.reserved_expires_at) > new Date())
+      ? { label: p.reserved_label, expiresAt: p.reserved_expires_at }
+      : null;
+  const takeOver = async () => {
+    if (!reserveParticipant) return;
+    if (!window.confirm((heldByOther.label || "Someone") + " is currently recording this player. Take over anyway?")) return;
+    const r2 = await reserveParticipant(p.participant_id, true);
+    setReserveCheck(r2.data || null);
+  };
   return (
     <div>
       {header}
       <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 6 }}>{doneCount} of {roster.length} complete</div>
       <div className="card">
         <div style={{ fontSize: 18, fontWeight: 900 }}>{p.name}{p.jersey ? "  #" + p.jersey : ""}</div>
+        {heldByOther && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+          <span className="status caution">Being recorded by {heldByOther.label}</span>
+          <button type="button" className="btn ghost bxs" onClick={takeOver}>Take Over</button>
+        </div>}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
           {Array.from({ length: N }).map((_, s) => attemptInput(p, s))}
         </div>
