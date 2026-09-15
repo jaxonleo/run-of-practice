@@ -143,6 +143,28 @@ body{background:var(--canvas);color:var(--ink);font-family:'Barlow',sans-serif;f
 .pill{background:var(--field-tint);border:1px solid var(--field-tint-border);border-radius:20px;padding:4px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--field);}
 .pill.over{background:var(--danger-tint);border-color:var(--danger-tint-border);color:var(--danger);}
 .pill.exceeds{background:var(--caution-tint);border-color:var(--caution-tint-border);color:var(--caution);}
+/* Toggleable filter/tag chip -- one canonical shape for "browse source, sport,
+   or filter value" (design system v1 SS5), replacing ~15 near-identical inline
+   pill buttons that had each reinvented this by hand. Team-color contexts pass
+   an explicit --fchip-on override rather than a new variant, since team color
+   here is contextual accent, not a new semantic state. */
+.fchip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.fchip.on{border-color:var(--fchip-on,var(--field));background:var(--fchip-on,var(--field));color:#fff;}
+.fchip.warn{border-color:var(--caution-tint-border);background:var(--caution-tint);color:var(--caution);}
+.fchip.tag{background:var(--field);border-color:var(--field);color:#fff;padding-right:4px;}
+.fchip:disabled{opacity:.5;cursor:not-allowed;}
+/* Static status-label pill -- one canonical shape for a short read-only state
+   word ("Planned", "Needs Planning", "Everyone Rotates"), distinct from .bdg/
+   .pill's data-mono voice. Always pairs color with the word itself, never
+   color alone. */
+.status{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+.status.lg{padding:8px 14px;font-size:13px;}
+.status.field{background:var(--field-tint);color:var(--field);}
+.status.danger{background:var(--danger-tint);color:var(--danger);}
+.status.caution{background:var(--caution-tint);color:var(--caution);}
+.status.ink{background:var(--ink);color:#fff;}
+.status.field-solid{background:var(--field);color:#fff;}
+.status.neutral{background:var(--surface-soft);color:var(--text-muted);}
 .confirm-box{background:var(--danger-tint);border:1.5px solid var(--danger-tint-border);border-radius:var(--radius-lg);padding:14px;margin-top:8px;}
 .confirm-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--danger);margin-bottom:4px;}
 .confirm-body{font-size:13px;color:var(--ink-soft);margin-bottom:12px;line-height:1.5;}
@@ -2296,7 +2318,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           </div>
           {showBuilderFilter&&<div className="card" style={{marginBottom:10,padding:10}} onClick={e=>e.stopPropagation()}>
             <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:builderTagFilter.length?8:0}}>
-              {builderAvailableTags.map(t=>(<button key={t.id} type="button" onClick={()=>setBuilderTagFilter(f=>f.includes(t.id)?f.filter(id=>id!==t.id):[...f,t.id])} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--border)",background:builderTagFilter.includes(t.id)?"var(--field)":"var(--surface)",color:builderTagFilter.includes(t.id)?"#fff":"var(--ink)",fontSize:12,cursor:"pointer"}}>{t.name}</button>))}
+              {builderAvailableTags.map(t=>(<button key={t.id} type="button" className={"fchip"+(builderTagFilter.includes(t.id)?" on":"")} onClick={()=>setBuilderTagFilter(f=>f.includes(t.id)?f.filter(id=>id!==t.id):[...f,t.id])} style={{fontSize:12}}>{t.name}</button>))}
             </div>
             {builderTagFilter.length>0&&<button type="button" className="btn ghost bxs" onClick={()=>setBuilderTagFilter([])}>Clear filter</button>}
           </div>}

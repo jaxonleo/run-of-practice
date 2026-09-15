@@ -810,13 +810,13 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
             const planned=stationIsPlanned(st);
             return (<div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:8}}>
               <span style={{fontSize:13,fontWeight:600}}>Delegated to {delegate?delegate.name:"a former coach"}</span>
-              <span style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:planned?"var(--field-tint)":"var(--caution-tint)",color:planned?"var(--field)":"var(--caution)"}}>{planned?"Planned":"Needs Planning"}</span>
+              <span className={"status "+(planned?"field":"caution")}>{planned?"Planned":"Needs Planning"}</span>
               {st.stationUpdatedAt&&<span style={{fontSize:11,color:"var(--text-dim)"}}>last saved {timeAgo(st.stationUpdatedAt)}</span>}
               <button type="button" className="btn ghost bxs" onClick={()=>onSt(st.id,{delegatedTo:""})}>Remove</button>
             </div>);
           })():delegatePickerIdx===si?<div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
             {(team.coaches||[]).filter(c=>c.canBuildPractices).map(c=>(
-              <button key={c.id} type="button" onClick={()=>{onSt(st.id,{delegatedTo:c.id});setDelegatePickerIdx(null);}} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--border)",background:"#fff",color:"var(--ink)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{c.name}</button>
+              <button key={c.id} type="button" className="fchip" onClick={()=>{onSt(st.id,{delegatedTo:c.id});setDelegatePickerIdx(null);}}>{c.name}</button>
             ))}
             <button type="button" className="btn ghost bxs" onClick={()=>setDelegatePickerIdx(null)}>Cancel</button>
           </div>:(team.coaches||[]).filter(c=>c.canBuildPractices).length===0?
@@ -872,7 +872,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
                   return;
                 }
                 onSt(st.id,{coachId:c.id,helperName:""});
-              }} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid "+(isHere?"var(--field)":isElsewhere?"#fbbf24":"var(--border)"),background:isHere?"var(--field)":isElsewhere?"#fef3c7":"#fff",color:isHere?"#fff":isElsewhere?"#92400e":"var(--ink)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{label}</button>);
+              }} className={"fchip"+(isHere?" on":isElsewhere?" warn":"")}>{label}</button>);
             })}
           </div>}
           {!st.helperName&&<button type="button" className="btn ghost bxs" onClick={()=>{setHelperIdx(si);onSt(st.id,{coachId:""});}}>+ Assign a Helper (not on roster)</button>}
@@ -1132,7 +1132,7 @@ export function ScrimmageConfig({act,team,onChange,onDone,teamSport,data,coachId
         they got and a future second format has a home. */}
     <div className="fld"><label className="lbl">Format</label>
       <div style={{display:"flex",gap:6}}>
-        <span style={{padding:"8px 14px",borderRadius:20,background:"var(--field)",color:"#fff",fontSize:13,fontWeight:700}}>Everyone Rotates</span>
+        <span className="status field-solid lg">Everyone Rotates</span>
       </div>
       {/* Direct feedback (audit): this used to promise unconditionally even
           rotation ("Every player rotates... evenly"), which a narrow roster

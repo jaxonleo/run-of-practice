@@ -171,7 +171,7 @@ export function LocationChips({locations,selectedIds,onToggle,label,emptyHint,se
   if(!locations||locations.length===0)return null;
   return(<div className="fld"><label className="lbl">{label||"Available At"}</label>
     <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:4}}>
-      {locations.map(l=>(<button key={l.id} type="button" onClick={()=>onToggle(l.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--border)",background:selectedIds.includes(l.id)?"var(--field)":"var(--surface)",color:selectedIds.includes(l.id)?"#fff":"var(--ink)",fontSize:13,cursor:"pointer"}}>{l.name}</button>))}
+      {locations.map(l=>(<button key={l.id} type="button" className={"fchip"+(selectedIds.includes(l.id)?" on":"")} onClick={()=>onToggle(l.id)}>{l.name}</button>))}
     </div>
     <div style={{fontSize:11,color:"var(--text-dim)"}}>{selectedIds.length===0?(emptyHint||"Travels with you -- available at every location."):(selectedHint||"Only available at the selected location(s).")}</div>
   </div>);
@@ -1147,7 +1147,7 @@ function BenchmarkForm({ data, coachId, mode, sourceDrill, baseVersion, example,
         <div className="fld"><label className="lbl">Skill tags</label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {tagsForSport.length === 0 && <span style={{ fontSize: 12, color: "var(--text-dim)" }}>No skill categories for {sport} yet.</span>}
-            {tagsForSport.map(t => <button key={t.id} type="button" onClick={() => setTagIds(tagIds.includes(t.id) ? tagIds.filter(x => x !== t.id) : [...tagIds, t.id])} style={{ padding: "4px 10px", borderRadius: 20, border: "1.5px solid var(--border)", background: tagIds.includes(t.id) ? "var(--field)" : "var(--surface)", color: tagIds.includes(t.id) ? "#fff" : "var(--ink)", fontSize: 12, cursor: "pointer" }}>{t.name}</button>)}
+            {tagsForSport.map(t => <button key={t.id} type="button" className={"fchip"+(tagIds.includes(t.id)?" on":"")} style={{fontSize:12}} onClick={() => setTagIds(tagIds.includes(t.id) ? tagIds.filter(x => x !== t.id) : [...tagIds, t.id])}>{t.name}</button>)}
           </div>
         </div>
         <div className="fld"><label className="lbl">Planned activity minutes</label><input className="inp" type="number" min={0} value={plannedMin} onChange={e => setPlannedMin(e.target.value)} placeholder="Optional" /></div>
@@ -1735,7 +1735,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
         <button type="button" className="btn outline bsm" style={{marginTop:8}} onClick={()=>navigate(untaggedDeepLink.returnTo||"/team/"+untaggedDeepLink.teamId+"/goals")}>&larr; Back to Goals &amp; Insights</button>
       </div>}
       {section==="explore"&&exploreShelves.length>1&&<div style={{display:"flex",gap:6,overflowX:"auto",marginBottom:12,paddingBottom:2}}>
-        {exploreShelves.map(s=>(<button key={s.key} onClick={()=>{setShelf(s.key);setTagFilter([]);setTagSearch("");}} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--border)",background:shelf===s.key?"var(--field)":"var(--surface)",color:shelf===s.key?"#fff":"var(--ink)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{s.label}</button>))}
+        {exploreShelves.map(s=>(<button key={s.key} className={"fchip"+(shelf===s.key?" on":"")} style={{flexShrink:0,fontSize:12,fontWeight:700,whiteSpace:"nowrap"}} onClick={()=>{setShelf(s.key);setTagFilter([]);setTagSearch("");}}>{s.label}</button>))}
       </div>}
       {shelf==="public"?(
         <div onClick={e=>e.stopPropagation()}><PublicLibraryScreen data={data} isAdmin={isAdmin} refreshLibrary={refreshLibrary} openModal={openModal} doCopy={doCopy} copyingId={copyingId} mode={mode}/></div>
@@ -1764,11 +1764,11 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
         {isMine&&<button className="btn primary bsm" onClick={()=>openModal("addActivity")}>+ Add Drill</button>}
       </div>
       {(tagFilter.length>0||publisherFilter.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center",marginBottom:12}} onClick={e=>e.stopPropagation()}>
-        {tagFilter.map(id=>{const t=skillTagsById[id];if(!t)return null;return(<span key={id} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 4px 3px 10px",borderRadius:20,background:"var(--field)",color:"#fff",fontSize:12,fontWeight:600}}>
+        {tagFilter.map(id=>{const t=skillTagsById[id];if(!t)return null;return(<span key={id} className="fchip tag" style={{fontSize:12}}>
           {t.name}
           <button type="button" onClick={()=>toggleTagFilter(id)} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:14,lineHeight:1,padding:"2px 4px"}}>&times;</button>
         </span>);})}
-        {publisherFilter.map(key=>(<span key={key} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 4px 3px 10px",borderRadius:20,background:"#7c3aed",color:"#fff",fontSize:12,fontWeight:600}}>
+        {publisherFilter.map(key=>(<span key={key} className="fchip tag" style={{fontSize:12,background:"#7c3aed"}}>
           {publisherLabelOf(key)}
           <button type="button" onClick={()=>togglePublisherFilter(key)} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:14,lineHeight:1,padding:"2px 4px"}}>&times;</button>
         </span>))}
@@ -1783,13 +1783,13 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           {isMine&&availablePublishers.length>1&&<>
             <div className="clbl mb8">Publisher</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
-              {availablePublishers.map(p=>(<button key={p.key} type="button" onClick={()=>togglePublisherFilter(p.key)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--border)",background:publisherFilter.includes(p.key)?"#7c3aed":"var(--surface)",color:publisherFilter.includes(p.key)?"#fff":"var(--ink)",fontSize:13,cursor:"pointer"}}>{p.label} <span style={{opacity:.7}}>{p.count}</span></button>))}
+              {availablePublishers.map(p=>(<button key={p.key} type="button" className={"fchip"+(publisherFilter.includes(p.key)?" on":"")} style={{"--fchip-on":"#7c3aed"}} onClick={()=>togglePublisherFilter(p.key)}>{p.label} <span style={{opacity:.7}}>{p.count}</span></button>))}
             </div>
           </>}
           <div className="clbl mb8">Skill Tags</div>
           {availableTags.length>8&&<input className="inp" placeholder="Search skill tags..." value={tagSearch} onChange={e=>setTagSearch(e.target.value)} style={{marginBottom:10}}/>}
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
-            {visibleTagChips.map(t=>(<button key={t.id} type="button" onClick={()=>toggleTagFilter(t.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--border)",background:tagFilter.includes(t.id)?"var(--field)":"var(--surface)",color:tagFilter.includes(t.id)?"#fff":"var(--ink)",fontSize:13,cursor:"pointer"}}>{t.name} <span style={{opacity:.7}}>{tagCounts[t.id]}</span></button>))}
+            {visibleTagChips.map(t=>(<button key={t.id} type="button" className={"fchip"+(tagFilter.includes(t.id)?" on":"")} onClick={()=>toggleTagFilter(t.id)}>{t.name} <span style={{opacity:.7}}>{tagCounts[t.id]}</span></button>))}
             {visibleTagChips.length===0&&<span style={{fontSize:13,color:"var(--text-dim)"}}>No skill tags match "{tagSearch}"</span>}
           </div>
           {(tagFilter.length>0||publisherFilter.length>0)&&<button type="button" className="btn ghost bxs" onClick={()=>{setTagFilter([]);setPublisherFilter([]);}}>Clear all filters</button>}

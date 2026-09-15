@@ -17,7 +17,7 @@ export function PositionPicker({sport,value,onChange}){
   if(!options.length)return(<div className="fld"><label className="lbl">Positions</label><input className="inp" placeholder="e.g. Forward, Midfielder" value={value.join(", ")} onChange={e=>onChange(e.target.value.split(",").map(x=>x.trim()).filter(Boolean))}/></div>);
   return(<div className="fld"><label className="lbl">Positions</label>
     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-      {options.map(pos=>(<button key={pos} type="button" onClick={()=>toggle(pos)} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--border)",background:value.includes(pos)?"var(--field)":"var(--surface)",color:value.includes(pos)?"#fff":"var(--ink)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{pos}</button>))}
+      {options.map(pos=>(<button key={pos} type="button" className={"fchip"+(value.includes(pos)?" on":"")} onClick={()=>toggle(pos)}>{pos}</button>))}
     </div>
   </div>);
 }
@@ -115,7 +115,7 @@ export function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshL
   return(<div className="fld"><label className="lbl">Skill Tags</label>
     <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:6,lineHeight:1.4}}>Tagging skills helps power Goals &amp; Insights and reporting on what your team actually practices.</div>
     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-      {selectedTags.map(t=>(<span key={t.id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 4px 4px 10px",borderRadius:20,background:"var(--field)",color:"#fff",fontSize:13}}>
+      {selectedTags.map(t=>(<span key={t.id} className="fchip tag">
         {t.name}
         <button type="button" onClick={()=>toggleTag(t.id)} aria-label={"Remove "+t.name} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:15,lineHeight:1,padding:"2px 4px"}}>&times;</button>
       </span>))}
@@ -145,7 +145,7 @@ export function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshL
           return(<div key={cat.id} style={{marginBottom:10}}>
             <div style={{fontSize:11,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>{cat.name}</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {tags.map(t=>(<button key={t.id} type="button" onClick={()=>toggleTag(t.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--border)",background:selectedIds.includes(t.id)?"var(--field)":"var(--surface)",color:selectedIds.includes(t.id)?"#fff":"var(--ink)",fontSize:13,cursor:"pointer"}}>{t.name}</button>))}
+              {tags.map(t=>(<button key={t.id} type="button" className={"fchip"+(selectedIds.includes(t.id)?" on":"")} onClick={()=>toggleTag(t.id)}>{t.name}</button>))}
             </div>
           </div>);
         })}
