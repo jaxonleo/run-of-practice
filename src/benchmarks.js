@@ -561,7 +561,7 @@ function toTime(v) {
 // Entry and display only. The canonical stored value never changes, so two
 // assessments entered in different display units under the same protocol
 // version remain directly comparable.
-export const FEET_PER_METRE = 3.28083989501312335958;
+export const FEET_PER_METRE = 3.2808398950131235;
 export function feetInchesToMetres(feet, inches = 0) {
   return (Number(feet || 0) * 12 + Number(inches || 0)) * 0.0254;
 }

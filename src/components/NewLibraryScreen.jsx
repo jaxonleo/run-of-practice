@@ -272,7 +272,7 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
   const addNew=async()=>{
     if(!newName.trim())return;
     const sport=(equipTab==="player"||!sportFilter)?newSport:sportFilter;
-    let created=null;
+    let created;
     if(isOrgMode&&!sportFilter){const {data:d}=await createOrgAsset(mode.orgId,{name:newName.trim(),type:equipTab,sport});created=d;}
     else{const {data:d}=await createAsset(coachId,{name:newName.trim(),type:equipTab,sport});created=d;}
     if(created&&newLocationIds.length)await setAssetLocations(created.id,newLocationIds);
@@ -754,7 +754,7 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
         {expandedId===act.id&&(<div className="abbody">
           {act.type==="activity"&&<ActConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} sport={sport} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} libraryDrills={data.activityLibrary} skillTags={data.skillTags} openModal={openModal}/>}
           {act.type==="checklist"&&<ChecklistConfig act={act} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)}/>}
-          {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={sport} libraryDrills={data.activityLibrary} skillTags={data.skillTags} benchmarks={data.benchmarks} openModal={openModal}/>}
+          {act.type==="station_block"&&<StationConfig assets={data.assets} coachId={coachId} refreshLibrary={refreshLibrary} act={act} team={null} loc={loc} onChange={ch=>updAct(act.id,ch)} onSt={(sid,ch)=>updSt(act.id,sid,ch)} onDone={()=>setExpandedId(null)} teamSport={sport} libraryDrills={data.activityLibrary} skillTags={data.skillTags} skillCategories={data.skillCategories} benchmarks={data.benchmarks} openModal={openModal}/>}
           {act.type==="scrimmage"&&<ScrimmageConfig act={act} team={null} onChange={ch=>updAct(act.id,ch)} onDone={()=>setExpandedId(null)} teamSport={sport} data={data} coachId={coachId} refreshLibrary={refreshLibrary}/>}
         </div>)}
       </div>
@@ -1578,8 +1578,14 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const isMine=shelf==="mine";
   // Custom order / Most Used / Suggested only mean something on your own
   // shelf; a shared or org shelf still gets Alphabetical + Group by Skill.
-  const effSort=isMine?drillSort:(drillSort==="byskill"?"byskill":"alpha");
+  // Explore defaults to grouped-by-skill-category rather than a flat
+  // alphabetical dump -- a coach browsing someone else's library wants to
+  // scan by category first, same as the Public Library shelf (which is
+  // grouped by category unconditionally, see PublicLibraryScreen). Only an
+  // explicit "Alphabetical" pick on the shared drillSort state overrides it.
+  const effSort=isMine?drillSort:(drillSort==="alpha"?"alpha":"byskill");
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
+  const skillCategoriesById=Object.fromEntries((data.skillCategories||[]).map(c=>[c.id,c]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
   // Only offer tags that at least one drill on this shelf actually has --
   // filtering by a tag with zero drills would just be a dead end.
@@ -1748,7 +1754,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
             {isMine&&<option value="suggested">Suggested</option>}
           </optgroup>
           <optgroup label="Group">
-            <option value="byskill">By skill tag</option>
+            <option value="byskill">By skill category</option>
           </optgroup>
         </select>
         {isMine&&drillSort==="suggested"&&myTeamsForSort.length>1&&<select className="btn ghost bsm" value={suggestedTeamId} onChange={e=>setSuggestedTeamId(e.target.value)} style={{flexShrink:0}}>
@@ -1880,34 +1886,62 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           </div>);
           // Direct feedback: a new grouping mode, distinct from the other
           // three (which just reorder the same flat list) -- headers are
-          // the sport's own skill tags (global, not per-coach), each
-          // listing every drill tagged with it; a multi-tagged drill shows
-          // up under every one of its tags, same "lives in every applicable
-          // spot" rule the untagged-drills deep link already established
-          // for the inverse case. Derived straight from this sport's own
-          // drills (not a separate skill-category fetch), sorted
-          // alphabetically by tag name so the header order is stable.
+          // the sport's own GLOBAL skill categories (skill_categories --
+          // Hitting/Fielding/Pitching/etc, not the finer-grained coach-
+          // addable skill_tags underneath each one), each listing every
+          // drill carrying at least one tag under that category; a drill
+          // whose tags span more than one category shows up under every one
+          // of them, same "lives in every applicable spot" rule the
+          // untagged-drills deep link already established for the inverse
+          // case -- but only once per category, even if it carries two tags
+          // under the same category. Derived from this sport's own drills'
+          // skillTagIds resolved through skillTagsById.categoryId (not a
+          // separate skill-category fetch). Categories sort by the curated
+          // skill_categories.sort_order (Hitting/Fielding/Pitching/... in
+          // the order Jax laid the taxonomy out), same convention
+          // PublicLibraryScreen's own category grouping uses, not
+          // alphabetically -- and each category is collapsible with a
+          // count, same accordion the sport-level headers above use, with
+          // drills alphabetized within regardless of the shelf's own sort
+          // (custom/frequency/suggested order doesn't mean anything once
+          // you're grouped by category).
           if(effSort==="byskill"){
-            const byTag={};
+            const byCat={};
             const untagged=[];
             sportDrills.forEach(act=>{
               if(!act.skillTagIds||!act.skillTagIds.length){untagged.push(act);return;}
-              act.skillTagIds.forEach(tid=>{(byTag[tid]=byTag[tid]||[]).push(act);});
+              const catIds=new Set(act.skillTagIds.map(tid=>skillTagsById[tid]&&skillTagsById[tid].categoryId).filter(Boolean));
+              if(!catIds.size){untagged.push(act);return;}
+              catIds.forEach(cid=>{(byCat[cid]=byCat[cid]||[]).push(act);});
             });
-            const tagIds=Object.keys(byTag).sort((a,b)=>{
-              const na=(skillTagsById[a]&&skillTagsById[a].name)||"";
-              const nb=(skillTagsById[b]&&skillTagsById[b].name)||"";
-              return na.localeCompare(nb);
+            Object.keys(byCat).forEach(cid=>byCat[cid].sort((a,b)=>a.name.localeCompare(b.name)));
+            const catIds=Object.keys(byCat).sort((a,b)=>{
+              const oa=(skillCategoriesById[a]&&skillCategoriesById[a].sort_order)||0;
+              const ob=(skillCategoriesById[b]&&skillCategoriesById[b].sort_order)||0;
+              return oa-ob||((skillCategoriesById[a]&&skillCategoriesById[a].name)||"").localeCompare((skillCategoriesById[b]&&skillCategoriesById[b].name)||"");
             });
             return (<>
-              {tagIds.map(tid=>(<div key={tid} style={{marginBottom:14}}>
-                <div style={{fontSize:12,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--gbg)"}}>{(skillTagsById[tid]&&skillTagsById[tid].name)||"Tag"} ({byTag[tid].length})</div>
-                {byTag[tid].map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
-              </div>))}
-              {untagged.length>0&&<div style={{marginBottom:14}}>
-                <div style={{fontSize:12,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--s2)"}}>Untagged ({untagged.length})</div>
-                {untagged.map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
-              </div>}
+              {catIds.map(cid=>{
+                const key="skillcat_"+cid;
+                const isCollapsed=collapsed[key];
+                return (<div key={cid} style={{marginBottom:8}}>
+                  <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[key]:!c[key]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"var(--gbg)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
+                    <span style={{fontSize:12,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"}</span>
+                    <span style={{fontSize:12,color:"var(--td)"}}>{byCat[cid].length} drills {isCollapsed?"▶":"▼"}</span>
+                  </button>
+                  {!isCollapsed&&byCat[cid].map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
+                </div>);
+              })}
+              {untagged.length>0&&(()=>{
+                const isCollapsed=collapsed.skillcat_untagged;
+                return (<div style={{marginBottom:8}}>
+                  <button onClick={()=>setCollapsed(c=>Object.assign({},c,{skillcat_untagged:!c.skillcat_untagged}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"var(--s2)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
+                    <span style={{fontSize:12,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em"}}>Untagged</span>
+                    <span style={{fontSize:12,color:"var(--td)"}}>{untagged.length} drills {isCollapsed?"▶":"▼"}</span>
+                  </button>
+                  {!isCollapsed&&untagged.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
+                </div>);
+              })()}
             </>);
           }
           if(!isMine||effSort!=="custom")return sportDrills.map(act=>(<Row key={act.id} act={act} dragHandle={null}/>));

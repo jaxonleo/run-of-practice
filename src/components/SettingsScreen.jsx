@@ -228,7 +228,7 @@ function LivePracticeAudioSection(){
 // the same public-library/skill-tag write rights to another user later is
 // just adding them here by email -- grant_admin/revoke_admin (RLS: caller
 // must already be_admin()), same shape as LocationsSection above.
-function AdminsSection({}){
+function AdminsSection(){
   const [admins,setAdmins]=useState([]);
   const [loading,setLoading]=useState(true);
   const [email,setEmail]=useState("");

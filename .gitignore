@@ -4,3 +4,8 @@ dist
 .env.local
 .DS_Store
 backups/
+e2e/.auth/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

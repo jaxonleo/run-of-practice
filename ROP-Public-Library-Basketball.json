@@ -319,6 +319,1307 @@
         "Basketballs"
       ],
       "playerGear": []
+    },
+    {
+      "name": "Mikan Drill",
+      "description": "Player stands under the rim and alternates right-hand and left-hand layups off the glass without letting the ball touch the floor. Sixty seconds, counting makes.",
+      "coachingPoints": "Inside foot up, ball off the square. Land ready to go the other way.",
+      "duration": 6,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Shooting: Finishing at the rim"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Reverse Mikan Turns",
+      "description": "Same continuous rhythm as the Mikan drill but finishing on the far side of the rim each time, using the backboard to shield the shot. Sixty seconds, then switch which shoulder leads.",
+      "coachingPoints": "Put the rim between you and the help. Finish high off the glass, don't lay it in soft.",
+      "duration": 6,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Shooting: Finishing at the rim"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Off-Hand Finish Ladder",
+      "description": "Three finishes from each side using only the outside hand: standard layup, inside-hand reverse, and a short floater. Five makes at each spot before moving.",
+      "coachingPoints": "Outside hand, outside foot. If the shot needs your strong hand, you took the wrong angle.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Shooting: Finishing at the rim",
+        "Ball Handling: Weak-hand development"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Euro-Step Through the Cone",
+      "description": "Player attacks a cone placed in the lane, takes the first step to one side and the second step across to the other, then finishes. Six each direction.",
+      "coachingPoints": "Long first step, longer second. Pick the ball up before the first step, not during.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Shooting: Finishing at the rim"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Floater Range Finder",
+      "description": "From the elbow and both short corners, the player takes one dribble toward the lane and shoots a one-foot floater over an imaginary contest. Five makes from each of the four spots.",
+      "coachingPoints": "Shoot it off one foot going up, not two feet drifting. High arc, soft off the fingers.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Shooting: Finishing at the rim",
+        "Shooting: Off the dribble"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "One-Hand Form Sequence",
+      "description": "Starting three feet from the rim, the shooter takes ten one-handed shots with the guide hand behind the back, then adds the guide hand and steps back to the block. Twenty shots total.",
+      "coachingPoints": "Elbow under the ball, wrist snaps down. If it spins sideways, your hand is off center.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 4,
+      "skillTags": [
+        "Shooting: Form / mechanics"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Wall Alignment Shooting",
+      "description": "Shooter stands three feet from a wall and shoots straight up so the ball comes back to the same spot. Twenty reps checking that the ball never drifts left or right.",
+      "coachingPoints": "Ball comes back to you or your elbow is flying out. Same finish every single rep.",
+      "duration": 6,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Shooting: Form / mechanics"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Elbow-to-Elbow Form Shots",
+      "description": "Shooter makes a shot at one elbow, sprints to touch the opposite elbow, and shoots again on the catch from a partner. Ten makes total.",
+      "coachingPoints": "Feet set before the ball arrives. Same release tired as fresh.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Shooting: Form / mechanics",
+        "Shooting: Catch-and-shoot"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Five-Spot Catch and Shoot",
+      "description": "Passer feeds the shooter at five spots around the arc. Shooter must make two in a row at each spot before moving on, then the pair switches.",
+      "coachingPoints": "Hands ready before the pass arrives. Hop into it and land where you shot from.",
+      "duration": 12,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Shooting: Catch-and-shoot"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Curl Off the Screen Shots",
+      "description": "Shooter runs off a cone set as a screen, curls into the catch, and shoots. Ten reps each side, with the passer delivering the ball to the shooting pocket.",
+      "coachingPoints": "Shoulder past the screen before you turn. Catch it already squared to the rim.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Shooting: Catch-and-shoot",
+        "Team Play: Screening and cutting"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Relocate and Shoot",
+      "description": "Shooter takes a catch-and-shoot, then immediately relocates one spot along the arc for a second pass and shot. Six pairs of shots, alternating direction.",
+      "coachingPoints": "Move the second the ball leaves your hands. Get to the spot early, then set your feet.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Shooting: Catch-and-shoot"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Step-Back Off the Bounce",
+      "description": "Player attacks a cone, plants, and pushes back into a one-dribble step-back jumper. Five makes going right, five going left.",
+      "coachingPoints": "Sell the drive before you go back. Land balanced, don't fade sideways.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Shooting: Off the dribble",
+        "Ball Handling: Change of direction"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Two-Dribble Attack Series",
+      "description": "From the wing the player takes exactly two hard dribbles and rises into a pull-up from the elbow. Six each direction, then six starting with a jab step.",
+      "coachingPoints": "Get low on the first dribble, high on the shot. Gather on two, not three.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Shooting: Off the dribble"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Free Throw Routine Reps",
+      "description": "Every player builds the same pre-shot routine and repeats it for two sets of ten, saying the routine out loud on the first five. Track makes each round.",
+      "coachingPoints": "Same routine, same breath, every time. The routine is the shot.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 4,
+      "skillTags": [
+        "Shooting: Free throws"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Free Throws on Tired Legs",
+      "description": "Player runs a full-court sprint and back, then steps to the line for two free throws. Repeat four times and keep a running total for the team.",
+      "coachingPoints": "Slow your breathing before the routine, not during it. Legs tired means push a little more, not aim harder.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Shooting: Free throws",
+        "Conditioning: Endurance"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Pound Dribble Series",
+      "description": "Stationary hard dribbles at three heights: waist, knee, and ankle. Thirty seconds each hand at each height with the off hand up as a shield.",
+      "coachingPoints": "Pound it, don't pat it. Eyes up the whole time, feel the floor come back.",
+      "duration": 6,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Ball Handling: Dribble control"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Figure-Eight Ball Control",
+      "description": "Players weave the ball through and around the legs in a figure eight, first walking the ball around with no dribble, then with one dribble per pass-through. Forty-five seconds each way.",
+      "coachingPoints": "Fingertips, not palms. Wide base, chest up.",
+      "duration": 6,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Ball Handling: Dribble control"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Dribble Tag",
+      "description": "Every player dribbles inside the three-point arc while two taggers try to knock balls away without fouling. Anyone who loses the ball or steps out joins the taggers.",
+      "coachingPoints": "Head up or you are the next one out. Keep the ball on the far hip from trouble.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Ball Handling: Dribble control",
+        "Ball Handling: Pressure handling"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Crossover, Between, Behind Series",
+      "description": "Down and back the length of the floor doing one move at each of five cones: crossover, between the legs, behind the back, then repeat the set going the other way.",
+      "coachingPoints": "Change speed with the move, not after it. Low and quick through the switch.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Ball Handling: Change of direction"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Retreat and Attack Dribble",
+      "description": "Player dribbles hard at a cone, takes two retreat dribbles backward, then attacks past it with a crossover. Six reps each hand.",
+      "coachingPoints": "Retreat with your chest facing the pressure. Push off the back foot to go, don't drift.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Ball Handling: Change of direction",
+        "Ball Handling: Pressure handling"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Hesitation and Go",
+      "description": "Player attacks a cone at speed, rises up slightly as if to shoot, then explodes past on the same hand. Six each direction, then six finishing with a pass to a partner.",
+      "coachingPoints": "Sell it with your eyes and shoulders, not just the ball. Go on the half beat he relaxes.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Ball Handling: Change of direction"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Weak-Hand Only Full Court",
+      "description": "Players go the length of the floor using only the off hand, finishing with an off-hand layup. Four trips, and any strong-hand dribble sends them back to start.",
+      "coachingPoints": "Ugly is fine, sloppy is not. Protect it with the body since the hand isn't ready yet.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Ball Handling: Weak-hand development"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Off-Hand 1v1 Half Court",
+      "description": "Live one-on-one from the wing where the offensive player may only dribble with the off hand. Defense plays honest. First to three baskets, then switch roles.",
+      "coachingPoints": "Take the angle your weak hand can actually finish. Use your body as the shield.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Ball Handling: Weak-hand development",
+        "Defense: On-ball defense"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Two-Ball Alternating Pounds",
+      "description": "Player dribbles two balls at once, alternating so one is up while the other is down, then switches to pounding both together. Forty-five seconds each pattern.",
+      "coachingPoints": "Rhythm first, speed second. When it falls apart, slow down and rebuild it.",
+      "duration": 6,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Ball Handling: Weak-hand development",
+        "Ball Handling: Dribble control"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Trap Escape Reps",
+      "description": "Ball handler picks up the dribble in the corner while two defenders trap. He has three seconds to pivot out and make a live pass to an outlet. Six reps each.",
+      "coachingPoints": "Chin the ball and pivot, don't panic-dribble into the trap. Find the man behind the trap.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Ball Handling: Pressure handling",
+        "Passing: Court vision"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Ten-Second Pressure Advance",
+      "description": "Offense must get the ball past half court against full-court denial pressure inside ten seconds. Run it six times with the defense rotating fresh each rep.",
+      "coachingPoints": "Get it in and go, don't let him load up on the inbound. Dribble to a pass, not to a dead end.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Ball Handling: Pressure handling",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Two-Ball Partner Passing",
+      "description": "Partners stand twelve feet apart with two balls, one throwing a chest pass while the other throws a bounce pass at the same time. Thirty seconds, then swap which side bounces.",
+      "coachingPoints": "Step into it and follow through thumbs down. Catch with your eyes, throw with your feet.",
+      "duration": 6,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Passing: Chest / bounce pass"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Bounce Pass Through the Gap",
+      "description": "Two cones set four feet apart act as a defender's legs. Passers hit a partner with a bounce pass through the gap from fifteen feet, ten reps each hand.",
+      "coachingPoints": "Land it two-thirds of the way there. One hand off the dribble is faster than two.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Passing: Chest / bounce pass"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Star Passing",
+      "description": "Five players at five spots pass in a star pattern and follow their pass to the next spot. Add a second ball once the first pattern is clean.",
+      "coachingPoints": "Pass and go, don't pass and watch. Call his name before you throw it.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Chest / bounce pass",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Keep Away 3v1",
+      "description": "Three players pass inside a fifteen foot square while one defender tries to deflect. Ten consecutive completions wins, and any deflection swaps the defender.",
+      "coachingPoints": "Pass fake the first look, then throw the second. Move to a new angle after every pass.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 4,
+      "skillTags": [
+        "Passing: Court vision",
+        "Ball Handling: Pressure handling"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Skip Pass Across the Floor",
+      "description": "Ball starts on one wing with a closeout defender flying at the passer. Passer skips it to the opposite wing for a shot. Eight reps each side.",
+      "coachingPoints": "Throw it over the top with a one-hand push, not a lob. Hit him in the shooting pocket.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Court vision",
+        "Team Play: Ball movement"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Head-Up Numbers Passing",
+      "description": "While partners pass back and forth at speed, a coach standing behind each receiver holds up fingers that the passer has to call out before releasing the ball. Sixty seconds per turn.",
+      "coachingPoints": "See the floor past the ball. If you have to look at the pass, it's too slow.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Passing: Court vision"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Drive and Dish Live",
+      "description": "Ball handler attacks from the wing against one defender with two teammates spotted up. He must finish or deliver a pass off the live dribble. Six reps each, then rotate.",
+      "coachingPoints": "Pass out of the gather, not after you pick it up. Two feet in the paint before you decide.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Passing off the dribble",
+        "Team Play: Spacing"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "One-Hand Push Pass Reps",
+      "description": "Player drives past a cone and delivers a one-hand push pass to a partner on the wing without picking up the dribble. Eight each hand.",
+      "coachingPoints": "Same hand you dribble with, no gather. Push it, don't fling it.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Passing off the dribble"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Wrap-Around Baseline Feed",
+      "description": "Driver gets to the baseline and wraps a one-hand pass around the defender to a teammate on the weak-side block. Six reps from each corner.",
+      "coachingPoints": "Get your shoulder past him first. Wrap it low, the help is always high.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Passing off the dribble",
+        "Team Play: Ball movement"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Post Entry Angles",
+      "description": "Wing player has to create a passing angle to a post partner who is being fronted, using a dribble to the corner or a reversal to the top. Six reps each angle.",
+      "coachingPoints": "Change the angle with a dribble before you throw. Bounce it when he's fronted, never over the top.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Entry passes"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Pass Fake to Entry",
+      "description": "Passer holds the ball on the wing with a defender in the passing lane. He must use a fake high and deliver low, or fake low and deliver high, to reach a cutter. Ten reps.",
+      "coachingPoints": "Fake a pass to make a pass. Move the defender's hands before you throw.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Entry passes",
+        "Team Play: Screening and cutting"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Outlet and Push Ahead",
+      "description": "Rebounder secures a missed shot, turns to the sideline, and hits a guard sprinting the outlet. The guard then pushes it ahead to a wide runner. Ten reps each side.",
+      "coachingPoints": "Chin the rebound, pivot to the outside. Throw it ahead of him, not at him.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Court vision",
+        "Team Play: Transition offense"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Stance and Slide Mirror",
+      "description": "Partners face each other in a defensive stance and one mirrors the other's lateral slides and short retreats for thirty seconds. Three rounds each.",
+      "coachingPoints": "Push off the trail foot, never click the heels. Hands active, chest up.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Defense: On-ball defense",
+        "Conditioning: Agility"
+      ],
+      "teamEquipment": [],
+      "playerGear": []
+    },
+    {
+      "name": "Wing 1v1 Contain",
+      "description": "Live one-on-one from the wing where the defender scores a point for forcing a baseline pickup or a contested jumper, not just for a stop. Best of six, then switch.",
+      "coachingPoints": "Beat him to the spot, then take the charge line away. Contest with the high hand, don't reach.",
+      "duration": 12,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Defense: On-ball defense"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Deny the Wing",
+      "description": "Defender plays ball-you-man denial on a wing who is trying to get open for one pass. Thirty seconds live, then swap. Offense scores only by catching it above the free throw line extended.",
+      "coachingPoints": "Hand in the lane, thumb down. See the ball and your man with one turn of the head.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Defense: On-ball defense",
+        "Defense: Help defense"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Help and Recover 2v2",
+      "description": "Two offensive players on one side, two defenders. Ball handler drives, the help defender steps in to stop the ball, then recovers to his own man on the kick-out. Six reps each pair.",
+      "coachingPoints": "Help early, recover on the flight of the ball. Sprint back, don't drift back.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Defense: Help defense",
+        "Defense: Closeouts"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Low Man Rotation",
+      "description": "Ball is driven baseline and the weak-side low defender has to rotate over to take the charge spot while the top defender drops to his man. Eight reps from each corner.",
+      "coachingPoints": "Low man is always the first helper. Beat him to the block and get your feet set early.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Defense: Help defense",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Scramble 4v4 Rotation",
+      "description": "Coach throws a ball to any offensive player and the defense has to find their matchups on the fly while the offense attacks immediately. Play it out, then reset with a new random pass.",
+      "coachingPoints": "Talk first, match second. Somebody has the ball, somebody has the rim, everybody else points.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Defense: Help defense",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Long Closeout Short Closeout",
+      "description": "Defender starts in the paint, sprints at a shooter in the corner with choppy steps and a high hand, then repeats to a shooter at the top. Six pairs of closeouts.",
+      "coachingPoints": "Sprint the first two-thirds, chop the last third. High hand on a shooter, low hands on a driver.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Defense: Closeouts",
+        "Conditioning: Agility"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Closeout to Live 1v1",
+      "description": "Defender closes out on a catch and the possession goes live from there. Offense has two dribbles only, so the defender is rewarded for a controlled closeout. Six reps each.",
+      "coachingPoints": "Don't fly by. A contested two beats a wide open drive every time.",
+      "duration": 12,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Defense: Closeouts",
+        "Defense: On-ball defense"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Over, Under, Switch Calls",
+      "description": "Two defenders work a ball screen three ways on the coach's call: go over the top, slip under it, or switch. Six reps of each call with the offense running the same screen.",
+      "coachingPoints": "The screener's defender makes the call and makes it loud. Over on a shooter, under on a driver.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Defense: Screen navigation",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Chase Through the Off-Ball Screen",
+      "description": "Shooter runs off a down screen while his defender has to fight over the top and contest the catch-and-shoot. Eight reps each side.",
+      "coachingPoints": "Get skinny and beat him to the catch, don't trail him to it. Bump the cutter legally on the way through.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Defense: Screen navigation",
+        "Team Play: Screening and cutting"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Hedge and Get Back",
+      "description": "Screener's defender shows hard at the ball handler for one beat, then retreats to his own man before the roll gets deep. Eight reps, alternating sides of the floor.",
+      "coachingPoints": "Show your chest, then get out. One beat of hedge is enough, two and you're beat on the roll.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Defense: Screen navigation",
+        "Defense: Help defense"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Hit, Find, Get",
+      "description": "Coach shoots, and on the release every defender makes contact with his man, finds the ball, and goes to get it. Run it eight times with the offense trying to get around the box out.",
+      "coachingPoints": "Hit him first, then look for the ball. Contact before the ball comes off the rim, not after.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rebounding: Boxing out"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Three-Man Rebound War",
+      "description": "Three players inside the lane compete for a shot the coach intentionally misses. Whoever secures it must score before the other two can stop him. First to three.",
+      "coachingPoints": "Chin it and keep it high. Two hands on the ball until you go back up.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Rebounding: Boxing out",
+        "Rebounding: Put-backs"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Box Out the Cutter",
+      "description": "Offensive player starts on the perimeter and cuts on the shot while the defender has to find him and seal before the ball comes off. Six reps each, alternating who shoots.",
+      "coachingPoints": "Don't ball watch. Feel for him with a forearm, then widen your base.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Rebounding: Boxing out",
+        "Rebounding: Positioning"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Shot Side Positioning Reps",
+      "description": "Coach shoots from five different spots and players practice sliding to the opposite side of the rim, since most misses come off long and away from the shooter. Two reps per spot.",
+      "coachingPoints": "Most misses come out on the weak side. Move on the shot, not on the miss.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rebounding: Positioning"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Seal and Hold the Block",
+      "description": "Post player seals a defender behind him on the block and holds the position for a three count while a coach lobs a rebound to that spot. Six reps each side.",
+      "coachingPoints": "Wide base, arms out and legal. Own the space before the shot goes up.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Rebounding: Positioning"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Tip Drill to Finish",
+      "description": "Player tosses the ball off the backboard and tips it back up twice with one hand before finishing on the third. Six reps each hand.",
+      "coachingPoints": "Keep it above your head, never bring it down into traffic. Fingertips, not a slap.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 4,
+      "skillTags": [
+        "Rebounding: Put-backs",
+        "Shooting: Finishing at the rim"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Put-Back Through Contact",
+      "description": "Rebounder secures a miss with a partner leaning on him and has to go straight back up without dribbling. Eight reps, then switch who plays the contact.",
+      "coachingPoints": "Land, then go. Straight up strong, don't fade away from the contact.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Rebounding: Put-backs"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Long Rebound Guard Crash",
+      "description": "Coach shoots deep threes that come off long. Guards start at the arc and have to read the flight and beat the bigs to the long carom. Ten shots.",
+      "coachingPoints": "Long shot, long rebound. Guards step in on the flight, don't leak out early.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rebounding: Long rebounds",
+        "Rebounding: Positioning"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Rebound and Go",
+      "description": "Defensive rebounder secures the board and immediately pushes the ball up the floor himself against one retreating defender. Eight reps, alternating rebounders.",
+      "coachingPoints": "Two dribbles before you look up. Rebound with your feet already turned upcourt.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rebounding: Long rebounds",
+        "Team Play: Transition offense"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Free Throw Line Box Outs",
+      "description": "Full five-man box out off a free throw with the offense crashing live. Defense has to secure it cleanly three times in a row before the drill ends.",
+      "coachingPoints": "Shooters' side steps in first. Nobody leaves the paint until the ball is in two hands.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rebounding: Boxing out"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Seventeens Sideline Sprints",
+      "description": "Players run sideline to sideline seventeen times inside a set time, sized to the age group. Two rounds with a full three minutes of rest between.",
+      "coachingPoints": "Touch the line with your hand every time. Pace the first eight, empty it on the last four.",
+      "duration": 10,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Endurance",
+        "Conditioning: Speed / sprint work"
+      ],
+      "teamEquipment": [],
+      "playerGear": []
+    },
+    {
+      "name": "Baseline Suicide Ladder",
+      "description": "Sprint to the near free throw line and back, half court and back, far free throw line and back, full court and back. Four reps with sixty seconds rest.",
+      "coachingPoints": "Drop your hips at every line, don't stand up to turn. Same effort on rep four as rep one.",
+      "duration": 10,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Speed / sprint work"
+      ],
+      "teamEquipment": [],
+      "playerGear": []
+    },
+    {
+      "name": "Transition Sprint Pairs",
+      "description": "Two players sprint the floor together finishing with a layup, jog back, and go again. Eight trips per pair at game speed.",
+      "coachingPoints": "Wide lanes, full speed. The pass has to lead him, not slow him down.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Speed / sprint work"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Lane Agility Box",
+      "description": "Player sprints the length of the lane, slides across the baseline, backpedals up the far side, and slides back to start. Four reps each direction.",
+      "coachingPoints": "Never cross your feet on the slide. Chest stays over your knees through every corner.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Conditioning: Agility"
+      ],
+      "teamEquipment": [],
+      "playerGear": []
+    },
+    {
+      "name": "Four-Cone Reaction Shuffle",
+      "description": "Four cones in a square and the player starts in the middle. Coach points to a cone and the player slides or sprints there and back. Thirty seconds on, thirty off, four rounds.",
+      "coachingPoints": "React off his hand, not his eyes. Get back through the middle every time.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Conditioning: Agility"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Jump Rope Intervals",
+      "description": "Thirty seconds of two-foot jumps, thirty of alternating feet, thirty of single leg each side, with fifteen seconds rest between. Two rounds.",
+      "coachingPoints": "Stay on the balls of the feet, quiet landings. Wrists turn the rope, not the arms.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Agility",
+        "Conditioning: Endurance"
+      ],
+      "teamEquipment": [
+        "Jump Ropes"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Bodyweight Lower Body Circuit",
+      "description": "Four stations at forty seconds each: bodyweight squats, reverse lunges, calf raises, and wall sits. Two rounds with a minute between.",
+      "coachingPoints": "Knees track over the toes, never inward. Quality reps until the clock stops.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 4,
+      "skillTags": [
+        "Conditioning: Strength"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Core and Hip Series",
+      "description": "Front plank, side planks, dead bugs, and glute bridges for thirty seconds each with fifteen seconds between. Two full rounds.",
+      "coachingPoints": "Ribs down, belt tight. If your hips sag, stop the clock and reset.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Strength"
+      ],
+      "teamEquipment": [],
+      "playerGear": []
+    },
+    {
+      "name": "Push and Pull Strength Pairs",
+      "description": "Partners alternate push-ups, inverted rows on a sturdy rail, and partner-resisted holds for forty seconds each. Two rounds through.",
+      "coachingPoints": "Full range or stop the set. Body in one line from ear to ankle.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Strength"
+      ],
+      "teamEquipment": [],
+      "playerGear": []
+    },
+    {
+      "name": "Continuous 5v5 No Whistle",
+      "description": "Live five-on-five where the ball never stops, with makes taken out immediately and misses pushed the other way. Four-minute blocks with ninety seconds between.",
+      "coachingPoints": "Sprint the floor both ways. Talk more when you are tired, not less.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Conditioning: Endurance"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Pick-and-Roll Two-Man Game",
+      "description": "Ball handler and screener run a side ball screen against two defenders, reading whether to turn the corner, hit the roll, or pop. Six reps each pairing before rotating.",
+      "coachingPoints": "Set your man up before you use the screen. Screener rolls to the rim, not to the sideline.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Screening and cutting",
+        "Passing: Passing off the dribble"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Down Screen and Curl Reads",
+      "description": "Screener sets a down screen for a cutter who reads the defender: curl if trailed, straight cut if the defender goes under, and flare if he cheats over the top. Eight reps each side.",
+      "coachingPoints": "The cutter reads the defense, the screener reads the cutter. Wait for the screen, don't run past it.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Screening and cutting"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Back Cut the Overplay",
+      "description": "Wing gets denied hard, takes one step toward the ball, then back cuts to the rim for a bounce pass. Six reps each side with the defender playing honest denial.",
+      "coachingPoints": "Sell it toward the ball first. When his hand is in the lane, go behind him.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Team Play: Screening and cutting",
+        "Passing: Entry passes"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Pass and Cut Keep the Floor",
+      "description": "Four players on the perimeter pass and every passer must cut through the lane, with the next player filling the empty spot. Two minutes continuous, no dribbles allowed.",
+      "coachingPoints": "Cut hard through, don't drift through. Somebody fills behind you every single time.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Screening and cutting",
+        "Team Play: Spacing"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Spacing Cones Five-Out",
+      "description": "Cones mark five spots fifteen to eighteen feet apart. Offense moves the ball with the rule that no two players may stand inside the same cone's zone. Two minutes, then remove the cones and hold the spacing.",
+      "coachingPoints": "Stay an arm's length wider than feels natural. Crowding your teammate brings his defender to the ball.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Spacing"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Drive, Draw Two, Kick",
+      "description": "Live four-on-four where a basket only counts if the possession includes a paint touch followed by a kick-out pass. Play to four scores.",
+      "coachingPoints": "Get two defenders to look at you before you pass. Space away from the drive, not toward it.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Spacing",
+        "Team Play: Ball movement"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Four Passes Before a Shot",
+      "description": "Live half-court five-on-five with a rule that the offense must complete four passes before shooting, unless it is a layup. Play to six baskets.",
+      "coachingPoints": "Don't hold it. Catch, look inside, then move it before the defense resets.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Ball movement",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Side-to-Side Ball Reversal",
+      "description": "Five offensive players must swing the ball from one side of the floor to the other twice before attacking a live four-defender shell. Run eight possessions.",
+      "coachingPoints": "Reverse it before the help is set. Every catch faces the rim for a beat.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Ball movement"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Five-Second Transition Attack",
+      "description": "Coach shoots, the defense rebounds and has five seconds to get a shot at the other end. If they take longer the possession dies. Ten trips.",
+      "coachingPoints": "Rim runner goes on the shot, not on the rebound. First pass ahead beats three dribbles.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Transition offense",
+        "Conditioning: Speed / sprint work"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Numbers Advantage Waves",
+      "description": "Coach calls a number and that many defenders sprint back while five attack, so the advantage changes every rep. Continuous for four minutes.",
+      "coachingPoints": "Count the defenders as you cross half court. Attack the open side before they match up.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Transition offense",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Talk Every Possession",
+      "description": "Live four-on-four where the defense loses the possession outright if the coach does not hear the ball call, a screen call, and a shot call. Play eight possessions.",
+      "coachingPoints": "Ball, help, screen left, shot. Say it before it happens, not after.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Communication",
+        "Defense: Help defense"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Two-Ball Rebound Positioning",
+      "description": "Coach shoots one ball while a second is rolled toward a corner. Player must secure the live rebound first, then chase the loose ball. Eight reps.",
+      "coachingPoints": "Finish the first job before you look for the second. Two hands on the board, always.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Rebounding: Positioning",
+        "Rebounding: Long rebounds"
+      ],
+      "teamEquipment": [
+        "Basketballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Offensive Board Crash Rules",
+      "description": "Live five-on-five where two designated offensive players must crash the glass on every shot and the other three get back. Run ten possessions and count second-chance points.",
+      "coachingPoints": "Crashers go on the release. Everybody else is already retreating, no watching.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rebounding: Put-backs",
+        "Rebounding: Boxing out"
+      ],
+      "teamEquipment": [
+        "Basketballs",
+        "Pinnies"
+      ],
+      "playerGear": []
     }
   ],
   "newTagProposals": []

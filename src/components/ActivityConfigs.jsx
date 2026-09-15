@@ -446,7 +446,7 @@ export function ChecklistConfig({act,onChange,onDone}){
   </div>);
 }
 
-export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,refreshLibrary,teamSport,libraryDrills,librarySources,libSource,setLibSource,skillTags,absentPlayerIds,benchmarks,openModal}){
+export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,refreshLibrary,teamSport,libraryDrills,librarySources,libSource,setLibSource,skillTags,skillCategories,absentPlayerIds,benchmarks,openModal}){
   const rotate=act.rotate!==false;
   const [newEquipIdx,setNewEquipIdx]=useState(null);
   const [newGearIdx,setNewGearIdx]=useState(null);
@@ -534,6 +534,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   // used to make that source always render empty.
   const filteredLibrary=(libraryDrills||[]).filter(a=>(a.sport||"General")===sport||(a.sport||"General")==="General");
   const skillTagsById=Object.fromEntries((skillTags||[]).map(t=>[t.id,t]));
+  const skillCategoriesById=Object.fromEntries((skillCategories||[]).map(c=>[c.id,c]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
   const applyLibraryChoice=(si,lib,equipmentOverride)=>{
     const st=act.stations[si];
@@ -738,7 +739,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
                 </select>}
                 <select className="sel" style={{flexShrink:0}} value={pickerSort} onChange={e=>setPickerSort(e.target.value)}>
                   <optgroup label="Sort"><option value="alpha">Alphabetical</option></optgroup>
-                  <optgroup label="Group"><option value="byskill">By skill tag</option></optgroup>
+                  <optgroup label="Group"><option value="byskill">By skill category</option></optgroup>
                 </select>
               </div>
               {/* Direct feedback: the last drill in this list was cut off by
@@ -763,16 +764,24 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
                     <div className="lir"><span className="bdg bp">{lib.duration}m</span></div>
                   </div>);
                   if(pickerSort==="byskill"){
-                    const byTag={};const untagged=[];
+                    // Same category-level grouping as NewLibraryScreen's
+                    // Library "By skill category" view -- headers are the
+                    // sport's global skill_categories, not the finer
+                    // coach-addable skill_tags underneath each one, and a
+                    // drill with two tags under the same category only
+                    // shows up once in that category's section.
+                    const byCat={};const untagged=[];
                     filteredLibrary.forEach(lib=>{
                       if(!lib.skillTagIds||!lib.skillTagIds.length){untagged.push(lib);return;}
-                      lib.skillTagIds.forEach(tid=>{(byTag[tid]=byTag[tid]||[]).push(lib);});
+                      const catIds=new Set(lib.skillTagIds.map(tid=>skillTagsById[tid]&&skillTagsById[tid].categoryId).filter(Boolean));
+                      if(!catIds.size){untagged.push(lib);return;}
+                      catIds.forEach(cid=>{(byCat[cid]=byCat[cid]||[]).push(lib);});
                     });
-                    const tagIds=Object.keys(byTag).sort((a,b)=>((skillTagsById[a]&&skillTagsById[a].name)||"").localeCompare((skillTagsById[b]&&skillTagsById[b].name)||""));
+                    const catIds=Object.keys(byCat).sort((a,b)=>((skillCategoriesById[a]&&skillCategoriesById[a].sort_order)||0)-((skillCategoriesById[b]&&skillCategoriesById[b].sort_order)||0)||((skillCategoriesById[a]&&skillCategoriesById[a].name)||"").localeCompare((skillCategoriesById[b]&&skillCategoriesById[b].name)||""));
                     return (<>
-                      {tagIds.map(tid=>(<div key={tid} style={{marginBottom:10}}>
-                        <div style={{fontSize:11,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 0"}}>{(skillTagsById[tid]&&skillTagsById[tid].name)||"Tag"} ({byTag[tid].length})</div>
-                        {byTag[tid].map(lib=>drillRow(lib,tid+"|"))}
+                      {catIds.map(cid=>(<div key={cid} style={{marginBottom:10}}>
+                        <div style={{fontSize:11,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 0"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} ({byCat[cid].length})</div>
+                        {byCat[cid].map(lib=>drillRow(lib,cid+"|"))}
                       </div>))}
                       {untagged.length>0&&<div style={{marginBottom:10}}>
                         <div style={{fontSize:11,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 0"}}>Untagged ({untagged.length})</div>

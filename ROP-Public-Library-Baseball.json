@@ -352,6 +352,1560 @@
         "Throw-Down Bases"
       ],
       "playerGear": []
+    },
+    {
+      "name": "High Tee, Low Tee Ladder",
+      "description": "Two tees per station, one set belt high and one set at the bottom of the zone. Hitter alternates five swings at each height without resetting his stance.",
+      "coachingPoints": "Same swing, different plane. Turn the barrel to the ball, don't lift it.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Hitting: Bat path"
+      ],
+      "teamEquipment": [
+        "Batting Tees",
+        "Bucket of Balls",
+        "Hitting Net"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "One-Hand Tee Rounds",
+      "description": "Hitter chokes up and takes five top-hand-only swings off a tee into a net, then five bottom-hand-only, then five with both hands. Keep the back elbow tight on the top-hand set.",
+      "coachingPoints": "Top hand turns the barrel. Bottom hand pulls the knob. Slow it down until it feels connected.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Hitting: Bat path"
+      ],
+      "teamEquipment": [
+        "Batting Tees",
+        "Bucket of Balls",
+        "Hitting Net"
+      ],
+      "playerGear": [
+        "Bat"
+      ]
+    },
+    {
+      "name": "Side Toss Angles",
+      "description": "Feeder kneels at a 45 degree angle in front of the hitter and tosses into the middle of the zone, then moves to a flatter angle for the outer half. Six swings from each spot.",
+      "coachingPoints": "Let the ball get to you from the flat angle. Barrel stays in the zone a long time.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Hitting: Bat path",
+        "Hitting: Contact to all fields"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Hitting Net",
+        "L-Screen"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Walk-Through Front Toss",
+      "description": "Hitter starts two steps behind the plate and walks slowly toward the pitcher, striding into the ball when the coach front-tosses from behind an L-screen. Rounds of six.",
+      "coachingPoints": "Land on time, then hit. If you are late, the ball tells you before I do.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Timing / pitch recognition"
+      ],
+      "teamEquipment": [
+        "L-Screen",
+        "Bucket of Balls",
+        "Hitting Net"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Number Ball Recognition",
+      "description": "Write a number on one side of each ball. Coach front-tosses and the hitter calls the number out loud before deciding to swing or take, swinging only on odd numbers.",
+      "coachingPoints": "Eyes on the ball out of the hand, not on the strike zone. See it, then decide.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Timing / pitch recognition"
+      ],
+      "teamEquipment": [
+        "L-Screen",
+        "Bucket of Balls",
+        "Hitting Net"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Take and Track Rounds",
+      "description": "First three pitches of every round are takes. Hitter loads and strides on every one but does not swing, then swings freely on the next five.",
+      "coachingPoints": "Track it all the way into the mitt. Your body should still be on time on a take.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Timing / pitch recognition"
+      ],
+      "teamEquipment": [
+        "L-Screen",
+        "Bucket of Balls"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Gap-to-Gap Tee Rounds",
+      "description": "Three tee positions: inside and out front, middle, outside and deep. Hitter takes four swings at each and has to drive the ball toward the matching gap.",
+      "coachingPoints": "Contact point moves, the swing does not. Pull the inside one, let the outside one travel.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Hitting: Contact to all fields",
+        "Hitting: Bat path"
+      ],
+      "teamEquipment": [
+        "Batting Tees",
+        "Bucket of Balls",
+        "Hitting Net"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Situational Live BP",
+      "description": "Coach calls a situation before each round: runner on second nobody out, runner on third one out, leadoff at-bat. Hitter gets four swings and the round only scores if the at-bat does its job.",
+      "coachingPoints": "The situation picks the swing. Move the runner first, hit the ball hard second.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Contact to all fields",
+        "Team Play: Situational awareness"
+      ],
+      "teamEquipment": [
+        "L-Screen",
+        "Bucket of Balls"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Hit-and-Run Ground Balls",
+      "description": "Front toss with a runner on first breaking on the pitch. Hitter must put the ball on the ground to the right side no matter where it is pitched, five attempts each.",
+      "coachingPoints": "Swing down through the top half. Protect the runner, take the single you get.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Contact to all fields",
+        "Team Play: Situational awareness"
+      ],
+      "teamEquipment": [
+        "L-Screen",
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Short Bat Two-Strike Rounds",
+      "description": "Hitters use a shorter, lighter bat or choke up two inches, widen the stance, and take a full round of eight front-toss pitches with the two-strike swing only.",
+      "coachingPoints": "Choke up, widen out, shorten up. Put the barrel on it and live to see another pitch.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Two-strike approach"
+      ],
+      "teamEquipment": [
+        "L-Screen",
+        "Bucket of Balls",
+        "Hitting Net"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Foul-Off Survival Game",
+      "description": "Every at-bat starts with two strikes and the hitter stays up until he swings and misses or takes a strike. Fouls keep the at-bat alive and a ball in play ends it as a win.",
+      "coachingPoints": "Anything close, you hit it. Battle the pitch, not the scoreboard.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Two-strike approach",
+        "Hitting: Timing / pitch recognition"
+      ],
+      "teamEquipment": [
+        "L-Screen",
+        "Bucket of Balls"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Sacrifice Bunt Rotation",
+      "description": "Three stations: pivot and square with no ball, bunt tossed balls into a cone target down each line, then live bunts off a coach throwing from short distance. Rotate after four minutes.",
+      "coachingPoints": "Get the barrel out early and let the ball hit the bat. Deaden it, don't stab at it.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Hitting: Bunting / bat control",
+        "Team Play: Situational awareness"
+      ],
+      "teamEquipment": [
+        "L-Screen",
+        "Bucket of Balls",
+        "Cones"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Knees Hands Routine",
+      "description": "Fielders work in pairs on both knees about fifteen feet apart, rolling firm balls at each other. No legs allowed, so the glove and the hands do all the work.",
+      "coachingPoints": "Glove out front, fingers to the dirt. Funnel it to the middle of your chest.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Fielding: Glove work / fundamentals"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Wide Base Rolled Balls",
+      "description": "Same partner rolls from fifteen feet, but the fielder stands with feet wider than the shoulders and stays planted. Bend at the knees, field ten, then switch.",
+      "coachingPoints": "Sit down into it, don't bend at the waist. Eyes stay level with the ball.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Fielding: Glove work / fundamentals"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Right, Left, Throw Footwork Rolls",
+      "description": "Partner rolls a ball and the fielder works the right-left-field, right-left-throw rhythm through the catch and into a throw back. Ten reps, then switch.",
+      "coachingPoints": "Field it moving forward. The feet set up the throw before you catch it.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Fielding: Footwork on ground balls",
+        "Fielding: Glove work / fundamentals"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Partner Short Hops",
+      "description": "Partners kneel or stand ten feet apart and throw deliberate short hops at each other, alternating straight on, forehand side, and backhand side. Fifteen each.",
+      "coachingPoints": "Attack the hop, never wait on it. Soft hands beat quick hands here.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Fielding: Glove work / fundamentals"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Backhand and Forehand Rolls",
+      "description": "Coach or partner rolls balls two steps to each side. Fielder works the backhand set with the right foot down, then the forehand with the glove-side foot leading. Eight each direction.",
+      "coachingPoints": "Backhand: get the right foot past the ball. Forehand: don't reach across your body.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Fielding: Glove work / fundamentals",
+        "Fielding: Footwork on ground balls"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Circle Drill Fungo",
+      "description": "Draw a circle in the dirt in front of each infielder. Players who sit back on the ball start behind the circle and must field inside it. Players who get flat-footed start inside and must move out through the ball.",
+      "coachingPoints": "Fix your own habit. Either get to it or get through it, not both feet planted.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Fielding: Footwork on ground balls"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Short-Distance Fungo",
+      "description": "Coach hits fungos from halfway between home and each position at a softer pace. Fielders work their pre-pitch move, hop read, and approach without having to rush the throw.",
+      "coachingPoints": "Move before the ball is hit. Pick your hop, then go get it.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Fielding: Footwork on ground balls",
+        "Fielding: First-step reads"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Slow Roller Charge and Barehand",
+      "description": "Coach rolls a dying ball up the third base line. Fielder charges hard, fields with the glove on the first two reps and barehand on the third, and throws on the run to first.",
+      "coachingPoints": "Sprint to it, then slow your hands. Field it off your left foot and throw through the target.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Fielding: Footwork on ground balls"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Double Play Feeds and Pivots",
+      "description": "Middle infielders alternate feeding and turning off rolled balls at three distances: underhand flip range, short overhand, and a full pivot from the hole. Five turns each before switching.",
+      "coachingPoints": "Show the ball early on the feed. Get to the bag under control, then let the feet take you across.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Fielding: Footwork on ground balls"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Drop-Step Fly Ball Reads",
+      "description": "Outfielders line up facing the coach, who points left or right and throws a ball over that shoulder. Player drop-steps, turns, and runs it down without backpedaling.",
+      "coachingPoints": "Open the hips, never backpedal. Turn and run, then find the ball.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Fielding: Outfield reads / routes"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Do-or-Die Outfield Charges",
+      "description": "Coach rolls a ball into the outfield gap with a runner tagging from third. Outfielder charges, fields on the glove side while moving, and crow hops through the throw home.",
+      "coachingPoints": "Field it off the glove-side foot so your momentum carries you. Low throw through the cutoff, not a rainbow.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Fielding: Outfield reads / routes",
+        "Throwing: Crow hops / transfers"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Crossover Reads on the Line Drive",
+      "description": "Infielders start in their ready position and the coach fires a ball firmly to one side from thirty feet. Only the first two steps count, then freeze and reset.",
+      "coachingPoints": "Crossover, don't shuffle. Your first step is either right or it's a hit.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Fielding: First-step reads"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Sun Ball Pop-Ups",
+      "description": "Coach hits high fungos into the afternoon sun toward the corner outfield spots. Fielders learn to shield with the glove hand and drift rather than camp underneath it.",
+      "coachingPoints": "Glove up beside the ball, not under it. Move your feet to find an angle out of the glare.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Fielding: Outfield reads / routes"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Infield Pop-Up Priority Calls",
+      "description": "Coach fungos short pop-ups into the triangle between the mound, first, and second. Whoever calls it three times loud and early takes it and everyone else peels off and echoes the call.",
+      "coachingPoints": "Call it loud, call it early, call it three times. Everyone else says his name back.",
+      "duration": 10,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Fielding: Pop-up communication",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Balance and Break Holds",
+      "description": "Pitcher lifts the front leg to the top of the delivery and holds three seconds, then breaks the hands and holds again at separation. Six reps dry, then six into a partner at short distance.",
+      "coachingPoints": "Stay tall and quiet at the top. Hands break down, back, and up together.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Pitching: Mechanics / delivery"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Wall Drill Front-Side",
+      "description": "Pitcher stands a forearm's length from a fence or wall with the glove side facing it, then rides down the mound line so the front hip and glove arrive without the shoulder flying open. Eight dry reps.",
+      "coachingPoints": "Lead with the hip, hold the glove over the front foot. Don't let the shoulder beat the hip.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Pitching: Mechanics / delivery"
+      ],
+      "teamEquipment": [],
+      "playerGear": []
+    },
+    {
+      "name": "One-Knee Arm Path Throws",
+      "description": "Pitcher kneels on the back knee with the front leg open, and throws to a partner at forty feet using only the upper half. Fifteen throws, focusing on a clean path from separation to release.",
+      "coachingPoints": "Thumb down, fingers behind the ball. Finish out front, don't cut it off.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Pitching: Mechanics / delivery",
+        "Throwing: Arm action"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Rocker Step Progression",
+      "description": "Start from a feet-split rocker position and throw ten, then add the leg lift for ten, then the full windup for ten. Same target, same intent, each step built on the last.",
+      "coachingPoints": "Nothing changes but the start. If the ball moves off target, back up a step.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Pitching: Mechanics / delivery"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Flat Ground Command Targets",
+      "description": "Pitchers throw twenty on flat ground to a partner holding a glove in a fixed spot, five each to glove side low, arm side low, and both sides at the belt. No max effort.",
+      "coachingPoints": "Seventy-five percent effort, one hundred percent target. Miss down, never up.",
+      "duration": 12,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Pitching: Command"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Fastball Down-and-Away Ladder",
+      "description": "Set a cone just off the outside corner. Pitcher throws three at the knees, three at the belt, three back at the knees, and has to hit the outer third every time or the set starts over.",
+      "coachingPoints": "Aim small, miss small. Ride the front side through the target.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Pitching: Command"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Cones"
+      ],
+      "playerGear": [
+        "Catcher's Gear"
+      ]
+    },
+    {
+      "name": "Corner Count Game",
+      "description": "Catcher calls out a count before each pitch and sets up on a corner. Pitcher earns a point for hitting the spot and loses one for a pitch over the middle. Fifteen pitches per turn.",
+      "coachingPoints": "A 2-0 strike still has to have a location. Middle-middle is the only real mistake.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Pitching: Command"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": [
+        "Catcher's Gear"
+      ]
+    },
+    {
+      "name": "Change-Up Feel Catch Play",
+      "description": "During normal catch play at forty-five feet, pitchers throw every third ball as a change-up with the same arm speed as the fastball. Twenty total throws mixed in.",
+      "coachingPoints": "Same arm speed, looser grip. Let the grip take the speed off, not your arm.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Pitching: Pitch mix",
+        "Throwing: Arm action"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Two-Pitch Sequencing Pen",
+      "description": "A twenty-pitch bullpen where the pitcher has to call the sequence out loud before each pair: fastball in then change away, fastball up then change down. Catcher grades whether the pair worked together.",
+      "coachingPoints": "Set one pitch up with the one before it. Sequence beats stuff at this age.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Pitching: Pitch mix",
+        "Pitching: Command"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": [
+        "Catcher's Gear"
+      ]
+    },
+    {
+      "name": "Hitter's Eye Pitch Mix",
+      "description": "A live hitter stands in and takes every pitch while the pitcher works a full mix. The hitter calls the pitch type out loud after each one and the pitcher tracks how often he is read.",
+      "coachingPoints": "If he names it every time, your arm speed is giving it away. Same delivery, every pitch.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Pitching: Pitch mix",
+        "Hitting: Timing / pitch recognition"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "L-Screen"
+      ],
+      "playerGear": [
+        "Batting Helmet",
+        "Catcher's Gear"
+      ]
+    },
+    {
+      "name": "Slide Step and Hold Times",
+      "description": "From the stretch, pitcher alternates a full leg lift, a slide step, and a long hold on the rubber. A coach times from first move to the catcher's glove and calls it out.",
+      "coachingPoints": "Under one-point-three to the plate or he is stealing on you. Vary the hold so he can't time it.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Pitching: Pickoff moves"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Catcher's Gear"
+      ]
+    },
+    {
+      "name": "Pickoff Reads at First",
+      "description": "Pitcher works from the stretch with a live runner taking a lead. A coach behind the mound signals throw or pitch after the set, so the pitcher has to react rather than decide early.",
+      "coachingPoints": "Same set every time. Quick feet, short throw, let the first baseman apply the tag.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Pitching: Pickoff moves"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Inside Move to Second",
+      "description": "Middle infielders run a daylight or count play behind a runner at second while the pitcher works the inside turn. Run it eight times with the shortstop and second baseman alternating the break.",
+      "coachingPoints": "Turn on the inside, not the outside. Infielder breaks on his own, the pitcher just reads daylight.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Pitching: Pickoff moves",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Wrist Flip Warm-Up",
+      "description": "Partners kneel ten feet apart on the throwing-side knee and flip the ball with the wrist only, elbow held up and still. Twenty flips before any full throws.",
+      "coachingPoints": "Fingers behind the ball, thumb down underneath. Snap it, don't push it.",
+      "duration": 5,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Throwing: Arm care / warm-up"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Figure-Eight Arm Path",
+      "description": "From a standing throwing position, players trace a figure eight with the throwing hand out of the glove, then release into a partner at thirty feet on the last loop. Fifteen reps.",
+      "coachingPoints": "Down, back, and up in one piece. If the hand stops, start the loop over.",
+      "duration": 6,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Throwing: Arm action"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Arm Care Band Series",
+      "description": "Before throwing, players work a five-exercise band series anchored to a fence: external rotation, internal rotation, pull-aparts, scaption raises, and a reverse throw. Ten controlled reps each.",
+      "coachingPoints": "Slow and controlled, no bouncing. This is maintenance, not a workout.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Throwing: Arm care / warm-up"
+      ],
+      "teamEquipment": [
+        "Resistance Bands"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Bucket Target Throws",
+      "description": "Set a bucket on its side at each base. Players throw from their position and score a point for hitting the bucket and a half point for a one-hop that reaches it. Ten throws each.",
+      "coachingPoints": "Throw to the chest, not to the glove. A firm one-hop beats a throw over his head.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Throwing: Accuracy"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Knee-High Throw Game",
+      "description": "Partners at sixty feet. Every throw has to arrive between the receiver's knees and chest without a step to either side. Three misses in a row and the pair moves five feet closer.",
+      "coachingPoints": "Line, not arc. Point the front shoulder where you want it to go.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Throwing: Accuracy"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Relay Line Accuracy Race",
+      "description": "Two lines of four players spread across the outfield. Ball travels down and back through every set of hands and any throw that pulls a teammate off the bag sends the ball back to the start.",
+      "coachingPoints": "Chest-high to the glove side so he can turn. Hands up early as a target.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Throwing: Accuracy",
+        "Team Play: Cutoffs and relays"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Quick Transfer Ladder",
+      "description": "Partner rolls or tosses a ball and the fielder has to catch, transfer, and release inside a count of two. Ten reps standing, ten on the move, ten off a short hop.",
+      "coachingPoints": "Transfer in the middle of your chest, not out by the glove. Quick feet, quick hands, normal throw.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Throwing: Crow hops / transfers"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Crow Hop to the Cutoff",
+      "description": "Outfielders field a rolled ball, crow hop, and throw to a cutoff man standing at the edge of the infield dirt. Eight reps each, alternating throws to second and to home.",
+      "coachingPoints": "Gather behind the ball so the hop goes forward. Throw through the cutoff's head, not to it.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Throwing: Crow hops / transfers",
+        "Team Play: Cutoffs and relays"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Catcher Pop Time Throws",
+      "description": "Catchers receive a front-tossed ball in the crouch and throw to second on a coach's timer. Five reps from a no-runner setup, then five with a runner actually stealing.",
+      "coachingPoints": "Feet under you as the ball arrives. Transfer to the ear and throw, don't wind up.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Throwing: Crow hops / transfers",
+        "Throwing: Accuracy"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Catcher's Gear"
+      ]
+    },
+    {
+      "name": "Long Toss Pull-Down Finish",
+      "description": "After a normal long toss stretch out, partners walk back in and throw ten hard, flat throws on a line from progressively shorter distances. Stop the second anyone's arm feels tired.",
+      "coachingPoints": "Line drive throws coming back in, not lobs. Stop before you are sore, not after.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Throwing: Long toss",
+        "Throwing: Arm action"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Arc to Line Long Toss",
+      "description": "Partners stretch out to their comfortable distance letting the ball arc, then hold that distance and try to flatten each throw into a line drive. Six arcing, six flattening.",
+      "coachingPoints": "Let it climb on the way out, drive it flat on the way back. Distance is earned, not forced.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Throwing: Long toss"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Primary and Secondary Lead Reps",
+      "description": "Runners take a three-shuffle primary lead off a throw-down base, then two hard secondary shuffles as the coach simulates the pitch crossing the plate. Ten reps with a return on every third one.",
+      "coachingPoints": "Secondary lands as the ball hits the mitt. Right foot down, weight forward, never on your heels.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Baserunning: Leads and reads"
+      ],
+      "teamEquipment": [
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Read the Dirt Ball",
+      "description": "Coach front-tosses to a catcher and randomly bounces one in the dirt. Runner at first or third reads it off the bat of the plate and breaks only when the ball hits the ground in front.",
+      "coachingPoints": "Read the angle down, not the catcher. Break on the bounce, not on the block.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Baserunning: Leads and reads"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Batting Helmet",
+        "Catcher's Gear"
+      ]
+    },
+    {
+      "name": "Freeze on the Line Drive",
+      "description": "Runner takes a secondary lead while a coach fungos either a ground ball, a fly ball, or a line drive. Runner has to freeze on the liner, go on the grounder, and read the fly.",
+      "coachingPoints": "Line drive, you freeze. Ground ball, you go. If you guess, you get doubled off.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Baserunning: Leads and reads",
+        "Team Play: Situational awareness"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Tag-Up Reads from Third",
+      "description": "Runner at third tags on fly balls hit to left, center, and right. Coach calls go or hold after the catch based on the outfielder's arm and momentum. Six reps each direction.",
+      "coachingPoints": "Left foot on the bag, eyes on the catch. Go on the catch, not on the flight.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Baserunning: Leads and reads",
+        "Team Play: Situational awareness"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Rounding First Base",
+      "description": "Runners start with a swing, run the first half of the lane straight, then bank out and touch the inside corner of the bag looking into right field. Six reps, three straight through and three with a turn.",
+      "coachingPoints": "Bank out at the halfway point, don't curve the whole way. Peek at the ball once you round it.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Baserunning: First-to-third",
+        "Conditioning: Speed / sprint work"
+      ],
+      "teamEquipment": [
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "First-to-Third Aggression Game",
+      "description": "Runner on first, coach hits a single to an outfielder who has to make the throw. Runner scores a point for making third safely and loses two for being thrown out, so the read has to be real.",
+      "coachingPoints": "Pick the ball up at the shortstop, not over your shoulder. Decide by the time you hit second.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Baserunning: First-to-third"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Double Off the Wall Reads",
+      "description": "Coach rolls a ball into the outfield corner while the runner leaves the box. Runner has to pick up the third base coach after rounding first and commit to two or three bases without slowing down.",
+      "coachingPoints": "Find your coach before you reach second. Never slow down to look at the ball.",
+      "duration": 10,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Baserunning: First-to-third",
+        "Conditioning: Speed / sprint work"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases",
+        "Cones"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Bent-Leg Slide Progression",
+      "description": "On a sliding mat or wet grass in socks, players start from a walk and build to a jog: sit into the figure four, then add a two-step approach, then a full slide into a throw-down base.",
+      "coachingPoints": "Sit down, don't dive down. Hands up and back, never plant a hand to brake.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Baserunning: Sliding technique"
+      ],
+      "teamEquipment": [
+        "Sliding Mat",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Pop-Up Slide and Advance",
+      "description": "From a bent-leg slide, the runner drives off the lead foot and comes straight up onto the bag looking for an overthrow. Eight reps with a coach randomly throwing one past the base.",
+      "coachingPoints": "Let the momentum stand you up. Eyes find the ball the second you are on the bag.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Baserunning: Sliding technique"
+      ],
+      "teamEquipment": [
+        "Sliding Mat",
+        "Throw-Down Bases",
+        "Bucket of Balls"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Dive Back to the Bag",
+      "description": "Runner takes a primary lead and dives back to first on the pitcher's move, reaching with the near hand to the back corner of the bag. Six reps, alternating a dive back and a full retreat step.",
+      "coachingPoints": "Near hand to the back corner, chin up. Never reach across your body into the tag.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Baserunning: Sliding technique",
+        "Baserunning: Leads and reads"
+      ],
+      "teamEquipment": [
+        "Throw-Down Bases",
+        "Sliding Mat"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Steal Break Timing Game",
+      "description": "Pitcher works from the stretch with varied hold times while a coach times the runner from first move to the bag. Runners get three attempts and keep their best time.",
+      "coachingPoints": "Cross over, don't hop. First three steps win the bag, the rest is just running.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Baserunning: Stealing bags"
+      ],
+      "teamEquipment": [
+        "Throw-Down Bases",
+        "Bucket of Balls"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Delayed Steal Reads",
+      "description": "Runner at first takes a normal secondary lead and breaks for second only if the middle infielders both drift away from the bag after the catch. Run it eight times with the defense unaware which reps are live.",
+      "coachingPoints": "Watch the middle infielders, not the catcher. If nobody covers, you already won.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Baserunning: Stealing bags",
+        "Team Play: Situational awareness"
+      ],
+      "teamEquipment": [
+        "Throw-Down Bases",
+        "Bucket of Balls"
+      ],
+      "playerGear": [
+        "Batting Helmet",
+        "Catcher's Gear"
+      ]
+    },
+    {
+      "name": "Acceleration Starts from the Box",
+      "description": "Runners start in their finished-swing position and sprint fifteen yards on the coach's clap. Six reps with full walk-back rest between each.",
+      "coachingPoints": "First three steps low and hard. Drive the back arm, don't stand straight up.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Speed / sprint work"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Flying 20s Down the Line",
+      "description": "Players jog a fifteen yard build-up zone, then sprint an all-out twenty yard zone marked by cones, then decelerate for fifteen. Four reps with sixty seconds between.",
+      "coachingPoints": "Hit the second cone already at full speed. Relax the face and the hands.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Conditioning: Speed / sprint work"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Home-to-Second Timed Runs",
+      "description": "Players run home to second on a stopwatch with a proper turn at first, twice each, resting a full minute between. Post the times and re-run the drill later in the season.",
+      "coachingPoints": "The turn is where the time is, not the straightaway. Hit the inside corner of the bag.",
+      "duration": 10,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Speed / sprint work",
+        "Conditioning: Endurance"
+      ],
+      "teamEquipment": [
+        "Throw-Down Bases"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Sprint Ladder to the Bases",
+      "description": "From home, players sprint to first and back, then to second and back, then to third and back. One full ladder per player with a two-minute rest, repeated twice.",
+      "coachingPoints": "Touch the bag, don't slow down for it. Same effort on the last leg as the first.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Conditioning: Speed / sprint work",
+        "Conditioning: Endurance"
+      ],
+      "teamEquipment": [
+        "Throw-Down Bases"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Lateral Shuffle Cone Grid",
+      "description": "Five cones in a line five feet apart. Players shuffle down and back staying square, then repeat leading with a crossover step. Three trips each way.",
+      "coachingPoints": "Stay low, don't click the heels together. Chest over the toes the whole trip.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Conditioning: Agility"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Pro Agility Shuttle",
+      "description": "Three cones five yards apart. Player starts in the middle, sprints five yards right, ten yards left, then five back through the middle. Four reps with full rest.",
+      "coachingPoints": "Drop the hips before you change direction. Touch the line with the inside hand.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Conditioning: Agility",
+        "Conditioning: Speed / sprint work"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Mirror Shuffle Reactions",
+      "description": "Partners face each other five feet apart. One leads with random lateral shuffles and short bursts forward and back, the other mirrors him. Thirty seconds on, thirty off, three rounds each.",
+      "coachingPoints": "React, don't anticipate. Feet never stop, eyes on his hips.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Agility"
+      ],
+      "teamEquipment": [],
+      "playerGear": []
+    },
+    {
+      "name": "Bodyweight Strength Circuit",
+      "description": "Four stations run for forty seconds each with twenty seconds to rotate: push-ups, bodyweight squats, split squats, and glute bridges. Two full rounds.",
+      "coachingPoints": "Clean reps beat fast reps. Stop the set when the form goes, not when the clock does.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 4,
+      "skillTags": [
+        "Conditioning: Strength"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Medicine Ball Rotational Throws",
+      "description": "Players stand side-on to a fence or wall and throw a light medicine ball with a hitting-style rotation, six each side, then six overhead scoop throws. Use the lightest ball that still feels like work.",
+      "coachingPoints": "Turn from the ground up, hips first. Throw it hard, catch it soft.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Strength"
+      ],
+      "teamEquipment": [
+        "Medicine Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Plank and Bridge Series",
+      "description": "Front plank, both side planks, and a glute bridge hold, thirty seconds each with fifteen seconds between. Two rounds through the series.",
+      "coachingPoints": "Straight line from ear to ankle. Squeeze the belly, don't sag the hips.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Strength"
+      ],
+      "teamEquipment": [],
+      "playerGear": []
+    },
+    {
+      "name": "Band Pull and Row Series",
+      "description": "Bands anchored on a fence at chest height. Players work pull-aparts, single-arm rows, and face pulls for twelve reps each, two rounds, focused on the back and the shoulder blade.",
+      "coachingPoints": "Pull with the shoulder blades, not the hands. Slow on the way back every rep.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Conditioning: Strength"
+      ],
+      "teamEquipment": [
+        "Resistance Bands"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Foul Pole Tempo Intervals",
+      "description": "Players run foul pole to foul pole at about seventy percent effort, walk the width of the outfield to recover, and repeat. Four to six trips depending on the age group.",
+      "coachingPoints": "Tempo, not a race. If you can't talk in short sentences, back off.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Endurance"
+      ],
+      "teamEquipment": [],
+      "playerGear": []
+    },
+    {
+      "name": "Position Circuit Endurance",
+      "description": "Four stations around the field: sprint to a cone and back, ten quick jump-and-stick landings, twenty second lateral shuffle, and a base path jog. Forty-five seconds per station, three rounds.",
+      "coachingPoints": "Move through the whole round, no standing between stations. Land soft on every jump.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 4,
+      "skillTags": [
+        "Conditioning: Endurance",
+        "Conditioning: Agility"
+      ],
+      "teamEquipment": [
+        "Cones",
+        "Throw-Down Bases"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "PFP: Comebackers and Covers",
+      "description": "Pitchers rotate through three looks off a coach's fungo: a comebacker to a set infielder, a ground ball to the right side with the pitcher covering first, and a bunt up the line. Six reps of each look.",
+      "coachingPoints": "Run to a spot near the bag, then look for the ball. Catch it before you find the base.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Situational awareness",
+        "Fielding: Footwork on ground balls"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "First-and-Third Defense",
+      "description": "Runners at first and third with a live break to second. Defense rotates through three calls: throw through, cut and look, and a fake throw back to the pitcher. Six reps of each.",
+      "coachingPoints": "The call comes before the pitch, out loud. Nobody freelances with a runner at third.",
+      "duration": 15,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Situational awareness",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Batting Helmet",
+        "Catcher's Gear"
+      ]
+    },
+    {
+      "name": "Rundown Mechanics",
+      "description": "Two fielders and a runner between two bases. Fielders run the ball hard at the runner to force a commit, use one throw, and the tagger follows his throw to the back of the line. Ten rundowns per group.",
+      "coachingPoints": "Run him hard, one throw, tag him. Ball up by the ear the whole time.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Team Play: Communication",
+        "Throwing: Accuracy"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Rundown Escape Reps",
+      "description": "Same rundown setup from the runner's side. Runner tries to stay alive long enough for a trail runner to advance, changing direction only when a fielder commits to a throw.",
+      "coachingPoints": "Make them throw it. Every extra second is a base for the guy behind you.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Team Play: Situational awareness",
+        "Baserunning: Leads and reads"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Bunt Defense: Wheel and Hold",
+      "description": "Runner at first, coach bunts from the plate. Defense runs the hold play once, then the wheel with the shortstop covering third, alternating on the coach's pre-pitch call. Eight reps of each.",
+      "coachingPoints": "Corners charge on the wheel, nobody peeks. Catcher owns the call on where it goes.",
+      "duration": 15,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Bunt defense",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Catcher's Gear"
+      ]
+    },
+    {
+      "name": "Squeeze Defense Reads",
+      "description": "Runner at third, coach shows bunt late. Pitcher throws the pitchout or the pitch up and in, catcher comes out to field and tag, and the corners crash. Run it ten times with the timing varied.",
+      "coachingPoints": "Pitch it up and in where it can't be bunted down. Catcher fields it and tags, no throw.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Bunt defense",
+        "Team Play: Situational awareness"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Catcher's Gear",
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Third Base Charge Reads",
+      "description": "Third baseman reads sacrifice bunt versus fake bunt and slash. Coach either bunts it down the line or pulls back and swings, so the fielder has to hold ground until the bat commits.",
+      "coachingPoints": "Creep, don't sprint, until the bat is down. If he pulls it back, you are already dead standing still.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Bunt defense"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Relay Reads from the Corner",
+      "description": "Ball hit into the corner with a runner going first to home. Outfielder plays the carom, the middle infielder lines up between the ball and the base, and the trail man calls the target. Eight reps each corner.",
+      "coachingPoints": "Cutoff man gets out there and shows his hands. The trail man calls three, four, or home.",
+      "duration": 15,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Cutoffs and relays",
+        "Throwing: Crow hops / transfers"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Two-Cut Deep Gap Relay",
+      "description": "Ball rolls to the deepest part of the gap. Two relay men line up in tandem so the outfielder has a short throw and the second man can redirect. Run it six times to each gap.",
+      "coachingPoints": "Line up in a straight line to the base, both of you. Second man is the safety valve, not a decoration.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Cutoffs and relays"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Infield In, Infield Back",
+      "description": "Coach calls a score and an inning, then fungos a ground ball. Infielders have to be set at the right depth before the pitch and make the right play for the situation. Twelve reps mixing both depths.",
+      "coachingPoints": "Depth is decided before the pitch, not after the hop. Know the run that matters.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Situational awareness"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Situations Scrimmage",
+      "description": "Live half-inning scrimmage where the coach sets the score, inning, outs, and runners before every at-bat. Play it out, then stop and ask two players what they were thinking before the pitch.",
+      "coachingPoints": "Know the situation before the pitch, every pitch. Say your job out loud to the guy next to you.",
+      "duration": 15,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Situational awareness",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet",
+        "Catcher's Gear"
+      ]
+    },
+    {
+      "name": "Bunt for a Hit Reads",
+      "description": "Hitter reads the corner infielders' depth before squaring late, drag bunting toward first when the third baseman plays back and pushing it past the pitcher when he crashes. Five attempts each way.",
+      "coachingPoints": "Look at the corners, then decide. Move your feet last so you don't tip it early.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Bunting / bat control"
+      ],
+      "teamEquipment": [
+        "L-Screen",
+        "Bucket of Balls",
+        "Cones"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Squeeze Bunt Execution",
+      "description": "Runner at third breaks on the pitch and the hitter has to get the bunt down on the ground no matter where the pitch is, including one deliberately thrown high and one inside. Six attempts each.",
+      "coachingPoints": "Bunt it down, anywhere fair. Reach for a bad one, you never pull the bat back with him running.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Bunting / bat control",
+        "Team Play: Situational awareness"
+      ],
+      "teamEquipment": [
+        "L-Screen",
+        "Bucket of Balls",
+        "Throw-Down Bases"
+      ],
+      "playerGear": [
+        "Bat",
+        "Batting Helmet"
+      ]
+    },
+    {
+      "name": "Foul Territory Pop-Up Calls",
+      "description": "Coach fungos pop-ups into foul ground near the dugout and down each line. Catcher and the corner infielder both go, and whoever has the better angle calls it while the other peels off and spots the fence.",
+      "coachingPoints": "Catcher turns his back to the infield and lets it drift to him. Corner man calls him off only if he is clearly there first.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Fielding: Pop-up communication",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Fungo Bat",
+        "Bucket of Balls"
+      ],
+      "playerGear": [
+        "Catcher's Gear"
+      ]
+    },
+    {
+      "name": "Throwing Progression Ladder",
+      "description": "Standard pre-practice throwing build-up: fifteen throws at thirty feet, fifteen at forty-five, fifteen at sixty, then back in. Nobody throws at full effort until the third distance.",
+      "coachingPoints": "Build up, don't warm up by throwing hard. Every throw on a line to the chest.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Throwing: Arm care / warm-up"
+      ],
+      "teamEquipment": [
+        "Bucket of Balls"
+      ],
+      "playerGear": []
     }
   ],
   "newTagProposals": []

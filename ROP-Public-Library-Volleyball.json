@@ -326,120 +326,1075 @@
         "Net"
       ],
       "playerGear": []
+    },
+    {
+      "name": "Toss Consistency Reps",
+      "description": "Servers practice the toss alone with no contact, letting the ball drop to a spot marked on the floor in front of the hitting shoulder. Twenty tosses before any serving.",
+      "coachingPoints": "Same toss, same spot, every time. If you have to reach for it, catch it and toss again.",
+      "duration": 6,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Serving: Serve mechanics"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Standing Float Serve Progression",
+      "description": "Servers work three stages: contact with no step, then one step, then the full approach, ten serves at each stage from behind the attack line before moving back.",
+      "coachingPoints": "Firm flat hand, contact the middle of the ball, stop the follow through. No spin means no spin at all.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Serving: Serve mechanics"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Serve Away from the Best Passer",
+      "description": "Six receivers line up and the coach names one as the primary passer. Servers have to land the ball away from him without serving out of bounds. Twelve serves each.",
+      "coachingPoints": "Find the weakest passer and keep going back to him. Away from the libero, not away from the court.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Serving: Serve placement",
+        "Serving: Short & deep variation"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Serve the Seam",
+      "description": "Two passers set up in serve receive and the server has to land the ball in the seam between them so neither one calls it cleanly. Twelve serves each server.",
+      "coachingPoints": "The seam is the easiest point you'll ever serve. Aim between them, not at either one.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Serving: Serve placement",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Short and Deep Serve Pairs",
+      "description": "Server alternates a short serve just over the net inside the ten foot line and a deep serve to the back third. Ten pairs, tracking how many land in the correct third.",
+      "coachingPoints": "Short serve is contacted lower with a softer arm. Deep serve is the same swing from a step further back.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Serving: Short & deep variation"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Pull the Passer Serving Game",
+      "description": "Coach calls short or deep at random just before the toss, so the server has to adjust on the fly. Fifteen serves per player, scoring one point per correct depth.",
+      "coachingPoints": "Adjust with your contact point, not your swing speed. Decide before the toss goes up.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Serving: Short & deep variation",
+        "Serving: Serve placement"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Serve to Stay Alive",
+      "description": "Players serve one at a time and a miss sends them out of the round. Last two servers standing win. Play three rounds.",
+      "coachingPoints": "Slow your breathing and use your routine. A safe serve in is worth more than an ace attempt out.",
+      "duration": 10,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Serving: Serving under pressure"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Match Point Serving",
+      "description": "Each player steps up needing to make a serve at a called score, with the whole team watching and the coach calling the situation out loud. Three reps per player.",
+      "coachingPoints": "Same routine at 24-24 as at 5-1. The routine is what holds up under pressure.",
+      "duration": 10,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Serving: Serving under pressure"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Platform Angle Holds",
+      "description": "Players hold a platform against a partner's hands and practice angling the shoulders toward a target without swinging the arms. Twelve holds to three different targets.",
+      "coachingPoints": "Angle the platform with the shoulders, don't swing at it. Thumbs down and together, elbows locked.",
+      "duration": 6,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Passing: Forearm platform"
+      ],
+      "teamEquipment": [
+        "Volleyballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Wall Platform Control",
+      "description": "Passer stands eight feet from a wall and keeps a continuous rally going off it without letting the ball touch the floor. Three sets of twenty-five, resetting the count on any drop.",
+      "coachingPoints": "Let the ball come to the platform. If you swing, it goes to the ceiling.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Passing: Forearm platform"
+      ],
+      "teamEquipment": [
+        "Volleyballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Pass to the Target Cone",
+      "description": "Coach tosses from across the net and passers must land the ball inside a cone target at the setter position. Fifteen passes each, counting only balls that land in the target.",
+      "coachingPoints": "Pass it high enough that the setter can walk under it. Angle, don't swing.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Serve receive",
+        "Passing: Forearm platform"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Two-Passer Serve Receive",
+      "description": "Two passers cover the whole court against live serving, calling every ball loudly and early. Twenty serves per pair before rotating.",
+      "coachingPoints": "Call it before it crosses the net. The player it's coming to takes it, everyone else gets out of the way.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Serve receive",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Shuffle, Stop, Pass",
+      "description": "Coach tosses two to three feet to either side and the passer shuffles, stops with both feet planted, and passes. Twenty reps alternating directions.",
+      "coachingPoints": "Get there and stop, then pass. Passing while you move sends it sideways.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Passing footwork"
+      ],
+      "teamEquipment": [
+        "Volleyballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Forward and Back Passing Reads",
+      "description": "Coach mixes short tosses in front of the passer and deep ones over the shoulder so the feet have to move both directions. Twenty reps.",
+      "coachingPoints": "Move your feet before you drop your platform. On the deep one, turn and run, don't backpedal.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Passing footwork"
+      ],
+      "teamEquipment": [
+        "Volleyballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Free Ball Transition Pass",
+      "description": "Coach tosses a free ball over the net, the team calls it loudly, releases off the net, and passes it to the setter. Fifteen reps with the whole rotation on court.",
+      "coachingPoints": "Call free ball loud, then get off the net. Pass it higher than a serve so everyone can transition.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Free-ball passing",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Down Ball and Free Ball Reads",
+      "description": "Coach either swings a down ball or tosses a free ball, and the defense has to call which one and adjust their base. Twenty reps mixed.",
+      "coachingPoints": "Free ball means release, down ball means hold your base low. Call the difference out loud.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Free-ball passing",
+        "Team Play: Defense & coverage"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Dig the Hard-Driven Ball",
+      "description": "Coach hits from a box or the attack line at a defender in a low base position from fifteen feet. Twenty digs, focusing on getting the ball up rather than to a target.",
+      "coachingPoints": "Low base and still when he contacts. Just get it up high, the second contact fixes everything.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Digging & floor defense"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Sprawl and Extension Digs",
+      "description": "Coach tosses balls just out of reach so defenders have to extend and sprawl to the floor. Ten reps each side, teaching the safe landing first with no ball.",
+      "coachingPoints": "Chest to the floor, chin up, slide on it. Get the platform there first and the body follows.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Digging & floor defense"
+      ],
+      "teamEquipment": [
+        "Volleyballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Pursuit to the Pancake",
+      "description": "Coach tosses short balls into the seams and defenders sprint to slide a flat hand under the ball on the floor. Twelve reps, walking through the hand placement first.",
+      "coachingPoints": "Flat hand on the floor before the ball lands, not as it lands. Run through it, don't dive at it.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Digging & floor defense",
+        "Conditioning: Quick reactions"
+      ],
+      "teamEquipment": [
+        "Volleyballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Ball on the Forehead Hand Shape",
+      "description": "Players hold a ball resting on the forehead in the correct hand shape, then push it straight up two feet and catch it in the same shape. Twenty reps.",
+      "coachingPoints": "Big window between the thumbs and index fingers. Ball touches the pads, never the palms.",
+      "duration": 6,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Setting: Hand shape & contact"
+      ],
+      "teamEquipment": [
+        "Volleyballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Wall Setting Repetitions",
+      "description": "Player sets against a wall from six feet at a consistent height, keeping the ball clean with no spin. Three sets of twenty-five without a miss.",
+      "coachingPoints": "Push with the legs, finish with the fingers. Spin on the ball means uneven hands.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Setting: Hand shape & contact"
+      ],
+      "teamEquipment": [
+        "Volleyballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Back Set Accuracy",
+      "description": "Setter works back sets to a cone target behind him, starting from a toss and progressing to a pass. Fifteen back sets, then fifteen alternating front and back.",
+      "coachingPoints": "Arch back from the hips, not the neck. Same contact point whether it goes forward or back.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Setting: Hand shape & contact",
+        "Setting: Setter footwork"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Release and Square Up",
+      "description": "Setter starts in his base position, releases to the setting target on the coach's toss, and squares his shoulders to the left antenna before contact. Twenty reps.",
+      "coachingPoints": "Beat the ball to the spot, then set. Right foot last, shoulders square to the outside.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Setting: Setter footwork"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Three-Position Setter Sprint",
+      "description": "Setter starts from three different base positions depending on the rotation and sprints to the setting target on each toss. Six reps from each starting spot.",
+      "coachingPoints": "Know where you start in every rotation. Get there early enough to be stopped when you set.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Setting: Setter footwork",
+        "Conditioning: Speed & agility"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Set from Off the Net",
+      "description": "Coach passes deliberately five to ten feet off the net and the setter has to deliver a hittable outside set anyway. Fifteen reps at varying distances.",
+      "coachingPoints": "Off the net means set it higher and further outside. Never set it tight when you're behind the ten foot line.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Setting: Out-of-system setting"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Bump Set Under Pressure",
+      "description": "Coach sends passes low or behind the setter so he has to use a forearm bump set instead of hands. Twelve reps, then twelve where he chooses which to use.",
+      "coachingPoints": "If it's below your chest, bump it. High and outside, and the hitter can still swing.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Setting: Out-of-system setting"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Read the Block and Set",
+      "description": "Coach holds up a number of blockers on one side just before the setter contacts, and the setter has to set the other way. Twenty reps with the look changing each time.",
+      "coachingPoints": "Peek at the block as the pass comes, not while you're setting. Set away from the numbers.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Setting: Setter decision-making",
+        "Blocking: Reading the hitter"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Distribute to the Hot Hitter",
+      "description": "Three hitters available on every rep, with a coach calling out who is hot. The setter must find that hitter without telegraphing it. Fifteen reps.",
+      "coachingPoints": "Same body position no matter who you're setting. Get your best hitter the ball in a tight set.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Setting: Setter decision-making",
+        "Team Play: Transition offense"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Four-Step Approach Rhythm",
+      "description": "Hitters work the left-right-left approach with no ball, building from a walk to full speed. Twelve reps, then twelve finishing with a jump and a swing at air.",
+      "coachingPoints": "Slow, slow, quick-quick. Last two steps close fast and the arms swing back and up.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Hitting: Approach footwork"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Approach to a Moving Ball",
+      "description": "Coach tosses a ball at varying heights and distances off the net so hitters have to time the approach to the set rather than to a fixed spot. Fifteen approaches, catching the ball at the top.",
+      "coachingPoints": "Wait for the set to peak before you start. Better to be early and adjust than late and reaching.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Approach footwork"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Arm Swing on the Wall",
+      "description": "Hitters throw a ball into the floor a few feet from a wall using a full hitting motion so it rebounds off the wall back to them. Twenty-five throws.",
+      "coachingPoints": "Elbow high and back, snap the wrist over the top. Contact out in front of your hitting shoulder.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Hitting: Arm swing mechanics"
+      ],
+      "teamEquipment": [
+        "Volleyballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Standing Swing over the Net",
+      "description": "Hitters stand at the net on a box or on the floor for shorter players and swing at tossed balls without an approach. Twenty swings focused only on the arm.",
+      "coachingPoints": "Bow and arrow with the arms, then snap over the ball. Hit it down with topspin, don't slap at it.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Hitting: Arm swing mechanics"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Hitting Lines from the Pass",
+      "description": "Full sequence of pass, set, and hit running continuously from both outside positions. Each hitter gets eight swings before rotating.",
+      "coachingPoints": "Adjust your approach to the set you actually get. Swing at the ball you have, not the one you wanted.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Hitting off a live set",
+        "Setting: Setter footwork"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Middle Quick Attack Timing",
+      "description": "Middle hitter works the quick set timing, starting his approach before the setter contacts the ball. Fifteen reps, adjusting the start point until the timing is clean.",
+      "coachingPoints": "You go first, the set follows you. Be in the air when he touches it.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Hitting off a live set",
+        "Setting: Setter decision-making"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Tip, Roll, and Swing Choice",
+      "description": "Defenders position deep or in the seam and the hitter has to pick a tip, an off-speed roll shot, or a full swing based on what he sees. Twelve reps.",
+      "coachingPoints": "Look at the floor, not the block. Tip to where they aren't, not just over the block.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Tips & shot placement"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Hit the Line, Hit the Angle",
+      "description": "Cones mark a line zone and an angle zone on the far court. Hitter calls which one before each swing and has to land it there. Twelve swings, six of each.",
+      "coachingPoints": "Turn your shoulders to change the direction, not just your wrist. Call it, then hit it.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Tips & shot placement"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Block Footwork at the Pin",
+      "description": "Blockers work a two-step and then a three-step crossover move from the pin to the middle, jumping and landing under control at the end of each. Ten reps of each pattern.",
+      "coachingPoints": "Open with the lead foot, crossover, then square up before you jump. Never jump while you are still drifting.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Blocking: Block footwork"
+      ],
+      "teamEquipment": [
+        "Net",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Mirror the Middle",
+      "description": "Middle blocker mirrors a coach moving along the far side of the net, closing to whichever pin he goes to and jumping on the whistle. Twelve reps.",
+      "coachingPoints": "Move when the ball is set, not when the hitter starts. Close the seam with the outside blocker.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Blocking: Block footwork",
+        "Conditioning: Speed & agility"
+      ],
+      "teamEquipment": [
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Press Over the Net",
+      "description": "Blockers jump and press their hands over the net at a coach holding a ball on the other side, holding the shape for the full jump. Fifteen reps.",
+      "coachingPoints": "Hands over and angled in toward the court. Thumbs up, fingers spread, shoulders shrugged to the ears.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Blocking: Hand position & penetration"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Seal the Line Block",
+      "description": "Outside blocker sets the outside hand to take away the line while a coach hits down the line from a box. Ten reps each side.",
+      "coachingPoints": "Outside hand turns the ball back into the court. Foot on the antenna side, don't drift in.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Blocking: Hand position & penetration"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Watch Ball, Setter, Hitter",
+      "description": "Blockers call out loud what they are watching in sequence as a live rep develops: ball, then setter, then hitter. Fifteen reps with the coach checking their eyes.",
+      "coachingPoints": "Ball, setter, hitter, in that order every time. Never stare at the ball the whole way.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Blocking: Reading the hitter"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Read the Approach Angle",
+      "description": "Hitters attack from varied approach angles and blockers have to predict line or angle from the approach path before the swing. Fifteen reps, scoring correct predictions.",
+      "coachingPoints": "His approach angle tells you where the ball goes. Sharp approach means angle, straight on means line.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Blocking: Reading the hitter"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Block, Land, Approach",
+      "description": "Blocker jumps at the net, lands under control, immediately backs off the net, and takes a full attack approach. Twelve reps at game speed.",
+      "coachingPoints": "Land facing the net, then push off and get off the net. Be off the net before the set goes up.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Blocking: Transition off the block",
+        "Hitting: Approach footwork"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Block to Dig to Attack",
+      "description": "Blockers jump, land, and then the coach immediately hits a ball behind them that they have to dig before transitioning to attack. Ten reps.",
+      "coachingPoints": "Land and turn, don't land and watch. The ball behind you is yours the second you're down.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Blocking: Transition off the block",
+        "Passing: Digging & floor defense"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Court Sprint and Shuffle Grid",
+      "description": "Players sprint to the attack line, shuffle across the court, backpedal to the end line, and shuffle back. Four circuits with rest between.",
+      "coachingPoints": "Stay low through the shuffles, no standing up. Touch every line with a hand.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Conditioning: Speed & agility"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Block Jump Repeats",
+      "description": "Players perform ten consecutive block jumps at the net with a controlled landing on each, then rest ninety seconds. Three sets.",
+      "coachingPoints": "Land soft with bent knees every rep. When the jumps get low, the set is over.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Conditioning: Jumping & explosiveness"
+      ],
+      "teamEquipment": [
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Approach Jump and Stick",
+      "description": "Players take a full attack approach, jump as high as they can, and stick the landing without stumbling. Eight reps with full rest between each.",
+      "coachingPoints": "Swing the arms back and up hard. Stick the landing, no extra steps.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Conditioning: Jumping & explosiveness"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Continuous Six-Ball Defense",
+      "description": "Coach sends six balls in a row at one defender with no break: a hard-driven ball, a tip, a deep ball, a short ball, a seam ball, and a free ball. Two rounds each.",
+      "coachingPoints": "Play every ball, then reset low. The sixth one counts the same as the first.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Conditioning: Court movement endurance",
+        "Passing: Digging & floor defense"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Long Rally Conditioning",
+      "description": "Six-on-six where the coach immediately enters a new ball the moment a rally ends, so play never stops. Four-minute blocks with two minutes rest, three blocks.",
+      "coachingPoints": "Communicate more when you are tired. Get back to base after every single contact.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Conditioning: Court movement endurance",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Reaction Ball Drop",
+      "description": "Partner holds a ball at shoulder height and drops it without warning from eight feet. The defender has to get a platform under it before the second bounce. Fifteen reps each.",
+      "coachingPoints": "Stay on the balls of your feet and ready. Go on the drop, not on the bounce.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Quick reactions"
+      ],
+      "teamEquipment": [
+        "Volleyballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Serve Receive Rotation Walk-Through",
+      "description": "Team walks through serve receive alignment for all six rotations, with each player naming who they overlap with. Two full trips through the rotations.",
+      "coachingPoints": "Know who you have to stay behind and beside. Get to your spot before the server is ready.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Serve receive rotations",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Rotation Under Live Serve",
+      "description": "Team runs each rotation against live serving, playing the ball out to a terminal contact before rotating. Three passes through all six rotations.",
+      "coachingPoints": "Seams belong to somebody, decide before the serve. Release to your attack position as soon as you pass.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Serve receive rotations",
+        "Passing: Serve receive"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Hitter Coverage Shape",
+      "description": "Every time a teammate attacks, the other five drop into a coverage cup behind him to play the blocked ball. Fifteen reps with the coach blocking balls back.",
+      "coachingPoints": "Low and close behind your hitter. Every blocked ball should hit somebody's platform.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Defense & coverage"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Base to Defense Transition",
+      "description": "Defenders start in base position and move to their perimeter defensive spots as the coach sets to different hitters. Twenty reps with the set direction changing each time.",
+      "coachingPoints": "Base first, then read and move. Stop your feet before he contacts the ball.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Defense & coverage",
+        "Blocking: Reading the hitter"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Dig to Transition Attack",
+      "description": "Defense digs a hard-driven ball and must convert it into a full three-contact attack. Fifteen reps, scoring only when the transition swing is in.",
+      "coachingPoints": "Dig it high to buy time. Hitters get off the net the second the dig goes up.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Transition offense",
+        "Setting: Out-of-system setting"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Wash Drill Three Balls",
+      "description": "Coach enters three balls in a row for the same team: a serve, a free ball, and a down ball. Winning two of three wins the wash and a point. Play to five points.",
+      "coachingPoints": "Win the second ball, that's where matches are decided. Reset your base between every entry.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Transition offense",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Talk Before Every Contact",
+      "description": "Live six-on-six where the coach stops play and awards the point to the other team any time a ball lands without somebody having called it. Play to ten.",
+      "coachingPoints": "Call it before you touch it, every contact. Silence means it lands between two of you.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Jump Float Serve Progression",
+      "description": "Servers build the jump float in three stages: toss and catch with no jump, toss with a one-step hop, then the full two-step jump. Eight serves at each stage.",
+      "coachingPoints": "Toss it out in front so you jump to the ball. Firm hand, short punch, no follow through.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Serving: Serve mechanics"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Serve and Sprint to Base",
+      "description": "Server serves, then immediately sprints onto the court to his defensive base position before the ball would come back. Twelve reps.",
+      "coachingPoints": "You are not done when you serve, you are a defender now. Get to your base low and ready.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Serving: Serve mechanics",
+        "Conditioning: Court movement endurance"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Six-Zone Serving Ladder",
+      "description": "Server must hit zone one, then two, and on through all six in order. A miss sends him back one zone. Two full ladders per player.",
+      "coachingPoints": "Change the zone with your shoulders and your toss, not your swing. Same swing every serve.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Serving: Serve placement",
+        "Serving: Short & deep variation"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Team Serving Goal",
+      "description": "Team has to make twenty-five serves in a row as a group, and any miss resets the count to zero. One attempt per practice.",
+      "coachingPoints": "Your teammates are counting on the serve being in. Routine, breathe, safe target.",
+      "duration": 10,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Serving: Serving under pressure",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Back Row Attack from Ten Feet",
+      "description": "Back row hitters approach from behind the attack line and swing at a set delivered to the ten foot line. Ten swings each, checking that the takeoff is behind the line.",
+      "coachingPoints": "Take off behind the line, land wherever you want. Hit it deep, not down.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Hitting off a live set",
+        "Hitting: Approach footwork"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Swing at the Tight Set",
+      "description": "Setter deliberately delivers sets tight to the net and the hitter has to use a high hands shot or a sharp cut rather than a full swing into the block. Twelve reps.",
+      "coachingPoints": "Tight set means use their hands or cut it sharp. Never swing hard into a set on the net.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Hitting: Tips & shot placement",
+        "Hitting: Arm swing mechanics"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Two-Blocker Seam Close",
+      "description": "Middle and outside blockers close together on the pin and a coach tries to hit the seam between their hands. Twelve reps each side, counting clean closes.",
+      "coachingPoints": "Middle closes to the outside, outside holds the antenna. Inside hands touch or you left a seam.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Blocking: Block footwork",
+        "Blocking: Hand position & penetration"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Net"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Shuttle and Dig Circuit",
+      "description": "Player shuttles end line to attack line twice, then immediately digs three balls the coach sends at varying depths. Four rounds each with ninety seconds rest.",
+      "coachingPoints": "Get stopped before the ball is hit, even when you are gassed. Low base, platform ready.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Conditioning: Quick reactions",
+        "Conditioning: Court movement endurance"
+      ],
+      "teamEquipment": [
+        "Volleyballs",
+        "Cones"
+      ],
+      "playerGear": []
     }
   ],
-  "newTagProposals": [
-    {
-      "category": "Serving",
-      "name": "Serve mechanics"
-    },
-    {
-      "category": "Serving",
-      "name": "Serve placement"
-    },
-    {
-      "category": "Serving",
-      "name": "Serving under pressure"
-    },
-    {
-      "category": "Serving",
-      "name": "Short & deep variation"
-    },
-    {
-      "category": "Passing",
-      "name": "Forearm platform"
-    },
-    {
-      "category": "Passing",
-      "name": "Serve receive"
-    },
-    {
-      "category": "Passing",
-      "name": "Passing footwork"
-    },
-    {
-      "category": "Passing",
-      "name": "Free-ball passing"
-    },
-    {
-      "category": "Setting",
-      "name": "Hand shape & contact"
-    },
-    {
-      "category": "Setting",
-      "name": "Setter footwork"
-    },
-    {
-      "category": "Setting",
-      "name": "Out-of-system setting"
-    },
-    {
-      "category": "Setting",
-      "name": "Setter decision-making"
-    },
-    {
-      "category": "Hitting",
-      "name": "Approach footwork"
-    },
-    {
-      "category": "Hitting",
-      "name": "Arm swing mechanics"
-    },
-    {
-      "category": "Hitting",
-      "name": "Hitting off a live set"
-    },
-    {
-      "category": "Hitting",
-      "name": "Tips & shot placement"
-    },
-    {
-      "category": "Blocking",
-      "name": "Block footwork"
-    },
-    {
-      "category": "Blocking",
-      "name": "Hand position & penetration"
-    },
-    {
-      "category": "Blocking",
-      "name": "Reading the hitter"
-    },
-    {
-      "category": "Blocking",
-      "name": "Transition off the block"
-    },
-    {
-      "category": "Conditioning",
-      "name": "Speed & agility"
-    },
-    {
-      "category": "Conditioning",
-      "name": "Jumping & explosiveness"
-    },
-    {
-      "category": "Conditioning",
-      "name": "Court movement endurance"
-    },
-    {
-      "category": "Conditioning",
-      "name": "Quick reactions"
-    },
-    {
-      "category": "Team Play",
-      "name": "Serve receive rotations"
-    },
-    {
-      "category": "Team Play",
-      "name": "Defense & coverage"
-    },
-    {
-      "category": "Team Play",
-      "name": "Transition offense"
-    },
-    {
-      "category": "Team Play",
-      "name": "Communication"
-    }
-  ]
+  "newTagProposals": []
 }
