@@ -342,120 +342,1180 @@
         "Portable Goals"
       ],
       "playerGear": []
+    },
+    {
+      "name": "One-Touch Wall Passing",
+      "description": "Player passes against a wall or rebound board from eight yards using one touch only, alternating feet every five passes. Three sets of thirty.",
+      "coachingPoints": "Lock the ankle and pass with the inside of the foot. Open your hips to the target before it arrives.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Short passing accuracy"
+      ],
+      "teamEquipment": [
+        "Soccer Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Y Passing Pattern",
+      "description": "Three players form a Y and run a set pattern of pass, return, and third-man pass, then rotate positions. Six cycles each direction.",
+      "coachingPoints": "Pass to the back foot so he can turn. Move as soon as it leaves your foot.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Short passing accuracy",
+        "Team Play: Combination play"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Weighted Pass Ladder",
+      "description": "Partners pass across increasing distances of ten, twenty, and thirty yards, with the ball required to stop within one step of the receiver. Ten passes at each distance.",
+      "coachingPoints": "Weight it so he doesn't have to move. Firm and flat beats soft and bouncing.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Passing: Short passing accuracy"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "First Touch Out of Feet",
+      "description": "Server tosses or passes to a partner who must take a first touch into space away from a cone defender, then pass back. Twenty reps alternating which side he opens to.",
+      "coachingPoints": "Your first touch is your first pass. Take it away from pressure, not into it.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Passing: Receiving / first touch"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Receive and Turn Gates",
+      "description": "Player checks to a server, receives with the back foot, and turns to play through one of two gates behind him. Twelve reps, alternating which shoulder he opens over.",
+      "coachingPoints": "Look over your shoulder before it comes. Half turn as you receive, don't receive and then turn.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Receiving / first touch",
+        "Dribbling: Change of direction / moves"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Aerial Control Cushion",
+      "description": "Server lofts a ball to a partner who cushions it with the thigh or the inside of the foot and settles it inside a five yard square. Fifteen reps each surface.",
+      "coachingPoints": "Give with the surface as it arrives. Kill it dead inside the square or the rep doesn't count.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Passing: Receiving / first touch"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Driven Ball Technique",
+      "description": "Players strike thirty to forty yard driven passes to a partner, keeping the ball below head height. Twelve strikes each foot.",
+      "coachingPoints": "Laces through the middle of the ball, plant foot beside it. Low and fast beats high and slow.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Passing: Long balls & switching play"
+      ],
+      "teamEquipment": [
+        "Soccer Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Switch Through the Middle Zone",
+      "description": "Grid split into three zones. The ball must cross the middle zone in one pass to a player on the far side who is already moving. Eight switches each direction.",
+      "coachingPoints": "Switch it before the pressure arrives, not after. Play it into his run, not his feet.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Long balls & switching play",
+        "Team Play: Possession play"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Rondo 5v2",
+      "description": "Five players around a fifteen yard square with two defenders in the middle. Two-touch maximum, and the defender who wins it swaps with the player who lost it.",
+      "coachingPoints": "Move before you receive, not after. Split the two of them whenever the gap opens.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Passing under pressure",
+        "Team Play: Possession play"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Two-Touch Pressure Square",
+      "description": "Four attackers keep the ball inside a twenty yard square against two pressing defenders with a two-touch limit. Ninety second rounds, defenders rotate each round.",
+      "coachingPoints": "First touch sets the pass. Head up before it arrives or you have already lost it.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Passing: Passing under pressure"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Play Out of the Back",
+      "description": "Back four plus a goalkeeper build out from a goal kick against three forwards pressing. Ten reps, and the pressing team scores a point for any turnover in the defensive third.",
+      "coachingPoints": "Split wide and give him angles. If it isn't on, go back to the keeper and start again.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Passing under pressure",
+        "Goalkeeping: Distribution"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Pinnies"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Laces Strike Repetitions",
+      "description": "Player strikes a stationary ball at a target from eighteen yards, focusing on plant foot placement and a locked ankle. Ten strikes each foot.",
+      "coachingPoints": "Plant foot beside the ball pointing at goal. Head down, hit through the middle, follow through toward the target.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Shooting: Finishing technique"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Side Foot Placement Finishes",
+      "description": "Player receives a square pass twelve yards from goal and side foots it into a corner rather than blasting it. Twelve finishes, six to each corner.",
+      "coachingPoints": "Pass it into the corner, don't shoot it. Placement beats power inside the box.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Shooting: Finishing technique"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Cutback Finish from the Byline",
+      "description": "A winger drives to the byline and cuts the ball back to the penalty spot where a runner arrives to finish first time. Eight reps from each side.",
+      "coachingPoints": "Cut it back behind the defenders, not across the six. Arrive late and hit it first time.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Shooting: Finishing technique",
+        "Team Play: Combination play"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Touch, Touch, Shoot",
+      "description": "Player receives at twenty-five yards, takes two touches forward past a cone, and strikes. Ten reps each foot.",
+      "coachingPoints": "Big first touch out of your feet, then hit it. Don't take a third touch and let him get set.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Shooting: Shooting off the dribble"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Cut Inside and Curl",
+      "description": "Wide player dribbles down the line, cuts inside onto his stronger foot, and curls it toward the far post. Eight reps each side.",
+      "coachingPoints": "Cut inside sharply, don't drift. Wrap the foot around it and aim for the far corner.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Shooting: Shooting off the dribble",
+        "Dribbling: Change of direction / moves"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Half Volley off the Bounce",
+      "description": "Server drops a ball from chest height and the striker hits it just as it bounces from fourteen yards. Twelve reps each foot.",
+      "coachingPoints": "Hit it as it comes up, not at the top of the bounce. Knee over the ball to keep it down.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Shooting: Volleys & first-time finishes"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "First-Time Finish from the Cross",
+      "description": "Crosser delivers from the wing and a striker attacks the near post and the far post on alternating reps, finishing first time. Ten reps from each side.",
+      "coachingPoints": "Attack the ball, don't wait for it. Near post finishes go across, far post finishes go back across.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Shooting: Volleys & first-time finishes",
+        "Team Play: Combination play"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Through Ball to 1v1",
+      "description": "Striker runs onto a through ball with only the keeper to beat from twenty yards. Eight reps, mixing a clean run and one with a recovering defender.",
+      "coachingPoints": "Take a touch to the side he is diving from. Wait for him to commit, then pass it past him.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Shooting: 1v1 vs goalkeeper",
+        "Goalkeeping: Shot stopping"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Angle Finish One-on-One",
+      "description": "Striker breaks in from a wide angle against the keeper, so the near post is covered and the finish has to go far post or around him. Eight reps each side.",
+      "coachingPoints": "From a tight angle, go far post or take it across him. Never blast it at his near shoulder.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Shooting: 1v1 vs goalkeeper"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Cones"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Sole and Inside Touch Grid",
+      "description": "Players dribble inside a fifteen yard grid using only the sole roll and inside-of-the-foot touches, keeping the ball within a stride at all times. Three ninety second rounds.",
+      "coachingPoints": "Small touches, head up. If the ball gets more than a step away, it isn't yours anymore.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Dribbling: Close control"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Tight Grid Traffic Dribble",
+      "description": "All players dribble inside a shrinking grid while keeping their heads up to avoid collisions. The coach removes cones every forty-five seconds to tighten the space.",
+      "coachingPoints": "See the player, not just the ball. Change direction before you run out of room.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Dribbling: Close control"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Move of the Week Progression",
+      "description": "One move, such as the step-over, scissors, or Cruyff turn, taught in three stages: alone with no defender, against a passive defender, then live one-on-one. Four minutes at each stage.",
+      "coachingPoints": "Sell it with your shoulders and your eyes. Explode out of the move, the move itself beats nobody.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Dribbling: Change of direction / moves"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Two Gates 1v1",
+      "description": "Attacker faces a defender with two gates behind him and must dribble through either one. Defender only has to protect one at a time, so the attacker reads which. Four reps each.",
+      "coachingPoints": "Attack the gap he isn't covering. Change speed once you commit.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Dribbling: Change of direction / moves",
+        "Defending: 1v1 defending"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Push and Sprint to Goal",
+      "description": "Player takes one big touch into open space and sprints thirty yards with the ball at speed before finishing. Six reps with full recovery.",
+      "coachingPoints": "Push it into the space in front, then run. Touch every third stride, not every stride.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Dribbling: Speed dribbling",
+        "Conditioning: Acceleration"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Shield and Turn Out",
+      "description": "Player receives with his back to a defender, shields for three seconds using his body, then turns out to the open side. Six reps each, then switch roles.",
+      "coachingPoints": "Arm across, body between him and the ball, knees bent. Feel where he is, then turn the other way.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Dribbling: Shielding the ball"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Jockey and Delay",
+      "description": "Defender faces an attacker in a ten yard channel with the only job of delaying him for eight seconds, not winning the ball. Four reps each, then switch.",
+      "coachingPoints": "Side on, low, and patient. Show him to your strong side and wait for his heavy touch.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Defending: 1v1 defending"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Force Him Wide",
+      "description": "Defender protects a central gate while an attacker starts thirty yards out. The defender must angle his approach to push the attacker toward the sideline. Six reps each.",
+      "coachingPoints": "Approach on a curve, not a straight line. Your body shape decides where he goes.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Defending: 1v1 defending",
+        "Defending: Pressing & angles"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Press the Trigger Pass",
+      "description": "Two defenders stay passive until a deliberately slow or backward pass is played, then press together. Ten reps with the coach calling out whether the trigger was read correctly.",
+      "coachingPoints": "Press on the bad touch or the backward pass, not on every pass. Go together or don't go.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Defending: Pressing & angles",
+        "Team Play: Possession play"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Cover Shadow Pressing",
+      "description": "Defender presses the ball while using his body position to block the passing lane behind him. Eight reps with a coach checking whether the lane stayed closed.",
+      "coachingPoints": "Press with the pass behind you already cut off. Curve your run so your shadow covers him.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Defending: Pressing & angles"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Front Foot Block Tackle",
+      "description": "Two players approach a ball placed between them and work a firm, square block tackle through the middle of the ball. Twelve reps at controlled speed.",
+      "coachingPoints": "Ankle locked, inside of the foot, body weight through it. Timid tackles are how people get hurt.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Defending: Tackling technique"
+      ],
+      "teamEquipment": [
+        "Soccer Balls"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Recovery Tackle from Behind",
+      "description": "Defender starts two yards behind an attacker and has to recover alongside and poke the ball away with the near foot, never from behind. Six reps each side.",
+      "coachingPoints": "Get alongside first, then take it. Never reach through the back of him.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Defending: Tackling technique",
+        "Conditioning: Speed & agility"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Back Four Slide and Squeeze",
+      "description": "Four defenders move as a unit while a coach passes the ball across the top of the formation, sliding across and squeezing up together. Three minutes continuous.",
+      "coachingPoints": "Ball moves, everyone moves. Stay within ten yards of each other the whole time.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Defending: Defensive shape"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Compact Between the Lines",
+      "description": "Defenders and midfielders work together to deny a player receiving between the lines while the ball is circulated in front of them. Ten possessions.",
+      "coachingPoints": "Midfield drops, back line steps up, squeeze the space. Nobody gets to turn in the middle.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Defending: Defensive shape",
+        "Defending: Pressing & angles"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Keeper W Catch Reps",
+      "description": "Server throws and strikes balls at chest and head height from twelve yards. Keeper catches every one with thumbs and index fingers forming a W behind the ball. Twenty-five reps.",
+      "coachingPoints": "Hands behind the ball, thumbs close, elbows soft. Bring it into your chest every time.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Goalkeeping: Handling & catching"
+      ],
+      "teamEquipment": [
+        "Soccer Balls"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Low Ball Scoop and Collapse",
+      "description": "Keeper handles rolling balls with a scoop, then balls rolled just wide that require a collapse dive onto the side. Fifteen of each.",
+      "coachingPoints": "Get your body behind the rolling ball, never just the hands. On the collapse, top hand over, bottom hand behind.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Goalkeeping: Handling & catching"
+      ],
+      "teamEquipment": [
+        "Soccer Balls"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "High Ball Claim",
+      "description": "Server lofts balls into the six yard box and the keeper attacks them at the highest point with a loud call, taking off from one foot. Fifteen reps, adding a passive attacker after eight.",
+      "coachingPoints": "Call it loud and early, then go get it. Lead knee up for protection, catch it at full stretch.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Goalkeeping: Handling & catching",
+        "Goalkeeping: Footwork & positioning"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Set Position on the Shot",
+      "description": "Keeper shuffles along his line as the coach moves the ball, and must be in a stopped set position every time the coach loads to shoot. Twenty reps.",
+      "coachingPoints": "Stop and set before he strikes it. Moving when the ball is hit means you go nowhere.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Goalkeeping: Footwork & positioning"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Keeper Angle Arc",
+      "description": "Coach moves the ball around the top of the box and the keeper adjusts along an arc from the goal line, narrowing the angle without straying too far. Twelve positions checked.",
+      "coachingPoints": "Come off your line on the shooter's angle, not straight out. Set your feet before he looks up.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Goalkeeping: Footwork & positioning"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Cones"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Reaction Save Doubles",
+      "description": "Keeper faces two shots in quick succession, the first from twelve yards and the second fed immediately after the parry. Twelve pairs of shots.",
+      "coachingPoints": "Parry wide, never straight back into the middle. Get off the ground before the second shot comes.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Goalkeeping: Shot stopping"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Screened Shot Reactions",
+      "description": "Two players stand in front of the keeper as a screen while a coach strikes from eighteen yards. Keeper has to find the ball late through bodies. Fifteen shots.",
+      "coachingPoints": "Move to see it, don't stand and hope. Stay big and expect a deflection.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Goalkeeping: Shot stopping"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Pinnies"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Keeper Throw and Roll Distribution",
+      "description": "Keeper distributes to targets at fifteen, twenty-five, and forty yards using a roll, a sidearm throw, and an overarm throw. Eight reps of each.",
+      "coachingPoints": "Roll it flat so it doesn't bounce. Throw to his front foot so he can play forward.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Goalkeeping: Distribution"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Goal Kick Under Pressure",
+      "description": "Keeper takes goal kicks with two forwards pressing, choosing between a short pass to a center back, a wide ball to a full back, or a long clearance. Ten reps.",
+      "coachingPoints": "Look short first, long second. If nothing is on, put it out of play rather than into trouble.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Goalkeeping: Distribution",
+        "Team Play: Possession play"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Pinnies"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Ladder and Cone Quickness",
+      "description": "Players work four footwork patterns through a cone grid, then finish each trip with a five yard sprint. Two trips per pattern.",
+      "coachingPoints": "Quick feet, tall posture. The sprint out is the point, not the fancy pattern.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Conditioning: Speed & agility"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "T-Drill Change of Direction",
+      "description": "Four cones in a T shape. Player sprints forward, shuffles left, shuffles right, then backpedals to start. Four reps with full rest.",
+      "coachingPoints": "Face forward the whole drill. Touch every cone with your hand, no cutting corners.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Conditioning: Speed & agility"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Reaction Start Races",
+      "description": "Pairs lie or sit facing away from the coach, then sprint fifteen yards on a clap. Six reps alternating starting positions.",
+      "coachingPoints": "First step goes under your body, not out in front. React, don't anticipate.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Acceleration"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Twenty-Yard Repeat Sprints",
+      "description": "Players sprint twenty yards, walk back, and repeat every thirty seconds for eight reps. Times should stay within a step of each other.",
+      "coachingPoints": "Same time on rep eight as rep one. If you fade, you went out too hard.",
+      "duration": 10,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Acceleration",
+        "Conditioning: Endurance"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Interval Tempo Runs",
+      "description": "Players run the width of the field at about seventy-five percent effort, walk the next width, and repeat for ten widths. Two sets.",
+      "coachingPoints": "Tempo, not a race. Recover on the walk so you can hold the pace.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Endurance"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Bodyweight and Core Stations",
+      "description": "Four stations at forty-five seconds each: squats, lunges, planks, and glute bridges, with fifteen seconds to rotate. Two rounds.",
+      "coachingPoints": "Control every rep. Knees track over the toes, hips stay level in the plank.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 4,
+      "skillTags": [
+        "Conditioning: Endurance"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Four-Goal Small-Sided Fitness",
+      "description": "Four-on-four with four small goals so the ball and the players never stop moving. Three-minute rounds with ninety seconds rest, four rounds.",
+      "coachingPoints": "Score in either goal, so change the point of attack fast. Nobody stands still for three minutes.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Conditioning: Small-sided fitness",
+        "Team Play: Small-sided games"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Pinnies",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Two-Minute 3v3 Waves",
+      "description": "Three-on-three to small goals in two-minute bursts with fresh teams rotating in immediately. Six waves per team.",
+      "coachingPoints": "Full effort for two minutes, then you're off. Sprint back on defense every single time.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 4,
+      "skillTags": [
+        "Conditioning: Small-sided fitness",
+        "Team Play: Small-sided games"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Six-Pass Possession Game",
+      "description": "Seven-on-seven in a forty yard grid where six consecutive passes counts as a goal. No shooting, purely retention. Four three-minute rounds.",
+      "coachingPoints": "Support at an angle, never in a straight line behind him. Backward pass is a good pass.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Possession play"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Possession with Target Players",
+      "description": "Six-on-six in a grid with a neutral target player at each end. A point is scored by finding one target and then the other. Four rounds of three minutes.",
+      "coachingPoints": "Play through the middle to get to the far target. Heads up before you receive.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Possession play",
+        "Passing: Passing under pressure"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Counter-Attack Waves",
+      "description": "A defending team wins the ball and immediately attacks the opposite goal against two recovering defenders. Continuous for eight minutes with fresh attackers each wave.",
+      "coachingPoints": "First pass goes forward, not sideways. Get three players past the ball inside five seconds.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Transition play"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Five Seconds to Win It Back",
+      "description": "Any team that loses the ball has five seconds to win it back before dropping into shape. Play seven-on-seven for four-minute rounds with the coach counting out loud.",
+      "coachingPoints": "The nearest player presses instantly, everyone else cuts off the escape. Five seconds, then get your shape.",
+      "duration": 15,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Transition play",
+        "Defending: Pressing & angles"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Third Man Runs",
+      "description": "Pattern where the first pass sets up a second pass to a third player arriving into space. Run it as a pattern for five minutes, then live in a small-sided game.",
+      "coachingPoints": "The pass isn't to the man you look at. Third man times his run as the second pass leaves.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Combination play"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Overlap and Underlap Reps",
+      "description": "A wide player and a fullback combine, with the fullback running outside on one rep and inside on the next. Eight reps of each on both flanks.",
+      "coachingPoints": "Call which run you're making. Wide player holds the ball until the runner is level.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Combination play",
+        "Passing: Short passing accuracy"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Corner Kick Delivery and Runs",
+      "description": "Corner taker delivers to two zones, near post and penalty spot, while three attackers run set routes and two defenders mark. Sixteen corners, eight to each zone.",
+      "coachingPoints": "Same delivery every time so the runs can be timed to it. Start your run late and outside the marker.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Set pieces & restarts"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Free Kick Wall and Routine",
+      "description": "Defensive unit sets a wall on the keeper's call while the attacking team runs two rehearsed free kick routines from twenty-two yards. Ten kicks from three different angles.",
+      "coachingPoints": "Keeper sets the wall and the wall does not move. Attackers, decide the routine before you stand over it.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Set pieces & restarts",
+        "Goalkeeping: Footwork & positioning"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Pinnies"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Throw-In Options Pattern",
+      "description": "Thrower works three options on every throw: a checking near player, a runner going behind, and a back option. Twelve throws each side with defenders marking.",
+      "coachingPoints": "Three options every throw, one of them behind. Throw it and get back on the field immediately.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Set pieces & restarts"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Three Balls in Ten Seconds",
+      "description": "Three servers feed a striker in sequence from the left, the middle, and the right, so he finishes three balls inside ten seconds. Four rounds each player.",
+      "coachingPoints": "Reset your feet between each one. Tired finishing is game finishing.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Shooting: Finishing technique",
+        "Conditioning: Small-sided fitness"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Cones"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Turn and Shoot from the Back",
+      "description": "Striker receives with his back to goal at eighteen yards, turns on his first touch, and strikes within two more. Eight reps opening each way.",
+      "coachingPoints": "Check your shoulder before it arrives. Turn on the first touch, not the second.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Shooting: Shooting off the dribble",
+        "Passing: Receiving / first touch"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Figure-Eight Close Control",
+      "description": "Two cones five yards apart. Player dribbles a figure eight around them using inside and outside touches only, for forty-five seconds. Four rounds.",
+      "coachingPoints": "Outside foot around the cone, inside foot back through. Touch on every step when it's tight.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Dribbling: Close control"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Sharks and Minnows",
+      "description": "Everyone dribbles across a thirty yard grid while two sharks without balls try to kick them out. Anyone who loses his ball becomes a shark. Four rounds.",
+      "coachingPoints": "Head up and change direction early. Shield it with your body when a shark commits.",
+      "duration": 10,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Dribbling: Close control",
+        "Dribbling: Shielding the ball"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Dribble the Counter 2v1",
+      "description": "Two attackers break from the halfway line against one recovering defender. The player on the ball carries it at speed and decides whether to take him on or release the runner. Six reps each side.",
+      "coachingPoints": "Carry it at him until he commits, then decide. Slowing down lets the second defender arrive.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Dribbling: Speed dribbling",
+        "Team Play: Transition play"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Defend the Two-on-One",
+      "description": "One defender faces two attackers and has to delay, force the pass, and buy time for a recovering teammate who enters after four seconds. Six reps each.",
+      "coachingPoints": "Don't dive in, you'll lose both of them. Cut the pass and slow the ball down.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Defending: 1v1 defending",
+        "Defending: Defensive shape"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Keeper Sweeper Reads",
+      "description": "Keeper starts off his line and reads whether to come out and clear a through ball or drop back into the goal. Ten reps with the coach varying the weight of the pass.",
+      "coachingPoints": "Decide early and commit fully. Half out is how goals get scored.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Goalkeeping: Footwork & positioning",
+        "Goalkeeping: Distribution"
+      ],
+      "teamEquipment": [
+        "Soccer Balls",
+        "Portable Goals",
+        "Cones"
+      ],
+      "playerGear": [
+        "Goalkeeper Gloves"
+      ]
+    },
+    {
+      "name": "Box-to-Box Shuttle Runs",
+      "description": "Players run from one penalty box to the other, jog back, and repeat. Six repetitions with the jog back as the only recovery.",
+      "coachingPoints": "Run the sprint honestly and the jog honestly. This is the shape of the whole game.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Endurance",
+        "Conditioning: Acceleration"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
     }
   ],
-  "newTagProposals": [
-    {
-      "category": "Passing",
-      "name": "Short passing accuracy"
-    },
-    {
-      "category": "Passing",
-      "name": "Receiving / first touch"
-    },
-    {
-      "category": "Passing",
-      "name": "Long balls & switching play"
-    },
-    {
-      "category": "Passing",
-      "name": "Passing under pressure"
-    },
-    {
-      "category": "Shooting",
-      "name": "Finishing technique"
-    },
-    {
-      "category": "Shooting",
-      "name": "Shooting off the dribble"
-    },
-    {
-      "category": "Shooting",
-      "name": "Volleys & first-time finishes"
-    },
-    {
-      "category": "Shooting",
-      "name": "1v1 vs goalkeeper"
-    },
-    {
-      "category": "Dribbling",
-      "name": "Close control"
-    },
-    {
-      "category": "Dribbling",
-      "name": "Change of direction / moves"
-    },
-    {
-      "category": "Dribbling",
-      "name": "Speed dribbling"
-    },
-    {
-      "category": "Dribbling",
-      "name": "Shielding the ball"
-    },
-    {
-      "category": "Defending",
-      "name": "1v1 defending"
-    },
-    {
-      "category": "Defending",
-      "name": "Pressing & angles"
-    },
-    {
-      "category": "Defending",
-      "name": "Tackling technique"
-    },
-    {
-      "category": "Defending",
-      "name": "Defensive shape"
-    },
-    {
-      "category": "Goalkeeping",
-      "name": "Handling & catching"
-    },
-    {
-      "category": "Goalkeeping",
-      "name": "Footwork & positioning"
-    },
-    {
-      "category": "Goalkeeping",
-      "name": "Shot stopping"
-    },
-    {
-      "category": "Goalkeeping",
-      "name": "Distribution"
-    },
-    {
-      "category": "Conditioning",
-      "name": "Speed & agility"
-    },
-    {
-      "category": "Conditioning",
-      "name": "Acceleration"
-    },
-    {
-      "category": "Conditioning",
-      "name": "Endurance"
-    },
-    {
-      "category": "Conditioning",
-      "name": "Small-sided fitness"
-    },
-    {
-      "category": "Team Play",
-      "name": "Possession play"
-    },
-    {
-      "category": "Team Play",
-      "name": "Small-sided games"
-    },
-    {
-      "category": "Team Play",
-      "name": "Transition play"
-    },
-    {
-      "category": "Team Play",
-      "name": "Combination play"
-    }
-  ]
+  "newTagProposals": []
 }

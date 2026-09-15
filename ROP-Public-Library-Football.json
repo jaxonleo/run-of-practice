@@ -332,120 +332,1408 @@
         "Pinnies"
       ],
       "playerGear": []
+    },
+    {
+      "name": "Wrist Flick Warm-Up",
+      "description": "Quarterbacks kneel facing a partner ten yards away and throw using only the wrist and fingers with the elbow held high. Fifteen throws before any full-motion work.",
+      "coachingPoints": "Index finger last off the ball. Tight spiral or you are pushing it.",
+      "duration": 6,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Passing: Throwing mechanics"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Hip Torque Throws",
+      "description": "Passer starts with his back foot turned away from the target, then throws by rotating the hips through before the arm comes. Twelve throws at fifteen yards.",
+      "coachingPoints": "Hips pull the arm, the arm doesn't pull the hips. Front shoulder to the target.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Passing: Throwing mechanics"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Net Accuracy Grid",
+      "description": "Throw at four quadrants of a target net or between two cones hung on a fence, calling the quadrant before each throw. Twenty throws, tracking hits.",
+      "coachingPoints": "Aim at a jersey number, not a body. Same release point on every throw.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Throwing mechanics"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Five-Step Drop and Hitch",
+      "description": "Quarterback works a five-step drop from under center, hitches once, and throws to a spot fifteen yards downfield. Eight reps, then eight from shotgun with a three-step timing.",
+      "coachingPoints": "Big, big, small, small, small. The hitch is the throw starting, not a pause.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Footwork & drops"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Drop Depth Cone Check",
+      "description": "Cones mark the exact landing spot for a three-, five-, and seven-step drop. Quarterback runs each drop and a coach checks whether his back foot lands on the cone. Six reps of each.",
+      "coachingPoints": "Depth is timing. Land on the spot and the route is already open.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Footwork & drops"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Reset Feet After the Scramble",
+      "description": "Quarterback drops, slides one direction to avoid a coach holding a bag, then resets his feet square to a new target before throwing. Eight reps each direction.",
+      "coachingPoints": "Slide, don't run, until you have to. Feet square before the ball leaves.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Footwork & drops",
+        "Passing: Throwing on the move"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Blocking Pads"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Rollout Both Directions",
+      "description": "Quarterback rolls right and throws on the run, then rolls left and does the same, hitting a receiver running a flat route. Six reps each way.",
+      "coachingPoints": "Get your shoulders around to the target. Rolling left, shorten the stride and throw over the top.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Throwing on the move"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Throw on the Run Ladder",
+      "description": "Quarterback runs a lateral path past three cones and throws to a stationary target at each one without stopping. Three passes per trip, four trips.",
+      "coachingPoints": "Shoulders and hips face the target even when the feet don't. Never throw across your body off the back foot.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Throwing on the move"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "High-Low Read on Air",
+      "description": "Two receivers run a high route and a low route in the same zone with one coach playing the defender. Quarterback throws opposite whichever route the defender takes. Ten reps.",
+      "coachingPoints": "Read the defender, not the receiver. If he sinks, throw the flat.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Reading coverage"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Man or Zone Presnap Call",
+      "description": "Defense lines up in either man or zone and the quarterback has to call which one out loud before the snap, then throw the route that beats it. Twelve snaps.",
+      "coachingPoints": "Safeties tell you the story. Two high, attack the middle. One high, work the edges.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Reading coverage",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Coverage Rotation Reads",
+      "description": "Defense shows one coverage presnap and rotates to another after the snap. Quarterback must find the route that opens up after the rotation. Ten snaps, alternating rotations.",
+      "coachingPoints": "Take the presnap picture, then confirm it after the snap. Late rotation means a window opened somewhere else.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Passing: Reading coverage",
+        "Team Play: Situational football"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Thumbs and Pinkies Catching",
+      "description": "Partner throws balls above the chest and below the waist in an alternating pattern from ten yards. Receiver catches thumbs together on the high ones and pinkies together on the low ones. Twenty catches.",
+      "coachingPoints": "High ball thumbs in, low ball pinkies in. Catch it out front where you can see it.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Receiving: Catching fundamentals"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Look It In Sideline Toe Taps",
+      "description": "Receiver runs along the sideline and catches passes thrown just inside the line, tapping both feet in bounds before falling out. Eight reps each side.",
+      "coachingPoints": "Eyes stay on the ball until it's tucked, then find the line. Toes drag, don't stomp.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Receiving: Catching fundamentals"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Over-the-Shoulder Bucket Catches",
+      "description": "Receiver runs a straight line away from the thrower and catches a lofted ball over alternating shoulders without breaking stride. Six over each shoulder.",
+      "coachingPoints": "Little fingers together, catch it in a basket. Turn your head, not your whole body.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Receiving: Catching fundamentals"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Stem and Break Route Work",
+      "description": "Receiver runs the first five yards of every route identically, then breaks late into a curl, an out, or a slant on a coach's hand signal. Nine reps, three of each.",
+      "coachingPoints": "Every route looks the same for five yards. Sink your hips and break flat, don't round it.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Receiving: Route running"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Depth and Landmark Routes",
+      "description": "Receiver runs a curl, a dig, and a comeback while a coach stands at the correct landmark for each and calls out whether the break happened early, late, or on time. Two reps of each route, three rounds.",
+      "coachingPoints": "The depth is the play. A yard short and the linebacker is standing in it.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Receiving: Route running"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Speed Cut vs Sink Cut",
+      "description": "Receiver runs the same out route twice, once rounding it as a speed cut and once sinking the hips to break flat, so he feels the difference in separation. Eight reps alternating.",
+      "coachingPoints": "Drop your weight before you break, not during. The flat break is a yard of separation.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Receiving: Route running",
+        "Conditioning: Agility & change of direction"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Hands Away from the Body",
+      "description": "Defender jogs alongside with a hand in the receiver's chest while a ball is thrown slightly outside. Receiver must extend and catch away from the contact. Eight reps each side.",
+      "coachingPoints": "Hands out, elbows soft. Never let it get into your pads.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Receiving: Contested catches"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Pinnies"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Back Shoulder Adjust",
+      "description": "Quarterback deliberately throws behind the receiver on a go route and the receiver has to stop, turn back, and high point it. Six reps each side.",
+      "coachingPoints": "Feel the throw late, then plant and come back. Shield him with your outside arm.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Receiving: Contested catches"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Two-Man Ball Battle",
+      "description": "Coach lofts a ball between two players who both go up for it. Whoever does not catch it must immediately play defense and strip. Six reps per pairing.",
+      "coachingPoints": "Highest point, both hands, land with it tucked. If you can't catch it, nobody does.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Receiving: Contested catches"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Press Release Hand Fighting",
+      "description": "Receiver works against a press defender using a swim, a rip, and a hesitation release on consecutive reps. Nine reps total, three of each move.",
+      "coachingPoints": "Get skinny and get off the line in two steps. Beat his hands before he gets them on you.",
+      "duration": 12,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Receiving: Releases & separation"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Two-Way Go Releases",
+      "description": "Receiver lined up with space on both sides has to release the direction the defender does not take away, then stack him within five yards. Eight reps.",
+      "coachingPoints": "Take what he gives you, then get on top of him. Stack means his hip is behind yours.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Receiving: Releases & separation"
+      ],
+      "teamEquipment": [
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "High and Tight Carry Checks",
+      "description": "Backs jog a twenty yard path while two coaches swipe at the ball from both sides. Any loose carry means the rep starts over. Four trips each.",
+      "coachingPoints": "Five points of pressure: fingers over the tip, ball on the ribs, elbow down. Never carry it like a loaf of bread.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rushing: Ball security"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Blocking Pads"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Switch Hands at the Cone",
+      "description": "Runner carries the ball in the outside arm, switches hands cleanly at a mid-path cone, and finishes with it in the new outside arm. Six trips.",
+      "coachingPoints": "Outside arm always, so the ball is away from the defender. Switch it in one motion against your chest.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rushing: Ball security"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Ball Security on the Ground",
+      "description": "Runner is tripped or pushed off balance by a coach with a bag and must hit the ground with two hands on the ball. Eight reps, alternating which side he falls.",
+      "coachingPoints": "Two hands the second you feel yourself going down. The ground causes more fumbles than the hit.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rushing: Ball security"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Blocking Pads"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Read the Bag Gap",
+      "description": "Three bags on the ground form two gaps. A coach steps into one gap after the handoff and the back has to cut into the other one without slowing down. Eight reps.",
+      "coachingPoints": "Press the line, then cut off one foot. Decide by the time you reach the first bag.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rushing: Vision & cuts"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Tackle Bags"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Jump Cut and Jab Cut",
+      "description": "Runner attacks a cone and executes a lateral jump cut on the first trip, then a hard plant-and-go jab cut on the second. Six of each, both directions.",
+      "coachingPoints": "One cut and get north. Two cuts and the safety already caught you.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Rushing: Vision & cuts",
+        "Conditioning: Agility & change of direction"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Pick a Color Vision Run",
+      "description": "Two coaches downfield hold different colored pinnies and one raises his the moment the back takes the handoff. Runner has to break away from that color. Eight reps.",
+      "coachingPoints": "Eyes up as soon as the ball is tucked. See it early and you never have to make a hard cut.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rushing: Vision & cuts"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Mesh Point Timing",
+      "description": "Quarterback and back run the mesh at three different depths so the back learns to arrive at the same spot every time. Ten reps at each depth with no defense.",
+      "coachingPoints": "Back makes the pocket and the quarterback puts it there. Eyes downfield, feel the ball.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rushing: Handoff exchange"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Blind Exchange Reps",
+      "description": "Back runs the mesh with his eyes already downfield and never looks at the ball. Twelve reps at walk-through speed, then twelve at full speed.",
+      "coachingPoints": "Never look for it. Inside elbow up, outside elbow down, and let it come to you.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rushing: Handoff exchange"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Pitch and Toss Exchange",
+      "description": "Quarterback reverse pivots and pitches to a back running laterally, and they alternate short pitches and longer tosses. Eight reps each direction.",
+      "coachingPoints": "Pitch it out in front so he runs onto it. Two hands on the catch, then tuck it away.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rushing: Handoff exchange"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "One-on-One Open Grass",
+      "description": "Runner and a single defender in a ten yard wide alley. Runner tries to get past using a move, a stiff arm, or pure speed while the defender breaks down and forms up. Four reps each.",
+      "coachingPoints": "Make him commit, then get vertical. Never run east and west in the open field.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rushing: Open-field running",
+        "Tackling: Open-field tackling"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Stiff Arm and Finish",
+      "description": "Runner works past a coach holding a bag by extending the near arm into the pad, then finishes ten yards downfield at full speed. Six reps each arm.",
+      "coachingPoints": "Lock the elbow into the shoulder, not the helmet. Keep your legs driving through the contact.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rushing: Open-field running"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Blocking Pads"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Sideline Escape Run",
+      "description": "Runner starts near the sideline with a defender in pursuit at an angle and must decide to cut back inside or race him to the corner. Six reps each side.",
+      "coachingPoints": "If his shoulders are square to the sideline, cut back. If he is still chasing, beat him to the edge.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Rushing: Open-field running",
+        "Conditioning: Speed & acceleration"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Stance Check and Fire Out",
+      "description": "Linemen set their stance, a coach checks weight distribution and staggered foot, then they fire out three yards on the snap count. Twelve reps with a stance check every third one.",
+      "coachingPoints": "Weight on the balls of the feet, not the hand. First step six inches, not a leap.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Blocking: Stance & first step"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Directional First Step",
+      "description": "Coach points left, right, or straight after the cadence and the lineman takes his first step that direction without standing up. Fifteen reps mixed.",
+      "coachingPoints": "Step with the playside foot first, every time. Flat back, eyes up on step one.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Blocking: Stance & first step"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Hands Inside the Frame",
+      "description": "Blocker fits his hands on a held pad with thumbs up inside the defender's breastplate, holds three seconds, and resets. Twelve fit reps before any movement is added.",
+      "coachingPoints": "Thumbs up, elbows in, hands inside the shoulders. Wide hands get you beat and get you flagged.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Blocking: Hand placement"
+      ],
+      "teamEquipment": [
+        "Blocking Pads"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Punch and Reset Ladder",
+      "description": "Blocker delivers a two-hand punch into a held pad, resets his hands, and punches again on the coach's count. Three sets of eight punches.",
+      "coachingPoints": "Punch from the hip, not from the ear. Reload quick, a blocked hand is a beaten hand.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Blocking: Hand placement"
+      ],
+      "teamEquipment": [
+        "Blocking Pads"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Fit and Drive Progression",
+      "description": "Start already fitted on a pad, drive five yards, then back up and do it again starting from a stance. Six fitted reps and six full reps.",
+      "coachingPoints": "Short choppy steps, never cross your feet. Roll the hips through on contact.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Blocking: Drive blocking"
+      ],
+      "teamEquipment": [
+        "Blocking Pads"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Angle and Reach Blocks",
+      "description": "Blocker works a down block on an inside shade, then a reach block on an outside shade, using the pad holder as the defender. Six of each.",
+      "coachingPoints": "On the reach, get your head across his outside number. On the down block, take his hip away.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Blocking: Drive blocking"
+      ],
+      "teamEquipment": [
+        "Blocking Pads",
+        "Cones"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Double Team to Second Level",
+      "description": "Two blockers work a combination block on one pad holder, then one climbs off to a second holder standing five yards back. Eight reps, alternating who climbs.",
+      "coachingPoints": "Hip to hip first, move him, then climb. Don't leave early or you leave your buddy alone.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Blocking: Drive blocking",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Blocking Pads"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Kick Slide Mirror",
+      "description": "Pass blocker kick slides along a line while a partner mirrors as the rusher, no contact. Three trips of eight yards each way.",
+      "coachingPoints": "Inside foot anchors, outside foot slides. Never cross over and never turn your shoulders.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Blocking: Pass protection"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Anchor Against the Bull",
+      "description": "Rusher bull rushes into a held pad and the blocker has to sink his hips and stop the charge without getting driven back into the pocket. Six reps each.",
+      "coachingPoints": "Drop the hips and widen the base. Stop the feet before you stop the hands.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Blocking: Pass protection"
+      ],
+      "teamEquipment": [
+        "Blocking Pads"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Protection Call and Slide",
+      "description": "Five linemen identify the front, call the protection out loud, and slide as a unit against a walk-through rush look. Ten reps with the front changing each time.",
+      "coachingPoints": "Center makes the call, everybody echoes it. Slide together or you leave a gap.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Blocking: Pass protection",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Pinnies"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Rip and Swim Off the Block",
+      "description": "Defender works a rip move on one rep and a swim move on the next against a blocker holding a pad, finishing past him each time. Six of each.",
+      "coachingPoints": "Attack half the man, not the whole man. Get skinny through the gap and keep your feet moving.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Blocking: Defeating blocks"
+      ],
+      "teamEquipment": [
+        "Blocking Pads"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Two-Hand Shed and Find",
+      "description": "Defender takes on a pad, locks out with both hands, then sheds to the side a coach points and pursues five yards. Eight reps alternating directions.",
+      "coachingPoints": "Lock out, see the ball, then shed. Never take on a block with your shoulders turned.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Blocking: Defeating blocks",
+        "Tackling: Pursuit angles"
+      ],
+      "teamEquipment": [
+        "Blocking Pads"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Keep Outside Leverage",
+      "description": "Edge defender takes on a kick-out block and has to spill it or keep his outside arm free while a back runs to the sideline. Eight reps each side.",
+      "coachingPoints": "Outside arm and outside leg stay free. Squeeze it down, never get turned inside.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Blocking: Defeating blocks"
+      ],
+      "teamEquipment": [
+        "Blocking Pads",
+        "Footballs"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Breakdown Fit on Air",
+      "description": "Defender approaches a standing partner, breaks down in a hitting position, and fits his near shoulder and wrapped arms without any contact or drive. Twelve reps, air level only.",
+      "coachingPoints": "Eyes through the thigh pads, never down. Near foot, near shoulder, arms wrap.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Tackling: Form tackling"
+      ],
+      "teamEquipment": [],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Shoulder Tackle on the Bag",
+      "description": "Defender strikes a held bag with the shoulder, wraps both arms, and squeezes without driving. Six reps each shoulder at bag level before any live work.",
+      "coachingPoints": "Hit with the shoulder, see what you hit. The head goes to the side, never through.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Tackling: Form tackling"
+      ],
+      "teamEquipment": [
+        "Tackle Bags"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Knee to Fit to Feet",
+      "description": "Three-stage progression on the same partner: fit from both knees, then from one knee, then from a standing breakdown. Six reps at each stage.",
+      "coachingPoints": "Same fit every stage, just more speed. If the head drops, back up a stage.",
+      "duration": 10,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Tackling: Form tackling"
+      ],
+      "teamEquipment": [],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Wrap and Squeeze Holds",
+      "description": "From a fitted position on a bag, the defender wraps, squeezes, and holds for a three count with his feet still driving in place. Ten reps.",
+      "coachingPoints": "Grab cloth and squeeze, don't just touch. Feet keep chopping the whole time.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Tackling: Wrap & drive"
+      ],
+      "teamEquipment": [
+        "Tackle Bags"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Drive Through to the Ground",
+      "description": "Defender fits on a bag held by a coach, wraps, and drives it five yards before the coach lowers it to the ground. Six reps each side, control level.",
+      "coachingPoints": "Run your feet through him, don't lunge at him. Finish on top with your head free.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Tackling: Wrap & drive"
+      ],
+      "teamEquipment": [
+        "Tackle Bags"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Profile Tackle from the Side",
+      "description": "Ball carrier runs a straight line past the defender, who approaches from the side and takes a tracking angle to wrap the near hip. Six reps each side at control speed.",
+      "coachingPoints": "Track the near hip, not the numbers. Shoulder on, arms around, roll him to the sideline.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Tackling: Form tackling",
+        "Tackling: Pursuit angles"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Sideline Leverage Angles",
+      "description": "Ball carrier runs toward the sideline from twenty yards and the defender takes a path to cut him off, using the sideline as a twelfth defender. Six reps each direction.",
+      "coachingPoints": "Aim where he will be, not where he is. Keep your outside shoulder free.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Tackling: Pursuit angles"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Backside Pursuit Lanes",
+      "description": "Whole defense runs to the ball on a called play with each level staying in its pursuit lane. Coach stops it and everyone freezes so lanes can be checked. Eight reps.",
+      "coachingPoints": "Nobody runs the same path. Stay a body wide of the man inside you.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Tackling: Pursuit angles",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Pinnies"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Two-Yard Alley Breakdown",
+      "description": "Cones make a two yard alley so the runner has almost nowhere to go. Defender breaks down, closes, and makes a controlled wrap tackle. Six reps each.",
+      "coachingPoints": "Close the space fast, then chop your feet. Short, choppy steps beat one big lunge.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Tackling: Open-field tackling"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Ten-Yard Space Tackle",
+      "description": "One defender, one runner, ten yards of grass and a five yard wide lane. Runner gets one move and the defender has to break down and finish. Four reps each at thud level.",
+      "coachingPoints": "Get your shoulders square and let him come to you. Take away one side and live with the other.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Tackling: Open-field tackling"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Two-Man Gang Tackle",
+      "description": "Two defenders approach from different angles, the first wraps high on the ball and the second takes the legs. Six reps at control speed.",
+      "coachingPoints": "First man squares him up and attacks the ball. Second man runs through the hip.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Tackling: Wrap & drive",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Tackle Bags"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Ten-Yard Starts",
+      "description": "Players explode ten yards out of a three-point stance on a coach's movement cue. Eight reps with full walk-back recovery.",
+      "coachingPoints": "First three steps low and violent. Drive the arms, don't pop straight up.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Speed & acceleration"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Forty Build-Ups",
+      "description": "Players run forty yards building from a jog to full speed over the first twenty, then holding top speed for the last twenty. Five reps with ninety seconds between.",
+      "coachingPoints": "Relax the jaw and the hands at top speed. Tension slows you down.",
+      "duration": 10,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Speed & acceleration"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Resisted Partner Starts",
+      "description": "One player holds a towel or belt around a partner's waist and provides light resistance for the first five yards, then releases. Six reps each, then switch.",
+      "coachingPoints": "Lean into it, don't bend at the waist. Punch the ground behind you.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Speed & acceleration",
+        "Conditioning: Explosiveness"
+      ],
+      "teamEquipment": [],
+      "playerGear": []
+    },
+    {
+      "name": "Ladder Footwork Series",
+      "description": "Four patterns through an agility ladder: one foot in each, two feet in each, lateral shuffle, and in-in-out-out. Two trips through each pattern.",
+      "coachingPoints": "Stay on the balls of the feet, eyes up. Speed comes after the pattern is clean.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Conditioning: Agility & change of direction"
+      ],
+      "teamEquipment": [
+        "Agility Ladder"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "W Drill Change of Direction",
+      "description": "Five cones in a W pattern. Players sprint forward and backpedal at each turn, staying square through every change. Four trips with rest between.",
+      "coachingPoints": "Drop the hips at the cone, don't round the corner. Never turn your shoulders to backpedal.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Conditioning: Agility & change of direction"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Mirror Bag Reaction",
+      "description": "Two players face off across a line of bags, one leading with lateral movement and the other mirroring for twenty seconds. Four rounds each as leader.",
+      "coachingPoints": "React off his hips. Feet never cross, never stop.",
+      "duration": 8,
+      "grouping": "partners",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Agility & change of direction"
+      ],
+      "teamEquipment": [
+        "Tackle Bags"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Broad Jump to Sprint",
+      "description": "Player does two standing broad jumps, sticks the second landing, then immediately sprints ten yards. Six reps with full recovery.",
+      "coachingPoints": "Swing the arms and land soft with bent knees. Jump out, not up.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Conditioning: Explosiveness"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Bag Hop and Go",
+      "description": "Players hop over five bags two feet at a time, then sprint fifteen yards on landing. Six reps, alternating forward hops and lateral hops.",
+      "coachingPoints": "Quiet feet over the bags. The sprint starts the second you clear the last one.",
+      "duration": 8,
+      "grouping": "groups",
+      "numGroups": 3,
+      "skillTags": [
+        "Conditioning: Explosiveness",
+        "Conditioning: Agility & change of direction"
+      ],
+      "teamEquipment": [
+        "Tackle Bags"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Bodyweight Power Circuit",
+      "description": "Four stations at thirty seconds each: squat jumps, push-ups, split squat jumps, and plank holds. Two rounds with a minute between.",
+      "coachingPoints": "Land soft and reset between jumps. Stop the set when the landings get loud.",
+      "duration": 12,
+      "grouping": "groups",
+      "numGroups": 4,
+      "skillTags": [
+        "Conditioning: Explosiveness"
+      ],
+      "teamEquipment": [
+        "Cones"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Gassers Sideline to Sideline",
+      "description": "Players run across the field and back twice for one gasser, on a time standard set for the age group. Four gassers with a full rest between.",
+      "coachingPoints": "Touch every line. Finish through the line, not at it.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Endurance"
+      ],
+      "teamEquipment": [],
+      "playerGear": []
+    },
+    {
+      "name": "Perfect Play Tempo Drive",
+      "description": "Offense runs twelve plays in a row on air with a fifteen second clock between snaps, restarting the count on any missed assignment. One full drive.",
+      "coachingPoints": "Sprint to the ball and get set. Conditioning and execution are the same rep here.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Conditioning: Endurance",
+        "Team Play: Play execution"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Walk-Through Assignment Check",
+      "description": "Offense lines up and walks through five plays at half speed while a coach stops each one and asks two players to state their assignment out loud. Three rounds through the play list.",
+      "coachingPoints": "Know your job before the snap, not after. Say it out loud until you don't have to.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Play execution",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Huddle to Snap Under Fifteen",
+      "description": "Full unit practices breaking the huddle, lining up, and snapping the ball inside fifteen seconds. Ten reps with a coach calling out the time on each one.",
+      "coachingPoints": "Sprint to your spot, then get your eyes to the ball. Late to the line is a penalty waiting to happen.",
+      "duration": 10,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Play execution"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Cadence and Snap Count Discipline",
+      "description": "Offense runs the cadence with the coach occasionally using a hard count. Anyone who moves early owes the group five yards. Fifteen cadences with three hard counts mixed in.",
+      "coachingPoints": "Move on the ball, not on the sound. Defense, watch the ball. Offense, hear the call.",
+      "duration": 8,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Play execution",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Third and Short Package",
+      "description": "Offense gets three plays from their short yardage package with the defense knowing it is coming. Run each play twice from the two yard line and the five.",
+      "coachingPoints": "Low pads win short yardage. Get vertical, don't dance for a better hole.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Situational football"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Pinnies"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Two-Minute Drill",
+      "description": "Offense starts on its own forty with ninety seconds and one timeout, working the sideline and the clock. Run it twice, once needing a field goal and once needing a touchdown.",
+      "coachingPoints": "Get out of bounds or get down. Everyone sprints to the line, nobody celebrates.",
+      "duration": 15,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Situational football",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Pinnies"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Backed Up Inside the Ten",
+      "description": "Offense starts on its own three yard line and has to get one first down without a safety or a turnover. Six snaps, then switch units.",
+      "coachingPoints": "Ball security first, yardage second. Quarterback, throw it away rather than take the sack.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Situational football"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Pinnies"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Red Zone Compressed Field",
+      "description": "Offense works from the fifteen yard line where the field shrinks and throwing windows close. Run six plays, three runs and three passes, against a live look.",
+      "coachingPoints": "No room behind the defense down here. Routes break flat and the back hits it downhill.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Situational football",
+        "Passing: Reading coverage"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Pinnies"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Defensive Front Calls",
+      "description": "Defense identifies the formation, calls the strength, and makes its front and coverage call out loud before the snap. Twelve looks with the offense shifting on half of them.",
+      "coachingPoints": "Strength call first, everybody echoes it. A shift means you call it again.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Communication",
+        "Team Play: Situational football"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Pinnies"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Sideline Signal Recognition",
+      "description": "Coach signals plays from the sideline and the whole unit has to line up correctly with no verbal huddle. Fifteen signals, increasing the tempo each round.",
+      "coachingPoints": "Eyes to the sideline the second the whistle blows. Repeat the signal to the man next to you.",
+      "duration": 10,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": []
+    },
+    {
+      "name": "Kickoff Coverage Lanes",
+      "description": "Coverage team sprints downfield staying in their lanes and squeezes the returner toward the sideline. Six reps at controlled speed with a coach freezing the lanes mid-run.",
+      "coachingPoints": "Stay in your lane, don't chase the ball. Outside men keep everything inside them.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Special teams basics",
+        "Tackling: Pursuit angles"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Punt Protect and Release",
+      "description": "Punt unit holds its protection for a two count, then releases in coverage. Eight reps with the snap, catch, and kick timed by a coach.",
+      "coachingPoints": "Protect first, cover second. Nobody leaves until the ball is off the foot.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Special teams basics",
+        "Team Play: Communication"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Return Wall Setup",
+      "description": "Return team catches the kick and sets a wall down one sideline while the returner reads it. Six reps to each side with no live contact.",
+      "coachingPoints": "Get to your landmark before you look for someone to block. Returner runs to the wall, not away from it.",
+      "duration": 12,
+      "grouping": "whole",
+      "numGroups": null,
+      "skillTags": [
+        "Team Play: Special teams basics"
+      ],
+      "teamEquipment": [
+        "Footballs",
+        "Cones",
+        "Pinnies"
+      ],
+      "playerGear": [
+        "Helmet",
+        "Shoulder Pads"
+      ]
+    },
+    {
+      "name": "Field Goal Operation Timing",
+      "description": "Snapper, holder, and kicker run the full operation on a clock, aiming for the ball to be off the ground inside one and a third seconds. Twelve reps.",
+      "coachingPoints": "Laces out, same spot every time. The operation is the kick, not the leg.",
+      "duration": 10,
+      "grouping": "groups",
+      "numGroups": 2,
+      "skillTags": [
+        "Team Play: Special teams basics"
+      ],
+      "teamEquipment": [
+        "Footballs"
+      ],
+      "playerGear": []
     }
   ],
-  "newTagProposals": [
-    {
-      "category": "Passing",
-      "name": "Throwing mechanics"
-    },
-    {
-      "category": "Passing",
-      "name": "Footwork & drops"
-    },
-    {
-      "category": "Passing",
-      "name": "Throwing on the move"
-    },
-    {
-      "category": "Passing",
-      "name": "Reading coverage"
-    },
-    {
-      "category": "Receiving",
-      "name": "Catching fundamentals"
-    },
-    {
-      "category": "Receiving",
-      "name": "Route running"
-    },
-    {
-      "category": "Receiving",
-      "name": "Contested catches"
-    },
-    {
-      "category": "Receiving",
-      "name": "Releases & separation"
-    },
-    {
-      "category": "Rushing",
-      "name": "Ball security"
-    },
-    {
-      "category": "Rushing",
-      "name": "Vision & cuts"
-    },
-    {
-      "category": "Rushing",
-      "name": "Handoff exchange"
-    },
-    {
-      "category": "Rushing",
-      "name": "Open-field running"
-    },
-    {
-      "category": "Blocking",
-      "name": "Stance & first step"
-    },
-    {
-      "category": "Blocking",
-      "name": "Hand placement"
-    },
-    {
-      "category": "Blocking",
-      "name": "Drive blocking"
-    },
-    {
-      "category": "Blocking",
-      "name": "Pass protection"
-    },
-    {
-      "category": "Tackling",
-      "name": "Form tackling"
-    },
-    {
-      "category": "Tackling",
-      "name": "Pursuit angles"
-    },
-    {
-      "category": "Tackling",
-      "name": "Wrap & drive"
-    },
-    {
-      "category": "Tackling",
-      "name": "Open-field tackling"
-    },
-    {
-      "category": "Conditioning",
-      "name": "Speed & acceleration"
-    },
-    {
-      "category": "Conditioning",
-      "name": "Agility & change of direction"
-    },
-    {
-      "category": "Conditioning",
-      "name": "Explosiveness"
-    },
-    {
-      "category": "Conditioning",
-      "name": "Endurance"
-    },
-    {
-      "category": "Team Play",
-      "name": "Play execution"
-    },
-    {
-      "category": "Team Play",
-      "name": "Situational football"
-    },
-    {
-      "category": "Team Play",
-      "name": "Communication"
-    },
-    {
-      "category": "Team Play",
-      "name": "Special teams basics"
-    }
-  ]
+  "newTagProposals": []
 }
