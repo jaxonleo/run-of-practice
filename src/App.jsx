@@ -2304,7 +2304,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               if(!catIds.size){untagged.push(lib);return;}
               catIds.forEach(cid=>{(byCat[cid]=byCat[cid]||[]).push(lib);});
             });
-            const catIds=Object.keys(byCat).sort((a,b)=>((skillCategoriesById[a]&&skillCategoriesById[a].name)||"").localeCompare((skillCategoriesById[b]&&skillCategoriesById[b].name)||""));
+            const catIds=Object.keys(byCat).sort((a,b)=>((skillCategoriesById[a]&&skillCategoriesById[a].sort_order)||0)-((skillCategoriesById[b]&&skillCategoriesById[b].sort_order)||0)||((skillCategoriesById[a]&&skillCategoriesById[a].name)||"").localeCompare((skillCategoriesById[b]&&skillCategoriesById[b].name)||""));
             return (<>
               {catIds.map(cid=>(<div key={cid} style={{marginBottom:12}}>
                 <div style={{fontSize:11,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--gbg)"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} ({byCat[cid].length})</div>

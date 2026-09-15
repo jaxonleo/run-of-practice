@@ -1578,7 +1578,12 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const isMine=shelf==="mine";
   // Custom order / Most Used / Suggested only mean something on your own
   // shelf; a shared or org shelf still gets Alphabetical + Group by Skill.
-  const effSort=isMine?drillSort:(drillSort==="byskill"?"byskill":"alpha");
+  // Explore defaults to grouped-by-skill-category rather than a flat
+  // alphabetical dump -- a coach browsing someone else's library wants to
+  // scan by category first, same as the Public Library shelf (which is
+  // grouped by category unconditionally, see PublicLibraryScreen). Only an
+  // explicit "Alphabetical" pick on the shared drillSort state overrides it.
+  const effSort=isMine?drillSort:(drillSort==="alpha"?"alpha":"byskill");
   const skillTagsById=Object.fromEntries((data.skillTags||[]).map(t=>[t.id,t]));
   const skillCategoriesById=Object.fromEntries((data.skillCategories||[]).map(c=>[c.id,c]));
   const tagNames=ids=>(ids||[]).map(id=>skillTagsById[id]?skillTagsById[id].name:null).filter(Boolean);
@@ -1891,8 +1896,15 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           // case -- but only once per category, even if it carries two tags
           // under the same category. Derived from this sport's own drills'
           // skillTagIds resolved through skillTagsById.categoryId (not a
-          // separate skill-category fetch), sorted alphabetically by
-          // category name so the header order is stable.
+          // separate skill-category fetch). Categories sort by the curated
+          // skill_categories.sort_order (Hitting/Fielding/Pitching/... in
+          // the order Jax laid the taxonomy out), same convention
+          // PublicLibraryScreen's own category grouping uses, not
+          // alphabetically -- and each category is collapsible with a
+          // count, same accordion the sport-level headers above use, with
+          // drills alphabetized within regardless of the shelf's own sort
+          // (custom/frequency/suggested order doesn't mean anything once
+          // you're grouped by category).
           if(effSort==="byskill"){
             const byCat={};
             const untagged=[];
@@ -1902,20 +1914,34 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
               if(!catIds.size){untagged.push(act);return;}
               catIds.forEach(cid=>{(byCat[cid]=byCat[cid]||[]).push(act);});
             });
+            Object.keys(byCat).forEach(cid=>byCat[cid].sort((a,b)=>a.name.localeCompare(b.name)));
             const catIds=Object.keys(byCat).sort((a,b)=>{
-              const na=(skillCategoriesById[a]&&skillCategoriesById[a].name)||"";
-              const nb=(skillCategoriesById[b]&&skillCategoriesById[b].name)||"";
-              return na.localeCompare(nb);
+              const oa=(skillCategoriesById[a]&&skillCategoriesById[a].sort_order)||0;
+              const ob=(skillCategoriesById[b]&&skillCategoriesById[b].sort_order)||0;
+              return oa-ob||((skillCategoriesById[a]&&skillCategoriesById[a].name)||"").localeCompare((skillCategoriesById[b]&&skillCategoriesById[b].name)||"");
             });
             return (<>
-              {catIds.map(cid=>(<div key={cid} style={{marginBottom:14}}>
-                <div style={{fontSize:12,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--gbg)"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} ({byCat[cid].length})</div>
-                {byCat[cid].map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
-              </div>))}
-              {untagged.length>0&&<div style={{marginBottom:14}}>
-                <div style={{fontSize:12,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--s2)"}}>Untagged ({untagged.length})</div>
-                {untagged.map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
-              </div>}
+              {catIds.map(cid=>{
+                const key="skillcat_"+cid;
+                const isCollapsed=collapsed[key];
+                return (<div key={cid} style={{marginBottom:8}}>
+                  <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[key]:!c[key]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"var(--gbg)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
+                    <span style={{fontSize:12,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"}</span>
+                    <span style={{fontSize:12,color:"var(--td)"}}>{byCat[cid].length} drills {isCollapsed?"▶":"▼"}</span>
+                  </button>
+                  {!isCollapsed&&byCat[cid].map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
+                </div>);
+              })}
+              {untagged.length>0&&(()=>{
+                const isCollapsed=collapsed.skillcat_untagged;
+                return (<div style={{marginBottom:8}}>
+                  <button onClick={()=>setCollapsed(c=>Object.assign({},c,{skillcat_untagged:!c.skillcat_untagged}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"var(--s2)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
+                    <span style={{fontSize:12,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em"}}>Untagged</span>
+                    <span style={{fontSize:12,color:"var(--td)"}}>{untagged.length} drills {isCollapsed?"▶":"▼"}</span>
+                  </button>
+                  {!isCollapsed&&untagged.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
+                </div>);
+              })()}
             </>);
           }
           if(!isMine||effSort!=="custom")return sportDrills.map(act=>(<Row key={act.id} act={act} dragHandle={null}/>));

@@ -34,6 +34,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
   const [expandedId, setExpandedId] = useState(null);
   const [drillMenu, setDrillMenu] = useState(null);
   const [drillMenuUp, setDrillMenuUp] = useState(false);
+  const [collapsedCat, setCollapsedCat] = useState({});
 
   const catalogs = (data.catalogs || []).filter(c => c.visibility === "public");
   const catalogsById = Object.fromEntries(catalogs.map(c => [c.id, c]));
@@ -43,7 +44,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
 
   const backToSports = () => {
     setSelectedSport(null); setSearch(""); setSourceFilter(null); setPublisherFilter(null);
-    setTagFilter([]); setExpandedId(null); setDrillMenu(null);
+    setTagFilter([]); setExpandedId(null); setDrillMenu(null); setCollapsedCat({});
   };
 
   if (!selectedSport) {
@@ -96,6 +97,65 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
   const activeFilterCount = (sourceFilter ? 1 : 0) + (publisherFilter ? 1 : 0) + tagFilter.length;
   const clearFilters = () => { setSourceFilter(null); setPublisherFilter(null); setTagFilter([]); };
 
+  // Grouped by global skill category by default, not a flat alphabetical
+  // dump and not the finer-grained skill_tags underneath -- a coach
+  // browsing the public library wants to scan a whole category (Hitting,
+  // Fielding, ...) at once, same expectation as My Library's "By skill
+  // category" grouping. `drills` is already alpha-sorted above, so each
+  // category's list comes out alphabetized for free. A drill whose tags
+  // span more than one category appears once under each, never duplicated
+  // within a single category. Category order follows the curated
+  // skill_categories.sort_order (same field tagCategoryGroups above
+  // already sorts by), not alphabetical.
+  const byCategory = {};
+  const untaggedDrills = [];
+  drills.forEach(d => {
+    const catIds = new Set((d.skillTagIds || []).map(id => skillTagsById[id] && skillTagsById[id].categoryId).filter(Boolean));
+    if (!catIds.size) { untaggedDrills.push(d); return; }
+    catIds.forEach(cid => { (byCategory[cid] ||= []).push(d); });
+  });
+  const groupedCategoryIds = Object.keys(byCategory).sort((a, b) => {
+    const oa = (categoriesById[a] && categoriesById[a].sort_order) || 0;
+    const ob = (categoriesById[b] && categoriesById[b].sort_order) || 0;
+    return oa - ob || ((categoriesById[a] && categoriesById[a].name) || "").localeCompare((categoriesById[b] && categoriesById[b].name) || "");
+  });
+  const toggleCatCollapsed = key => setCollapsedCat(c => Object.assign({}, c, {[key]: !c[key]}));
+
+  const drillRow = d => {
+    const catalog = catalogsById[d.sourceCatalogId];
+    const expanded = expandedId === d.id;
+    return (<div key={d.id} className="li" style={{flexDirection: "column", alignItems: "stretch", cursor: "pointer"}} onClick={() => setExpandedId(expanded ? null : d.id)}>
+      <div style={{display: "flex", justifyContent: "space-between", alignItems: "flex-start"}}>
+        <div className="lim">
+          <div className="lin">{highlightMatch(d.name, q)}</div>
+          <div className="limt" style={{color: "var(--green2)"}}>Published by {(catalog && catalog.publisherName) || "Staff Editor"}{catalog && catalog.organizationName ? " - " + catalog.organizationName : ""}</div>
+        </div>
+        {isAdmin && <div style={{position: "relative", flexShrink: 0}}>
+          <button className="ell-btn" onClick={e => {
+            e.stopPropagation();
+            if (drillMenu === d.id) { setDrillMenu(null); return; }
+            setDrillMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(), 120));
+            setDrillMenu(d.id);
+          }}><span/><span/><span/></button>
+          {drillMenu === d.id && <div className="mini-menu" style={drillMenuUp ? {right: 0, top: "auto", bottom: "calc(100% - 4px)"} : {right: 0}} onClick={e => e.stopPropagation()}>
+            <button className="mm-item" onClick={() => { setDrillMenu(null); openModal("editActivity", {activity: d}); }}>Edit</button>
+            <button className="mm-item mm-danger" onClick={async () => { setDrillMenu(null); await archiveCatalogDrill(d.id); await refreshLibrary(); }}>Delete</button>
+          </div>}
+        </div>}
+      </div>
+      {expanded && <div onClick={e => e.stopPropagation()} style={{marginTop: 8}}>
+        {d.description && <div style={{fontSize: 12, color: "var(--td)", marginBottom: 4, lineHeight: 1.4}}>{d.description}</div>}
+        {d.coachingPoints && <div style={{fontSize: 12, color: "var(--td)", marginBottom: 4}}>{d.coachingPoints}</div>}
+        {d.equipment && d.equipment.length > 0 && <div style={{fontSize: 11, color: "var(--td)", marginTop: 2}}>Needs: {equipNames(d.equipment).join(", ")}</div>}
+        {d.grouping && d.grouping !== "whole" && <div style={{fontSize: 11, color: "var(--td)", marginTop: 2}}>{d.grouping === "partners" ? "Partners" : d.numGroups + " groups"}</div>}
+        {d.skillTagIds && d.skillTagIds.length > 0 && <div style={{display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4}}>
+          {tagNames(d.skillTagIds).map(name => (<span key={name} className="bdg bs" style={{fontSize: 10}}>{name}</span>))}
+        </div>}
+        <button className="btn outline bxs" style={{marginTop: 8}} onClick={() => doCopy(d)} disabled={copyingId === d.id}>{copyingId === d.id ? "Copying..." : isOrgMode ? "Copy to Org Library" : "Copy to My Library"}</button>
+      </div>}
+    </div>);
+  };
+
   return (<div onClick={() => setDrillMenu(null)}>
     <div style={{display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10}}>
       <button className="btn ghost bxs" onClick={backToSports}>&#8249; {selectedSport}</button>
@@ -144,39 +204,27 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
       </div>
     </div>}
     {drills.length === 0 && <div style={{padding: "40px 0", textAlign: "center", color: "var(--td)", fontSize: 14}}>No drills match{q ? " \"" + search + "\"" : ""}{hasActiveFilters ? " with these filters" : ""}.</div>}
-    {drills.map(d => {
-      const catalog = catalogsById[d.sourceCatalogId];
-      const expanded = expandedId === d.id;
-      return (<div key={d.id} className="li" style={{flexDirection: "column", alignItems: "stretch", cursor: "pointer"}} onClick={() => setExpandedId(expanded ? null : d.id)}>
-        <div style={{display: "flex", justifyContent: "space-between", alignItems: "flex-start"}}>
-          <div className="lim">
-            <div className="lin">{highlightMatch(d.name, q)}</div>
-            <div className="limt" style={{color: "var(--green2)"}}>Published by {(catalog && catalog.publisherName) || "Staff Editor"}{catalog && catalog.organizationName ? " - " + catalog.organizationName : ""}</div>
-          </div>
-          {isAdmin && <div style={{position: "relative", flexShrink: 0}}>
-            <button className="ell-btn" onClick={e => {
-              e.stopPropagation();
-              if (drillMenu === d.id) { setDrillMenu(null); return; }
-              setDrillMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(), 120));
-              setDrillMenu(d.id);
-            }}><span/><span/><span/></button>
-            {drillMenu === d.id && <div className="mini-menu" style={drillMenuUp ? {right: 0, top: "auto", bottom: "calc(100% - 4px)"} : {right: 0}} onClick={e => e.stopPropagation()}>
-              <button className="mm-item" onClick={() => { setDrillMenu(null); openModal("editActivity", {activity: d}); }}>Edit</button>
-              <button className="mm-item mm-danger" onClick={async () => { setDrillMenu(null); await archiveCatalogDrill(d.id); await refreshLibrary(); }}>Delete</button>
-            </div>}
-          </div>}
-        </div>
-        {expanded && <div onClick={e => e.stopPropagation()} style={{marginTop: 8}}>
-          {d.description && <div style={{fontSize: 12, color: "var(--td)", marginBottom: 4, lineHeight: 1.4}}>{d.description}</div>}
-          {d.coachingPoints && <div style={{fontSize: 12, color: "var(--td)", marginBottom: 4}}>{d.coachingPoints}</div>}
-          {d.equipment && d.equipment.length > 0 && <div style={{fontSize: 11, color: "var(--td)", marginTop: 2}}>Needs: {equipNames(d.equipment).join(", ")}</div>}
-          {d.grouping && d.grouping !== "whole" && <div style={{fontSize: 11, color: "var(--td)", marginTop: 2}}>{d.grouping === "partners" ? "Partners" : d.numGroups + " groups"}</div>}
-          {d.skillTagIds && d.skillTagIds.length > 0 && <div style={{display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4}}>
-            {tagNames(d.skillTagIds).map(name => (<span key={name} className="bdg bs" style={{fontSize: 10}}>{name}</span>))}
-          </div>}
-          <button className="btn outline bxs" style={{marginTop: 8}} onClick={() => doCopy(d)} disabled={copyingId === d.id}>{copyingId === d.id ? "Copying..." : isOrgMode ? "Copy to Org Library" : "Copy to My Library"}</button>
-        </div>}
+    {groupedCategoryIds.map(cid => {
+      const key = "cat_" + cid;
+      const isCollapsed = collapsedCat[key];
+      const catDrills = byCategory[cid];
+      return (<div key={cid} style={{marginBottom: 8}}>
+        <button onClick={() => toggleCatCollapsed(key)} style={{width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "var(--gbg)", border: "none", borderRadius: "var(--r)", cursor: "pointer"}}>
+          <span style={{fontSize: 12, fontWeight: 700, color: "var(--green)", textTransform: "uppercase", letterSpacing: ".05em"}}>{(categoriesById[cid] && categoriesById[cid].name) || "Category"}</span>
+          <span style={{fontSize: 12, color: "var(--td)"}}>{catDrills.length} drills {isCollapsed ? "▶" : "▼"}</span>
+        </button>
+        {!isCollapsed && catDrills.map(drillRow)}
       </div>);
     })}
+    {untaggedDrills.length > 0 && (() => {
+      const isCollapsed = collapsedCat.cat_untagged;
+      return (<div style={{marginBottom: 8}}>
+        <button onClick={() => toggleCatCollapsed("cat_untagged")} style={{width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "var(--s2)", border: "none", borderRadius: "var(--r)", cursor: "pointer"}}>
+          <span style={{fontSize: 12, fontWeight: 700, color: "var(--td)", textTransform: "uppercase", letterSpacing: ".05em"}}>Untagged</span>
+          <span style={{fontSize: 12, color: "var(--td)"}}>{untaggedDrills.length} drills {isCollapsed ? "▶" : "▼"}</span>
+        </button>
+        {!isCollapsed && untaggedDrills.map(drillRow)}
+      </div>);
+    })()}
   </div>);
 }
