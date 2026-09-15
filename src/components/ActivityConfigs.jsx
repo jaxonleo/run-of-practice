@@ -292,7 +292,7 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
     <div className="fld"><label className="lbl">Player Grouping</label>
       <div style={{display:"flex",gap:6}}>
         {[{v:"whole",l:"Whole Team"},{v:"partners",l:"Partners"},{v:"groups",l:"Groups"}].map(({v,l})=>(
-          <button key={v} type="button" onClick={()=>onChange({grouping:v})} style={{flex:1,padding:"8px 4px",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:(act.grouping||"whole")===v?"var(--field)":"var(--surface)",color:(act.grouping||"whole")===v?"#fff":"var(--ink)",fontSize:13,cursor:"pointer",fontWeight:700}}>
+          <button key={v} type="button" className={"seg"+((act.grouping||"whole")===v?" on":"")} onClick={()=>onChange({grouping:v})}>
             {l}
           </button>
         ))}
@@ -300,7 +300,7 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
       {(act.grouping||"whole")==="groups"&&<div style={{marginTop:8}}>
         <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:6}}>How many groups?</div>
         <div style={{display:"flex",gap:6}}>
-          {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>onChange({numGroups:n})} style={{flex:1,padding:"8px 0",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:(act.numGroups||2)===n?"var(--field)":"var(--surface)",color:(act.numGroups||2)===n?"#fff":"var(--ink)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
+          {[2,3,4,5,6].map(n=>(<button key={n} type="button" className={"seg"+((act.numGroups||2)===n?" on":"")} style={{fontSize:14}} onClick={()=>onChange({numGroups:n})}>{n}</button>))}
         </div>
       </div>}
       {(act.grouping||"whole")!=="whole"&&team&&team.players&&team.players.length>0&&<ManualGroupAssign act={act} team={team} sport={sport} onChange={onChange}/>}
@@ -831,7 +831,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
         <div className="fld"><label className="lbl">Player Grouping (within this station)</label>
           <div style={{display:"flex",gap:6}}>
             {[{v:"whole",l:"Whole Station"},{v:"partners",l:"Partners"},{v:"groups",l:"Groups"}].map(({v,l})=>(
-              <button key={v} type="button" onClick={()=>onSt(st.id,{grouping:v})} style={{flex:1,padding:"8px 4px",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:(st.grouping||"whole")===v?"var(--field)":"var(--surface)",color:(st.grouping||"whole")===v?"#fff":"var(--ink)",fontSize:13,cursor:"pointer",fontWeight:700}}>
+              <button key={v} type="button" className={"seg"+((st.grouping||"whole")===v?" on":"")} onClick={()=>onSt(st.id,{grouping:v})}>
                 {l}
               </button>
             ))}
@@ -839,7 +839,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
           {(st.grouping||"whole")==="groups"&&<div style={{marginTop:8}}>
             <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:6}}>How many groups?</div>
             <div style={{display:"flex",gap:6}}>
-              {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>onSt(st.id,{numGroups:n})} style={{flex:1,padding:"8px 0",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:(st.numGroups||2)===n?"var(--field)":"var(--surface)",color:(st.numGroups||2)===n?"#fff":"var(--ink)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
+              {[2,3,4,5,6].map(n=>(<button key={n} type="button" className={"seg"+((st.numGroups||2)===n?" on":"")} style={{fontSize:14}} onClick={()=>onSt(st.id,{numGroups:n})}>{n}</button>))}
             </div>
           </div>}
         </div>
@@ -1428,11 +1428,11 @@ export function BenchmarkConfig({act,team,loc,benchmarks,onChange,onDone,openMod
     {bm&&bm.subjectMode!=="team"&&<div className="fld"><label className="lbl">Player Grouping</label>
       <div style={{display:"flex",gap:6}}>
         {[{v:"whole",l:"Whole Team"},{v:"partners",l:"Partners"},{v:"groups",l:"Groups"}].map(({v:gv,l})=>(
-          <button key={gv} type="button" onClick={()=>onChange({grouping:gv})} style={{flex:1,padding:"8px 4px",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:(act.grouping||"whole")===gv?"var(--field)":"var(--surface)",color:(act.grouping||"whole")===gv?"#fff":"var(--ink)",fontSize:13,cursor:"pointer",fontWeight:700}}>{l}</button>
+          <button key={gv} type="button" className={"seg"+((act.grouping||"whole")===gv?" on":"")} onClick={()=>onChange({grouping:gv})}>{l}</button>
         ))}
       </div>
       {(act.grouping||"whole")==="groups"&&<div style={{display:"flex",gap:6,marginTop:8}}>
-        {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>onChange({numGroups:n})} style={{flex:1,padding:"8px 0",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:(act.numGroups||2)===n?"var(--field)":"var(--surface)",color:(act.numGroups||2)===n?"#fff":"var(--ink)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
+        {[2,3,4,5,6].map(n=>(<button key={n} type="button" className={"seg"+((act.numGroups||2)===n?" on":"")} style={{fontSize:14}} onClick={()=>onChange({numGroups:n})}>{n}</button>))}
       </div>}
     </div>}
     <button type="button" className="btn ghost bsm bfull mt10" onClick={onDone}>Done</button>

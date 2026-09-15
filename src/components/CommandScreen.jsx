@@ -1592,8 +1592,8 @@ function NoteComposer({roster,currentActivityLabel,onSubmit,showAuthorLabel}){
   return (<div className="card mb10">
     {showAuthorLabel&&<input className="inp mb8" placeholder="Your name (optional)" value={authorLabel} onChange={e=>setAuthorLabel(e.target.value)} maxLength={100}/>}
     {currentActivityLabel&&<div style={{display:"flex",gap:6,marginBottom:8}}>
-      <button type="button" onClick={()=>setEndOfPractice(false)} style={{flex:1,padding:"8px 6px",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:!endOfPractice?"var(--field)":"var(--surface)",color:!endOfPractice?"#fff":"var(--ink)",fontSize:12,fontWeight:700,cursor:"pointer"}}>{currentActivityLabel}</button>
-      <button type="button" onClick={()=>setEndOfPractice(true)} style={{flex:1,padding:"8px 6px",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:endOfPractice?"var(--field)":"var(--surface)",color:endOfPractice?"#fff":"var(--ink)",fontSize:12,fontWeight:700,cursor:"pointer"}}>General</button>
+      <button type="button" className={"seg"+(!endOfPractice?" on":"")} style={{fontSize:12}} onClick={()=>setEndOfPractice(false)}>{currentActivityLabel}</button>
+      <button type="button" className={"seg"+(endOfPractice?" on":"")} style={{fontSize:12}} onClick={()=>setEndOfPractice(true)}>General</button>
     </div>}
     <div style={{position:"relative"}}>
       <textarea ref={taRef} className="ta" placeholder="Add a note... type @ to tag a player" value={body} onChange={handleChange} maxLength={500}/>

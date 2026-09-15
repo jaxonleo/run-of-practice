@@ -207,8 +207,8 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
         handoff's spec), so the toggle pill that picks between them below is
         mobile-only -- both views already share the same computed data, no
         per-mode state to reconcile. */}
-    {!isBB && <div style={{ display: "flex", gap: 0, background: "var(--surface-soft)", borderRadius: "var(--radius-lg)", padding: 3, margin: "0 16px 12px" }}>
-      {["agenda", "month"].map(m => (<button key={m} onClick={() => setMode(m)} style={{ flex: 1, padding: "8px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--radius-lg) - 2px)", background: mode === m ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: mode === m ? "var(--ink)" : "var(--text-dim)" }}>{m}</button>))}
+    {!isBB && <div className="segtrack" style={{ margin: "0 16px 12px" }}>
+      {["agenda", "month"].map(m => (<button key={m} className={"seg2"+(mode===m?" on":"")} onClick={() => setMode(m)}>{m}</button>))}
     </div>}
 
     {(() => {

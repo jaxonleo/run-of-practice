@@ -108,6 +108,11 @@ body{background:var(--canvas);color:var(--ink);font-family:'Barlow',sans-serif;f
 .success{background:var(--field-tint);color:var(--field);border:1px solid var(--field-tint-border);}
 .outline{background:#fff;color:var(--field);border:1.5px solid var(--field);}.outline:active{background:var(--field-tint);}
 .warn{background:var(--caution-tint);color:var(--caution);border:1px solid var(--caution-tint-border);}
+/* Strong-neutral: ink fill for Save/confirm when field-green is already the
+   page's active/progress color (design system v1 button rules), e.g. sitting
+   next to a primary Run Now. No border, like .primary, so the two read as
+   the same visual weight rather than outline-vs-solid. */
+.strong{background:var(--ink);color:#fff;}.strong:active{background:var(--ink-soft);}
 .brow{display:flex;gap:8px;}.brow .btn{flex:1;}.bfull{width:100%;}
 .fld{margin-bottom:10px;}
 .lbl{display:block;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:4px;}
@@ -165,6 +170,16 @@ body{background:var(--canvas);color:var(--ink);font-family:'Barlow',sans-serif;f
 .status.ink{background:var(--ink);color:#fff;}
 .status.field-solid{background:var(--field);color:#fff;}
 .status.neutral{background:var(--surface-soft);color:var(--text-muted);}
+/* Segmented control, bordered-row style -- mutually exclusive local choice
+   (design system v1 SS5), e.g. Whole Team/Partners/Groups. Was copy-pasted
+   with identical inline styles across 5+ files; one shape now. */
+.seg{flex:1;padding:8px 4px;border-radius:var(--radius-lg);border:1.5px solid var(--border);background:var(--surface);color:var(--ink);font-size:13px;cursor:pointer;font-weight:700;}
+.seg.on{background:var(--field);border-color:var(--field);color:#fff;}
+/* Segmented control, track+pill style -- same role, different established
+   visual (Schedule's Agenda/Month, Equipment's Team/Player tabs). */
+.segtrack{display:flex;gap:0;background:var(--surface-soft);border-radius:var(--radius-lg);padding:3px;}
+.segtrack .seg2{flex:1;padding:8px 0;border:none;border-radius:calc(var(--radius-lg) - 2px);cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;background:transparent;color:var(--text-dim);}
+.segtrack .seg2.on{background:#fff;color:var(--ink);}
 .confirm-box{background:var(--danger-tint);border:1.5px solid var(--danger-tint-border);border-radius:var(--radius-lg);padding:14px;margin-top:8px;}
 .confirm-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--danger);margin-bottom:4px;}
 .confirm-body{font-size:13px;color:var(--ink-soft);margin-bottom:12px;line-height:1.5;}
@@ -1796,7 +1811,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
             coach would actually want to do with it (see the savechoice
             row below). An already-scheduled practice's Save still saves
             directly, unchanged. */}
-        {(!bottomMode||bottomMode==="")&&<><button className="btn outline bsm" onClick={editP?handleSave:()=>setBottomMode("savechoice")}>Save</button>
+        {(!bottomMode||bottomMode==="")&&<><button className="btn strong bsm" onClick={editP?handleSave:()=>setBottomMode("savechoice")}>Save</button>
         <button className="btn primary bsm" onClick={handleRun} disabled={!isSessionLive&&runTooFarAway} title={!isSessionLive&&runTooFarAway?"Run Now unlocks within 1 hour of the scheduled time":""}>{isSessionLive?"Join Practice":"Run Now"}</button></>}
       </div>
       {runError&&<div style={{padding:"0 14px 8px",fontSize:12,color:"var(--danger)"}}>{runError}</div>}

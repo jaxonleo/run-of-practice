@@ -483,8 +483,8 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
             <div className="fld"><label className="lbl">Player Grouping</label>
               <div style={{display:"flex",gap:6}}>
                 {[{v:"whole",l:"Whole Team",sub:"All players together"},{v:"partners",l:"Partners",sub:"Paired in groups of 2"},{v:"groups",l:"Groups",sub:"Split into groups"}].map(({v,l,sub})=>(
-                  <button key={v} type="button" onClick={()=>set("grouping",v)} style={{flex:1,padding:"8px 4px",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:(f.grouping||"whole")===v?"var(--field)":"var(--surface)",color:(f.grouping||"whole")===v?"#fff":"var(--ink)",fontSize:13,cursor:"pointer",lineHeight:1.3}}>
-                    <div style={{fontWeight:700}}>{l}</div>
+                  <button key={v} type="button" className={"seg"+((f.grouping||"whole")===v?" on":"")} style={{lineHeight:1.3}} onClick={()=>set("grouping",v)}>
+                    <div>{l}</div>
                     {(f.grouping||"whole")===v&&<div style={{fontSize:10,opacity:.8,marginTop:2}}>{sub}</div>}
                   </button>
                 ))}
@@ -492,7 +492,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
               {(f.grouping||"whole")==="groups"&&<div style={{marginTop:8}}>
                 <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:6}}>How many groups?</div>
                 <div style={{display:"flex",gap:6}}>
-                  {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>set("numGroups",n)} style={{flex:1,padding:"8px 0",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:f.numGroups===n?"var(--field)":"var(--surface)",color:f.numGroups===n?"#fff":"var(--ink)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
+                  {[2,3,4,5,6].map(n=>(<button key={n} type="button" className={"seg"+(f.numGroups===n?" on":"")} style={{fontSize:14}} onClick={()=>set("numGroups",n)}>{n}</button>))}
                 </div>
               </div>}
             </div>

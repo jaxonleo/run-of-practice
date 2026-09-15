@@ -176,11 +176,11 @@ function MyStationEditor({ practiceId, activity, station, initialSnapshot, team,
     <div className="fld"><label className="lbl">Grouping</label>
       <div style={{ display: "flex", gap: 6 }}>
         {[{ v: "whole", l: "Whole Station" }, { v: "partners", l: "Partners" }, { v: "groups", l: "Groups" }].map(({ v, l }) => (
-          <button key={v} type="button" onClick={() => upd({ grouping: v })} style={{ flex: 1, padding: "8px 4px", borderRadius: "var(--radius-lg)", border: "1.5px solid var(--border)", background: draft.grouping === v ? "var(--field)" : "var(--surface)", color: draft.grouping === v ? "#fff" : "var(--ink)", fontSize: 13, cursor: "pointer", fontWeight: 700 }}>{l}</button>
+          <button key={v} type="button" className={"seg"+(draft.grouping===v?" on":"")} onClick={() => upd({ grouping: v })}>{l}</button>
         ))}
       </div>
       {draft.grouping === "groups" && <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-        {[2, 3, 4, 5, 6].map(n => (<button key={n} type="button" onClick={() => upd({ numGroups: n })} style={{ flex: 1, padding: "8px 0", borderRadius: "var(--radius-lg)", border: "1.5px solid var(--border)", background: (draft.numGroups || 2) === n ? "var(--field)" : "var(--surface)", color: (draft.numGroups || 2) === n ? "#fff" : "var(--ink)", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>{n}</button>))}
+        {[2, 3, 4, 5, 6].map(n => (<button key={n} type="button" className={"seg"+((draft.numGroups||2)===n?" on":"")} style={{fontSize:14}} onClick={() => upd({ numGroups: n })}>{n}</button>))}
       </div>}
     </div>
     <div className="fld"><label className="lbl">Equipment</label>

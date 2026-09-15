@@ -325,8 +325,8 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
     return items.map(a=>renderRow(a));
   };
   return(<div onClick={()=>setOpenMenu(null)}>
-    {!forceType&&<div style={{display:"flex",gap:0,background:"var(--surface-soft)",borderRadius:"var(--radius-lg)",padding:3,marginBottom:16}}>
-      {["team","player"].map(t=>(<button key={t} onClick={()=>{setEquipTabState(t);setShowAdd(false);}} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--radius-lg) - 2px)",background:equipTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:equipTab===t?"var(--ink)":"var(--text-dim)"}}>{t==="team"?"Team Equipment":"Player Gear"}</button>))}
+    {!forceType&&<div className="segtrack" style={{marginBottom:16}}>
+      {["team","player"].map(t=>(<button key={t} className={"seg2"+(equipTab===t?" on":"")} onClick={()=>{setEquipTabState(t);setShowAdd(false);}}>{t==="team"?"Team Equipment":"Player Gear"}</button>))}
     </div>}
 
     {equipTab==="team"&&<div>
