@@ -144,7 +144,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
         </div>}
       </div>
       {expanded && <div onClick={e => e.stopPropagation()} style={{marginTop: 8}}>
-        {d.description && <div style={{fontSize: 12, color: "var(--text-dim)", marginBottom: 4, lineHeight: 1.4}}>{d.description}</div>}
+        {d.description && <div style={{fontSize: 12, color: "var(--text-muted)", marginBottom: 4, lineHeight: 1.4}}>{d.description}</div>}
         {d.coachingPoints && <div style={{fontSize: 12, color: "var(--text-dim)", marginBottom: 4}}>{d.coachingPoints}</div>}
         {d.equipment && d.equipment.length > 0 && <div style={{fontSize: 11, color: "var(--text-dim)", marginTop: 2}}>Needs: {equipNames(d.equipment).join(", ")}</div>}
         {d.grouping && d.grouping !== "whole" && <div style={{fontSize: 11, color: "var(--text-dim)", marginTop: 2}}>{d.grouping === "partners" ? "Partners" : d.numGroups + " groups"}</div>}

@@ -1837,13 +1837,19 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
                 {isMine&&(act.sharedWithOrganizationIds||[]).length>0&&<span className="bdg bp" style={{fontSize:10}}>Shared</span>}
               </div>
               {isMine&&publisherKeyOf(act)!=="self"&&<div style={{fontSize:11,color:"#7c3aed",marginBottom:2}}>From {publisherLabelOf(publisherKeyOf(act))}</div>}
-              {act.description&&<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:2,lineHeight:1.4}}>{act.description}</div>}
+              {act.description&&<div style={{fontSize:12,color:"var(--text-muted)",marginBottom:2,lineHeight:1.4}}>{act.description}</div>}
               {act.coachingPoints&&<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:2}}>{act.coachingPoints}</div>}
               {act.equipment&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>Needs: {equipNames(act.equipment).join(", ")}</div>}
               {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>{act.grouping==="partners"?"Partners":act.numGroups+" groups"}</div>}
-              {act.skillTagIds&&act.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                {tagNames(act.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
-              </div>}
+              {act.skillTagIds&&act.skillTagIds.length>0&&(()=>{
+                const names=tagNames(act.skillTagIds);
+                const shown=names.slice(0,4);
+                const extra=names.length-shown.length;
+                return (<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                  {shown.map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+                  {extra>0&&<span className="bdg bs" style={{fontSize:10}}>+{extra} more</span>}
+                </div>);
+              })()}
               {!isMine&&<div style={{fontSize:11,color:"var(--field-accent)",marginTop:4}}>Shared by {(data.profilesById&&data.profilesById[act.ownerUserId]&&data.profilesById[act.ownerUserId].name)||"a coach"}</div>}
               {!isMine&&shelf.startsWith("sharedBy:")&&<button className="btn outline bxs" style={{marginTop:6}} onClick={()=>doCopy(act)} disabled={copyingId===act.id}>{copyingId===act.id?"Copying...":isOrgMode?"Copy to Org Library":"Copy to My Library"}</button>}
             </div>
