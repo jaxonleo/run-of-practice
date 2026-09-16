@@ -51,13 +51,13 @@ function BulletBar({ label, currentPct, projectedPct, targetPct, color }) {
           <line x1="0" y1="0" x2="0" y2="6" stroke={color} strokeWidth="2.5" opacity="0.55" />
         </pattern>
       </defs>
-      <rect x={PAD} y={barY} width={W - PAD * 2} height={barH} rx={barH / 2} fill="var(--s2)" />
+      <rect x={PAD} y={barY} width={W - PAD * 2} height={barH} rx={barH / 2} fill="var(--surface-soft)" />
       <rect x={PAD} y={barY} width={Math.max(0, cur - PAD)} height={barH} rx={barH / 2} fill={color} />
       {hasProjection && <rect x={cur} y={barY} width={Math.max(0, proj - cur)} height={barH} fill={"url(#" + patternId + ")"} />}
-      <line x1={tick} x2={tick} y1={barY - 4} y2={barY + barH + 4} stroke="var(--black)" strokeWidth="2.5" />
-      <text x={PAD} y={H + 12} fontSize="10" fill="var(--td)" fontFamily="DM Mono,monospace">Actual {Math.round(currentPct || 0)}%</text>
-      {hasProjection && <text x={W / 2} y={H + 12} fontSize="10" fill="var(--td)" fontFamily="DM Mono,monospace" textAnchor="middle">Projected {Math.round(projectedPct)}%</text>}
-      <text x={W - PAD} y={H + 12} fontSize="10" fill="var(--black)" fontFamily="DM Mono,monospace" textAnchor="end">Goal {Math.round(targetPct)}%</text>
+      <line x1={tick} x2={tick} y1={barY - 4} y2={barY + barH + 4} stroke="var(--ink)" strokeWidth="2.5" />
+      <text x={PAD} y={H + 12} fontSize="10" fill="var(--text-dim)" fontFamily="DM Mono,monospace">Actual {Math.round(currentPct || 0)}%</text>
+      {hasProjection && <text x={W / 2} y={H + 12} fontSize="10" fill="var(--text-dim)" fontFamily="DM Mono,monospace" textAnchor="middle">Projected {Math.round(projectedPct)}%</text>}
+      <text x={W - PAD} y={H + 12} fontSize="10" fill="var(--ink)" fontFamily="DM Mono,monospace" textAnchor="end">Goal {Math.round(targetPct)}%</text>
     </svg>
   </div>);
 }
@@ -66,7 +66,7 @@ function BulletBar({ label, currentPct, projectedPct, targetPct, color }) {
 // values implied at all, per the spec.
 function PlaceholderStrip() {
   return (<svg viewBox="0 0 280 20" style={{ width: "100%", height: 20, display: "block" }} role="img" aria-label="No goals configured yet">
-    {[0, 1, 2, 3].map(i => (<rect key={i} x={2 + i * 70} y={4} width={62} height={12} rx={6} fill="var(--s2)" />))}
+    {[0, 1, 2, 3].map(i => (<rect key={i} x={2 + i * 70} y={4} width={62} height={12} rx={6} fill="var(--surface-soft)" />))}
   </svg>);
 }
 
@@ -79,7 +79,7 @@ function GoalMixStrip({ categories }) {
   return (<svg viewBox={"0 0 " + W + " " + H} style={{ width: "100%", height: H, display: "block" }} role="img" aria-label={"Team goal mix: " + categories.map(c => c.name + " " + c.targetPct + "%").join(", ")}>
     {categories.map((c, i) => {
       const w = (c.targetPct / total) * W;
-      const rect = <rect key={c.skillCategoryId || i} x={x} y={0} width={Math.max(0, w - 1)} height={H} rx={2} fill={i % 2 === 0 ? "var(--gb)" : "var(--s2)"} />;
+      const rect = <rect key={c.skillCategoryId || i} x={x} y={0} width={Math.max(0, w - 1)} height={H} rx={2} fill={i % 2 === 0 ? "var(--field-tint-border)" : "var(--surface-soft)"} />;
       x += w;
       return rect;
     })}
@@ -93,10 +93,10 @@ function CompletenessBar({ attributedPct, untaggedPct }) {
   const untaggedW = (untaggedPct / 100) * W;
   return (<div>
     <svg viewBox={"0 0 " + W + " " + H} style={{ width: "100%", height: H, display: "block" }} role="img" aria-label={Math.round(attributedPct) + "% tagged, " + Math.round(untaggedPct) + "% untagged"}>
-      <rect x={0} y={0} width={W} height={H} rx={2} fill="var(--green)" />
-      <rect x={W - untaggedW} y={0} width={untaggedW} height={H} rx={2} fill="var(--amber)" />
+      <rect x={0} y={0} width={W} height={H} rx={2} fill="var(--field)" />
+      <rect x={W - untaggedW} y={0} width={untaggedW} height={H} rx={2} fill="var(--caution)" />
     </svg>
-    <div style={{ fontSize: 11, color: "var(--td)", marginTop: 4 }}>{Math.round(attributedPct)}% tagged · {Math.round(untaggedPct)}% untagged</div>
+    <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>{Math.round(attributedPct)}% tagged · {Math.round(untaggedPct)}% untagged</div>
   </div>);
 }
 
@@ -276,11 +276,11 @@ export default function DevelopmentPulseCard({ team, nextPractice, canManage, da
   // second line and reintroducing the exact misalignment this fixes.
   const clblRow = (<div className="clbl mb8" style={{ display: "flex", alignItems: "center", gap: 6 }}>
     Development Pulse
-    {hasNewInsight && <span aria-label="New insight available" title="New insight available" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--red)", display: "inline-block", flexShrink: 0 }} />}
+    {hasNewInsight && <span aria-label="New insight available" title="New insight available" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--danger)", display: "inline-block", flexShrink: 0 }} />}
   </div>);
   const teamRow = (<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: collapsed ? 0 : 8 }}>
-    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--black)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{team.name}</span>
-    <button type="button" onClick={toggleCollapsed} aria-expanded={!collapsed} aria-label={collapsed ? "Expand Development Pulse" : "Collapse Development Pulse"} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--td)", padding: 4, display: "flex", alignItems: "center", flexShrink: 0 }}>
+    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{team.name}</span>
+    <button type="button" onClick={toggleCollapsed} aria-expanded={!collapsed} aria-label={collapsed ? "Expand Development Pulse" : "Collapse Development Pulse"} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-dim)", padding: 4, display: "flex", alignItems: "center", flexShrink: 0 }}>
       <Ic_Caret up={!collapsed} />
     </button>
   </div>);
@@ -294,7 +294,7 @@ export default function DevelopmentPulseCard({ team, nextPractice, canManage, da
   </>);
 
   const presented = presentState(result, canManage);
-  const teamColor = (team.colorPrimary) || "var(--green)";
+  const teamColor = (team.colorPrimary) || "var(--field)";
 
   return (<>
     {clblRow}
@@ -305,9 +305,9 @@ export default function DevelopmentPulseCard({ team, nextPractice, canManage, da
       {teamRow}
 
       {!collapsed && (<>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, marginBottom: 4, color: presented.lowEmphasis ? "var(--td)" : "var(--black)" }}>{presented.headline}</div>
-        {presented.body && <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 10, lineHeight: 1.4 }}>{presented.body}</div>}
-        {presented.basisNote && <div style={{ fontSize: 11, color: "var(--amber)", marginBottom: 8 }}>{presented.basisNote}</div>}
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, marginBottom: 4, color: presented.lowEmphasis ? "var(--text-dim)" : "var(--ink)" }}>{presented.headline}</div>
+        {presented.body && <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 10, lineHeight: 1.4 }}>{presented.body}</div>}
+        {presented.basisNote && <div style={{ fontSize: 11, color: "var(--caution)", marginBottom: 8 }}>{presented.basisNote}</div>}
 
         {presented.graphic === "placeholder" && <PlaceholderStrip />}
         {presented.graphic === "goal_mix" && <GoalMixStrip categories={(report.skills || []).filter(s => s.target_pct != null).map(s => ({ skillCategoryId: s.skill_category_id, name: s.name, targetPct: s.target_pct }))} />}
@@ -319,7 +319,7 @@ export default function DevelopmentPulseCard({ team, nextPractice, canManage, da
           return <BulletBar label={result.categoryName || (cat && cat.name)} currentPct={currentPct} targetPct={targetPct} projectedPct={presented.noProjection ? null : result.projectedPct} color={teamColor} />;
         })()}
 
-        {isLiveNow && <div style={{ fontSize: 11, color: "var(--td)", marginTop: 8 }}>Insights will update after the practice is completed.</div>}
+        {isLiveNow && <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}>Insights will update after the practice is completed.</div>}
 
         {presented.cta && <button className="btn primary bsm bfull" style={{ marginTop: 12 }} onClick={() => onNavigate(presented.cta)}>{presented.cta.label}</button>}
       </>)}

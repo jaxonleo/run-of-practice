@@ -102,24 +102,24 @@ function useStepTimer(initialSeconds, initialAheadMinutes) {
 // layout (header, alternating rows, responsive breakpoint) under an
 // `.lp-` prefix so nothing here can collide with the app's own classes.
 const LP_CSS = `
-.lp{background:var(--bg);--mock-card-primary:480px;}
-.lp-header{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between;padding:10px 20px;}
+.lp{background:var(--canvas);--mock-card-primary:480px;}
+.lp-header{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:10px 20px;}
 .lp-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;}
 .lp-brand img{width:32px;height:32px;border-radius:8px;flex-shrink:0;}
-.lp-brand span{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:-.01em;color:var(--black);}
+.lp-brand span{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:-.01em;color:var(--ink);}
 .lp-nav{display:flex;align-items:center;gap:22px;}
-.lp-navlink{font-size:13px;font-weight:600;color:var(--black2);text-decoration:none;white-space:nowrap;}
+.lp-navlink{font-size:13px;font-weight:600;color:var(--ink-soft);text-decoration:none;white-space:nowrap;}
 .lp-navlink.hideonsm{display:none;}
-.lp-signin{font-size:13px;font-weight:600;color:var(--black2);text-decoration:underline;white-space:nowrap;background:none;border:none;cursor:pointer;}
+.lp-signin{font-size:13px;font-weight:600;color:var(--ink-soft);text-decoration:underline;white-space:nowrap;background:none;border:none;cursor:pointer;}
 .lp-wrap{max-width:1120px;margin:0 auto;padding:0 20px;}
 .lp-section{padding:56px 0;}
-.lp-section.dark{background:var(--black);color:#fff;}
+.lp-section.dark{background:var(--ink);color:#fff;}
 .lp-section.tight{padding:34px 0;}
-.lp-eyebrow{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--green2);margin-bottom:8px;}
-.lp-section.dark .lp-eyebrow{color:var(--gb);}
-.lp-title{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;line-height:1.15;letter-spacing:-.01em;margin-bottom:14px;color:var(--black);}
+.lp-eyebrow{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--field-accent);margin-bottom:8px;}
+.lp-section.dark .lp-eyebrow{color:var(--field-tint-border);}
+.lp-title{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;line-height:1.15;letter-spacing:-.01em;margin-bottom:14px;color:var(--ink);}
 .lp-section.dark .lp-title{color:#fff;}
-.lp-body{font-size:15.5px;line-height:1.65;color:var(--black2);margin-bottom:12px;}
+.lp-body{font-size:15.5px;line-height:1.65;color:var(--ink-soft);margin-bottom:12px;}
 .lp-section.dark .lp-body{color:#c9d6cf;}
 .lp-row{display:flex;flex-direction:column;gap:28px;align-items:center;}
 .lp-copy{flex:1;min-width:0;width:100%;}
@@ -132,7 +132,7 @@ const LP_CSS = `
   .lp-row.wide-visual .lp-copy{flex:0 0 255px;}
   .lp-row.wide-visual .lp-visual{flex:1 1 auto;}
 }
-.lp-phone{background:#fff;border:1px solid var(--b);border-radius:20px;padding:16px;box-shadow:0 20px 50px rgba(0,0,0,.14);text-align:left;color:var(--black);width:100%;max-width:var(--mock-card-primary);margin:0 auto;}
+.lp-phone{background:#fff;border:1px solid var(--border);border-radius:20px;padding:16px;box-shadow:0 20px 50px rgba(0,0,0,.14);text-align:left;color:var(--ink);width:100%;max-width:var(--mock-card-primary);margin:0 auto;}
 .lp-duo-fixed{position:relative;display:flex;align-items:flex-end;justify-content:center;flex-wrap:wrap;width:100%;}
 .lp-duo-fixed .lp-card-primary{flex:0 0 var(--mock-card-primary);width:var(--mock-card-primary);max-width:100%;}
 .lp-duo-fixed .lp-phoneframe-wrap{flex:0 0 300px;width:300px;max-width:100%;margin-left:-32px;position:relative;z-index:2;}
@@ -146,10 +146,10 @@ const LP_CSS = `
 .lp-phoneframe-screen{position:relative;background:#fff;border-radius:34px;overflow:hidden;padding-top:34px;}
 .lp-phoneframe .lp-phone{box-shadow:none;border:none;border-radius:0;max-width:none;margin:0;padding:16px 16px 24px;}
 .lp-flash-green{animation:lp-flash-green .6s ease;}
-@keyframes lp-flash-green{0%{border-color:var(--green);}100%{border-color:var(--b);}}
-.lp-hero{background:var(--black);padding:52px 20px 60px;text-align:center;}
+@keyframes lp-flash-green{0%{border-color:var(--field);}100%{border-color:var(--border);}}
+.lp-hero{background:var(--ink);padding:52px 20px 60px;text-align:center;}
 .lp-hero h1{font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:900;color:#fff;letter-spacing:-.01em;line-height:1.08;margin:14px auto 16px;max-width:640px;}
-.lp-hero-sub{font-size:16px;color:var(--td);line-height:1.6;max-width:520px;margin:0 auto 26px;}
+.lp-hero-sub{font-size:16px;color:var(--text-dim);line-height:1.6;max-width:520px;margin:0 auto 26px;}
 @media (min-width:640px){.lp-hero h1{font-size:46px;}}
 .lp-btnrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
 .lp-hero-mark-wrap{position:relative;display:flex;justify-content:center;align-items:center;margin-top:38px;}
@@ -158,21 +158,21 @@ const LP_CSS = `
 @media (min-width:640px){.lp-hero-mark{width:220px;}}
 .lp-outcome{display:grid;grid-template-columns:1fr;gap:10px;}
 @media (min-width:640px){.lp-outcome{grid-template-columns:1fr 1fr;}}
-.lp-outcome-item{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid var(--b);border-radius:var(--r);padding:12px 14px;font-size:14px;color:var(--black2);}
-.lp-faq-q{width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--b);padding:16px 0;font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;color:var(--black);cursor:pointer;display:flex;justify-content:space-between;gap:12px;align-items:center;}
-.lp-faq-a{font-size:14.5px;line-height:1.6;color:var(--black2);padding:0 0 16px;max-width:720px;}
-.lp-footer{background:var(--black);color:#c9d6cf;padding:36px 20px 28px;}
+.lp-outcome-item{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;font-size:14px;color:var(--ink-soft);}
+.lp-faq-q{width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--border);padding:16px 0;font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;color:var(--ink);cursor:pointer;display:flex;justify-content:space-between;gap:12px;align-items:center;}
+.lp-faq-a{font-size:14.5px;line-height:1.6;color:var(--ink-soft);padding:0 0 16px;max-width:720px;}
+.lp-footer{background:var(--ink);color:#c9d6cf;padding:36px 20px 28px;}
 .lp-footer a{color:#c9d6cf;}
 .lp-footer-links{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:13px;}
 
 /* ---- On Your Wrist (roadmap) ---- */
 .lp-eyebrow-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
 .lp-eyebrow-row .lp-eyebrow{margin-bottom:0;}
-.lp-pill-roadmap{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--amber);background:var(--ambg);border:1px solid var(--ambb);border-radius:999px;padding:4px 12px;text-transform:uppercase;}
+.lp-pill-roadmap{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--caution);background:var(--caution-tint);border:1px solid var(--caution-tint-border);border-radius:999px;padding:4px 12px;text-transform:uppercase;}
 .lp-watch-stage{margin-top:32px;display:flex;justify-content:center;align-items:flex-start;gap:48px;flex-wrap:wrap;}
 .lp-watch-col{display:flex;flex-direction:column;align-items:center;max-width:240px;}
 .lp-watch{position:relative;width:200px;margin:40px 0 44px;filter:drop-shadow(0 20px 34px rgba(17,23,20,.22));}
-.lp-watch-band{position:absolute;left:50%;transform:translateX(-50%);width:104px;height:40px;background:var(--black2);z-index:0;}
+.lp-watch-band{position:absolute;left:50%;transform:translateX(-50%);width:104px;height:40px;background:var(--ink-soft);z-index:0;}
 .lp-watch-band.top{top:-32px;border-radius:16px 16px 5px 5px;}
 .lp-watch-band.bottom{bottom:-32px;border-radius:5px 5px 16px 16px;}
 .lp-watch-case{position:relative;z-index:1;background:linear-gradient(145deg,#3a3f3a,#191c19);border-radius:48px;padding:10px;}
@@ -195,7 +195,7 @@ const LP_CSS = `
 .lp-w-upnext .lbl{font-family:'DM Mono',monospace;font-size:8px;font-weight:700;letter-spacing:.14em;color:#8b978f;margin-bottom:3px;}
 .lp-w-upnext .name{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;color:#e8ede9;}
 .lp-w-upnext .mins{font-family:'DM Mono',monospace;font-size:10px;color:#a9b5ad;background:rgba(255,255,255,.1);border-radius:6px;padding:2px 6px;}
-.lp-w-next-btn{margin-top:auto;background:var(--green);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:14px;letter-spacing:.05em;text-align:center;border-radius:999px;padding:11px 0;}
+.lp-w-next-btn{margin-top:auto;background:var(--field);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:14px;letter-spacing:.05em;text-align:center;border-radius:999px;padding:11px 0;}
 .lp-w-alert-screen{justify-content:flex-start;background:radial-gradient(120% 90% at 50% 0%,#3a1410 0,#000 62%);}
 .lp-w-haptic{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:12px;}
 .lp-w-haptic span{width:4px;border-radius:2px;background:#ff6a4d;animation:lp-haptic 1s ease-in-out infinite;}
@@ -211,8 +211,8 @@ const LP_CSS = `
 .lp-w-move-card .to{font-size:11px;line-height:1.45;color:#c9b3ac;}
 .lp-w-move-card .to strong{color:#ffd9c7;font-weight:600;}
 .lp-w-done-btn{margin-top:auto;background:rgba(255,255,255,.14);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13px;letter-spacing:.05em;text-align:center;border-radius:999px;padding:11px 0;}
-.lp-watch-caption{font-size:12.5px;line-height:1.5;color:var(--tm);text-align:center;max-width:210px;}
-.lp-watch-caption strong{color:var(--black);font-weight:600;}
+.lp-watch-caption{font-size:12.5px;line-height:1.5;color:var(--text-muted);text-align:center;max-width:210px;}
+.lp-watch-caption strong{color:var(--ink);font-weight:600;}
 @media (prefers-reduced-motion:reduce){.lp-w-live .dot,.lp-w-haptic span,.lp-w-timer.over,.lp-flash-green,.cc-timer.over{animation:none;}}
 @media (max-width:560px){.lp-watch-stage{gap:32px;}}
 `;
@@ -237,9 +237,9 @@ function Header({ onGetStarted }) {
 // but they render with the exact same design tokens as the live app.
 function ScheduleVisual() {
   const rows = [
-    { day: "Today", t: "12U Red Practice", time: "4:00 PM", icon: "✓", color: "var(--green)", status: "90/90 min" },
-    { day: "Today", t: "10U Blue Practice", time: "5:30 PM", icon: null, color: "var(--td)", status: "Needs plan" },
-    { day: "Tomorrow", t: "12U Red Practice", time: "4:00 PM", icon: "◐", color: "var(--amber)", status: "40/90 min" },
+    { day: "Today", t: "12U Red Practice", time: "4:00 PM", icon: "✓", color: "var(--field)", status: "90/90 min" },
+    { day: "Today", t: "10U Blue Practice", time: "5:30 PM", icon: null, color: "var(--text-dim)", status: "Needs plan" },
+    { day: "Tomorrow", t: "12U Red Practice", time: "4:00 PM", icon: "◐", color: "var(--caution)", status: "40/90 min" },
   ];
   let lastDay = null;
   return (<div className="lp-phone">
@@ -247,7 +247,7 @@ function ScheduleVisual() {
       {r.day !== lastDay && (lastDay = r.day, <div className="clbl" style={{ marginTop: i ? 10 : 0 }}>{r.day}</div>)}
       <div className="li" style={{ cursor: "default" }}>
         <div className="lim"><div className="lin">{r.t}</div><div className="limt">{r.time} · {r.icon ? <span style={{ color: r.color, fontWeight: 600 }}>{r.icon} {r.status}</span> : r.status}</div></div>
-        <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>
+        <span style={{ color: "var(--text-dim)", fontSize: 18 }}>&#8250;</span>
       </div>
     </React.Fragment>))}
   </div>);
@@ -264,23 +264,23 @@ function LibraryVisual() {
     { name: "3-on-3 Scrimmage", description: "Half-court, make it take it. Emphasize early offense.", skills: ["Game Speed"] },
   ];
   return (<div className="lp-phone">
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--s1)", borderRadius: "var(--r) var(--r) 0 0" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--surface)", borderRadius: "var(--radius-lg) var(--radius-lg) 0 0" }}>
       <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>Basketball</span>
-      <span style={{ fontSize: 12, color: "var(--td)" }}>{basketballDrills.length} drills &#9662;</span>
+      <span style={{ fontSize: 12, color: "var(--text-dim)" }}>{basketballDrills.length} drills &#9662;</span>
     </div>
-    <div style={{ border: "1px solid var(--b)", borderTop: "none", borderRadius: "0 0 var(--r) var(--r)", overflow: "hidden" }}>
-      {basketballDrills.map((d, i) => (<div key={d.name} style={{ padding: "10px 12px", borderBottom: i < basketballDrills.length - 1 ? "1px solid var(--b)" : "none" }}>
+    <div style={{ border: "1px solid var(--border)", borderTop: "none", borderRadius: "0 0 var(--radius-lg) var(--radius-lg)", overflow: "hidden" }}>
+      {basketballDrills.map((d, i) => (<div key={d.name} style={{ padding: "10px 12px", borderBottom: i < basketballDrills.length - 1 ? "1px solid var(--border)" : "none" }}>
         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{d.name}</div>
-        <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 2, lineHeight: 1.4 }}>{d.description}</div>
-        {d.equipment && <div style={{ fontSize: 11, color: "var(--td)", marginTop: 2 }}>Needs: {d.equipment}</div>}
+        <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 2, lineHeight: 1.4 }}>{d.description}</div>
+        {d.equipment && <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2 }}>Needs: {d.equipment}</div>}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
           {d.skills.map(s => <span key={s} className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>{s}</span>)}
         </div>
       </div>))}
     </div>
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--s1)", border: "1px solid var(--b)", borderRadius: "var(--r)", marginTop: 10 }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", marginTop: 10 }}>
       <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>Baseball</span>
-      <span style={{ fontSize: 12, color: "var(--td)" }}>14 drills &#9656;</span>
+      <span style={{ fontSize: 12, color: "var(--text-dim)" }}>14 drills &#9656;</span>
     </div>
   </div>);
 }
@@ -308,7 +308,7 @@ function BuilderVisual() {
     <div className="sechdr mb8"><span className="sectitle">4 Activities</span><span className={"pill" + (totalMins < objectiveMins * 0.9 ? " over" : "")}>{totalMins}/{objectiveMins} min</span></div>
     {rows.map((r) => (<div key={r.n} className="ablk" style={{ marginBottom: 6 }}>
       <div className="abhdr" style={{ cursor: "default" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginRight: 6, flexShrink: 0, color: "var(--s3)", fontSize: 12, lineHeight: 1 }}><span>&#8593;</span><span>&#8595;</span></div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginRight: 6, flexShrink: 0, color: "var(--surface-pressed)", fontSize: 12, lineHeight: 1 }}><span>&#8593;</span><span>&#8595;</span></div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ font: "700 14px 'Barlow Condensed',sans-serif" }}>{r.n}</div>
           <div className="limt">{r.d}min</div>
@@ -319,17 +319,17 @@ function BuilderVisual() {
       {r.expanded && <div className="abbody">
         <div className="fld"><label className="lbl">Name</label><input className="inp" value={r.n} readOnly /></div>
         <div className="fld"><label className="lbl">Duration (min)</label>
-          <div style={{ display: "flex", alignItems: "center", border: "1.5px solid var(--b)", borderRadius: "var(--rs)", overflow: "hidden", background: "#fff", width: 120 }}>
-            <span style={{ width: 40, height: 40, background: "var(--s2)", color: "var(--black2)", fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>-</span>
-            <span style={{ flex: 1, textAlign: "center", fontFamily: "'DM Mono',monospace", fontSize: 15, fontWeight: 600, color: "var(--black)" }}>{r.d}m</span>
-            <span style={{ width: 40, height: 40, background: "var(--s2)", color: "var(--black2)", fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</span>
+          <div style={{ display: "flex", alignItems: "center", border: "1.5px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden", background: "#fff", width: 120 }}>
+            <span style={{ width: 40, height: 40, background: "var(--surface-soft)", color: "var(--ink-soft)", fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>-</span>
+            <span style={{ flex: 1, textAlign: "center", fontFamily: "'DM Mono',monospace", fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>{r.d}m</span>
+            <span style={{ width: 40, height: 40, background: "var(--surface-soft)", color: "var(--ink-soft)", fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</span>
           </div>
         </div>
         <div className="fld"><label className="lbl">Player Grouping</label>
           <div style={{ display: "flex", gap: 6 }}>
-            <span style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: "var(--r)", border: "1.5px solid var(--b)", background: "var(--green)", color: "#fff", fontSize: 13, fontWeight: 700 }}>Whole Team</span>
-            <span style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: "var(--r)", border: "1.5px solid var(--b)", background: "var(--s1)", color: "var(--black)", fontSize: 13, fontWeight: 700 }}>Partners</span>
-            <span style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: "var(--r)", border: "1.5px solid var(--b)", background: "var(--s1)", color: "var(--black)", fontSize: 13, fontWeight: 700 }}>Groups</span>
+            <span style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: "var(--radius-lg)", border: "1.5px solid var(--border)", background: "var(--field)", color: "#fff", fontSize: 13, fontWeight: 700 }}>Whole Team</span>
+            <span style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: "var(--radius-lg)", border: "1.5px solid var(--border)", background: "var(--surface)", color: "var(--ink)", fontSize: 13, fontWeight: 700 }}>Partners</span>
+            <span style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: "var(--radius-lg)", border: "1.5px solid var(--border)", background: "var(--surface)", color: "var(--ink)", fontSize: 13, fontWeight: 700 }}>Groups</span>
           </div>
         </div>
         <button className="btn ghost bsm bfull mt8">Done</button>
@@ -344,10 +344,10 @@ function BuilderVisual() {
 // hidden behind a tap -- whoever picked up this station already knows
 // what the coach wants them to say.
 function StationChip({ name, tone, note }) {
-  const map = { here: { b: "var(--green)", bg: "var(--green)", c: "#fff" }, other: { b: "#d97706", bg: "#fef3c7", c: "#92400e" }, none: { b: "var(--b)", bg: "var(--s1)", c: "var(--black)" } }[tone];
+  const map = { here: { b: "var(--field)", bg: "var(--field)", c: "#fff" }, other: { b: "#d97706", bg: "#fef3c7", c: "#92400e" }, none: { b: "var(--border)", bg: "var(--surface)", c: "var(--ink)" } }[tone];
   return (<span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 1, maxWidth: note ? 150 : undefined }}>
     <span style={{ padding: "5px 9px", borderRadius: 8, border: "1.5px solid " + map.b, background: map.bg, color: map.c, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{name}</span>
-    {note && <span style={{ fontSize: 10, color: "var(--green2)", lineHeight: 1.3, whiteSpace: "normal" }}>{note}</span>}
+    {note && <span style={{ fontSize: 10, color: "var(--field-accent)", lineHeight: 1.3, whiteSpace: "normal" }}>{note}</span>}
   </span>);
 }
 
@@ -356,14 +356,14 @@ function StationChip({ name, tone, note }) {
 // (a different, lighter-green pill than the block-intro/overview chip
 // above, and the only place a per-player focus note actually appears).
 function PlayerPill({ name, note }) {
-  return (<span style={{ padding: "6px 12px", borderRadius: 20, border: "1.5px solid var(--gb)", background: "var(--gbg)", fontSize: 14, fontWeight: 600, color: "var(--black)", display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 2, maxWidth: note ? 200 : undefined }}>
+  return (<span style={{ padding: "6px 12px", borderRadius: 20, border: "1.5px solid var(--field-tint-border)", background: "var(--field-tint)", fontSize: 14, fontWeight: 600, color: "var(--ink)", display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 2, maxWidth: note ? 200 : undefined }}>
     <span>{name}</span>
-    {note && <span style={{ fontSize: 11, fontWeight: 500, color: "var(--green2)", lineHeight: 1.3, textAlign: "left" }}>{note}</span>}
+    {note && <span style={{ fontSize: 11, fontWeight: 500, color: "var(--field-accent)", lineHeight: 1.3, textAlign: "left" }}>{note}</span>}
   </span>);
 }
 
 function LocationLine({ text, style }) {
-  return <div style={{ fontSize: 12, color: "var(--td)", display: "flex", alignItems: "center", gap: 4, ...style }}><span aria-hidden="true">📍</span>{text}</div>;
+  return <div style={{ fontSize: 12, color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 4, ...style }}><span aria-hidden="true">📍</span>{text}</div>;
 }
 
 // Mirrors ModalLayer.jsx's DurStepper look (-/value/+ in a bordered box) --
@@ -371,11 +371,11 @@ function LocationLine({ text, style }) {
 // working stepper.
 function DurStepperMock({ label, value }) {
   return (<div style={{ flex: 1 }}>
-    <div style={{ fontSize: 11, color: "var(--td)", marginBottom: 4 }}>{label}</div>
-    <div style={{ display: "flex", alignItems: "center", border: "1.5px solid var(--b)", borderRadius: "var(--rs)", overflow: "hidden", background: "#fff" }}>
-      <span style={{ width: 32, height: 32, background: "var(--s2)", color: "var(--black2)", fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>-</span>
-      <span style={{ flex: 1, textAlign: "center", fontFamily: "'DM Mono',monospace", fontSize: 13, fontWeight: 600, color: "var(--black)" }}>{value}</span>
-      <span style={{ width: 32, height: 32, background: "var(--s2)", color: "var(--black2)", fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</span>
+    <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 4 }}>{label}</div>
+    <div style={{ display: "flex", alignItems: "center", border: "1.5px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden", background: "#fff" }}>
+      <span style={{ width: 32, height: 32, background: "var(--surface-soft)", color: "var(--ink-soft)", fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>-</span>
+      <span style={{ flex: 1, textAlign: "center", fontFamily: "'DM Mono',monospace", fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{value}</span>
+      <span style={{ width: 32, height: 32, background: "var(--surface-soft)", color: "var(--ink-soft)", fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</span>
     </div>
   </div>);
 }
@@ -386,9 +386,9 @@ function StationsVisual() {
     { label: "Station 2", area: "Batting Cage 1", groupLabel: "Lefties", chips: [{ n: "Ava", t: "here" }, { n: "Jordan", t: "here" }] },
   ];
   return (<div className="lp-phone">
-    <div style={{ display: "flex", borderRadius: "var(--r)", overflow: "hidden", border: "1.5px solid var(--b)", marginBottom: 10 }}>
-      <div style={{ flex: 1, padding: "6px 0", textAlign: "center", background: "var(--green)", color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, fontWeight: 700 }}>ROTATE</div>
-      <div style={{ flex: 1, padding: "6px 0", textAlign: "center", background: "var(--s1)", color: "var(--black)", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, fontWeight: 700 }}>STATIC</div>
+    <div style={{ display: "flex", borderRadius: "var(--radius-lg)", overflow: "hidden", border: "1.5px solid var(--border)", marginBottom: 10 }}>
+      <div style={{ flex: 1, padding: "6px 0", textAlign: "center", background: "var(--field)", color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, fontWeight: 700 }}>ROTATE</div>
+      <div style={{ flex: 1, padding: "6px 0", textAlign: "center", background: "var(--surface)", color: "var(--ink)", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, fontWeight: 700 }}>STATIC</div>
     </div>
     <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
       <DurStepperMock label="Time at Station" value="10m" />
@@ -398,8 +398,8 @@ function StationsVisual() {
       <button className="btn outline bsm" style={{ flex: 1 }}>Generate Random</button>
       <button className="btn ghost bsm" style={{ flex: 1 }}>Group By: Handedness &#9662;</button>
     </div>
-    {stations.map((s) => (<div key={s.label} style={{ background: "var(--s1)", border: "1.5px solid var(--b)", borderRadius: "var(--r)", padding: "10px 10px 8px", marginBottom: 8 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 900, color: "var(--green)", letterSpacing: ".05em", marginBottom: 6 }}>{s.label.toUpperCase()} · {s.area.toUpperCase()}</div>
+    {stations.map((s) => (<div key={s.label} style={{ background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "10px 10px 8px", marginBottom: 8 }}>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 900, color: "var(--field)", letterSpacing: ".05em", marginBottom: 6 }}>{s.label.toUpperCase()} · {s.area.toUpperCase()}</div>
       {s.groupLabel && <div style={{ marginBottom: 6 }}><span className="bdg bp">Group: {s.groupLabel}</span></div>}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {s.chips.map(c => <StationChip key={c.n} name={c.n} tone={c.t} note={c.note}/>)}
@@ -409,7 +409,7 @@ function StationsVisual() {
 }
 
 // Modeled directly on PreviewView (CommandScreen.jsx) -- the actual
-// screen behind "Share Setup Link": dark, standalone, opened by whoever's
+// screen behind "Share Live Link": dark, standalone, opened by whoever's
 // setting up a station before the coach ever gets there. Same literal
 // colors as that component (not the CSS-var palette the rest of the site
 // mocks use) since this dark-on-#0d1512 look IS the real screen, not a
@@ -458,13 +458,13 @@ function TemplatesVisual() {
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 }}>
         <div>
           <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 900, lineHeight: 1 }}>Tuesday Practice Template</div>
-          <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>4 activities - 90min</div>
-          <div style={{ fontSize: 11, color: "var(--td)", marginTop: 2 }}>Created Jun 3</div>
+          <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2 }}>4 activities - 90min</div>
+          <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2 }}>Created Jun 3</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
             <span className="bdg bs" style={{ fontSize: 10 }}>Fielding</span><span className="bdg bs" style={{ fontSize: 10 }}>Hitting</span><span className="bdg bs" style={{ fontSize: 10 }}>Footwork</span>
           </div>
         </div>
-        <span style={{ display: "flex", flexDirection: "column", gap: 3.5, padding: "6px 8px" }}><span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--td)" }}/><span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--td)" }}/><span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--td)" }}/></span>
+        <span style={{ display: "flex", flexDirection: "column", gap: 3.5, padding: "6px 8px" }}><span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--text-dim)" }}/><span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--text-dim)" }}/><span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--text-dim)" }}/></span>
       </div>
       <div className="brow">
         <button className="btn outline bmd" style={{ flex: 1 }}>View / Edit</button>
@@ -488,30 +488,30 @@ function LiveVisual({
   const { display, over, minutesBehind } = useCountdown(startSeconds);
   return (<div className="lp-phone">
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-      <div className="row"><span className="live" /><span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginLeft: 5 }}>Live</span></div>
+      <div className="row"><span className="live" /><span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--field)", marginLeft: 5 }}>Live</span></div>
       {over
-        ? <span style={{ background: "var(--ambg)", color: "var(--amber)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{minutesBehind}m behind</span>
-        : <span style={{ background: "var(--gbg)", color: "var(--green)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>On time</span>}
+        ? <span style={{ background: "var(--caution-tint)", color: "var(--caution)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{minutesBehind}m behind</span>
+        : <span style={{ background: "var(--field-tint)", color: "var(--field)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>On time</span>}
     </div>
-    {roundLabel && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 2 }}>{roundLabel}</div>}
+    {roundLabel && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-dim)", marginBottom: 2 }}>{roundLabel}</div>}
     <div className="cc-act-name">{drill}</div>
     {location && <LocationLine text={location} style={{ marginTop: 2, marginBottom: 4 }} />}
     <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
-      <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
+      <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--text-dim)" }}>remaining</span>
     </div>
-    {description && <div style={{ borderLeft: "3px solid var(--black)", paddingLeft: 10, marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--black)", marginBottom: 4 }}>Description</div>
-      <div style={{ fontSize: 13, color: "var(--black)", lineHeight: 1.5 }}>{description}</div>
+    {description && <div style={{ borderLeft: "3px solid var(--ink)", paddingLeft: 10, marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--ink)", marginBottom: 4 }}>Description</div>
+      <div style={{ fontSize: 13, color: "var(--ink)", lineHeight: 1.5 }}>{description}</div>
     </div>}
     <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, marginBottom: 10 }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
-      <div style={{ fontSize: 14, color: "var(--black)", lineHeight: 1.5 }}>{focus}</div>
+      <div style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.5 }}>{focus}</div>
     </div>
-    {coach && <div style={{ borderLeft: "3px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 3 }}>Coach</div>
-      <div style={{ fontSize: 14, color: "var(--black)" }}>{coach}</div>
+    {coach && <div style={{ borderLeft: "3px solid var(--border)", paddingLeft: 10, marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-dim)", marginBottom: 3 }}>Coach</div>
+      <div style={{ fontSize: 14, color: "var(--ink)" }}>{coach}</div>
     </div>}
-    <div className="cc-queue"><div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)" }}>Up Next</div><div className="cc-queue-item"><span style={{ fontSize: 13, color: "var(--black2)" }}>{upNextName}</span><span className="bdg bs">{upNextMins}</span></div></div>
+    <div className="cc-queue"><div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-dim)" }}>Up Next</div><div className="cc-queue-item"><span style={{ fontSize: 13, color: "var(--ink-soft)" }}>{upNextName}</span><span className="bdg bs">{upNextMins}</span></div></div>
   </div>);
 }
 
@@ -521,13 +521,13 @@ function LiveVisual({
 // notes here. Notes only show up once you're focused on a single station
 // (StationDetailVisual below), not on this overview.
 function StationOverviewRow({ label, drill, area, coach, equipment, chips }) {
-  return (<div style={{ background: "var(--s1)", border: "1.5px solid var(--b)", borderRadius: "var(--r)", padding: "10px 12px", marginBottom: 8 }}>
+  return (<div style={{ background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "10px 12px", marginBottom: 8 }}>
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)" }}>{label}</span>
-      <span style={{ fontSize: 11, color: "var(--green2)", fontWeight: 600 }}>{area}</span>
-      <span style={{ fontSize: 11, color: "var(--td)" }}>{coach}</span>
+      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--field)" }}>{label}</span>
+      <span style={{ fontSize: 11, color: "var(--field-accent)", fontWeight: 600 }}>{area}</span>
+      <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{coach}</span>
     </div>
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 900, color: "var(--black)", marginBottom: 6 }}>{drill}</div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 900, color: "var(--ink)", marginBottom: 6 }}>{drill}</div>
     {equipment && <div style={{ marginBottom: 6 }}><span style={{ border: "1.5px solid #fde047", borderRadius: 20, padding: "2px 8px", fontSize: 11, color: "#854d0e", fontWeight: 600, background: "#fff" }}>Equipment: {equipment}</span></div>}
     <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>{chips}</div>
   </div>);
@@ -536,24 +536,24 @@ function StationOverviewRow({ label, drill, area, coach, equipment, chips }) {
 function StationDetailVisual() {
   const { display, over } = useCountdown(CLOCK_STATION_BLOCK_START);
   return (<div className="lp-phone">
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--green)", marginBottom: 2 }}>Station 2</div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--field)", marginBottom: 2 }}>Station 2</div>
     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Front Toss</div>
-    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--green2)", marginBottom: 8 }}>Coach Jen · Batting Cage 1</div>
+    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--field-accent)", marginBottom: 8 }}>Coach Jen · Batting Cage 1</div>
     <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
-      <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--td)" }}>remaining</span>
+      <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--text-dim)" }}>remaining</span>
     </div>
-    <div style={{ borderLeft: "3px solid var(--black)", paddingLeft: 10, marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--black)", marginBottom: 4 }}>Description</div>
-      <div style={{ fontSize: 13, color: "var(--black)", lineHeight: 1.5 }}>Toss from behind the L-screen, firm underhand to the front half of the plate. Each hitter takes 8 swings, then rotates. Partner shags into the bucket.</div>
+    <div style={{ borderLeft: "3px solid var(--ink)", paddingLeft: 10, marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--ink)", marginBottom: 4 }}>Description</div>
+      <div style={{ fontSize: 13, color: "var(--ink)", lineHeight: 1.5 }}>Toss from behind the L-screen, firm underhand to the front half of the plate. Each hitter takes 8 swings, then rotates. Partner shags into the bucket.</div>
     </div>
     <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, marginBottom: 10 }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
-      <div style={{ fontSize: 14, color: "var(--black)", lineHeight: 1.5 }}>Level swing, contact out front. Let the outside pitch travel.</div>
+      <div style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.5 }}>Level swing, contact out front. Let the outside pitch travel.</div>
     </div>
     <div style={{ marginBottom: 10 }}>
       <span style={{ border: "1.5px solid #fde047", borderRadius: 20, padding: "3px 10px", fontSize: 12, color: "#854d0e", fontWeight: 600, background: "#fff" }}>Equipment: L-Screen, Bucket of Balls</span>
     </div>
-    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--td)", marginBottom: 8 }}>Players at this station</div>
+    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-dim)", marginBottom: 8 }}>Players at this station</div>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
       <PlayerPill name="Ava" note="Keep the front foot closed, drive through the ball." />
       <PlayerPill name="Jordan" note="Two hands through contact, don't cast the barrel." />
@@ -570,7 +570,7 @@ function StationDetailVisual() {
 function HelperVisual() {
   return (<div className="lp-duo-fixed">
     <div className="lp-phone lp-card-primary">
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--td)", marginBottom: 12 }}>Get everyone to their station</div>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--text-dim)", marginBottom: 12 }}>Get everyone to their station</div>
       <StationOverviewRow label="Station 1" drill="Ground Ball Fundamentals" area="Infield" coach="Coach Mike" equipment="Bucket of Balls" chips={<><StationChip name="Ryker" tone="here" /><StationChip name="Owen" tone="here" /><StationChip name="Mason" tone="here" /></>} />
       <StationOverviewRow label="Station 2" drill="Front Toss" area="Batting Cage 1" coach="Coach Jen" equipment="L-Screen, Bucket of Balls" chips={<><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></>} />
       <StationOverviewRow label="Station 3" drill="Fly Ball Reads" area="Outfield" coach="Coach Dana" equipment="Cones" chips={<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="here" /><StationChip name="Sam" tone="here" /></>} />
@@ -583,10 +583,10 @@ function AdjustVisual() {
   const t = useStepTimer(13 * 60, 4);
   return (<div className={"lp-phone" + (t.flash ? " lp-flash-green" : "")}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-      <span style={{ color: "var(--black)", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 700 }}>Small-Sided Scrimmage</span>
+      <span style={{ color: "var(--ink)", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 700 }}>Small-Sided Scrimmage</span>
       {t.over
-        ? <span style={{ background: "var(--ambg)", color: "var(--amber)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{Math.abs(t.aheadMinutes)}m behind</span>
-        : <span style={{ background: "var(--gbg)", color: "var(--green)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{t.aheadMinutes}m ahead</span>}
+        ? <span style={{ background: "var(--caution-tint)", color: "var(--caution)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{Math.abs(t.aheadMinutes)}m behind</span>
+        : <span style={{ background: "var(--field-tint)", color: "var(--field)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{t.aheadMinutes}m ahead</span>}
     </div>
     <LocationLine text="Field 2 · Riverside Complex" style={{ marginBottom: 8 }} />
     <div className="cc-timer" style={{ fontSize: 34, fontVariantNumeric: "tabular-nums", marginBottom: 8 }}>{t.display}</div>
@@ -613,12 +613,12 @@ const ROTATION_MOVES = [
 
 function TransitionVisual() {
   return (<div className="lp-phone">
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 900, color: "var(--red)", letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 10 }}>Rotate Now</div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 900, color: "var(--danger)", letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 10 }}>Rotate Now</div>
     {ROTATION_MOVES.map((r, i) => (<div key={r.names} className="cc-trans-card" style={{ marginBottom: i < ROTATION_MOVES.length - 1 ? 8 : 0 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 20, fontWeight: 900, color: "var(--black)", lineHeight: 1.2, marginBottom: 6 }}>{r.names}</div>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 20, fontWeight: 900, color: "var(--ink)", lineHeight: 1.2, marginBottom: 6 }}>{r.names}</div>
       {r.groupLabel && <div style={{ marginBottom: 4 }}><span className="bdg bp">Group: {r.groupLabel}</span></div>}
-      <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 3 }}>from {r.from}</div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--black)" }}>&#8594; {r.to}</div>
+      <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 3 }}>from {r.from}</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>&#8594; {r.to}</div>
     </div>))}
   </div>);
 }
@@ -641,26 +641,26 @@ function HistoryDrillRow({ n, planned, actual }) {
     <div className="abhdr" style={{ cursor: "default" }}>
       <div style={{ flex: 1, font: "700 14px 'Barlow Condensed',sans-serif" }}>{n}</div>
       <span className="bdg bp" style={{ marginRight: 6 }}>{planned}m planned</span>
-      <span className="bdg bs" style={{ color: over ? "var(--amber)" : "var(--green)" }}>{actual}m actual</span>
+      <span className="bdg bs" style={{ color: over ? "var(--caution)" : "var(--field)" }}>{actual}m actual</span>
     </div>
   </div>);
 }
 
 function HistoryVisual() {
   return (<div className="lp-phone">
-    <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>Sat, Jun 7 · 11 attended</div>
+    <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 8 }}>Sat, Jun 7 · 11 attended</div>
     {HISTORY_DRILLS.map(d => <HistoryDrillRow key={d.n} {...d} />)}
     <div className="card mt8" style={{ marginBottom: 10 }}>
       <div className="clbl">Notes</div>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--green2)", marginBottom: 4 }}>Ground Ball Fundamentals</div>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--field-accent)", marginBottom: 4 }}>Ground Ball Fundamentals</div>
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 11, color: "var(--td)", marginBottom: 2 }}>Coach Mike · 5:42 PM</div>
+        <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 2 }}>Coach Mike · 5:42 PM</div>
         <div style={{ fontSize: 13 }}>Glove work looked great today, ready for faster reads next week.</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}><span className="bdg bs" style={{ fontSize: 10 }}>Ryker</span></div>
       </div>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--green2)", marginBottom: 4 }}>Front Toss</div>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--field-accent)", marginBottom: 4 }}>Front Toss</div>
       <div>
-        <div style={{ fontSize: 11, color: "var(--td)", marginBottom: 2 }}>Ava's Mom (Helper) · 5:58 PM</div>
+        <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 2 }}>Ava's Mom (Helper) · 5:58 PM</div>
         <div style={{ fontSize: 13 }}>Cage 1 group could use more reps on the outside pitch.</div>
       </div>
     </div>
@@ -752,9 +752,9 @@ function FAQ() {
   const [open, setOpen] = useState(0);
   return (<div className="lp-section tight"><div className="lp-wrap" style={{ maxWidth: 760 }}>
     <div className="lp-title" style={{ marginBottom: 4 }}>Questions coaches ask</div>
-    <div style={{ borderBottom: "1px solid var(--b)" }}>
+    <div style={{ borderBottom: "1px solid var(--border)" }}>
       {FAQS.map((f, i) => (<div key={i}>
-        <button className="lp-faq-q" onClick={() => setOpen(open === i ? -1 : i)}>{f.q}<span style={{ color: "var(--td)", fontSize: 20, flexShrink: 0 }}>{open === i ? "−" : "+"}</span></button>
+        <button className="lp-faq-q" onClick={() => setOpen(open === i ? -1 : i)}>{f.q}<span style={{ color: "var(--text-dim)", fontSize: 20, flexShrink: 0 }}>{open === i ? "−" : "+"}</span></button>
         {open === i && <div className="lp-faq-a">{f.a}</div>}
       </div>))}
     </div>
@@ -774,7 +774,7 @@ export default function LandingPage({ onGetStarted }) {
         <button className="btn primary blg" onClick={onGetStarted}>Try It Free</button>
         <a href="#how-it-works" className="btn ghost blg" style={{ textDecoration: "none" }}>See How It Works</a>
       </div>
-      <div style={{ fontSize: 12, color: "var(--td)", marginTop: 12 }}>Free during early access.</div>
+      <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 12 }}>Free during early access.</div>
       <div className="lp-hero-mark-wrap">
         <div className="lp-hero-mark-glow" aria-hidden="true" />
         <img className="lp-hero-mark" src="/hero-mark.png" alt="" />
@@ -865,13 +865,13 @@ export default function LandingPage({ onGetStarted }) {
       </div>
     </div>
 
-    <div id="early-access" className="lp-section" style={{ background: "var(--gbg)", textAlign: "center" }}>
+    <div id="early-access" className="lp-section" style={{ background: "var(--field-tint)", textAlign: "center" }}>
       <div className="lp-wrap" style={{ maxWidth: 640 }}>
         <div className="lp-eyebrow">Early Access</div>
         <div className="lp-title">Use Run of Practice and help shape what comes next.</div>
         <div className="lp-body">Run of Practice is in early access, and we're looking for coaches to use it in real practices and share what works, what's unclear and where the experience falls short. The goal is to build something coaches can rely on before, during and after every practice.</div>
         <button className="btn primary blg" onClick={onGetStarted} style={{ marginTop: 8 }}>Try Run of Practice</button>
-        <div style={{ fontSize: 12, color: "var(--tm)", marginTop: 10 }}>Free during early access.</div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 10 }}>Free during early access.</div>
       </div>
     </div>
 
@@ -882,7 +882,7 @@ export default function LandingPage({ onGetStarted }) {
         <div className="lp-title">Build the plan. Keep everyone on track.</div>
         <div className="lp-body">Schedule the practice, organize the details and run it live from one place.</div>
         <button className="btn primary blg" onClick={onGetStarted} style={{ marginTop: 8 }}>Try It Free</button>
-        <div style={{ marginTop: 12 }}><button className="lp-signin" style={{ color: "var(--td)" }} onClick={onGetStarted}>Already have an account? Sign in</button></div>
+        <div style={{ marginTop: 12 }}><button className="lp-signin" style={{ color: "var(--text-dim)" }} onClick={onGetStarted}>Already have an account? Sign in</button></div>
       </div>
     </div>
 

@@ -13,7 +13,7 @@ function PlanPill({ practice, total }) {
   const st = planningState(practice);
   if (!st) return null;
   const onTrack = st === "onTrack";
-  return <span style={{ color: onTrack ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
+  return <span style={{ color: onTrack ? "var(--field)" : "var(--danger)", fontWeight: 600 }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
 }
 
 export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack,coachId,refreshPlanning,setSubViewBack,mode}){
@@ -90,7 +90,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
   // that flag needs to survive here so the coach sees it called out
   // rather than looking like equipment they already have.
   const resolveEquip=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?{id:a.id,name:a.name,acquired:a.acquired!==false}:null;}).filter(Boolean);
-  const EquipList=({items,sep})=>items.map((e,i)=>(<span key={e.id} style={{color:e.acquired?"inherit":"var(--red)",fontWeight:e.acquired?"inherit":700}}>{e.name}{!e.acquired&&" (not acquired)"}{i<items.length-1?(sep||", "):""}</span>));
+  const EquipList=({items,sep})=>items.map((e,i)=>(<span key={e.id} style={{color:e.acquired?"inherit":"var(--danger)",fontWeight:e.acquired?"inherit":700}}>{e.name}{!e.acquired&&" (not acquired)"}{i<items.length-1?(sep||", "):""}</span>));
   const allEquip=[...new Map((practice.activities||[]).flatMap(a=>{if(a.type==="station_block")return(a.stations||[]).flatMap(st=>resolveEquip(st.equipment));return resolveEquip(a.equipment);}).map(e=>[e.id,e])).values()];
   const subName=(id,snap)=>{const l=loc&&loc.sublocations.find(s=>s.id===id);return l?l.name:(snap||null);};
   const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
@@ -175,14 +175,14 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
     if(saved)goToRun(saved.id);
   };
   const headerContent=(<>
-      {isCancelled&&<div className="card" style={{marginBottom:12,background:"var(--s2)",textAlign:"center"}}>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,color:"var(--td)",marginBottom:8}}>This practice was cancelled</div>
+      {isCancelled&&<div className="card" style={{marginBottom:12,background:"var(--surface-soft)",textAlign:"center"}}>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,color:"var(--text-dim)",marginBottom:8}}>This practice was cancelled</div>
         <button className="btn outline bsm" onClick={doRestore}>Restore</button>
       </div>}
-      {isMissed&&!isCancelled&&<div style={{background:"var(--s2)",border:"1.5px solid var(--b)",borderRadius:"var(--r)",padding:"8px 12px",marginBottom:12,fontSize:12,color:"var(--td)"}}>This practice's time has passed and it was never run.</div>}
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:2}}>{practice.date===todayStr?"TODAY":"RUN OF PRACTICE"} {practice.date&&new Date(practice.date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2,textDecoration:isCancelled?"line-through":"none",color:isCancelled?"var(--td)":"inherit"}}>{team?team.name:"Practice"}</div>
-      <div style={{fontSize:13,color:"var(--td)",marginBottom:12}}>{timeLbl(practice)}{loc?" · "+loc.name:""} · {planningState(practice)?<PlanPill practice={practice} total={totalMins}/>:totalMins+"min"}</div>
+      {isMissed&&!isCancelled&&<div style={{background:"var(--surface-soft)",border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"8px 12px",marginBottom:12,fontSize:12,color:"var(--text-dim)"}}>This practice's time has passed and it was never run.</div>}
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--text-dim)",marginBottom:2}}>{practice.date===todayStr?"TODAY":"RUN OF PRACTICE"} {practice.date&&new Date(practice.date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:2,textDecoration:isCancelled?"line-through":"none",color:isCancelled?"var(--text-dim)":"inherit"}}>{team?team.name:"Practice"}</div>
+      <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12}}>{timeLbl(practice)}{loc?" · "+loc.name:""} · {planningState(practice)?<PlanPill practice={practice} total={totalMins}/>:totalMins+"min"}</div>
       {/* Direct feedback: a plan had no record of who built it -- a coach
           reviewing it (or a teammate) couldn't tell who to ask about it.
           Only shown once both names are known; a plan from before this
@@ -193,12 +193,12 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
         const editedName=byUserId(practice.lastEditedBy);
         if(!createdName&&!editedName)return null;
         const sameAuthor=createdName&&editedName&&practice.createdBy===practice.lastEditedBy;
-        return (<div style={{fontSize:12,color:"var(--td)",marginBottom:12}}>
+        return (<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:12}}>
           {createdName&&<span>Planned by {createdName}</span>}
           {!sameAuthor&&editedName&&<span>{createdName?" · ":""}Last edited by {editedName}</span>}
         </div>);
       })()}
-      {absentPlayers.length>0&&<div style={{fontSize:13,color:"var(--red)",marginBottom:12}}>Out: {absentPlayers.map(p=>p.firstName+" "+(p.lastName||"").slice(0,1)).join(", ")}</div>}
+      {absentPlayers.length>0&&<div style={{fontSize:13,color:"var(--danger)",marginBottom:12}}>Out: {absentPlayers.map(p=>p.firstName+" "+(p.lastName||"").slice(0,1)).join(", ")}</div>}
       {!isCancelled&&!isPlanned&&canEdit&&<div className="brow" style={{marginBottom:8}}>
         <button className="btn primary bmd bfull" onClick={()=>goToBuilder(practice.id)}>Plan Practice</button>
       </div>}
@@ -219,7 +219,7 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
           alongside duration, since a printed sheet can't run a live timer
           the way the app's own view can. */}
       {!isCancelled&&isPlanned&&<button className="btn outline bmd bfull" style={{marginBottom:12}} onClick={()=>setShowPrint(true)}>Print / Export PDF</button>}
-      {!isCancelled&&!confirmCancel&&canManage&&<button className="btn ghost bsm bfull" style={{marginBottom:12,color:"var(--red)"}} onClick={()=>setConfirmCancel(true)}>Cancel Practice</button>}
+      {!isCancelled&&!confirmCancel&&canManage&&<button className="btn ghost bsm bfull" style={{marginBottom:12,color:"var(--danger)"}} onClick={()=>setConfirmCancel(true)}>Cancel Practice</button>}
       {/* Direct feedback: the body copy's "--" and the old "This Only"/
           "This & Future" pairing read as an em dash plus unclear action
           verbs. The plan itself is never touched by cancelling (only the
@@ -235,74 +235,74 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
           {practice.seriesId&&<button className="btn danger bsm" onClick={()=>doCancel("future")}>Cancel This &amp; Future</button>}
         </div>
       </div>}
-      {!previewUrl&&!isCancelled&&<button className="btn outline bmd bfull" style={{marginBottom:12}} onClick={shareSetup} disabled={sharing}>{sharing?"Creating link...":"Share Setup Link"}</button>}
-      {previewUrl&&<div style={{background:"var(--gbg)",border:"1.5px solid var(--gb)",borderRadius:"var(--r)",padding:"10px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
+      {!previewUrl&&!isCancelled&&<button className="btn outline bmd bfull" style={{marginBottom:12}} onClick={shareSetup} disabled={sharing}>{sharing?"Creating link...":"Share Live Link"}</button>}
+      {previewUrl&&<div style={{background:"var(--field-tint)",border:"1.5px solid var(--field-tint-border)",borderRadius:"var(--radius-lg)",padding:"10px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:10,fontWeight:700,color:"var(--green)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Setup Link Active</div>
-          <div style={{fontSize:12,color:"var(--td)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{previewUrl}</div>
+          <div style={{fontSize:10,fontWeight:700,color:"var(--field)",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Setup Link Active</div>
+          <div style={{fontSize:12,color:"var(--text-dim)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{previewUrl}</div>
         </div>
         <button className="btn primary bxs" onClick={copyUrl}>Share</button>
       </div>}
-      {allEquip.length>0&&<div className="card" style={{marginBottom:12,background:"var(--ambg)",border:"1.5px solid var(--ambb)"}}>
-        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--amber)",marginBottom:6}}>Equipment Needed</div>
-        {allEquip.map(e=>(<div key={e.id} style={{fontSize:14,color:e.acquired?"var(--black)":"var(--red)",fontWeight:e.acquired?400:700,marginBottom:2}}>· {e.name}{!e.acquired&&<span style={{fontSize:11,marginLeft:6}}>NOT ACQUIRED</span>}</div>))}
+      {allEquip.length>0&&<div className="card" style={{marginBottom:12,background:"var(--caution-tint)",border:"1.5px solid var(--caution-tint-border)"}}>
+        <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--caution)",marginBottom:6}}>Equipment Needed</div>
+        {allEquip.map(e=>(<div key={e.id} style={{fontSize:14,color:e.acquired?"var(--ink)":"var(--danger)",fontWeight:e.acquired?400:700,marginBottom:2}}>· {e.name}{!e.acquired&&<span style={{fontSize:11,marginLeft:6}}>NOT ACQUIRED</span>}</div>))}
       </div>}
   </>);
   const runOrderContent=(<>
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--td)",marginBottom:8}}>Run Order</div>
+      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"var(--text-dim)",marginBottom:8}}>Run Order</div>
       {(practice.activities||[]).map((a,i)=>{
         const isExp=expandedId===a.id;
         const mins=actMins(a);
-        return(<div key={a.id} style={{border:"1.5px solid var(--b)",borderRadius:"var(--r)",marginBottom:6,overflow:"hidden"}}>
-          <div style={{display:"flex",alignItems:"center",padding:"10px 12px",background:isExp?"var(--gbg)":"var(--s1)",cursor:"pointer"}} onClick={()=>setExpandedId(isExp?null:a.id)}>
-            <div style={{width:24,height:24,borderRadius:"50%",background:"var(--s2)",border:"1px solid var(--b)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"var(--td)",flexShrink:0,marginRight:10}}>{i+1}</div>
+        return(<div key={a.id} style={{border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",marginBottom:6,overflow:"hidden"}}>
+          <div style={{display:"flex",alignItems:"center",padding:"10px 12px",background:isExp?"var(--field-tint)":"var(--surface)",cursor:"pointer"}} onClick={()=>setExpandedId(isExp?null:a.id)}>
+            <div style={{width:24,height:24,borderRadius:"50%",background:"var(--surface-soft)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"var(--text-dim)",flexShrink:0,marginRight:10}}>{i+1}</div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:14,fontWeight:600,color:"var(--black)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+              <div style={{fontSize:14,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                 {a.type==="station_block"?(a.name&&a.name.trim()?a.name:"Station Block")+" · "+a.stations.length+" stations":a.name}
               </div>
-              {a.type==="activity"&&a.coachingPoints&&!isExp&&<div style={{fontSize:11,color:"var(--td)",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.coachingPoints}</div>}
-              {a.type==="station_block"&&<div style={{fontSize:11,color:"var(--td)",marginTop:1}}>{a.stations.map(s=>s.activityName||s.name).join(" / ")}</div>}
-              {a.type==="scrimmage"&&<div style={{fontSize:11,color:"var(--td)",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{scrimSummary(a)}</div>}
+              {a.type==="activity"&&a.coachingPoints&&!isExp&&<div style={{fontSize:11,color:"var(--text-dim)",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.coachingPoints}</div>}
+              {a.type==="station_block"&&<div style={{fontSize:11,color:"var(--text-dim)",marginTop:1}}>{a.stations.map(s=>s.activityName||s.name).join(" / ")}</div>}
+              {a.type==="scrimmage"&&<div style={{fontSize:11,color:"var(--text-dim)",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{scrimSummary(a)}</div>}
             </div>
-            <span style={{fontFamily:"DM Mono,monospace",fontSize:12,fontWeight:600,color:"var(--td)",flexShrink:0,marginLeft:8}}>{mins}m</span>
-            <span style={{color:"var(--td)",fontSize:11,marginLeft:6}}>{isExp?"▲":"▼"}</span>
+            <span style={{fontFamily:"DM Mono,monospace",fontSize:12,fontWeight:600,color:"var(--text-dim)",flexShrink:0,marginLeft:8}}>{mins}m</span>
+            <span style={{color:"var(--text-dim)",fontSize:11,marginLeft:6}}>{isExp?"▲":"▼"}</span>
           </div>
-          {isExp&&<div style={{padding:"10px 12px",borderTop:"1px solid var(--b)",background:"#fff"}}>
+          {isExp&&<div style={{padding:"10px 12px",borderTop:"1px solid var(--border)",background:"#fff"}}>
             {a.type==="activity"&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
               {(subName(a.sublocationId,a.sublocationNameSnapshot)||coachName(a.coachId))&&<div style={{fontSize:13}}>
-                {subName(a.sublocationId,a.sublocationNameSnapshot)&&<span style={{fontWeight:600,color:"var(--green2)"}}>{subName(a.sublocationId,a.sublocationNameSnapshot)}</span>}
-                {subName(a.sublocationId,a.sublocationNameSnapshot)&&coachName(a.coachId)&&<span style={{color:"var(--td)"}}> · </span>}
-                {coachName(a.coachId)&&<span style={{color:"var(--td)"}}>Coach: {coachName(a.coachId)}</span>}
+                {subName(a.sublocationId,a.sublocationNameSnapshot)&&<span style={{fontWeight:600,color:"var(--field-accent)"}}>{subName(a.sublocationId,a.sublocationNameSnapshot)}</span>}
+                {subName(a.sublocationId,a.sublocationNameSnapshot)&&coachName(a.coachId)&&<span style={{color:"var(--text-dim)"}}> · </span>}
+                {coachName(a.coachId)&&<span style={{color:"var(--text-dim)"}}>Coach: {coachName(a.coachId)}</span>}
               </div>}
-              {a.description&&<div style={{fontSize:13,color:"var(--black)",lineHeight:1.5}}>{a.description}</div>}
+              {a.description&&<div style={{fontSize:13,color:"var(--ink)",lineHeight:1.5}}>{a.description}</div>}
               {a.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:8}}>
                 <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
                 <div style={{fontSize:13,lineHeight:1.5}}>{a.coachingPoints}</div>
               </div>}
-              {resolveEquip(a.equipment).length>0&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Equipment: </span><EquipList items={resolveEquip(a.equipment)}/></div>}
-              {a.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Player Gear: </span>{a.playerGear}</div>}
-              {a.grouping&&a.grouping!=="whole"&&<div style={{fontSize:13}}><span style={{color:"var(--td)"}}>Grouping: </span>{a.grouping==="partners"?"Partners":a.numGroups+" Groups"}</div>}
+              {resolveEquip(a.equipment).length>0&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Equipment: </span><EquipList items={resolveEquip(a.equipment)}/></div>}
+              {a.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Player Gear: </span>{a.playerGear}</div>}
+              {a.grouping&&a.grouping!=="whole"&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Grouping: </span>{a.grouping==="partners"?"Partners":a.numGroups+" Groups"}</div>}
             </div>}
             {a.type==="checklist"&&<div>
-              {(a.items||[]).map(it=>(<div key={it.id} style={{fontSize:13,padding:"3px 0",borderBottom:"1px solid var(--s2)"}}>{it.text}</div>))}
-              {a.notes&&<div style={{fontSize:12,color:"var(--td)",marginTop:6,fontStyle:"italic"}}>{a.notes}</div>}
+              {(a.items||[]).map(it=>(<div key={it.id} style={{fontSize:13,padding:"3px 0",borderBottom:"1px solid var(--surface-soft)"}}>{it.text}</div>))}
+              {a.notes&&<div style={{fontSize:12,color:"var(--text-dim)",marginTop:6,fontStyle:"italic"}}>{a.notes}</div>}
             </div>}
             {a.type==="station_block"&&<div>
               {a.stations.map((st,si)=>{
                 const stEquip=resolveEquip(st.equipment);
-                return(<div key={st.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--s2)"}}>
-                  <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:"var(--green)",marginBottom:4}}>Station {si+1}{st.activityName?" · "+st.activityName:""}</div>
+                return(<div key={st.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--surface-soft)"}}>
+                  <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:"var(--field)",marginBottom:4}}>Station {si+1}{st.activityName?" · "+st.activityName:""}</div>
                   {(coachName(st.coachId)||subName(st.sublocationId,st.sublocationNameSnapshot))&&<div style={{fontSize:12,marginBottom:3}}>
-                    {subName(st.sublocationId,st.sublocationNameSnapshot)&&<span style={{fontWeight:600,color:"var(--green2)"}}>{subName(st.sublocationId,st.sublocationNameSnapshot)}</span>}
-                    {subName(st.sublocationId,st.sublocationNameSnapshot)&&coachName(st.coachId)&&<span style={{color:"var(--td)"}}> · </span>}
-                    {coachName(st.coachId)&&<span style={{color:"var(--td)"}}>Coach: {coachName(st.coachId)}</span>}
+                    {subName(st.sublocationId,st.sublocationNameSnapshot)&&<span style={{fontWeight:600,color:"var(--field-accent)"}}>{subName(st.sublocationId,st.sublocationNameSnapshot)}</span>}
+                    {subName(st.sublocationId,st.sublocationNameSnapshot)&&coachName(st.coachId)&&<span style={{color:"var(--text-dim)"}}> · </span>}
+                    {coachName(st.coachId)&&<span style={{color:"var(--text-dim)"}}>Coach: {coachName(st.coachId)}</span>}
                   </div>}
                   {st.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:8,marginBottom:4}}>
                     <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
                     <div style={{fontSize:12,lineHeight:1.4}}>{st.coachingPoints}</div>
                   </div>}
-                  {stEquip.length>0&&<div style={{fontSize:12,color:"var(--td)"}}>Equipment: <EquipList items={stEquip}/></div>}
-                  {st.playerGear&&<div style={{fontSize:12,color:"var(--td)"}}>Player Gear: {st.playerGear}</div>}
+                  {stEquip.length>0&&<div style={{fontSize:12,color:"var(--text-dim)"}}>Equipment: <EquipList items={stEquip}/></div>}
+                  {st.playerGear&&<div style={{fontSize:12,color:"var(--text-dim)"}}>Player Gear: {st.playerGear}</div>}
                 </div>);
               })}
             </div>}
@@ -314,13 +314,13 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
               const roles=cfg.coachRoles||[];
               const maxHit=Math.max(0,...rounds.map(rd=>Object.keys(rd.slots||{}).filter(k=>/^H\d+$/.test(k)).length));
               const cols=[...fieldSlots,...Array.from({length:maxHit},(_,i)=>"H"+(i+1))];
-              const th={padding:"5px 7px",borderBottom:"2px solid var(--b)",whiteSpace:"nowrap",fontFamily:"DM Mono,monospace",fontSize:10,color:"var(--td)",textAlign:"left"};
-              const firstCol={position:"sticky",left:0,background:"#fff",padding:"5px 7px",whiteSpace:"nowrap",fontWeight:700,fontSize:11,borderRight:"1px solid var(--b)"};
+              const th={padding:"5px 7px",borderBottom:"2px solid var(--border)",whiteSpace:"nowrap",fontFamily:"DM Mono,monospace",fontSize:10,color:"var(--text-dim)",textAlign:"left"};
+              const firstCol={position:"sticky",left:0,background:"#fff",padding:"5px 7px",whiteSpace:"nowrap",fontWeight:700,fontSize:11,borderRight:"1px solid var(--border)"};
               return (<div style={{display:"flex",flexDirection:"column",gap:8}}>
-                <div style={{fontSize:13,color:"var(--black)"}}>{scrimSummary(a)}</div>
-                {roles.length>0&&<div style={{fontSize:12,color:"var(--td)"}}>Coach roles: {roles.map(r=>r.label).join(", ")}</div>}
+                <div style={{fontSize:13,color:"var(--ink)"}}>{scrimSummary(a)}</div>
+                {roles.length>0&&<div style={{fontSize:12,color:"var(--text-dim)"}}>Coach roles: {roles.map(r=>r.label).join(", ")}</div>}
                 {rounds.length===0
-                  ?<div style={{fontSize:13,color:"var(--td)"}}>The rotation board is built when this practice is run.</div>
+                  ?<div style={{fontSize:13,color:"var(--text-dim)"}}>The rotation board is built when this practice is run.</div>
                   :<div style={{overflowX:"auto"}}>
                     <table style={{borderCollapse:"collapse",fontSize:11}}>
                       <thead><tr>
@@ -333,9 +333,9 @@ export default function PracticeDetail({practice,data,goToBuilder,goToRun,onBack
                           <td style={firstCol}>{label} {ri+1}</td>
                           {cols.map(s=>{
                             const v=scrimAssignee((rd.slots||{})[s]);
-                            return <td key={s} style={{padding:"4px 7px",borderBottom:"1px solid var(--s2)",whiteSpace:"nowrap"}}>{v||<span style={{color:"var(--td)"}}>Open</span>}</td>;
+                            return <td key={s} style={{padding:"4px 7px",borderBottom:"1px solid var(--surface-soft)",whiteSpace:"nowrap"}}>{v||<span style={{color:"var(--text-dim)"}}>Open</span>}</td>;
                           })}
-                          {roles.map(r=><td key={r.id} style={{padding:"4px 7px",borderBottom:"1px solid var(--s2)",whiteSpace:"nowrap",color:"var(--td)"}}>{scrimAssignee((rd.coachRoles||{})[r.id])||"Open"}</td>)}
+                          {roles.map(r=><td key={r.id} style={{padding:"4px 7px",borderBottom:"1px solid var(--surface-soft)",whiteSpace:"nowrap",color:"var(--text-dim)"}}>{scrimAssignee((rd.coachRoles||{})[r.id])||"Open"}</td>)}
                         </tr>))}
                       </tbody>
                     </table>

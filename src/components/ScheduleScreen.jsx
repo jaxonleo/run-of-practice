@@ -17,7 +17,7 @@ function PlanPill({ practice }) {
   const total = sumMins(practice.activities || []);
   const onTrack = st === "onTrack";
   const exceeds = st === "exceeds";
-  return <span style={{ color: onTrack ? "var(--green)" : exceeds ? "var(--amber)" : "var(--red)", fontWeight: 600, whiteSpace: "nowrap" }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
+  return <span style={{ color: onTrack ? "var(--field)" : exceeds ? "var(--caution)" : "var(--danger)", fontWeight: 600, whiteSpace: "nowrap" }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
 }
 
 const timeLbl = p => { if (!p.startTime) return ""; const [h, m] = p.startTime.split(":").map(Number); return (h % 12 || 12) + ":" + (m < 10 ? "0" + m : m) + (h >= 12 ? " PM" : " AM"); };
@@ -34,7 +34,7 @@ export function DaySheet({ date, practices, data, todayStr, runStatus, onPick, o
   return (<div className="movly" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="modal">
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, marginBottom: 12 }}>{new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</div>
-      {practices.length === 0 && <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>Nothing scheduled.</div>}
+      {practices.length === 0 && <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 12 }}>Nothing scheduled.</div>}
       {practices.map(p => {
         const team = teamById(p.teamId), planned = (p.activities || []).length > 0, cancelled = p.status === "cancelled";
         const completed = runStatus[p.id] === "completed", started = runStatus[p.id] === "started";
@@ -51,7 +51,7 @@ export function DaySheet({ date, practices, data, todayStr, runStatus, onPick, o
               {!cancelled && !completed && !started && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}
             </div></div>
           </div>
-          <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>
+          <span style={{ color: "var(--text-dim)", fontSize: 18 }}>&#8250;</span>
         </div>);
       })}
       <button className="btn ghost bmd bfull" style={{ marginTop: 8 }} onClick={onClose}>Close</button>
@@ -178,7 +178,10 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
         already provide their own way out. */}
     {!fixedTeamId && <div style={{ padding: "12px 16px 0" }}><button className="btn ghost bxs" onClick={() => navigate(-1)}>Back</button></div>}
     <div style={{ padding: "20px 16px 12px" }}>
-      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 28, fontWeight: 900, marginBottom: canScheduleAny ? 10 : 0 }}>Schedule</div>
+      {/* The team workspace's own tab bar already reads "Schedule" when this
+          screen is reached that way -- only the standalone /schedule route
+          (no fixedTeamId, no tab context) needs its own page title here. */}
+      {!fixedTeamId && <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 28, fontWeight: 900, marginBottom: canScheduleAny ? 10 : 0 }}>Schedule</div>}
       {canScheduleAny && <div style={{ display: "flex", gap: 8 }}>
         <button className="btn primary bsm" style={{ flex: 1 }} onClick={() => setShowSingle(true)}>+ Practice</button>
         <button className="btn outline bsm" style={{ flex: 1 }} onClick={() => setShowWizard(true)}>+ Series</button>
@@ -191,15 +194,15 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
     {!fixedTeamId && data.teams.length === 0 && <div style={{ padding: "20px 16px 8px", textAlign: "center" }}>
       <div className="card" style={{ padding: "28px 20px" }}>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>No teams yet</div>
-        <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 16 }}>Create a team first, then come back here to schedule its practices.</div>
+        <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>Create a team first, then come back here to schedule its practices.</div>
         {openModal && <button className="btn primary bmd" onClick={() => openModal("addTeam", {})}>+ Create a Team</button>}
       </div>
     </div>}
 
     {!fixedTeamId && data.teams.length > 0 && <div style={{ padding: "0 16px 12px", display: "flex", gap: 6, flexWrap: "wrap" }}>
-      {data.teams.map(t => (<button key={t.id} onClick={() => toggleTeam(t.id)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 20, border: "1.5px solid " + (teamFilter.size === 0 || teamFilter.has(t.id) ? (t.colorPrimary || "var(--green)") : "var(--b)"), background: teamFilter.has(t.id) ? (t.colorPrimary || "var(--green)") : "#fff", cursor: "pointer" }}>
-        <span style={{ width: 7, height: 7, borderRadius: "50%", background: t.colorPrimary || "var(--green)" }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: teamFilter.has(t.id) ? "#fff" : "var(--black)" }}>{t.name}</span>
+      {data.teams.map(t => (<button key={t.id} className="fchip" onClick={() => toggleTeam(t.id)} style={{ gap: 5, borderColor: teamFilter.size === 0 || teamFilter.has(t.id) ? (t.colorPrimary || "var(--field)") : "var(--border)", background: teamFilter.has(t.id) ? (t.colorPrimary || "var(--field)") : "var(--surface)" }}>
+        <span style={{ width: 7, height: 7, borderRadius: "50%", background: t.colorPrimary || "var(--field)" }} />
+        <span style={{ fontSize: 12, fontWeight: 600, color: teamFilter.has(t.id) ? "#fff" : "var(--ink)" }}>{t.name}</span>
       </button>))}
     </div>}
 
@@ -207,8 +210,8 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
         handoff's spec), so the toggle pill that picks between them below is
         mobile-only -- both views already share the same computed data, no
         per-mode state to reconcile. */}
-    {!isBB && <div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3, margin: "0 16px 12px" }}>
-      {["agenda", "month"].map(m => (<button key={m} onClick={() => setMode(m)} style={{ flex: 1, padding: "8px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: mode === m ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: mode === m ? "var(--black)" : "var(--td)" }}>{m}</button>))}
+    {!isBB && <div className="segtrack" style={{ margin: "0 16px 12px" }}>
+      {["agenda", "month"].map(m => (<button key={m} className={"seg2"+(mode===m?" on":"")} onClick={() => setMode(m)}>{m}</button>))}
     </div>}
 
     {(() => {
@@ -225,11 +228,15 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
                   <div className="limt">{timeLbl(p)}{!planned && !cancelled && " · Needs plan"}{!cancelled && planningState(p) && <React.Fragment> · <PlanPill practice={p} /></React.Fragment>}{cancelled && " · Cancelled"}{count > 0 && <React.Fragment> · <span style={{ whiteSpace: "nowrap" }}>{count} out</span></React.Fragment>}</div>
                 </div>
               </div>
-              <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>
+              <span style={{ color: "var(--text-dim)", fontSize: 18 }}>&#8250;</span>
             </div>);
           })}
         </div>))}
-        {upcoming.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>{canScheduleAny ? "Nothing scheduled. Tap + Practice or + Series above to get started." : "Nothing scheduled yet."}</div>}
+        {upcoming.length === 0 && <div className="card" style={{ padding: "28px 20px", textAlign: "center" }}>
+          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Nothing Scheduled</div>
+          <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: canScheduleAny ? 16 : 0 }}>Plan a practice so your team knows when and where to show up.</div>
+          {canScheduleAny && <button className="btn primary bmd" onClick={() => setShowSingle(true)}>+ Create Practice</button>}
+        </div>}
         {/* Direct feedback: history consolidated into Goals & Insights' own
             History tab -- the agenda's own past-practice list was a second,
             redundant place to browse the same thing. Past practices are
@@ -245,17 +252,17 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
           <button className="btn ghost bxs" onClick={() => setMonthCursor(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1))}>&#8250;</button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, marginBottom: 4 }}>
-          {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (<div key={i} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--td)" }}>{d}</div>))}
+          {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (<div key={i} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--text-dim)" }}>{d}</div>))}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
           {days.map((d, i) => {
             const ds = toDateStr(d);
             const dayPractices = practicesByDate[ds] || [];
             const inMonth = d.getMonth() === monthStart.getMonth();
-            return (<div key={i} onClick={() => dayPractices.length && setDaySheetDate(ds)} style={{ aspectRatio: "1", border: "1px solid var(--b)", borderRadius: 6, padding: 3, cursor: dayPractices.length ? "pointer" : "default", opacity: inMonth ? 1 : .35, background: ds === todayStr ? "var(--gbg)" : "#fff" }}>
-              <div style={{ fontSize: 10, color: "var(--td)", marginBottom: 2 }}>{d.getDate()}</div>
+            return (<div key={i} onClick={() => dayPractices.length && setDaySheetDate(ds)} style={{ aspectRatio: "1", border: "1px solid var(--border)", borderRadius: 6, padding: 3, cursor: dayPractices.length ? "pointer" : "default", opacity: inMonth ? 1 : .35, background: ds === todayStr ? "var(--field-tint)" : "#fff" }}>
+              <div style={{ fontSize: 10, color: "var(--text-dim)", marginBottom: 2 }}>{d.getDate()}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
-                {dayPractices.slice(0, 4).map(p => { const team = teamById(p.teamId); const planned = (p.activities || []).length > 0; const cancelled = p.status === "cancelled"; const color = (team && team.colorPrimary) || "var(--green)"; return (<span key={p.id} style={{ width: 6, height: 6, borderRadius: "50%", background: planned && !cancelled ? color : "transparent", border: "1.5px solid " + (cancelled ? "var(--td)" : color), opacity: cancelled ? .5 : 1 }} />); })}
+                {dayPractices.slice(0, 4).map(p => { const team = teamById(p.teamId); const planned = (p.activities || []).length > 0; const cancelled = p.status === "cancelled"; const color = (team && team.colorPrimary) || "var(--field)"; return (<span key={p.id} style={{ width: 6, height: 6, borderRadius: "50%", background: planned && !cancelled ? color : "transparent", border: "1.5px solid " + (cancelled ? "var(--text-dim)" : color), opacity: cancelled ? .5 : 1 }} />); })}
               </div>
             </div>);
           })}

@@ -9,7 +9,7 @@ function highlightMatch(text, query) {
   if (!query) return text;
   const idx = text.toLowerCase().indexOf(query.toLowerCase());
   if (idx === -1) return text;
-  return (<>{text.slice(0, idx)}<mark style={{background: "var(--green)", color: "#fff", padding: "0 1px", borderRadius: 2}}>{text.slice(idx, idx + query.length)}</mark>{text.slice(idx + query.length)}</>);
+  return (<>{text.slice(0, idx)}<mark style={{background: "var(--field)", color: "#fff", padding: "0 1px", borderRadius: 2}}>{text.slice(idx, idx + query.length)}</mark>{text.slice(idx + query.length)}</>);
 }
 
 // Public Library browser -- search-first by design (2026-07-19, Jax's call):
@@ -54,7 +54,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
       {sportsAvailable.map(s => (
         <div key={s} className="li tap" onClick={() => setSelectedSport(s)}>
           <div className="lim"><div className="lin">{s}</div><div className="limt">{sportCounts[s]} drill{sportCounts[s] !== 1 ? "s" : ""}</div></div>
-          <span style={{color: "var(--td)", fontSize: 18}}>&#8250;</span>
+          <span style={{color: "var(--text-dim)", fontSize: 18}}>&#8250;</span>
         </div>
       ))}
     </div>);
@@ -128,10 +128,10 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
       <div style={{display: "flex", justifyContent: "space-between", alignItems: "flex-start"}}>
         <div className="lim">
           <div className="lin">{highlightMatch(d.name, q)}</div>
-          <div className="limt" style={{color: "var(--green2)"}}>Published by {(catalog && catalog.publisherName) || "Staff Editor"}{catalog && catalog.organizationName ? " - " + catalog.organizationName : ""}</div>
+          <div className="limt" style={{color: "var(--field-accent)"}}>Published by {(catalog && catalog.publisherName) || "Staff Editor"}{catalog && catalog.organizationName ? " - " + catalog.organizationName : ""}</div>
         </div>
         {isAdmin && <div style={{position: "relative", flexShrink: 0}}>
-          <button className="ell-btn" onClick={e => {
+          <button className="ell-btn" aria-label={"Options for "+d.name} onClick={e => {
             e.stopPropagation();
             if (drillMenu === d.id) { setDrillMenu(null); return; }
             setDrillMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(), 120));
@@ -144,10 +144,10 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
         </div>}
       </div>
       {expanded && <div onClick={e => e.stopPropagation()} style={{marginTop: 8}}>
-        {d.description && <div style={{fontSize: 12, color: "var(--td)", marginBottom: 4, lineHeight: 1.4}}>{d.description}</div>}
-        {d.coachingPoints && <div style={{fontSize: 12, color: "var(--td)", marginBottom: 4}}>{d.coachingPoints}</div>}
-        {d.equipment && d.equipment.length > 0 && <div style={{fontSize: 11, color: "var(--td)", marginTop: 2}}>Needs: {equipNames(d.equipment).join(", ")}</div>}
-        {d.grouping && d.grouping !== "whole" && <div style={{fontSize: 11, color: "var(--td)", marginTop: 2}}>{d.grouping === "partners" ? "Partners" : d.numGroups + " groups"}</div>}
+        {d.description && <div style={{fontSize: 12, color: "var(--text-muted)", marginBottom: 4, lineHeight: 1.4}}>{d.description}</div>}
+        {d.coachingPoints && <div style={{fontSize: 12, color: "var(--text-dim)", marginBottom: 4}}>{d.coachingPoints}</div>}
+        {d.equipment && d.equipment.length > 0 && <div style={{fontSize: 11, color: "var(--text-dim)", marginTop: 2}}>Needs: {equipNames(d.equipment).join(", ")}</div>}
+        {d.grouping && d.grouping !== "whole" && <div style={{fontSize: 11, color: "var(--text-dim)", marginTop: 2}}>{d.grouping === "partners" ? "Partners" : d.numGroups + " groups"}</div>}
         {d.skillTagIds && d.skillTagIds.length > 0 && <div style={{display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4}}>
           {tagNames(d.skillTagIds).map(name => (<span key={name} className="bdg bs" style={{fontSize: 10}}>{name}</span>))}
         </div>}
@@ -185,17 +185,17 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
           </select>
         </div>)}
         <div className="clbl mb8">Skill Tags</div>
-        {tagCategoryGroups.length === 0 && <div style={{fontSize: 13, color: "var(--td)", marginBottom: 10}}>No skill tags on these drills.</div>}
+        {tagCategoryGroups.length === 0 && <div style={{fontSize: 13, color: "var(--text-dim)", marginBottom: 10}}>No skill tags on these drills.</div>}
         {tagCategoryGroups.map(({category, tags}) => {
           const ids = tags.map(t => t.id);
           const allSelected = ids.every(id => tagFilter.includes(id));
           const someSelected = ids.some(id => tagFilter.includes(id));
           return (<div key={category.id} style={{marginBottom: 10}}>
-            <button type="button" onClick={() => toggleCategoryFilter(tags)} style={{width: "100%", textAlign: "left", padding: "4px 0", border: "none", background: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, color: allSelected ? "var(--green)" : "var(--td)", textTransform: "uppercase", letterSpacing: ".06em"}}>
+            <button type="button" onClick={() => toggleCategoryFilter(tags)} style={{width: "100%", textAlign: "left", padding: "4px 0", border: "none", background: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, color: allSelected ? "var(--field)" : "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em"}}>
               {category.name}{someSelected ? (allSelected ? " (all selected)" : " (some selected)") : ""}
             </button>
             <div style={{display: "flex", flexWrap: "wrap", gap: 6}}>
-              {tags.map(t => (<button key={t.id} type="button" onClick={() => setTagFilter(p => p.includes(t.id) ? p.filter(x => x !== t.id) : [...p, t.id])} style={{padding: "4px 10px", borderRadius: 20, border: "1.5px solid var(--b)", background: tagFilter.includes(t.id) ? "var(--green)" : "var(--s1)", color: tagFilter.includes(t.id) ? "#fff" : "var(--black)", fontSize: 13, cursor: "pointer"}}>{t.name} <span style={{opacity: .7}}>{tagCounts[t.id]}</span></button>))}
+              {tags.map(t => (<button key={t.id} type="button" className={"fchip"+(tagFilter.includes(t.id)?" on":"")} onClick={() => setTagFilter(p => p.includes(t.id) ? p.filter(x => x !== t.id) : [...p, t.id])}>{t.name} <span style={{opacity: .7}}>{tagCounts[t.id]}</span></button>))}
             </div>
           </div>);
         })}
@@ -203,15 +203,15 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
         <button type="button" className="btn primary bmd bfull" style={{marginTop: 14}} onClick={() => setShowFilter(false)}>Done</button>
       </div>
     </div>}
-    {drills.length === 0 && <div style={{padding: "40px 0", textAlign: "center", color: "var(--td)", fontSize: 14}}>No drills match{q ? " \"" + search + "\"" : ""}{hasActiveFilters ? " with these filters" : ""}.</div>}
+    {drills.length === 0 && <div style={{padding: "40px 0", textAlign: "center", color: "var(--text-dim)", fontSize: 14}}>No drills match{q ? " \"" + search + "\"" : ""}{hasActiveFilters ? " with these filters" : ""}.</div>}
     {groupedCategoryIds.map(cid => {
       const key = "cat_" + cid;
       const isCollapsed = collapsedCat[key];
       const catDrills = byCategory[cid];
       return (<div key={cid} style={{marginBottom: 8}}>
-        <button onClick={() => toggleCatCollapsed(key)} style={{width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "var(--gbg)", border: "none", borderRadius: "var(--r)", cursor: "pointer"}}>
-          <span style={{fontSize: 12, fontWeight: 700, color: "var(--green)", textTransform: "uppercase", letterSpacing: ".05em"}}>{(categoriesById[cid] && categoriesById[cid].name) || "Category"}</span>
-          <span style={{fontSize: 12, color: "var(--td)"}}>{catDrills.length} drills {isCollapsed ? "▶" : "▼"}</span>
+        <button onClick={() => toggleCatCollapsed(key)} style={{width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "var(--field-tint)", border: "none", borderRadius: "var(--radius-lg)", cursor: "pointer"}}>
+          <span style={{fontSize: 12, fontWeight: 700, color: "var(--field)", textTransform: "uppercase", letterSpacing: ".05em"}}>{(categoriesById[cid] && categoriesById[cid].name) || "Category"}</span>
+          <span style={{fontSize: 12, color: "var(--text-dim)"}}>{catDrills.length} drills {isCollapsed ? "▶" : "▼"}</span>
         </button>
         {!isCollapsed && catDrills.map(drillRow)}
       </div>);
@@ -219,9 +219,9 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
     {untaggedDrills.length > 0 && (() => {
       const isCollapsed = collapsedCat.cat_untagged;
       return (<div style={{marginBottom: 8}}>
-        <button onClick={() => toggleCatCollapsed("cat_untagged")} style={{width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "var(--s2)", border: "none", borderRadius: "var(--r)", cursor: "pointer"}}>
-          <span style={{fontSize: 12, fontWeight: 700, color: "var(--td)", textTransform: "uppercase", letterSpacing: ".05em"}}>Untagged</span>
-          <span style={{fontSize: 12, color: "var(--td)"}}>{untaggedDrills.length} drills {isCollapsed ? "▶" : "▼"}</span>
+        <button onClick={() => toggleCatCollapsed("cat_untagged")} style={{width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "var(--surface-soft)", border: "none", borderRadius: "var(--radius-lg)", cursor: "pointer"}}>
+          <span style={{fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".05em"}}>Untagged</span>
+          <span style={{fontSize: 12, color: "var(--text-dim)"}}>{untaggedDrills.length} drills {isCollapsed ? "▶" : "▼"}</span>
         </button>
         {!isCollapsed && untaggedDrills.map(drillRow)}
       </div>);

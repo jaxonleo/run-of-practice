@@ -17,7 +17,7 @@ export function PositionPicker({sport,value,onChange}){
   if(!options.length)return(<div className="fld"><label className="lbl">Positions</label><input className="inp" placeholder="e.g. Forward, Midfielder" value={value.join(", ")} onChange={e=>onChange(e.target.value.split(",").map(x=>x.trim()).filter(Boolean))}/></div>);
   return(<div className="fld"><label className="lbl">Positions</label>
     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-      {options.map(pos=>(<button key={pos} type="button" onClick={()=>toggle(pos)} style={{padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:value.includes(pos)?"var(--green)":"var(--s1)",color:value.includes(pos)?"#fff":"var(--black)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{pos}</button>))}
+      {options.map(pos=>(<button key={pos} type="button" className={"fchip"+(value.includes(pos)?" on":"")} onClick={()=>toggle(pos)}>{pos}</button>))}
     </div>
   </div>);
 }
@@ -31,9 +31,9 @@ export function HandednessPicker({sport,value,onChange}){
   return(<div className="fld"><label className="lbl">Handedness</label>
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {fields.map(f=>(<div key={f.key}>
-        <div style={{fontSize:11,color:"var(--td)",marginBottom:4}}>{f.label}</div>
+        <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:4}}>{f.label}</div>
         <div style={{display:"flex",gap:6}}>
-          {f.options.map(opt=>(<button key={opt} type="button" onClick={()=>onChange(f.key,value[f.key]===opt?"":opt)} style={{flex:1,padding:"7px 0",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:value[f.key]===opt?"var(--green)":"var(--s1)",color:value[f.key]===opt?"#fff":"var(--black)",fontSize:13,fontWeight:700,cursor:"pointer"}}>{HAND_LABELS[opt]}</button>))}
+          {f.options.map(opt=>(<button key={opt} type="button" className={"seg"+(value[f.key]===opt?" on":"")} onClick={()=>onChange(f.key,value[f.key]===opt?"":opt)}>{HAND_LABELS[opt]}</button>))}
         </div>
       </div>))}
     </div>
@@ -113,9 +113,9 @@ export function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshL
     setOpen(false);
   };
   return(<div className="fld"><label className="lbl">Skill Tags</label>
-    <div style={{fontSize:11,color:"var(--td)",marginBottom:6,lineHeight:1.4}}>Tagging skills helps power Goals &amp; Insights and reporting on what your team actually practices.</div>
+    <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:6,lineHeight:1.4}}>Tagging skills helps power Goals &amp; Insights and reporting on what your team actually practices.</div>
     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-      {selectedTags.map(t=>(<span key={t.id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 4px 4px 10px",borderRadius:20,background:"var(--green)",color:"#fff",fontSize:13}}>
+      {selectedTags.map(t=>(<span key={t.id} className="fchip tag">
         {t.name}
         <button type="button" onClick={()=>toggleTag(t.id)} aria-label={"Remove "+t.name} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:15,lineHeight:1,padding:"2px 4px"}}>&times;</button>
       </span>))}
@@ -143,9 +143,9 @@ export function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshL
           const tags=allTags.filter(t=>t.categoryId===cat.id&&(!q||t.name.toLowerCase().includes(q)));
           if(tags.length===0)return null;
           return(<div key={cat.id} style={{marginBottom:10}}>
-            <div style={{fontSize:11,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>{cat.name}</div>
+            <div style={{fontSize:11,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>{cat.name}</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {tags.map(t=>(<button key={t.id} type="button" onClick={()=>toggleTag(t.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:selectedIds.includes(t.id)?"var(--green)":"var(--s1)",color:selectedIds.includes(t.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{t.name}</button>))}
+              {tags.map(t=>(<button key={t.id} type="button" className={"fchip"+(selectedIds.includes(t.id)?" on":"")} onClick={()=>toggleTag(t.id)}>{t.name}</button>))}
             </div>
           </div>);
         })}
@@ -158,10 +158,10 @@ export function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshL
 function DurStepper({value,min,onChange,step}){
   const s=step||1;
   const mn=min||1;
-  return (<div style={{display:"flex",alignItems:"center",gap:0,border:"1.5px solid var(--b)",borderRadius:"var(--rs)",overflow:"hidden",background:"#fff"}}>
-      <button onClick={()=>onChange(Math.max(mn,value-s))} style={{width:40,height:40,border:"none",background:"var(--s2)",color:"var(--black2)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>-</button>
-      <div style={{flex:1,textAlign:"center",fontFamily:"DM Mono,monospace",fontSize:15,fontWeight:600,color:"var(--black)"}}>{value}m</div>
-      <button onClick={()=>onChange(value+s)} style={{width:40,height:40,border:"none",background:"var(--s2)",color:"var(--black2)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+  return (<div style={{display:"flex",alignItems:"center",gap:0,border:"1.5px solid var(--border)",borderRadius:"var(--radius-md)",overflow:"hidden",background:"#fff"}}>
+      <button onClick={()=>onChange(Math.max(mn,value-s))} style={{width:40,height:40,border:"none",background:"var(--surface-soft)",color:"var(--ink-soft)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>-</button>
+      <div style={{flex:1,textAlign:"center",fontFamily:"DM Mono,monospace",fontSize:15,fontWeight:600,color:"var(--ink)"}}>{value}m</div>
+      <button onClick={()=>onChange(value+s)} style={{width:40,height:40,border:"none",background:"var(--surface-soft)",color:"var(--ink-soft)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
     </div>
   );
 }
@@ -372,13 +372,13 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
       <div className="modal">
         <div className="mhandle"/>
         <div className="mtitle">{addedCoachInfo?"Invite Sent":(TITLES[modal.type]||"Add")}</div>
-        {sublocationLocation&&<div style={{fontSize:13,color:"var(--td)",marginTop:-8,marginBottom:12}}>for {sublocationLocation.name}</div>}
+        {sublocationLocation&&<div style={{fontSize:13,color:"var(--text-dim)",marginTop:-8,marginBottom:12}}>for {sublocationLocation.name}</div>}
         {addedCoachInfo&&<div className="fld"><div style={{fontSize:14,lineHeight:1.5}}>{addedCoachInfo.name} will get an email at {addedCoachInfo.email} to accept or decline. You can see the status of this invite on your Coaches screen.</div></div>}
         {sublocationLocation&&(()=>{
           const others=(sublocationLocation.sublocations||[]).filter(s=>!sublocation||s.id!==sublocation.id);
           return (<div className="fld"><label className="lbl">Other areas here</label>
             {others.length===0
-              ?<div style={{fontSize:13,color:"var(--td)"}}>None yet -- this is the first.</div>
+              ?<div style={{fontSize:13,color:"var(--text-dim)"}}>None yet -- this is the first.</div>
               :<div style={{display:"flex",flexWrap:"wrap",gap:6}}>{others.map(s=>(<span key={s.id} className="bdg bs">{s.name}</span>))}</div>}
           </div>);
         })()}
@@ -387,7 +387,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
           <div className="fld">
             <label className="lbl">Team Color</label>
             <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-              {TEAM_COLORS.map(c=>(<button key={c} type="button" onClick={()=>set("colorPrimary",c)} style={{width:32,height:32,borderRadius:"50%",background:c,border:f.colorPrimary===c?"3px solid var(--black)":"3px solid transparent",cursor:"pointer",padding:0}}/>))}
+              {TEAM_COLORS.map(c=>(<button key={c} type="button" onClick={()=>set("colorPrimary",c)} style={{width:32,height:32,borderRadius:"50%",background:c,border:f.colorPrimary===c?"3px solid var(--ink)":"3px solid transparent",cursor:"pointer",padding:0}}/>))}
             </div>
           </div>
         </div>
@@ -427,7 +427,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
             <input type="checkbox" style={{marginTop:3}} checked={!!f.availableToTeamPlanners} onChange={e=>set("availableToTeamPlanners",e.target.checked)}/>
             <span>
               <div className="lbl" style={{marginBottom:2}}>Available to this team's planners</div>
-              <div style={{fontSize:12,color:"var(--td)"}}>Lets a coach you've delegated practice-building to pick this location for future practices, not just see it on a practice you've already scheduled here.</div>
+              <div style={{fontSize:12,color:"var(--text-dim)"}}>Lets a coach you've delegated practice-building to pick this location for future practices, not just see it on a practice you've already scheduled here.</div>
             </span>
           </label>
         )}
@@ -448,7 +448,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
                 <input type="checkbox" style={{marginTop:3}} checked={!!f.availableToTeamPlanners} onChange={e=>set("availableToTeamPlanners",e.target.checked)}/>
                 <span>
                   <div className="lbl" style={{marginBottom:2}}>Available to your teams' planners</div>
-                  <div style={{fontSize:12,color:"var(--td)"}}>Lets a coach you've delegated practice-building to use this equipment when planning, and add it to their own library. Off means it stays yours.</div>
+                  <div style={{fontSize:12,color:"var(--text-dim)"}}>Lets a coach you've delegated practice-building to use this equipment when planning, and add it to their own library. Off means it stays yours.</div>
                 </span>
               </label>)}
             </>}
@@ -460,11 +460,11 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
             <div className="fld">
               <label className="lbl">Team Color</label>
               <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                {TEAM_COLORS.map(c=>(<button key={c} type="button" onClick={()=>set("colorPrimary",c)} style={{width:32,height:32,borderRadius:"50%",background:c,border:(f.colorPrimary||editTeamData.colorPrimary)===c?"3px solid var(--black)":"3px solid transparent",cursor:"pointer",padding:0}}/>))}
+                {TEAM_COLORS.map(c=>(<button key={c} type="button" onClick={()=>set("colorPrimary",c)} style={{width:32,height:32,borderRadius:"50%",background:c,border:(f.colorPrimary||editTeamData.colorPrimary)===c?"3px solid var(--ink)":"3px solid transparent",cursor:"pointer",padding:0}}/>))}
               </div>
             </div>
             <LocationChips locations={(data.locations||[]).filter(l=>editTeamData.organizationId?l.organizationId===editTeamData.organizationId:l.ownerUserId===coachId)} selectedIds={f.locationIds||[]} onToggle={id=>set("locationIds",(f.locationIds||[]).includes(id)?(f.locationIds||[]).filter(x=>x!==id):[...(f.locationIds||[]),id])} label="Locations This Team Uses" emptyHint="No restriction set -- every location shows when building a practice for this team." selectedHint="Only the selected location(s) show when building a practice for this team."/>
-            {!confirmDeleteTeam&&<button type="button" className="btn ghost bsm bfull" style={{marginTop:14,color:"var(--red)"}} onClick={()=>setConfirmDeleteTeam(true)}>Delete Team</button>}
+            {!confirmDeleteTeam&&<button type="button" className="btn ghost bsm bfull" style={{marginTop:14,color:"var(--danger)"}} onClick={()=>setConfirmDeleteTeam(true)}>Delete Team</button>}
             {confirmDeleteTeam&&<div className="confirm-box" style={{marginTop:14}}>
               <div className="confirm-title">Delete team?</div>
               <div className="confirm-body">Permanently removes {editTeamData.name}, its roster and its practices. Cannot be undone.</div>
@@ -483,16 +483,16 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
             <div className="fld"><label className="lbl">Player Grouping</label>
               <div style={{display:"flex",gap:6}}>
                 {[{v:"whole",l:"Whole Team",sub:"All players together"},{v:"partners",l:"Partners",sub:"Paired in groups of 2"},{v:"groups",l:"Groups",sub:"Split into groups"}].map(({v,l,sub})=>(
-                  <button key={v} type="button" onClick={()=>set("grouping",v)} style={{flex:1,padding:"8px 4px",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:(f.grouping||"whole")===v?"var(--green)":"var(--s1)",color:(f.grouping||"whole")===v?"#fff":"var(--black)",fontSize:13,cursor:"pointer",lineHeight:1.3}}>
-                    <div style={{fontWeight:700}}>{l}</div>
+                  <button key={v} type="button" className={"seg"+((f.grouping||"whole")===v?" on":"")} style={{lineHeight:1.3}} onClick={()=>set("grouping",v)}>
+                    <div>{l}</div>
                     {(f.grouping||"whole")===v&&<div style={{fontSize:10,opacity:.8,marginTop:2}}>{sub}</div>}
                   </button>
                 ))}
               </div>
               {(f.grouping||"whole")==="groups"&&<div style={{marginTop:8}}>
-                <div style={{fontSize:12,color:"var(--td)",marginBottom:6}}>How many groups?</div>
+                <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:6}}>How many groups?</div>
                 <div style={{display:"flex",gap:6}}>
-                  {[2,3,4,5,6].map(n=>(<button key={n} type="button" onClick={()=>set("numGroups",n)} style={{flex:1,padding:"8px 0",borderRadius:"var(--r)",border:"1.5px solid var(--b)",background:f.numGroups===n?"var(--green)":"var(--s1)",color:f.numGroups===n?"#fff":"var(--black)",fontSize:14,fontWeight:700,cursor:"pointer"}}>{n}</button>))}
+                  {[2,3,4,5,6].map(n=>(<button key={n} type="button" className={"seg"+(f.numGroups===n?" on":"")} style={{fontSize:14}} onClick={()=>set("numGroups",n)}>{n}</button>))}
                 </div>
               </div>}
             </div>
@@ -561,10 +561,10 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
               };
               const TeamShareRow=({items})=>items.length===0?null:(
                 <div style={{marginTop:6}}>
-                  <div style={{fontSize:11,color:"var(--td)",marginBottom:4}}>From your teams (adds to your library):</div>
+                  <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:4}}>From your teams (adds to your library):</div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                     {items.map(a=>{const busy=teamAddBusyId===a.id;const anyBusy=!!teamAddBusyId;return(
-                      <button key={a.id} type="button" disabled={anyBusy} onClick={()=>addFromTeam(a)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px dashed var(--green2)",background:"var(--gbg)",color:"var(--green2)",fontSize:13,cursor:anyBusy?"default":"pointer",opacity:anyBusy&&!busy?.5:1}}>{busy?"Adding...":"+ "+a.name}</button>
+                      <button key={a.id} type="button" disabled={anyBusy} onClick={()=>addFromTeam(a)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px dashed var(--field-accent)",background:"var(--field-tint)",color:"var(--field-accent)",fontSize:13,cursor:anyBusy?"default":"pointer",opacity:anyBusy&&!busy?.5:1}}>{busy?"Adding...":"+ "+a.name}</button>
                     );})}
                   </div>
                 </div>
@@ -573,7 +573,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
                 <div className="fld"><label className="lbl">Team Equipment</label>
                   <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
                     {teamAssets.map(a=>(<EquipmentPickerPill key={a.id} asset={a} selected={(f.equipment||[]).includes(a.id)} onToggle={()=>toggleEquip(a.id)} refreshLibrary={refreshLibrary}/>))}
-                    {teamAssets.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No team equipment in library yet</span>}
+                    {teamAssets.length===0&&<span style={{fontSize:12,color:"var(--text-dim)"}}>No team equipment in library yet</span>}
                   </div>
                   <div style={{display:"flex",gap:6}}>
                     <input className="inp" placeholder="Add new equipment..." id="new-equip-inp" style={{flex:1}}/>
@@ -584,7 +584,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
                 <div className="fld"><label className="lbl">Player Gear Needed</label>
                   <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
                     {playerAssets.map(a=>(<EquipmentPickerPill key={a.id} asset={a} selected={(f.equipment||[]).includes(a.id)} onToggle={()=>toggleEquip(a.id)} refreshLibrary={refreshLibrary}/>))}
-                    {playerAssets.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No player gear set up for {drillSport} yet</span>}
+                    {playerAssets.length===0&&<span style={{fontSize:12,color:"var(--text-dim)"}}>No player gear set up for {drillSport} yet</span>}
                   </div>
                   <div style={{display:"flex",gap:6}}>
                     <input className="inp" placeholder="e.g. Batting Helmet" id="new-gear-inp" style={{flex:1}}/>
@@ -597,7 +597,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
             <SkillTagPicker data={data} coachId={coachId} sport={f.sport||"General"} selectedIds={f.skillTagIds||[]} onChange={ids=>set("skillTagIds",ids)} refreshLibrary={refreshLibrary} catalogId={catalogId}/>
           </div>
         )}
-        {saveError&&<div style={{fontSize:13,color:"var(--red)",marginTop:4}}>{saveError}</div>}
+        {saveError&&<div style={{fontSize:13,color:"var(--danger)",marginTop:4}}>{saveError}</div>}
         <div className="mfooter">{addedCoachInfo?<button className="btn primary bmd" style={{flex:1}} onClick={closeModal}>Got it</button>:(<React.Fragment><button className="btn ghost bmd" onClick={closeModal} disabled={saving}>Cancel</button><button className="btn primary bmd" onClick={save} disabled={saving}>{saving?"Saving...":"Save"}</button></React.Fragment>)}</div>
       </div>
     </div>

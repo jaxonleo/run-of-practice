@@ -24,7 +24,7 @@ export function DrillInsightHeatIcon({ summary, onClick }) {
 
 function VarianceRow({ label, value }) {
   if (value == null) return null;
-  return (<span style={{ fontSize: 12, color: "var(--td)" }}>{label} {value}%</span>);
+  return (<span style={{ fontSize: 12, color: "var(--text-dim)" }}>{label} {value}%</span>);
 }
 
 // Drilled-in subview (not a modal) per the spec's preference when the
@@ -43,12 +43,12 @@ export default function DrillInsightsView({ libraryActivityId, drillName, onClos
   })();
 
   return (<div style={{ position: "fixed", inset: 0, background: "#fff", zIndex: 500, overflowY: "auto" }}>
-    <div style={{ position: "sticky", top: 0, background: "#fff", borderBottom: "1px solid var(--b)", padding: "12px 16px", display: "flex", alignItems: "center", gap: 10, zIndex: 1 }}>
+    <div style={{ position: "sticky", top: 0, background: "#fff", borderBottom: "1px solid var(--border)", padding: "12px 16px", display: "flex", alignItems: "center", gap: 10, zIndex: 1 }}>
       <button className="btn ghost bxs" onClick={onClose}>&#8249; Back</button>
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{drillName} Insights</div>
     </div>
     <div style={{ padding: 16, paddingBottom: 60 }}>
-      {insights === null && <div style={{ padding: "40px 0", textAlign: "center", color: "var(--td)" }}>Loading...</div>}
+      {insights === null && <div style={{ padding: "40px 0", textAlign: "center", color: "var(--text-dim)" }}>Loading...</div>}
       {insights && insights.uses_all_time === 0 && <div className="empty"><div className="emtx">Insights will appear after this drill is used in a completed live practice.</div></div>}
       {insights && insights.uses_all_time > 0 && (<>
         <div className="card mb10">
@@ -59,12 +59,12 @@ export default function DrillInsightsView({ libraryActivityId, drillName, onClos
             <ScoreTileLocal label="Last 12 Months" value={insights.uses_trailing_12_months} />
             <ScoreTileLocal label="All Time" value={insights.uses_all_time} />
           </div>
-          {insights.last_used_at && <div style={{ fontSize: 12, color: "var(--td)" }}>Last used {new Date(insights.last_used_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>}
+          {insights.last_used_at && <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Last used {new Date(insights.last_used_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>}
         </div>
 
         <div className="card mb10">
           <div className="clbl mb8">Duration</div>
-          <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 8 }}>
             {insights.avg_planned_minutes != null && <>Averages {insights.avg_planned_minutes}m planned</>}
             {insights.avg_actual_minutes != null && <> · {insights.avg_actual_minutes}m actual</>}
           </div>
@@ -74,7 +74,7 @@ export default function DrillInsightsView({ libraryActivityId, drillName, onClos
             <VarianceRow label="Extended:" value={insights.pct_extended} />
             <VarianceRow label="Shortened:" value={insights.pct_shortened} />
           </div>
-          {insights.skipped_count != null && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 6 }}>Planned but not logged/skipped {insights.skipped_count} time{insights.skipped_count === 1 ? "" : "s"}.</div>}
+          {insights.skipped_count != null && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 6 }}>Planned but not logged/skipped {insights.skipped_count} time{insights.skipped_count === 1 ? "" : "s"}.</div>}
         </div>
 
         {insights.teams.length > 0 && <div className="card mb10">
@@ -84,12 +84,12 @@ export default function DrillInsightsView({ libraryActivityId, drillName, onClos
 
         <div className="card mb10">
           <div className="clbl mb8">Usage History</div>
-          {insights.usage_history.map(h => (<div key={h.session_id + h.practice_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "6px 0", borderBottom: "1px solid var(--s2)" }}>
+          {insights.usage_history.map(h => (<div key={h.session_id + h.practice_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "6px 0", borderBottom: "1px solid var(--surface-soft)" }}>
             <div>
               <div style={{ fontWeight: 600 }}>{new Date(h.ended_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
-              <div style={{ color: "var(--td)" }}>{h.team_name}</div>
+              <div style={{ color: "var(--text-dim)" }}>{h.team_name}</div>
             </div>
-            <div style={{ textAlign: "right", fontFamily: "DM Mono,monospace", color: "var(--tm)" }}>
+            <div style={{ textAlign: "right", fontFamily: "DM Mono,monospace", color: "var(--text-muted)" }}>
               {h.planned_minutes}m planned<br />
               {h.actual_minutes != null ? h.actual_minutes + "m actual" : "not logged"}
             </div>
@@ -108,7 +108,7 @@ export default function DrillInsightsView({ libraryActivityId, drillName, onClos
               refetching the whole detail payload for one row. */}
           {insights.recent_notes.map(n => (<div key={n.note_id} style={{ marginBottom: 8, display: "flex", gap: 8, alignItems: "flex-start" }}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: "var(--td)" }}>{n.author_kind === "anonymous" ? (n.author_label || "A helper") + " · Helper" : (n.author_name || "A coach")} · {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
+              <div style={{ fontSize: 11, color: "var(--text-dim)" }}>{n.author_kind === "anonymous" ? (n.author_label || "A helper") + " · Helper" : (n.author_name || "A coach")} · {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
               <div style={{ fontSize: 13 }}>{n.text}</div>
             </div>
             <button className="btn ghost bxs" title="Hide this note" onClick={async () => {
@@ -123,7 +123,7 @@ export default function DrillInsightsView({ libraryActivityId, drillName, onClos
 }
 function ScoreTileLocal({ label, value }) {
   return (<div>
-    <div style={{ fontSize: 10, color: "var(--td)", textTransform: "uppercase", letterSpacing: ".04em", fontWeight: 700 }}>{label}</div>
+    <div style={{ fontSize: 10, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".04em", fontWeight: 700 }}>{label}</div>
     <div style={{ fontSize: 18, fontWeight: 700 }}>{value}</div>
   </div>);
 }

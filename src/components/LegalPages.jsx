@@ -52,20 +52,20 @@ function ConsultationRequestForm({coachId, coachEmail, pageContext, onClose}){
       <div className="mhandle"/>
       {done?(<div>
         <div className="mtitle">Thanks, that's in.</div>
-        <div style={{fontSize:14,color:"var(--black2)",marginBottom:16,lineHeight:1.5}}>We'll follow up to set up your consultation.</div>
+        <div style={{fontSize:14,color:"var(--ink-soft)",marginBottom:16,lineHeight:1.5}}>We'll follow up to set up your consultation.</div>
         <button className="btn primary bmd bfull" onClick={onClose}>Close</button>
       </div>):(<div>
         <div className="mtitle">Request a Consultation</div>
-        <div style={{fontSize:13,color:"var(--td)",marginBottom:16,lineHeight:1.5}}>Tell us a bit about your organization and we'll reach out to get things set up.</div>
+        <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:16,lineHeight:1.5}}>Tell us a bit about your organization and we'll reach out to get things set up.</div>
         <div className="fld mb10"><label className="lbl">Name</label><input className="inp" autoFocus value={name} onChange={e=>setName(e.target.value)}/></div>
-        <div className="fld mb10"><label className="lbl">Email <span style={{color:"var(--td)",fontWeight:400}}>(email or phone required)</span></label><input className="inp" type="email" value={email} onChange={e=>setEmail(e.target.value)}/></div>
-        <div className="fld mb10"><label className="lbl">Phone <span style={{color:"var(--td)",fontWeight:400}}>(email or phone required)</span></label><input className="inp" type="tel" value={phone} onChange={e=>setPhone(e.target.value)}/></div>
+        <div className="fld mb10"><label className="lbl">Email <span style={{color:"var(--text-dim)",fontWeight:400}}>(email or phone required)</span></label><input className="inp" type="email" value={email} onChange={e=>setEmail(e.target.value)}/></div>
+        <div className="fld mb10"><label className="lbl">Phone <span style={{color:"var(--text-dim)",fontWeight:400}}>(email or phone required)</span></label><input className="inp" type="tel" value={phone} onChange={e=>setPhone(e.target.value)}/></div>
         <div className="fld mb10"><label className="lbl">Number of Teams</label><input className="inp" type="number" min="1" value={numTeams} onChange={e=>{const v=e.target.value;setNumTeams(v===""?"":+v);}}/></div>
         <div className="fld mb10">
-          <label className="lbl">Anything else that would help? <span style={{color:"var(--td)",fontWeight:400}}>(optional)</span></label>
+          <label className="lbl">Anything else that would help? <span style={{color:"var(--text-dim)",fontWeight:400}}>(optional)</span></label>
           <textarea className="ta" rows={3} placeholder="Sport, location, timeline, anything that'll help us prep for the call." value={details} onChange={e=>setDetails(e.target.value)}/>
         </div>
-        {sendError&&<div style={{fontSize:13,color:"var(--red)",marginBottom:10}}>{sendError}</div>}
+        {sendError&&<div style={{fontSize:13,color:"var(--danger)",marginBottom:10}}>{sendError}</div>}
         <div className="brow"><button className="btn ghost bsm" onClick={onClose}>Cancel</button><button className="btn primary bsm" style={{flex:1}} onClick={send} disabled={!canSend||sending}>{sending?"Sending...":"Send Request"}</button></div>
       </div>)}
     </div>
@@ -89,14 +89,14 @@ function LegalLayout({ title, children }) {
     if (location.state && location.state.openSection) navigate("/settings", { state: { openSection: location.state.openSection } });
     else navigate(-1);
   };
-  return (<div style={{ minHeight: "100dvh", background: "var(--bg)" }}>
-    <div style={{ background: "var(--black)", padding: "20px 20px 24px", display: "flex", alignItems: "center", gap: 12 }}>
+  return (<div style={{ minHeight: "100dvh", background: "var(--canvas)" }}>
+    <div style={{ background: "var(--ink)", padding: "20px 20px 24px", display: "flex", alignItems: "center", gap: 12 }}>
       <button onClick={goBack} style={{ color: "#fff", background: "rgba(255,255,255,.08)", border: "none", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0, cursor: "pointer" }}>&#8249;</button>
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900, color: "#fff" }}>{title}</div>
     </div>
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 20px 60px" }}>
-      <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 20 }}>Last updated: {LAST_UPDATED}</div>
-      <div style={{ fontSize: 14.5, lineHeight: 1.7, color: "var(--black2)" }}>
+      <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 20 }}>Last updated: {LAST_UPDATED}</div>
+      <div style={{ fontSize: 14.5, lineHeight: 1.7, color: "var(--ink-soft)" }}>
         {children}
       </div>
     </div>
@@ -105,7 +105,7 @@ function LegalLayout({ title, children }) {
 
 function S({ n, title, children }) {
   return (<div style={{ marginBottom: 22 }}>
-    <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 17, fontWeight: 900, marginBottom: 6, color: "var(--black)" }}>{n ? n + ". " : ""}{title}</div>
+    <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 17, fontWeight: 900, marginBottom: 6, color: "var(--ink)" }}>{n ? n + ". " : ""}{title}</div>
     <div>{children}</div>
   </div>);
 }
@@ -116,10 +116,10 @@ function S({ n, title, children }) {
 // there's nothing sensitive here and it means a link to it works whether
 // or not the recipient happens to be signed in yet.
 function FAQItem({ q, children, open, onToggle }) {
-  return (<div style={{ borderBottom: "1px solid var(--b)" }}>
+  return (<div style={{ borderBottom: "1px solid var(--border)" }}>
     <button onClick={onToggle} style={{ width: "100%", textAlign: "left", background: "none", border: "none", padding: "16px 0", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, cursor: "pointer", font: "inherit" }}>
-      <span style={{ fontWeight: 700, color: "var(--black)" }}>{q}</span>
-      <span style={{ color: "var(--td)", fontSize: 20, flexShrink: 0 }}>{open ? "−" : "+"}</span>
+      <span style={{ fontWeight: 700, color: "var(--ink)" }}>{q}</span>
+      <span style={{ color: "var(--text-dim)", fontSize: 20, flexShrink: 0 }}>{open ? "−" : "+"}</span>
     </button>
     {open && <div style={{ paddingBottom: 16 }}>{children}</div>}
   </div>);
@@ -145,7 +145,7 @@ export function FAQPage() {
       q: "How do I set up an organization with multiple teams?",
       a: (<>
         <p style={{ margin: "0 0 10px" }}>Organizations are for clubs running more than one team, with a director who can see across all of them and coaches managing their own team day to day. Our team personally sets up every organization, so sports, teams, and coaches all start out configured correctly.</p>
-        <p style={{ margin: 0 }}>Tell us a bit about your club and we'll be in touch: <button type="button" onClick={() => setShowConsult(true)} style={{ background: "none", border: "none", padding: 0, color: "var(--green)", textDecoration: "underline", cursor: "pointer", font: "inherit" }}>request a consultation</button>.</p>
+        <p style={{ margin: 0 }}>Tell us a bit about your club and we'll be in touch: <button type="button" onClick={() => setShowConsult(true)} style={{ background: "none", border: "none", padding: 0, color: "var(--field)", textDecoration: "underline", cursor: "pointer", font: "inherit" }}>request a consultation</button>.</p>
       </>),
     },
     { q: "Is Run of Practice free?", a: "Yes, Run of Practice is free during early access while we're still testing and improving it." },
@@ -163,7 +163,7 @@ export function FAQPage() {
         {typeof it.a === "string" ? <p style={{ margin: 0 }}>{it.a}</p> : it.a}
       </FAQItem>))}
     </div>
-    <div style={{ marginTop: 20, fontSize: 13, color: "var(--td)" }}>Still stuck on something? Reach us at {CONTACT_EMAIL}.</div>
+    <div style={{ marginTop: 20, fontSize: 13, color: "var(--text-dim)" }}>Still stuck on something? Reach us at {CONTACT_EMAIL}.</div>
     {showConsult && <ConsultationRequestForm pageContext="FAQ" onClose={() => setShowConsult(false)} />}
   </LegalLayout>);
 }

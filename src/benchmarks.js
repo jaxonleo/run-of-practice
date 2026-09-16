@@ -235,6 +235,20 @@ export function classifyAgainstPersonalBest(protocol, priorOfficialResults, late
   return { status: isBetter(a, b, protocol.direction) ? 'new' : 'below', priorBest: prior };
 }
 
+// Plain-language participant status label (ROP Design System v1, section 11:
+// Waiting/Partial/Complete/Skipped/Unable, replacing the ambiguous
+// "not_measured"/"recording"/etc. wording). "complete" isn't listed here since
+// every real call site shows the actual result instead once complete -- this
+// is only for a status that has no result number to show in its place.
+export function benchmarkStatusLabel(status) {
+  if (status === 'not_measured' || !status) return 'Waiting';
+  if (status === 'partial') return 'Partial';
+  if (status === 'complete') return 'Complete';
+  if (status === 'skipped') return 'Skipped';
+  if (status === 'unable') return 'Unable';
+  return status;
+}
+
 // ── Team performance for an INDIVIDUAL benchmark (handoff 7.3) ────────────────
 //
 // results: [{ playerId, status, result }]

@@ -45,7 +45,7 @@ export default function SchedulePracticeModal({ data, coachId, mode, presetTeamI
     return (<div className="movly" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal">
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, marginBottom: 4 }}>Practice scheduled</div>
-        <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 16 }}>{team ? team.name : "Practice"} · {new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>
+        <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>{team ? team.name : "Practice"} · {new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>
         <div className="brow">
           <button className="btn ghost bsm" style={{ flex: 1 }} onClick={() => onDone(created)}>Done</button>
           <button className="btn primary bsm" style={{ flex: 1 }} onClick={() => onDone(created, true)}>Plan Practice</button>
@@ -65,7 +65,7 @@ export default function SchedulePracticeModal({ data, coachId, mode, presetTeamI
       <div className="fld mb10"><label className="lbl">Date</label><input className="inp" type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
       <div className="fld mb10"><label className="lbl">Start Time</label><input className="inp" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} /></div>
       <div className="fld mb10"><label className="lbl">Duration (minutes)</label><input className="inp" type="number" min="1" value={durationMinutes} onChange={e => { const v = e.target.value; setDurationMinutes(v === "" ? "" : +v); }} onBlur={() => { if (!durationMinutes || durationMinutes < 1) setDurationMinutes(60); }} /></div>
-      <div className="fld mb10"><label className="lbl">Location <span style={{ color: "var(--td)", fontWeight: 400 }}>(optional)</span></label>
+      <div className="fld mb10"><label className="lbl">Location <span style={{ color: "var(--text-dim)", fontWeight: 400 }}>(optional)</span></label>
         {data.locations.length > 0 ? (<select className="sel" value={locationId} onChange={e => { const v = e.target.value; if (v === "__add_new__") { setShowAddLocation(true); return; } setLocationId(v); }}>
           <option value="">None</option>
           {data.locations.map(l => (<option key={l.id} value={l.id}>{l.name}</option>))}
@@ -77,7 +77,7 @@ export default function SchedulePracticeModal({ data, coachId, mode, presetTeamI
           <button type="button" className="btn outline bsm bfull" onClick={() => setShowAddLocation(true)}>+ Add a Location</button>
         )}
       </div>
-      {error && <div style={{ fontSize: 13, color: "var(--red)", marginBottom: 10 }}>{error}</div>}
+      {error && <div style={{ fontSize: 13, color: "var(--danger)", marginBottom: 10 }}>{error}</div>}
       <div className="brow"><button className="btn ghost bsm" onClick={onClose}>Cancel</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={confirm} disabled={saving || !teamId || !date}>{saving ? "Scheduling..." : "Schedule Practice"}</button></div>
     </div>
     {showAddLocation && <AddLocationDialog coachId={coachId} orgId={team && team.organizationId} onClose={() => setShowAddLocation(false)} onCreated={async (loc) => { if (refreshPlanning) await refreshPlanning(); setLocationId(loc.id); }} />}

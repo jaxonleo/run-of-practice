@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import BenchmarkRecorder from "./BenchmarkRecorder.jsx";
-import { getBenchmarkRecordingViewByToken, saveBenchmarkAttemptByToken, mapBenchmarkVersion } from "../supabase.js";
+import {
+  getBenchmarkRecordingViewByToken, saveBenchmarkAttemptByToken, mapBenchmarkVersion,
+  reserveBenchmarkParticipantByToken, releaseBenchmarkParticipantByToken,
+} from "../supabase.js";
 import { outboxScopeForGrant } from "../benchmarkOutbox.js";
 
 // Anonymous, scoped helper recording surface: /brec/:token (ROP-Benchmarks
@@ -62,6 +65,8 @@ export default function BenchmarkRecordView({ token }) {
     }
     return { data };
   };
+  const reserveParticipant = (participantId, takeOver) => reserveBenchmarkParticipantByToken(token, participantId, takeOver);
+  const releaseParticipant = (participantId) => releaseBenchmarkParticipantByToken(token, participantId);
 
   return (
     <Shell wide>
@@ -69,7 +74,7 @@ export default function BenchmarkRecordView({ token }) {
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900 }}>Record Results</div>
         {view.attribution_label && <div style={{ fontSize: 12, color: "#9fb3ab" }}>as {view.attribution_label}</div>}
       </div>
-      <div style={{ background: "#fff", color: "var(--black)", borderRadius: 12, padding: 14 }}>
+      <div style={{ background: "#fff", color: "var(--ink)", borderRadius: 12, padding: 14 }}>
         <BenchmarkRecorder
           protocol={protocol}
           participants={view.participants || []}
@@ -81,7 +86,8 @@ export default function BenchmarkRecordView({ token }) {
           onRefresh={load}
           readOnly={closed}
           mineOnlyEdit
-          isDesktop={typeof window !== "undefined" && window.innerWidth >= 900}
+          reserveParticipant={reserveParticipant}
+          releaseParticipant={releaseParticipant}
         />
       </div>
       <div style={{ fontSize: 11, color: "#9fb3ab", marginTop: 10 }}>
