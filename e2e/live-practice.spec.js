@@ -30,7 +30,12 @@ test('Run Now takes a built practice into a real live coaching view', async ({ p
     await keepAudioOff.click();
   }
 
-  await expect(page.getByRole('button', { name: 'Next >' })).toBeVisible({ timeout: 10000 });
+  // Design system v1: a practice with exactly one activity (this fixture)
+  // makes that activity the final one, so the advance button now correctly
+  // reads "End Practice" instead of an ambiguous "Next >" -- see
+  // isFinalAdvance in CommandScreen.jsx. Not a regression in this test;
+  // the expected button label changed on purpose.
+  await expect(page.getByRole('button', { name: 'End Practice', exact: true })).toBeVisible({ timeout: 10000 });
   await expect(page.getByRole('button', { name: '+1m' })).toBeVisible();
   await expect(page.getByText('Layup Lines')).toBeVisible();
 
