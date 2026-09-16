@@ -7,6 +7,16 @@ import { SkillTagPicker } from "./ModalLayer.jsx";
 import { createAsset, updateAsset, findMissingEquipment, resolveDrillEquipmentForCoach, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed } from "../supabase.js";
 import { Ic } from "../icons.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
+// Collapsible group header -- same shape as NewLibraryScreen.jsx's
+// GroupHeader/.sport-hdr (App.jsx), duplicated locally rather than imported
+// to avoid a circular import (NewLibraryScreen.jsx already imports this
+// file for ActConfig/StationConfig).
+function GroupHeader({label,meta,variant}){
+  return(<div className={"sport-hdr"+(variant?" "+variant:"")} style={{cursor:"default"}}>
+    <span className="sport-name">{label}</span>
+    <span className="sport-meta">{meta}</span>
+  </div>);
+}
 import PrivateDrillWarningDialog from "./PrivateDrillWarningDialog.jsx";
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
@@ -337,7 +347,7 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
     </div>}
     {drillTagNames.length>0&&<div className="fld"><label className="lbl">Skill Tags</label>
       <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-        {drillTagNames.map(n=>(<span key={n} className="bdg bs">{n}</span>))}
+        {drillTagNames.map(n=>(<span key={n} className="tagchip">{n}</span>))}
       </div>
     </div>}
     <button className="btn ghost bsm bfull mt8" onClick={onDone}>Done</button>
@@ -451,7 +461,11 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   const [newEquipIdx,setNewEquipIdx]=useState(null);
   const [newGearIdx,setNewGearIdx]=useState(null);
   const [libraryPickerIdx,setLibraryPickerIdx]=useState(null);
-  const [pickerSort,setPickerSort]=useState("alpha"); // "alpha" | "byskill"
+  // Direct feedback: default should match Library's own default view
+  // (grouped by skill category), not a flat alphabetical dump -- a coach
+  // browsing here wants to scan by category first, same as NewLibraryScreen/
+  // PublicLibraryScreen's own "byskill" default.
+  const [pickerSort,setPickerSort]=useState("byskill"); // "alpha" | "byskill"
   const [benchmarkPickerIdx,setBenchmarkPickerIdx]=useState(null);
   const benchmarkOpts=(benchmarks||[]).filter(b=>!b.archivedAt&&b.latestVersion&&((b.sport||"General")===(teamSport||"General")||(b.sport||"General")==="General"));
   const chooseBenchmark=(si,bm)=>{
@@ -758,7 +772,7 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
                       <div className="lin">{lib.name}</div>
                       {lib.description&&<div className="limt">{lib.description}</div>}
                       {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                        {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+                        {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="tagchip">{name}</span>))}
                       </div>}
                     </div>
                     <div className="lir"><span className="bdg bp">{lib.duration}m</span></div>
@@ -779,12 +793,12 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
                     });
                     const catIds=Object.keys(byCat).sort((a,b)=>((skillCategoriesById[a]&&skillCategoriesById[a].sort_order)||0)-((skillCategoriesById[b]&&skillCategoriesById[b].sort_order)||0)||((skillCategoriesById[a]&&skillCategoriesById[a].name)||"").localeCompare((skillCategoriesById[b]&&skillCategoriesById[b].name)||""));
                     return (<>
-                      {catIds.map(cid=>(<div key={cid} style={{marginBottom:10}}>
-                        <div style={{fontSize:11,fontWeight:700,color:"var(--field)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 0"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} ({byCat[cid].length})</div>
+                      {catIds.map(cid=>(<div key={cid} className="sport-group">
+                        <GroupHeader variant="tint" label={(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} meta={byCat[cid].length+" drill"+(byCat[cid].length!==1?"s":"")}/>
                         {byCat[cid].map(lib=>drillRow(lib,cid+"|"))}
                       </div>))}
-                      {untagged.length>0&&<div style={{marginBottom:10}}>
-                        <div style={{fontSize:11,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 0"}}>Untagged ({untagged.length})</div>
+                      {untagged.length>0&&<div className="sport-group">
+                        <GroupHeader variant="muted" label="Untagged" meta={untagged.length+" drill"+(untagged.length!==1?"s":"")}/>
                         {untagged.map(lib=>drillRow(lib,"u|"))}
                       </div>}
                     </>);

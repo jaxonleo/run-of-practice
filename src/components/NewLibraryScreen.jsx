@@ -23,8 +23,15 @@ const Ic_Lock=()=><svg width="12" height="12" viewBox="0 0 12 12" fill="none" st
 // blocks that had quietly drifted from each other (see .sport-hdr in
 // App.jsx). `variant` is "tint" (skill-category header) or "muted"
 // (untagged/other), default is the plain sport header.
+// Renders as a real button with a collapse chevron only when the caller
+// actually wants collapsing (onClick provided) -- a static group of drills
+// with no collapse behavior (Builder's own library panel) gets a plain,
+// non-interactive header instead of a chevron that looks clickable but
+// does nothing.
 export function GroupHeader({label,meta,collapsed,onClick,variant}){
-  return(<button type="button" onClick={onClick} className={"sport-hdr"+(variant?" "+variant:"")}>
+  const cls="sport-hdr"+(variant?" "+variant:"");
+  if(!onClick)return(<div className={cls} style={{cursor:"default"}}><span className="sport-name">{label}</span><span className="sport-meta">{meta}</span></div>);
+  return(<button type="button" onClick={onClick} className={cls}>
     <span className="sport-name">{label}</span>
     <span className="sport-meta">{meta}<span className={"chev"+(collapsed?" collapsed":"")}><Ic_Chev/></span></span>
   </button>);

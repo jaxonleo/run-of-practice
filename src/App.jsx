@@ -11,7 +11,7 @@ import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, sig
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, hasVisibleComponentTypesPref, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES } from "./constants.js";
 import { TwoPane } from "./components/BBShells.jsx";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
-import NewLibraryScreen, { EquipmentTab, AddLocationDialog } from "./components/NewLibraryScreen.jsx";
+import NewLibraryScreen, { EquipmentTab, AddLocationDialog, GroupHeader, TagChip } from "./components/NewLibraryScreen.jsx";
 import { ActConfig, ChecklistConfig, StationConfig, ScrimmageConfig, BenchmarkConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./components/ActivityConfigs.jsx";
 import CommandScreen, { HelperView, HistoryViewer, PreviewView, usePracticePresence, PresenceBadge } from "./components/CommandScreen.jsx";
 import BenchmarkRecordView from "./components/BenchmarkRecordView.jsx";
@@ -2351,6 +2351,15 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       {(()=>{
         const builderAvailableTags=[...new Set(sourceFilteredLib.flatMap(a=>a.skillTagIds||[]))].map(id=>skillTagsById[id]).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
         const builderFilteredLib=builderTagFilter.length?sourceFilteredLib.filter(a=>(a.skillTagIds||[]).some(id=>builderTagFilter.includes(id))):sourceFilteredLib;
+        // Direct feedback: viewing Public Library (or any non-"mine" source
+        // -- org/peer shares) here still defaulted to "Custom order", which
+        // doesn't even mean anything outside your own drag-reordered
+        // library, and looked like a flat, unstyled dump. Same effSort
+        // override NewLibraryScreen's own Explore shelves already use:
+        // "mine" keeps whatever this coach picked (default Custom order),
+        // any other source forces By skill category unless the coach
+        // explicitly chose Alphabetical.
+        const effBuilderSort=libSource==="mine"?builderDrillSort:(builderDrillSort==="alpha"?"alpha":"byskill");
         const LibRow=({lib})=>(
           <div key={lib.id} className="li tap" onClick={()=>addActChecked(lib)}>
             <div className="lim">
@@ -2358,7 +2367,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               {lib.description&&<div className="limt">{lib.description}</div>}
               {lib.coachingPoints&&<div style={{fontSize:11,color:"var(--field-accent)",marginTop:2}}>{lib.coachingPoints}</div>}
               {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+                {tagNames(lib.skillTagIds).map(name=>(<TagChip key={name}>{name}</TagChip>))}
               </div>}
             </div>
             <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--field)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
@@ -2366,9 +2375,9 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         );
         return (<>
           <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:6,marginBottom:10,flexWrap:"wrap"}} onClick={e=>e.stopPropagation()}>
-            <select className="btn ghost bxs" value={builderDrillSort} onChange={e=>setBuilderDrillSort(e.target.value)}>
+            <select className="btn ghost bxs" value={effBuilderSort} onChange={e=>setBuilderDrillSort(e.target.value)}>
               <optgroup label="Sort">
-                <option value="custom">Custom order</option>
+                {libSource==="mine"&&<option value="custom">Custom order</option>}
                 <option value="alpha">Alphabetical</option>
               </optgroup>
               <optgroup label="Group">
@@ -2384,7 +2393,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
             {builderTagFilter.length>0&&<button type="button" className="btn ghost bxs" onClick={()=>setBuilderTagFilter([])}>Clear filter</button>}
           </div>}
           {builderFilteredLib.length===0&&<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:8}}>No drills here yet.</div>}
-          {builderDrillSort==="byskill"?(()=>{
+          {effBuilderSort==="byskill"?(()=>{
             const byCat={};const untagged=[];
             builderFilteredLib.forEach(lib=>{
               if(!lib.skillTagIds||!lib.skillTagIds.length){untagged.push(lib);return;}
@@ -2394,16 +2403,16 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
             });
             const catIds=Object.keys(byCat).sort((a,b)=>((skillCategoriesById[a]&&skillCategoriesById[a].sort_order)||0)-((skillCategoriesById[b]&&skillCategoriesById[b].sort_order)||0)||((skillCategoriesById[a]&&skillCategoriesById[a].name)||"").localeCompare((skillCategoriesById[b]&&skillCategoriesById[b].name)||""));
             return (<>
-              {catIds.map(cid=>(<div key={cid} style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"var(--field)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--field-tint)"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} ({byCat[cid].length})</div>
+              {catIds.map(cid=>(<div key={cid} className="sport-group">
+                <GroupHeader variant="tint" label={(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} meta={byCat[cid].length+" drill"+(byCat[cid].length!==1?"s":"")}/>
                 {byCat[cid].map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
               </div>))}
-              {untagged.length>0&&<div style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".05em",padding:"6px 12px",background:"var(--surface-soft)"}}>Untagged ({untagged.length})</div>
+              {untagged.length>0&&<div className="sport-group">
+                <GroupHeader variant="muted" label="Untagged" meta={untagged.length+" drill"+(untagged.length!==1?"s":"")}/>
                 {untagged.map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
               </div>}
             </>);
-          })():(builderDrillSort==="alpha"?builderFilteredLib.slice().sort((a,b)=>a.name.localeCompare(b.name)):builderFilteredLib).map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
+          })():(effBuilderSort==="alpha"?builderFilteredLib.slice().sort((a,b)=>a.name.localeCompare(b.name)):builderFilteredLib).map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
         </>);
       })()}
       </>)}
