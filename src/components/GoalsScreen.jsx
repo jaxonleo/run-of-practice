@@ -228,6 +228,15 @@ function GlanceView({ report, emphasizeUntagged, team, teamId, canManage, onRevi
         <span style={{ textTransform: "none", fontWeight: 400 }}>· last {report.window_weeks} week{report.window_weeks === 1 ? "" : "s"}</span>
       )}
     </div>
+    {/* Every row already spells out "Planned"/"Actual" in text (not color
+        alone), but the target tick mark itself is unlabeled per-row (just a
+        plain vertical line) -- one compact legend, not per-row, explains
+        what it means without repeating "Target" on every single row. */}
+    <div style={{ display: "flex", gap: 14, alignItems: "center", fontSize: 11, color: "var(--text-dim)", marginBottom: 10, flexWrap: "wrap" }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: "var(--field-tint-border)", display: "inline-block", flexShrink: 0 }} />Planned</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: "var(--field)", display: "inline-block", flexShrink: 0 }} />Actual</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 2, height: 12, background: "var(--ink)", display: "inline-block", flexShrink: 0 }} />Target</span>
+    </div>
     {skills.length === 0 && <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No goals set and nothing tagged yet this window.</div>}
     {skills.map(s => (<SkillRow key={s.skill_category_id} skill={s} />))}
 
@@ -732,13 +741,18 @@ function HistoryList({ history, data, canManage, onOpen }) {
                 {s.ended_at ? new Date(s.ended_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "In progress"}
               </div>
             </div>
-            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
-              {s.wall_minutes}min · {s.attendance_count} attended
-              {(() => { const names = (s.top_skills || []).slice(0, 3).map(sk => sk.name).join(", "); return names && " · " + names; })()}
-              {s.status === "abandoned" && <span className="bdg" style={{ marginLeft: 6, background: "var(--caution-tint)", color: "var(--caution)" }}>Abandoned</span>}
-              {s.excluded && <span className="bdg bs" style={{ marginLeft: 6 }}>Excluded</span>}
-              {s.adjusted && <span className="bdg bp" style={{ marginLeft: 6 }}>Adjusted</span>}
-            </div>
+            {/* Broken into scannable groups (design system v1) instead of one
+                long concatenated line -- core stats, then skill tags, then
+                status flags, each their own row rather than run together. */}
+            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{s.wall_minutes}min · {s.attendance_count} attended</div>
+            {(s.top_skills || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+              {s.top_skills.slice(0, 3).map(sk => (<span key={sk.name} className="bdg bs" style={{ fontSize: 10 }}>{sk.name}</span>))}
+            </div>}
+            {(s.status === "abandoned" || s.excluded || s.adjusted) && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+              {s.status === "abandoned" && <span className="bdg" style={{ background: "var(--caution-tint)", color: "var(--caution)" }}>Abandoned</span>}
+              {s.excluded && <span className="bdg bs">Excluded</span>}
+              {s.adjusted && <span className="bdg bp">Adjusted</span>}
+            </div>}
           </div>
           <span style={{ color: "var(--text-dim)", fontSize: 18 }}>&#8250;</span>
         </div>
@@ -880,7 +894,15 @@ function TrendsView({ teamId, team, canManage, isBB }) {
   // its width to whatever container it's given (viewBox + width:100%,
   // fixed pixel height), confirmed live rather than assumed.
   return (<div>
-    <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 12 }}>Compared with the team's current goals.</div>
+    <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 8 }}>Compared with the team's current goals.</div>
+    {/* One shared legend for every card's chart below, rather than
+        repeating it per card -- line style (solid/dashed/dotted) plus
+        color, matching Overview's Planned/Actual/Target colors exactly. */}
+    <div style={{ display: "flex", gap: 14, alignItems: "center", fontSize: 11, color: "var(--text-dim)", marginBottom: 12, flexWrap: "wrap" }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 4 }}><svg width="18" height="4" style={{ flexShrink: 0 }}><line x1="0" y1="2" x2="18" y2="2" stroke="var(--field-tint-border)" strokeWidth="2" strokeDasharray="4,3" /></svg>Planned</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 4 }}><svg width="18" height="4" style={{ flexShrink: 0 }}><line x1="0" y1="2" x2="18" y2="2" stroke="var(--field)" strokeWidth="2.5" /></svg>Actual</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 4 }}><svg width="18" height="4" style={{ flexShrink: 0 }}><line x1="0" y1="2" x2="18" y2="2" stroke="var(--ink)" strokeWidth="1.5" strokeDasharray="1,3" /></svg>Target</span>
+    </div>
     <div className={isBB ? "bb-trend-grid" : undefined}>
       {categories.map(cat => (<GoalTrendCard key={cat.skill_category_id} cat={cat} />))}
     </div>
@@ -914,8 +936,8 @@ function CategoryGapRow({ g, practiceDuration, data, coachId }) {
     </div>
     <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2 }}>
       {g.goalMixMinutes != null && <>A goal-balanced {practiceDuration}-minute practice would include {g.goalMixMinutes} minute{g.goalMixMinutes === 1 ? "" : "s"}. </>}
-      {g.minutesNeeded != null && g.closable && <>Approximately {g.minutesNeeded} minute{g.minutesNeeded === 1 ? "" : "s"} would be needed to fully close the current rolling gap in one practice.</>}
-      {g.minutesNeeded != null && g.closable === false && <>This gap cannot be fully closed in one practice.</>}
+      {g.minutesNeeded != null && g.closable && <>Add about {g.minutesNeeded} minute{g.minutesNeeded === 1 ? "" : "s"} of {g.name} to fully close the current rolling gap in one practice.</>}
+      {g.minutesNeeded != null && g.closable === false && <>This gap is too large to fully close in one practice -- prioritize it over several sessions instead.</>}
     </div>
     {expanded && (<div style={{ marginTop: 8 }}>
       {drills.length === 0 && <div style={{ fontSize: 12, color: "var(--text-dim)" }}>No drills in your library are tagged to {g.name} yet. Tag a drill with this category from your Library to see it here.</div>}
