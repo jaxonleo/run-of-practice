@@ -1269,6 +1269,13 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const [builderDrillSort,setBuilderDrillSort]=useState("custom");
   const [builderTagFilter,setBuilderTagFilter]=useState([]);
   const [showBuilderFilter,setShowBuilderFilter]=useState(false);
+  // Direct feedback: this "By skill category" view's headers rendered with
+  // GroupHeader but never passed collapsed/onClick, so -- same component
+  // that's genuinely collapsible on the standalone Library/Explore screen
+  // -- it silently fell back to a plain, non-interactive div here, with no
+  // way to collapse a category to get to the one further down the list.
+  const [builderCatCollapsed,setBuilderCatCollapsed]=useState({});
+  const toggleBuilderCatCollapsed=key=>setBuilderCatCollapsed(c=>({...c,[key]:!c[key]}));
   const [showComponentsPicker,setShowComponentsPicker]=useState(false);
   const toggleComponentType=key=>{
     setVisibleTypeKeysState(prev=>{
@@ -2225,25 +2232,32 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           scrolled -- ropZigzagH now collapses to 0 until ropContentHidden
           actually goes true.
           Real bug found live from a follow-up screenshot, then fixed
-          properly rather than just removed: this div's height had its own
-          CSS transition, animating 16<->0 over .2s to open in step with
-          the line's opacity fade, but the pinned last row's own `top`
-          (ropStickyTop+ropZigzagH, on SortableActivityRow below) jumped to
-          its new value the instant React re-rendered, with no matching
-          transition -- so for that same ~200ms, the row's clamp position
-          and the strip's actual on-screen height disagreed, and scrolling
-          up (strip shrinking 16->0) let the row's now-lower clamp target
-          render *underneath* the still-tall strip until the CSS
-          transition caught up. Direct feedback again: a plain instant
-          snap (the first fix) reads as jerky, not as "fixed" -- the two
-          values need to move in lockstep, not just agree at rest. Fixed
-          for real by giving the row's own `top` the *same* `.2s ease`
-          transition as this height (see SortableActivityRow) -- both
-          interpolate the identical 16px delta over the identical curve
-          from the identical state flip, so at any instant mid-transition
-          the row's rendered position is still exactly "current strip
-          height + ropStickyTop," never ahead of or behind it. */}
-      {acts.length>1&&(<div style={{position:"sticky",top:ropStickyTop,zIndex:8,height:ropZigzagH,background:"var(--field-strong)",overflow:"hidden",transition:"height .2s ease"}}>
+          properly rather than just removed: this div's height used to have
+          its own CSS transition, animating 16<->0 over .2s to open in step
+          with the line's opacity fade, with the pinned last row's own
+          `top` (ropStickyTop+ropZigzagH, on SortableActivityRow below)
+          given the identical transition so the two stayed in lockstep
+          instead of one snapping instantly while the other animated.
+          That was a real, verified fix for the *overlap* bug it was
+          written to solve -- but direct feedback afterward (mobile, slow
+          deliberate scrolling rather than a fast flick) found a second,
+          subtler problem the matched transition doesn't touch: this
+          height is now driven by ropContentHidden, which itself flips in
+          perfect sync with the user's own scroll position (see the
+          scroll-listener effect above, not an async observer). At that
+          point a .2s transition is no longer smoothing over any lag -- it
+          adds its own 200ms of independent motion on top of an
+          already-correct instant value, so during a slow scroll the strip
+          (and everything below it) visibly keeps drifting for a moment
+          after the finger/scroll has already stopped moving, reading as a
+          "jump" rather than 1:1 tracking. Since the underlying state has
+          no timing lag left to hide, removing the transition entirely (on
+          both this height and the row's `top`) makes the strip open and
+          the row shift in the exact same paint as the scroll event that
+          caused it -- as instantaneous and trustworthy as the sticky
+          header itself, with no separate clock for the two to fall out of
+          sync on. */}
+      {acts.length>1&&(<div style={{position:"sticky",top:ropStickyTop,zIndex:8,height:ropZigzagH,background:"var(--field-strong)",overflow:"hidden"}}>
         <svg viewBox={"0 0 100 "+ropZigzagH} preserveAspectRatio="none" style={{width:"100%",height:"100%",display:"block"}}>
           <polyline points={"0,"+(ropZigzagH/2)+" 6,"+(ropZigzagH/2)+" 7.5,"+(ropZigzagH*0.6)+" 9,"+(ropZigzagH*0.03)+" 10.5,"+(ropZigzagH*0.97)+" 12,"+(ropZigzagH*0.4)+" 13.5,"+(ropZigzagH/2)+" 100,"+(ropZigzagH/2)} fill="none" stroke="#fff" strokeWidth="2" vectorEffect="non-scaling-stroke" style={{opacity:ropContentHidden?1:0,transition:"opacity .2s ease"}}/>
         </svg>
@@ -2495,14 +2509,21 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
             });
             const catIds=Object.keys(byCat).sort((a,b)=>((skillCategoriesById[a]&&skillCategoriesById[a].sort_order)||0)-((skillCategoriesById[b]&&skillCategoriesById[b].sort_order)||0)||((skillCategoriesById[a]&&skillCategoriesById[a].name)||"").localeCompare((skillCategoriesById[b]&&skillCategoriesById[b].name)||""));
             return (<>
-              {catIds.map(cid=>(<div key={cid} className="sport-group">
-                <GroupHeader variant="tint" label={(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} meta={byCat[cid].length+" drill"+(byCat[cid].length!==1?"s":"")}/>
-                {byCat[cid].map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
-              </div>))}
-              {untagged.length>0&&<div className="sport-group">
-                <GroupHeader variant="muted" label="Untagged" meta={untagged.length+" drill"+(untagged.length!==1?"s":"")}/>
-                {untagged.map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
-              </div>}
+              {catIds.map(cid=>{
+                const key="cat_"+cid;
+                const isCollapsed=builderCatCollapsed[key];
+                return (<div key={cid} className="sport-group">
+                  <GroupHeader variant="tint" label={(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} meta={byCat[cid].length+" drill"+(byCat[cid].length!==1?"s":"")} collapsed={isCollapsed} onClick={()=>toggleBuilderCatCollapsed(key)}/>
+                  {!isCollapsed&&byCat[cid].map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
+                </div>);
+              })}
+              {untagged.length>0&&(()=>{
+                const isCollapsed=builderCatCollapsed.cat_untagged;
+                return (<div className="sport-group">
+                  <GroupHeader variant="muted" label="Untagged" meta={untagged.length+" drill"+(untagged.length!==1?"s":"")} collapsed={isCollapsed} onClick={()=>toggleBuilderCatCollapsed("cat_untagged")}/>
+                  {!isCollapsed&&untagged.map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
+                </div>);
+              })()}
             </>);
           })():(effBuilderSort==="alpha"?builderFilteredLib.slice().sort((a,b)=>a.name.localeCompare(b.name)):builderFilteredLib).map(lib=>(<LibRow key={lib.id} lib={lib}/>))}
         </>);

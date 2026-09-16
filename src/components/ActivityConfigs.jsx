@@ -10,12 +10,18 @@ import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 // Collapsible group header -- same shape as NewLibraryScreen.jsx's
 // GroupHeader/.sport-hdr (App.jsx), duplicated locally rather than imported
 // to avoid a circular import (NewLibraryScreen.jsx already imports this
-// file for ActConfig/StationConfig).
-function GroupHeader({label,meta,variant}){
-  return(<div className={"sport-hdr"+(variant?" "+variant:"")} style={{cursor:"default"}}>
+// file for ActConfig/StationConfig). Direct feedback: this local copy never
+// took collapsed/onClick at all, so this picker's category headers looked
+// identical to the real GroupHeader but were always inert -- fixed by
+// giving it the same collapsed/onClick shape (and the same Ic.Chev this
+// file already imports) as the real one.
+function GroupHeader({label,meta,collapsed,onClick,variant}){
+  const cls="sport-hdr"+(variant?" "+variant:"");
+  if(!onClick)return(<div className={cls} style={{cursor:"default"}}><span className="sport-name">{label}</span><span className="sport-meta">{meta}</span></div>);
+  return(<button type="button" onClick={onClick} className={cls}>
     <span className="sport-name">{label}</span>
-    <span className="sport-meta">{meta}</span>
-  </div>);
+    <span className="sport-meta">{meta}<span className={"chev"+(collapsed?" collapsed":"")}><Ic.Chev/></span></span>
+  </button>);
 }
 import PrivateDrillWarningDialog from "./PrivateDrillWarningDialog.jsx";
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -110,22 +116,21 @@ export function SortableActivityRow({id,children,sticky,stickyTop,raised,stickyB
     return()=>obs.disconnect();
   },[sticky,stickyTop]);
   const showBackdrop=sticky&&stickyBg&&isStuck;
-  // Direct feedback: the App.jsx "torn edge" strip this row sits below
-  // animates its own height over .2s when it opens/closes (see its own
-  // comment there for why a plain instant snap read as jerky). This row's
-  // `top` -- which is exactly ropStickyTop+ropZigzagH, i.e. it grows by
-  // the same 16px the strip grows by, from the same state flip -- needs
-  // the *identical* transition, not just an update in the same render:
-  // two properties that both jump instantly agree at rest but can still
-  // independently reach their new values at different browser-paint
-  // moments; two properties transitioning with the same duration/easing
-  // from the same trigger interpolate the same 16px delta in lockstep at
-  // every intermediate frame, which is what actually keeps this row's
-  // rendered position from ever drifting ahead of or behind the strip's
-  // visible height mid-animation. Only added while sticky -- dnd-kit's own
-  // `transition` (drag-reorder's transform animation) is untouched
-  // otherwise, and `top` isn't set at all when this row isn't sticky.
-  const stickyTransition=sticky?[transition,"top .2s ease"].filter(Boolean).join(", "):transition;
+  // This row's own `top` (exactly ropStickyTop+ropZigzagH, on the App.jsx
+  // "torn edge" strip this row sits below) used to carry an extra "top .2s
+  // ease" transition, matched to the strip's own height transition, so
+  // neither one visually led or lagged the other as both grew by the same
+  // 16px from the same state flip -- that fixed a real overlap bug. But
+  // direct feedback afterward (mobile, slow scrolling) found the
+  // transition itself was the remaining problem: the strip's height is
+  // driven by a scroll-position check that's already exactly in sync with
+  // the user's own scroll, so a .2s transition on top of that just adds
+  // its own independent 200ms of motion after the fact, reading as a
+  // "jump" for anyone scrolling slowly enough to notice it settle. No
+  // added transition at all now -- both this row's `top` and the strip's
+  // height update in the exact same render/paint as the scroll event that
+  // changed them, so there's nothing left to fall out of sync. `transition`
+  // below is dnd-kit's own drag-reorder animation, untouched.
   // zIndex always at least 1 (not just when dragging/sticky) -- Builder's
   // Run of Practice paints its green background as an absolutely
   // positioned backdrop behind these rows (position:absolute, zIndex:0),
@@ -145,7 +150,7 @@ export function SortableActivityRow({id,children,sticky,stickyTop,raised,stickyB
   // row in a list needs this exactly as much as a middle one, since
   // without it the row's own trailing padding/the list's own edge clips
   // the popover the same way a sibling row's background would.
-  const style={transform:CSS.Transform.toString(transform),transition:stickyTransition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?(stickyTop||0):undefined,zIndex:isDragging?1:(raised?10:(sticky?5:1)),background:showBackdrop?stickyBg:undefined,paddingTop:showBackdrop?8:undefined,paddingBottom:showBackdrop?10:undefined};
+  const style={transform:CSS.Transform.toString(transform),transition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?(stickyTop||0):undefined,zIndex:isDragging?1:(raised?10:(sticky?5:1)),background:showBackdrop?stickyBg:undefined,paddingTop:showBackdrop?8:undefined,paddingBottom:showBackdrop?10:undefined};
   // touchAction:"none" alone stops the page from scrolling under a drag,
   // but iOS Safari still fires its own long-press text-selection callout
   // (the magnifying-glass loupe) independently of that -- WebkitTouchCallout
@@ -527,6 +532,8 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
   // browsing here wants to scan by category first, same as NewLibraryScreen/
   // PublicLibraryScreen's own "byskill" default.
   const [pickerSort,setPickerSort]=useState("byskill"); // "alpha" | "byskill"
+  const [pickerCatCollapsed,setPickerCatCollapsed]=useState({});
+  const togglePickerCatCollapsed=key=>setPickerCatCollapsed(c=>({...c,[key]:!c[key]}));
   const [benchmarkPickerIdx,setBenchmarkPickerIdx]=useState(null);
   const benchmarkOpts=(benchmarks||[]).filter(b=>!b.archivedAt&&b.latestVersion&&((b.sport||"General")===(teamSport||"General")||(b.sport||"General")==="General"));
   const chooseBenchmark=(si,bm)=>{
@@ -854,14 +861,21 @@ export function StationConfig({act,team,loc,onChange,onSt,onDone,assets,coachId,
                     });
                     const catIds=Object.keys(byCat).sort((a,b)=>((skillCategoriesById[a]&&skillCategoriesById[a].sort_order)||0)-((skillCategoriesById[b]&&skillCategoriesById[b].sort_order)||0)||((skillCategoriesById[a]&&skillCategoriesById[a].name)||"").localeCompare((skillCategoriesById[b]&&skillCategoriesById[b].name)||""));
                     return (<>
-                      {catIds.map(cid=>(<div key={cid} className="sport-group">
-                        <GroupHeader variant="tint" label={(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} meta={byCat[cid].length+" drill"+(byCat[cid].length!==1?"s":"")}/>
-                        {byCat[cid].map(lib=>drillRow(lib,cid+"|"))}
-                      </div>))}
-                      {untagged.length>0&&<div className="sport-group">
-                        <GroupHeader variant="muted" label="Untagged" meta={untagged.length+" drill"+(untagged.length!==1?"s":"")}/>
-                        {untagged.map(lib=>drillRow(lib,"u|"))}
-                      </div>}
+                      {catIds.map(cid=>{
+                        const key="cat_"+cid;
+                        const isCollapsed=pickerCatCollapsed[key];
+                        return (<div key={cid} className="sport-group">
+                          <GroupHeader variant="tint" label={(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} meta={byCat[cid].length+" drill"+(byCat[cid].length!==1?"s":"")} collapsed={isCollapsed} onClick={()=>togglePickerCatCollapsed(key)}/>
+                          {!isCollapsed&&byCat[cid].map(lib=>drillRow(lib,cid+"|"))}
+                        </div>);
+                      })}
+                      {untagged.length>0&&(()=>{
+                        const isCollapsed=pickerCatCollapsed.cat_untagged;
+                        return (<div className="sport-group">
+                          <GroupHeader variant="muted" label="Untagged" meta={untagged.length+" drill"+(untagged.length!==1?"s":"")} collapsed={isCollapsed} onClick={()=>togglePickerCatCollapsed("cat_untagged")}/>
+                          {!isCollapsed&&untagged.map(lib=>drillRow(lib,"u|"))}
+                        </div>);
+                      })()}
                     </>);
                   }
                   return filteredLibrary.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(lib=>drillRow(lib));
