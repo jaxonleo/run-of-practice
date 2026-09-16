@@ -69,7 +69,7 @@ export default function BenchmarkRecordView({ token }) {
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900 }}>Record Results</div>
         {view.attribution_label && <div style={{ fontSize: 12, color: "#9fb3ab" }}>as {view.attribution_label}</div>}
       </div>
-      <div style={{ background: "#fff", color: "var(--black)", borderRadius: 12, padding: 14 }}>
+      <div style={{ background: "#fff", color: "var(--ink)", borderRadius: 12, padding: 14 }}>
         <BenchmarkRecorder
           protocol={protocol}
           participants={view.participants || []}

@@ -199,11 +199,11 @@ export default function BenchmarkRecorder({
   }
 
   const badge = st => {
-    if (st === "saving") return <span style={S.badge("var(--td)")}>Saving...</span>;
-    if (st === "saved") return <span style={S.badge("var(--green)")}>Saved</span>;
-    if (st === "retry") return <span style={S.badge("var(--amber)")}>Retry</span>;
-    if (st === "conflict") return <span style={S.badge("var(--red)")}>Conflict</span>;
-    if (st === "readonly") return <span style={S.badge("var(--td)")}>Read-only</span>;
+    if (st === "saving") return <span style={S.badge("var(--text-dim)")}>Saving...</span>;
+    if (st === "saved") return <span style={S.badge("var(--field)")}>Saved</span>;
+    if (st === "retry") return <span style={S.badge("var(--caution)")}>Retry</span>;
+    if (st === "conflict") return <span style={S.badge("var(--danger)")}>Conflict</span>;
+    if (st === "readonly") return <span style={S.badge("var(--text-dim)")}>Read-only</span>;
     return null;
   };
 
@@ -222,7 +222,7 @@ export default function BenchmarkRecorder({
 
     return (
       <div key={key} style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 96 }}>
-        <div style={{ fontSize: 10, color: "var(--td)", fontWeight: 700 }}>Attempt {slot + 1}</div>
+        <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 700 }}>Attempt {slot + 1}</div>
         {isRubric ? (
           <select className="inp" disabled={disabled} value={drafts[key] ?? (sv && sv.rubric_level_id) ?? ""}
             onChange={e => setDrafts(d => ({ ...d, [key]: e.target.value }))}
@@ -241,7 +241,7 @@ export default function BenchmarkRecorder({
           />
         )}
         <div style={{ minHeight: 14 }}>{badge(st)}</div>
-        {conflict && <div style={{ fontSize: 11, background: "var(--s2)", borderRadius: 6, padding: 6 }}>
+        {conflict && <div style={{ fontSize: 11, background: "var(--surface-soft)", borderRadius: 6, padding: 6 }}>
           Server has <b>{isRate ? (conflict.successes + "/" + conflict.opportunities) : isRubric ? conflict.rubric_level_id : fromCanonical(conflict.value_numeric)}</b>.
           <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
             <button type="button" className="btn ghost bxs" onClick={() => acceptServerValue(p, slot)}>Use server</button>
@@ -263,19 +263,19 @@ export default function BenchmarkRecorder({
 
   const header = (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 12, color: "var(--td)" }}>{protocol.instructions}</div>
+      <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{protocol.instructions}</div>
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
         <span className="bdg bs">Provisional summary</span>
-        {!online && <span style={S.badge("var(--amber)")}>Offline &mdash; queued locally</span>}
+        {!online && <span style={S.badge("var(--caution)")}>Offline &mdash; queued locally</span>}
         {retryCount > 0 && <button type="button" className="btn ghost bxs" onClick={flush}>Retry {retryCount} unsent</button>}
-        {readOnly && <span style={S.badge("var(--td)")}>Recording closed</span>}
+        {readOnly && <span style={S.badge("var(--text-dim)")}>Recording closed</span>}
       </div>
     </div>
   );
 
   if (isTeam) {
     const team = participants.find(p => p.is_team_subject) || participants[0];
-    if (!team) return <div style={{ fontSize: 13, color: "var(--td)" }}>No team subject.</div>;
+    if (!team) return <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No team subject.</div>;
     const r = provisional(team);
     return (
       <div>
@@ -285,7 +285,7 @@ export default function BenchmarkRecorder({
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {Array.from({ length: N }).map((_, s) => attemptInput(team, s))}
           </div>
-          <div style={{ marginTop: 8, fontSize: 13 }}>Result: <b>{resultLabel(r)}</b> <span style={{ color: "var(--td)" }}>(provisional)</span></div>
+          <div style={{ marginTop: 8, fontSize: 13 }}>Result: <b>{resultLabel(r)}</b> <span style={{ color: "var(--text-dim)" }}>(provisional)</span></div>
           <div style={{ marginTop: 8 }}>{statusPicker(team)}</div>
         </div>
       </div>
@@ -324,19 +324,19 @@ export default function BenchmarkRecorder({
 
   const roster = participants.filter(p => !p.is_team_subject);
   const p = roster[Math.min(idx, roster.length - 1)];
-  if (!p) return <div style={{ fontSize: 13, color: "var(--td)" }}>No participants.</div>;
+  if (!p) return <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No participants.</div>;
   const r = provisional(p);
   const doneCount = roster.filter(x => x.status === "complete").length;
   return (
     <div>
       {header}
-      <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 6 }}>{doneCount} of {roster.length} complete</div>
+      <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 6 }}>{doneCount} of {roster.length} complete</div>
       <div className="card">
         <div style={{ fontSize: 18, fontWeight: 900 }}>{p.name}{p.jersey ? "  #" + p.jersey : ""}</div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
           {Array.from({ length: N }).map((_, s) => attemptInput(p, s))}
         </div>
-        <div style={{ marginTop: 8, fontSize: 14 }}>Result: <b>{resultLabel(r)}</b> <span style={{ color: "var(--td)" }}>(provisional)</span></div>
+        <div style={{ marginTop: 8, fontSize: 14 }}>Result: <b>{resultLabel(r)}</b> <span style={{ color: "var(--text-dim)" }}>(provisional)</span></div>
         <div style={{ marginTop: 8 }}>{statusPicker(p)}</div>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, gap: 8 }}>
           <button type="button" className="btn ghost bsm" disabled={idx === 0} onClick={() => setIdx(i => Math.max(0, i - 1))}>Previous</button>
@@ -349,7 +349,7 @@ export default function BenchmarkRecorder({
 
 const S = {
   badge: c => ({ fontSize: 10, fontWeight: 800, color: c, letterSpacing: ".03em" }),
-  th: (sticky) => ({ textAlign: "left", padding: "6px 8px", borderBottom: "2px solid var(--b)", position: sticky ? "sticky" : undefined, left: sticky ? 0 : undefined, background: "var(--s1)", whiteSpace: "nowrap" }),
-  td: { padding: "6px 8px", borderBottom: "1px solid var(--b)", verticalAlign: "top" },
-  tdSticky: { padding: "6px 8px", borderBottom: "1px solid var(--b)", position: "sticky", left: 0, background: "var(--s1)", fontWeight: 700, whiteSpace: "nowrap" },
+  th: (sticky) => ({ textAlign: "left", padding: "6px 8px", borderBottom: "2px solid var(--border)", position: sticky ? "sticky" : undefined, left: sticky ? 0 : undefined, background: "var(--surface)", whiteSpace: "nowrap" }),
+  td: { padding: "6px 8px", borderBottom: "1px solid var(--border)", verticalAlign: "top" },
+  tdSticky: { padding: "6px 8px", borderBottom: "1px solid var(--border)", position: "sticky", left: 0, background: "var(--surface)", fontWeight: 700, whiteSpace: "nowrap" },
 };

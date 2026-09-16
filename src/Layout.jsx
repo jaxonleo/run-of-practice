@@ -125,7 +125,7 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
           doesn't change when you drill in. Whichever sub-view is active
           registers itself via subViewBack (AppCtx), and its Back button
           renders here instead, on the opposite side from the ellipsis. */}
-      {inTeam && team && <div style={{ position: "relative", background: team.colorPrimary || "var(--green)", padding: "14px 46px", textAlign: "center", flexShrink: 0 }} onClick={() => teamMenuOpen && setTeamMenuOpen(false)}>
+      {inTeam && team && <div style={{ position: "relative", background: team.colorPrimary || "var(--field)", padding: "14px 46px", textAlign: "center", flexShrink: 0 }} onClick={() => teamMenuOpen && setTeamMenuOpen(false)}>
         {/* subViewBack (a drilled-in sub-view like Practice Detail) takes
             priority when present -- it un-drills one level. Otherwise this
             is the team workspace's own top-level Schedule/Roster/Equipment/
@@ -151,7 +151,7 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
           // Padding widened on all sides; the row's gap shrank to
           // compensate so five tabs still fit without more horizontal
           // scrolling than before.
-          return (<button key={id} onClick={() => navigate(path)} style={{ flexShrink: 0, whiteSpace: "nowrap", padding: "8px 6px", border: "none", background: "none", cursor: "pointer", fontFamily: "Barlow Condensed,sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: ".02em", color: active ? "var(--green)" : "var(--td)", borderBottom: "3px solid " + (active ? "var(--green)" : "transparent") }}>
+          return (<button key={id} onClick={() => navigate(path)} style={{ flexShrink: 0, whiteSpace: "nowrap", padding: "8px 6px", border: "none", background: "none", cursor: "pointer", fontFamily: "Barlow Condensed,sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: ".02em", color: active ? "var(--field)" : "var(--text-dim)", borderBottom: "3px solid " + (active ? "var(--field)" : "transparent") }}>
             {label}
           </button>);
         })}

@@ -24,10 +24,10 @@ export default function PrivateDrillWarningDialog({ drillName, onAdd, onCancel, 
     <div className="modal">
       <div className="mhandle" />
       <div className="mtitle">Private Drill</div>
-      <div style={{ fontSize: 14, color: "var(--black2)", lineHeight: 1.5, marginBottom: 14 }}>
+      <div style={{ fontSize: 14, color: "var(--ink-soft)", lineHeight: 1.5, marginBottom: 14 }}>
         {drillName ? `"${drillName}" is` : "This is"} a private drill. Adding it to this practice will make the practice copy visible to coaches and helpers who can access the practice. Coaches with build access may reuse this practice, and the head coach may save the practice as a template. Your original drill will remain private in your drill library.
       </div>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, fontSize: 13, color: "var(--td)", cursor: "pointer" }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, fontSize: 13, color: "var(--text-dim)", cursor: "pointer" }}>
         <input type="checkbox" checked={dontShowAgain} onChange={e => setDontShowAgain(e.target.checked)} />
         Don't show this warning again
       </label>

@@ -59,7 +59,7 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
   };
   return(<div onClick={()=>{setMenu(null);setSubMenu(null);}}>
     <div className="sechdr mb10"><span className="sectitle">{locations.length} Locations</span><button className="btn primary bsm" onClick={()=>openModal("addLocation",addPayload)}>+ Add</button></div>
-    {locations.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No locations yet.</div>}
+    {locations.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>No locations yet.</div>}
     {locations.map(loc=>(<div key={loc.id} className="card" style={{position:"relative",marginBottom:10}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
         <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{loc.name}</span>
@@ -99,20 +99,20 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
             <button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setSubMenu(null);setConfirmDeleteSub(sl);}}>Delete</button>
           </div>}
         </div>))}
-        {!loc.sublocations.length&&<span style={{fontSize:12,color:"var(--td)"}}>No areas yet</span>}
+        {!loc.sublocations.length&&<span style={{fontSize:12,color:"var(--text-dim)"}}>No areas yet</span>}
       </div>
     </div>))}
     {confirmDeleteSub&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setConfirmDeleteSub(null);}}>
       <div className="modal">
         <div className="mtitle">Delete {confirmDeleteSub.name}?</div>
-        <div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This removes the area from the location. Cannot be undone.</div>
+        <div style={{fontSize:14,color:"var(--text-dim)",marginBottom:16}}>This removes the area from the location. Cannot be undone.</div>
         <div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDeleteSub(null)}>Cancel</button><button className="btn danger bmd" onClick={doDeleteSub}>Delete</button></div>
       </div>
     </div>}
     {confirmDeleteLoc&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setConfirmDeleteLoc(null);}}>
       <div className="modal">
         <div className="mtitle">Delete {confirmDeleteLoc.name}?</div>
-        <div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This removes the location, and any areas at it, from your library. Cannot be undone.</div>
+        <div style={{fontSize:14,color:"var(--text-dim)",marginBottom:16}}>This removes the location, and any areas at it, from your library. Cannot be undone.</div>
         <div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDeleteLoc(null)}>Cancel</button><button className="btn danger bmd" onClick={doDeleteLoc}>Delete</button></div>
       </div>
     </div>}
@@ -171,9 +171,9 @@ export function LocationChips({locations,selectedIds,onToggle,label,emptyHint,se
   if(!locations||locations.length===0)return null;
   return(<div className="fld"><label className="lbl">{label||"Available At"}</label>
     <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:4}}>
-      {locations.map(l=>(<button key={l.id} type="button" onClick={()=>onToggle(l.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:selectedIds.includes(l.id)?"var(--green)":"var(--s1)",color:selectedIds.includes(l.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{l.name}</button>))}
+      {locations.map(l=>(<button key={l.id} type="button" className={"fchip"+(selectedIds.includes(l.id)?" on":"")} onClick={()=>onToggle(l.id)}>{l.name}</button>))}
     </div>
-    <div style={{fontSize:11,color:"var(--td)"}}>{selectedIds.length===0?(emptyHint||"Travels with you -- available at every location."):(selectedHint||"Only available at the selected location(s).")}</div>
+    <div style={{fontSize:11,color:"var(--text-dim)"}}>{selectedIds.length===0?(emptyHint||"Travels with you -- available at every location."):(selectedHint||"Only available at the selected location(s).")}</div>
   </div>);
 }
 
@@ -190,7 +190,7 @@ function GearEditRow({asset,locations,refreshLibrary,onDone}){
     await refreshLibrary();
     onDone();
   };
-  return(<div style={{padding:"10px 12px",background:"var(--s2)",borderBottom:"1px solid var(--b)"}}>
+  return(<div style={{padding:"10px 12px",background:"var(--surface-soft)",borderBottom:"1px solid var(--border)"}}>
     <div className="g2" style={{marginBottom:8}}>
       <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}/></div>
       <div className="fld"><label className="lbl">Sport</label>
@@ -312,12 +312,12 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
         const isCollapsed=collapsed[prefix+sport];
         const its=bySport[sport];
         return(<div key={sport} style={{marginBottom:8}}>
-          <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[prefix+sport]:!c[prefix+sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:isCollapsed?"var(--r)":"var(--r) var(--r) 0 0",cursor:"pointer"}}>
-            <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--green)"}}>{sport}</span>
-            <span style={{fontSize:12,color:"var(--td)"}}>{its.length} item{its.length!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
+          <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[prefix+sport]:!c[prefix+sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--surface)",border:"none",borderRadius:isCollapsed?"var(--radius-lg)":"var(--radius-lg) var(--radius-lg) 0 0",cursor:"pointer"}}>
+            <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--field)"}}>{sport}</span>
+            <span style={{fontSize:12,color:"var(--text-dim)"}}>{its.length} item{its.length!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
           </button>
-          {!isCollapsed&&<div style={{border:"1px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)"}}>
-            {its.map((a,i)=>renderRow(a,i<its.length-1?"1px solid var(--b)":"none"))}
+          {!isCollapsed&&<div style={{border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 var(--radius-lg) var(--radius-lg)"}}>
+            {its.map((a,i)=>renderRow(a,i<its.length-1?"1px solid var(--border)":"none"))}
           </div>}
         </div>);
       });
@@ -325,8 +325,8 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
     return items.map(a=>renderRow(a));
   };
   return(<div onClick={()=>setOpenMenu(null)}>
-    {!forceType&&<div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:16}}>
-      {["team","player"].map(t=>(<button key={t} onClick={()=>{setEquipTabState(t);setShowAdd(false);}} style={{flex:1,padding:"8px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:equipTab===t?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:equipTab===t?"var(--black)":"var(--td)"}}>{t==="team"?"Team Equipment":"Player Gear"}</button>))}
+    {!forceType&&<div className="segtrack" style={{marginBottom:16}}>
+      {["team","player"].map(t=>(<button key={t} className={"seg2"+(equipTab===t?" on":"")} onClick={()=>{setEquipTabState(t);setShowAdd(false);}}>{t==="team"?"Team Equipment":"Player Gear"}</button>))}
     </div>}
 
     {equipTab==="team"&&<div>
@@ -346,7 +346,7 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
         <LocationChips locations={myLocations} selectedIds={newLocationIds} onToggle={toggleNewLoc}/>
         <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowAdd(false);setNewLocationIds([]);}}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
       </div>}
-      {teamAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No team equipment yet.</div>}
+      {teamAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>No team equipment yet.</div>}
       <BySportList items={teamAssets} prefix="te_" renderRow={(a,borderBottom)=><AssetRow key={a.id} a={a} borderBottom={borderBottom}/>}/>
     </div>}
 
@@ -367,7 +367,7 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
         <LocationChips locations={myLocations} selectedIds={newLocationIds} onToggle={toggleNewLoc}/>
         <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowAdd(false);setNewName("");setNewLocationIds([]);}}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
       </div>}
-      {playerAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No player gear yet.</div>}
+      {playerAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>No player gear yet.</div>}
       {(()=>{
         const bySport={};
         playerAssets.forEach(a=>{const s=a.sport||"General";if(!bySport[s])bySport[s]=[];bySport[s].push(a);});
@@ -376,15 +376,15 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
           const isCollapsed=collapsed["pg_"+sport];
           const items=bySport[sport];
           return(<div key={sport} style={{marginBottom:8}}>
-            <button onClick={()=>setCollapsed(c=>Object.assign({},c,{["pg_"+sport]:!c["pg_"+sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:isCollapsed?"var(--r)":"var(--r) var(--r) 0 0",cursor:"pointer"}}>
-              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--green)"}}>{sport}</span>
-              <span style={{fontSize:12,color:"var(--td)"}}>{items.length} item{items.length!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
+            <button onClick={()=>setCollapsed(c=>Object.assign({},c,{["pg_"+sport]:!c["pg_"+sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--surface)",border:"none",borderRadius:isCollapsed?"var(--radius-lg)":"var(--radius-lg) var(--radius-lg) 0 0",cursor:"pointer"}}>
+              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--field)"}}>{sport}</span>
+              <span style={{fontSize:12,color:"var(--text-dim)"}}>{items.length} item{items.length!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
             </button>
-            {!isCollapsed&&<div style={{border:"1px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)"}}>
+            {!isCollapsed&&<div style={{border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 var(--radius-lg) var(--radius-lg)"}}>
               {items.map((a,i)=>{
                 const isEditing=openMenu==="edit_"+a.id;
                 return(<div key={a.id}>
-                  {!isEditing&&<AssetRow a={a} borderBottom={i<items.length-1?"1px solid var(--b)":"none"} onEdit={()=>setOpenMenu("edit_"+a.id)}/>}
+                  {!isEditing&&<AssetRow a={a} borderBottom={i<items.length-1?"1px solid var(--border)":"none"} onEdit={()=>setOpenMenu("edit_"+a.id)}/>}
                   {isEditing&&<GearEditRow asset={a} locations={myLocations} refreshLibrary={refreshLibrary} onDone={()=>setOpenMenu(null)}/>}
                 </div>);
               })}
@@ -458,32 +458,32 @@ export function SkillsTab({data,coachId,refreshLibrary,isAdmin,mode}){
     await refreshLibrary();
   };
   const delCategory=async id=>{await archiveSkillCategory(id);await refreshLibrary();};
-  if(cats.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No skill categories set up yet.</div>;
-  if(sports.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Add or join a team to see skill tags for its sport here.</div>;
+  if(cats.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>No skill categories set up yet.</div>;
+  if(sports.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>Add or join a team to see skill tags for its sport here.</div>;
   return(<div>
     {sports.map(sport=>{
       const isCollapsed=collapsed[sport];
       const sportCats=cats.filter(c=>c.sport===sport).slice().sort((a,b)=>a.sort_order-b.sort_order);
       const tagCount=tags.filter(t=>sportCats.some(c=>c.id===t.categoryId)).length;
       return(<div key={sport} style={{marginBottom:8}}>
-        <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:isCollapsed?"var(--r)":"var(--r) var(--r) 0 0",cursor:"pointer"}}>
-          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--green)"}}>{sport}</span>
-          <span style={{fontSize:12,color:"var(--td)"}}>{tagCount} tag{tagCount!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
+        <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--surface)",border:"none",borderRadius:isCollapsed?"var(--radius-lg)":"var(--radius-lg) var(--radius-lg) 0 0",cursor:"pointer"}}>
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--field)"}}>{sport}</span>
+          <span style={{fontSize:12,color:"var(--text-dim)"}}>{tagCount} tag{tagCount!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
         </button>
-        {!isCollapsed&&<div style={{border:"1px solid var(--b)",borderTop:"none",borderRadius:"0 0 var(--r) var(--r)",padding:"12px"}}>
+        {!isCollapsed&&<div style={{border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 var(--radius-lg) var(--radius-lg)",padding:"12px"}}>
           {sportCats.map((cat,i)=>{
             const catTags=tags.filter(t=>t.categoryId===cat.id);
             return(<div key={cat.id} style={{marginBottom:i<sportCats.length-1?16:0}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                <div style={{fontSize:11,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".06em"}}>{cat.name}</div>
-                {isAdmin&&<button type="button" onClick={()=>delCategory(cat.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--td)",fontSize:11}}>Remove category</button>}
+                <div style={{fontSize:11,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".06em"}}>{cat.name}</div>
+                {isAdmin&&<button type="button" onClick={()=>delCategory(cat.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-dim)",fontSize:11}}>Remove category</button>}
               </div>
               <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
                 {catTags.map(t=>(<span key={t.id} className="bdg bs" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 6px 4px 10px"}}>
                   {t.name}
-                  <button type="button" onClick={()=>del(t.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--td)",fontSize:14,lineHeight:1,padding:"0 2px"}}>×</button>
+                  <button type="button" onClick={()=>del(t.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-dim)",fontSize:14,lineHeight:1,padding:"0 2px"}}>×</button>
                 </span>))}
-                {catTags.length===0&&<span style={{fontSize:12,color:"var(--td)"}}>No tags yet</span>}
+                {catTags.length===0&&<span style={{fontSize:12,color:"var(--text-dim)"}}>No tags yet</span>}
               </div>
               <div style={{display:"flex",gap:6}}>
                 <input className="inp" placeholder={"Add a "+cat.name.toLowerCase()+" tag..."} style={{flex:1}} value={drafts[cat.id]||""} onChange={e=>setDrafts(p=>Object.assign({},p,{[cat.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&add(cat.id)}/>
@@ -495,7 +495,7 @@ export function SkillsTab({data,coachId,refreshLibrary,isAdmin,mode}){
               </div>}
             </div>);
           })}
-          {isAdmin&&<div style={{display:"flex",gap:6,marginTop:sportCats.length?16:0,paddingTop:sportCats.length?12:0,borderTop:sportCats.length?"1px solid var(--b)":"none"}}>
+          {isAdmin&&<div style={{display:"flex",gap:6,marginTop:sportCats.length?16:0,paddingTop:sportCats.length?12:0,borderTop:sportCats.length?"1px solid var(--border)":"none"}}>
             <input className="inp" placeholder="New category name..." style={{flex:1}} value={newCatDrafts[sport]||""} onChange={e=>setNewCatDrafts(p=>Object.assign({},p,{[sport]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addCategory(sport)}/>
             <button type="button" className="btn ghost bxs" onClick={()=>addCategory(sport)}>+ Category</button>
           </div>}
@@ -741,7 +741,7 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 2L18.5 17H1.5L10 2Z" fill="#f59e0b" stroke="#b45309" strokeWidth="1" strokeLinejoin="round"/><rect x="9.1" y="7.5" width="1.8" height="5" rx="0.9" fill="#fff"/><rect x="9.1" y="13.3" width="1.8" height="1.8" rx="0.9" fill="#fff"/></svg>
               </button>
               {staleMenuId===act.id&&<div className="mini-menu" style={staleMenuUp?{right:0,minWidth:220,padding:10,top:"auto",bottom:"calc(100% - 4px)"}:{right:0,minWidth:220,padding:10}} onClick={e=>e.stopPropagation()}>
-                <div style={{fontSize:12,color:"var(--td)",marginBottom:8,lineHeight:1.4}}>This drill has changed in your library since it was added here.</div>
+                <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:8,lineHeight:1.4}}>This drill has changed in your library since it was added here.</div>
                 <button type="button" className="btn primary bxs bfull" style={{marginBottom:6}} onClick={()=>refreshFromLibrary(act)}>Refresh to Latest</button>
                 <button type="button" className="btn ghost bxs bfull" onClick={()=>setStaleMenuId(null)}>Keep This Version</button>
               </div>}
@@ -763,7 +763,7 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
     </ActivityDndContext>
 
     {/* Add drills panel, same as builder */}
-    <div style={{borderTop:"1px solid var(--b)",paddingTop:14,marginTop:8}}>
+    <div style={{borderTop:"1px solid var(--border)",paddingTop:14,marginTop:8}}>
       <div className="sechdr mb8">
         <span className="sectitle">Add to Template</span>
         <button className="btn ghost bxs" onClick={()=>openModal&&openModal("addActivity")}>+ New Drill</button>
@@ -771,30 +771,30 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
       <div className="g2" style={{marginBottom:6}}>
         <div className="li tap" style={{marginBottom:0}} onClick={()=>{const id=uid();setActs(p=>[...p,{id,type:"checklist",name:"Intro",items:[],notes:"",duration:5}]);setLastAddedId(id);}}>
           <div className="lim"><div className="lin">Intro</div><div className="limt">Checklist</div></div>
-          <span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span>
+          <span style={{color:"var(--field)",fontSize:18,fontWeight:700}}>+</span>
         </div>
         <div className="li tap" style={{marginBottom:0}} onClick={()=>{const id=uid();setActs(p=>[...p,{id,type:"checklist",name:"Closer",items:[],notes:"",duration:5}]);setLastAddedId(id);}}>
           <div className="lim"><div className="lin">Closer</div><div className="limt">Checklist</div></div>
-          <span style={{color:"var(--green)",fontSize:18,fontWeight:700}}>+</span>
+          <span style={{color:"var(--field)",fontSize:18,fontWeight:700}}>+</span>
         </div>
       </div>
-      <div className="li tap" style={{marginBottom:6,background:"var(--gbg)",borderColor:"var(--gb)"}} onClick={()=>{
+      <div className="li tap" style={{marginBottom:6,background:"var(--field-tint)",borderColor:"var(--field-tint-border)"}} onClick={()=>{
         const b={id:uid(),type:"station_block",rotate:true,stationDuration:10,transitionDuration:2,stations:[
           {id:uid(),name:"Station 1",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
           {id:uid(),name:"Station 2",activityName:"",coachId:"",sublocationId:"",assignments:[],coachingPoints:"",equipment:[],playerGear:""},
         ]};
         setActs(p=>[...p,b]);setExpandedId(b.id);setLastAddedId(b.id);
       }}>
-        <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Station Block</div><div className="limt">2 stations, add or remove as needed</div></div>
-        <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
+        <div className="lim"><div className="lin" style={{color:"var(--field)"}}>Station Block</div><div className="limt">2 stations, add or remove as needed</div></div>
+        <span style={{color:"var(--field)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
       </div>
-      {sportSupportsScrimmage(sport)&&<div className="li tap" style={{marginBottom:6,background:"var(--gbg)",borderColor:"var(--gb)"}} onClick={()=>{
+      {sportSupportsScrimmage(sport)&&<div className="li tap" style={{marginBottom:6,background:"var(--field-tint)",borderColor:"var(--field-tint-border)"}} onClick={()=>{
         const cfg=buildDefaultScrimmageConfig(60,SCRIMMAGE_DEFAULT_ROUND_MINUTES,defaultScrimmageTagIds(data.skillCategories,data.skillTags,sport));
         const a={id:uid(),type:"scrimmage",name:"Scrimmage",duration:60,coachId:"",sublocationId:"",equipment:[],scrimmageConfig:cfg,scrimmageRounds:null};
         setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
       }}>
-        <div className="lim"><div className="lin" style={{color:"var(--green)"}}>Scrimmage</div><div className="limt">Everyone rotates positions and at-bats</div></div>
-        <span style={{color:"var(--green)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
+        <div className="lim"><div className="lin" style={{color:"var(--field)"}}>Scrimmage</div><div className="limt">Everyone rotates positions and at-bats</div></div>
+        <span style={{color:"var(--field)",fontSize:22,fontWeight:700,flexShrink:0}}>+</span>
       </div>}
       {(()=>{
         const tplSport=sport||"General";
@@ -802,26 +802,26 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
         // drills reference catalog-owned equipment, which can't link to a
         // personal template. Copy from Explore first.
         const filtered=(data.activityLibrary||[]).filter(a=>!a.sourceCatalogId).filter(a=>(a.sport||"General")===tplSport||(a.sport||"General")==="General");
-        if(filtered.length===0)return(<div style={{padding:"16px 0",textAlign:"center",color:"var(--td)",fontSize:13}}>No drills in library for {tplSport} yet.</div>);
+        if(filtered.length===0)return(<div style={{padding:"16px 0",textAlign:"center",color:"var(--text-dim)",fontSize:13}}>No drills in library for {tplSport} yet.</div>);
         return(<div>
           <div className="clbl" style={{marginBottom:8}}>{tplSport} + General</div>
           {filtered.map(lib=>(<div key={lib.id} className="li tap" onClick={()=>{const id=uid();setActs(p=>[...p,{id,type:"activity",libraryId:lib.id,name:lib.name,duration:lib.duration,assignments:[],coachId:"",sublocationId:"",notes:"",description:lib.description||"",coachingPoints:lib.coachingPoints||"",grouping:lib.grouping||"whole",numGroups:lib.numGroups||2,playerGear:lib.playerGear||"",equipment:Array.isArray(lib.equipment)?lib.equipment:[]}]);setLastAddedId(id);}}>
             <div className="lim">
               <div className="lin">{lib.name}</div>
               <div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div>
-              {lib.coachingPoints&&<div style={{fontSize:11,color:"var(--green2)",marginTop:2}}>{lib.coachingPoints}</div>}
+              {lib.coachingPoints&&<div style={{fontSize:11,color:"var(--field-accent)",marginTop:2}}>{lib.coachingPoints}</div>}
               {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
                 {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
               </div>}
             </div>
-            <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--green)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
+            <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--field)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
           </div>))}
         </div>);
       })()}
     </div>
 
     {/* Saved confirmation */}
-    {savedMsg&&<div style={{textAlign:"center",padding:"10px",color:"var(--green)",fontWeight:700,fontSize:14}}>{savedMsg}</div>}
+    {savedMsg&&<div style={{textAlign:"center",padding:"10px",color:"var(--field)",fontWeight:700,fontSize:14}}>{savedMsg}</div>}
 
     {/* Save as new template */}
     {showNewTpl&&<div className="card mt10">
@@ -835,7 +835,7 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
         template, silently dropping whatever's been edited since. */}
     {confirmLeave==="startFromTemplate"&&<div className="movly" onClick={()=>setConfirmLeave(null)}><div className="modal" onClick={e=>e.stopPropagation()}>
       <div className="mtitle">Unsaved changes</div>
-      <div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This template has changes that haven't been saved. Save before building a practice from it, or continue without saving and lose them?</div>
+      <div style={{fontSize:14,color:"var(--text-dim)",marginBottom:16}}>This template has changes that haven't been saved. Save before building a practice from it, or continue without saving and lose them?</div>
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         <button className="btn primary bmd bfull" onClick={confirmSaveAndContinue}>Save, then continue</button>
         <button className="btn outline bmd bfull" onClick={confirmDiscardAndContinue}>Continue without saving</button>
@@ -844,7 +844,7 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
     </div></div>}
 
     {/* Bottom action bar */}
-    {!showNewTpl&&<div style={{position:"fixed",bottom:"calc(var(--tab))",left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#fff",borderTop:"1px solid var(--b)",padding:"10px 14px",zIndex:50}}>
+    {!showNewTpl&&<div style={{position:"fixed",bottom:"calc(var(--tab))",left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#fff",borderTop:"1px solid var(--border)",padding:"10px 14px",zIndex:50}}>
       <div className="brow" style={{marginBottom:8}}>
         {isSaved&&<button className="btn primary bmd" style={{flex:2,height:48,fontSize:15}} onClick={goBuildPractice}>Build Practice from Template</button>}
         <button className="btn primary bmd" style={{flex:1,height:48,fontSize:15,opacity:teamId?1:.5}} disabled={!teamId||runBusy} title={teamId?"":"Pick a Default Team to run now"} onClick={handleRunNow}>{runBusy?"Starting...":"Run Now"}</button>
@@ -892,7 +892,7 @@ function SchedulePracticePicker({data,onPick,onClose}){
           <div className="limt">{plDayLbl(p.date,todayStr,tomorrowStr)}{p.startTime?" · "+plTimeLbl(p):""}{!planned?" · Needs plan":planningState(p)==="under"?" · Under-planned":""}</div>
         </div>
       </div>
-      <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+      <span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span>
     </div>);
   };
   const monthStart=monthCursor;
@@ -906,15 +906,15 @@ function SchedulePracticePicker({data,onPick,onClose}){
     <div className="modal" style={{maxHeight:"80vh",overflowY:"auto"}}>
       <div className="mhandle"/>
       <div className="mtitle">Choose a Scheduled Practice</div>
-      <div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginBottom:12}}>
-        {["agenda","month"].map(m=>(<button key={m} onClick={()=>setMode(m)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:mode===m?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:mode===m?"var(--black)":"var(--td)"}}>{m}</button>))}
+      <div style={{display:"flex",gap:0,background:"var(--surface-soft)",borderRadius:"var(--radius-lg)",padding:3,marginBottom:12}}>
+        {["agenda","month"].map(m=>(<button key={m} onClick={()=>setMode(m)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--radius-lg) - 2px)",background:mode===m?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:mode===m?"var(--ink)":"var(--text-dim)"}}>{m}</button>))}
       </div>
       {mode==="agenda"&&<div>
         {groupByDay(upcoming).map(g=>(<div key={g.date} style={{marginBottom:14}}>
           <div className="clbl" style={{marginBottom:6}}>{plDayLbl(g.date,todayStr,tomorrowStr)}</div>
           {g.items.map(rowFor)}
         </div>))}
-        {upcoming.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>Nothing scheduled yet. Schedule a practice first, or build an unscheduled one instead.</div>}
+        {upcoming.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>Nothing scheduled yet. Schedule a practice first, or build an unscheduled one instead.</div>}
       </div>}
       {mode==="month"&&<div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
@@ -923,22 +923,22 @@ function SchedulePracticePicker({data,onPick,onClose}){
           <button className="btn ghost bxs" onClick={()=>setMonthCursor(new Date(monthStart.getFullYear(),monthStart.getMonth()+1,1))}>&#8250;</button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
-          {["S","M","T","W","T","F","S"].map((d,i)=>(<div key={i} style={{textAlign:"center",fontSize:11,fontWeight:700,color:"var(--td)"}}>{d}</div>))}
+          {["S","M","T","W","T","F","S"].map((d,i)=>(<div key={i} style={{textAlign:"center",fontSize:11,fontWeight:700,color:"var(--text-dim)"}}>{d}</div>))}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
           {days.map((d,i)=>{
             const ds=toDateStr(d);
             const dayPractices=practicesByDate[ds]||[];
             const inMonth=d.getMonth()===monthStart.getMonth();
-            return (<div key={i} onClick={()=>dayPractices.length&&setDaySheetDate(ds)} style={{aspectRatio:"1",border:"1px solid var(--b)",borderRadius:6,padding:3,cursor:dayPractices.length?"pointer":"default",opacity:inMonth?1:.35,background:ds===todayStr?"var(--gbg)":"#fff"}}>
-              <div style={{fontSize:10,color:"var(--td)",marginBottom:2}}>{d.getDate()}</div>
+            return (<div key={i} onClick={()=>dayPractices.length&&setDaySheetDate(ds)} style={{aspectRatio:"1",border:"1px solid var(--border)",borderRadius:6,padding:3,cursor:dayPractices.length?"pointer":"default",opacity:inMonth?1:.35,background:ds===todayStr?"var(--field-tint)":"#fff"}}>
+              <div style={{fontSize:10,color:"var(--text-dim)",marginBottom:2}}>{d.getDate()}</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:2}}>
-                {dayPractices.slice(0,4).map(p=>{const team=teamById(p.teamId);const planned=(p.activities||[]).length>0;const color=(team&&team.colorPrimary)||"var(--green)";return (<span key={p.id} style={{width:6,height:6,borderRadius:"50%",background:planned?color:"transparent",border:"1.5px solid "+color}}/>);})}
+                {dayPractices.slice(0,4).map(p=>{const team=teamById(p.teamId);const planned=(p.activities||[]).length>0;const color=(team&&team.colorPrimary)||"var(--field)";return (<span key={p.id} style={{width:6,height:6,borderRadius:"50%",background:planned?color:"transparent",border:"1.5px solid "+color}}/>);})}
               </div>
             </div>);
           })}
         </div>
-        {daySheetDate&&<div style={{marginTop:14,borderTop:"1px solid var(--b)",paddingTop:12}}>
+        {daySheetDate&&<div style={{marginTop:14,borderTop:"1px solid var(--border)",paddingTop:12}}>
           <div className="clbl" style={{marginBottom:6}}>{plDayLbl(daySheetDate,todayStr,tomorrowStr)}</div>
           {(practicesByDate[daySheetDate]||[]).map(rowFor)}
         </div>}
@@ -1089,7 +1089,7 @@ function BenchmarkForm({ data, coachId, mode, sourceDrill, baseVersion, example,
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900 }}>{versioning ? "New Protocol Version" : sourceDrill ? "Benchmark from Drill" : "Create Benchmark"}</div>
         <button type="button" className="btn ghost bxs" onClick={onCancel}>Cancel</button>
       </div>
-      {versioning && <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 10 }}>A structural change starts a fresh comparison series. Existing planned occurrences stay on the current version until updated.</div>}
+      {versioning && <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 10 }}>A structural change starts a fresh comparison series. Existing planned occurrences stay on the current version until updated.</div>}
 
       {!versioning && <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus maxLength={120} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Home-to-first sprint" /></div>}
       {!versioning && <div style={{ display: "flex", gap: 10 }}>
@@ -1103,7 +1103,7 @@ function BenchmarkForm({ data, coachId, mode, sourceDrill, baseVersion, example,
 
       <div className="fld"><label className="lbl">Metric</label>
         <select className="inp" value={metricType} onChange={e => pickMetric(e.target.value)}>{BM_METRICS.map(m => <option key={m.k} value={m.k}>{m.label}</option>)}</select>
-        <div style={{ fontSize: 11, color: "var(--td)", marginTop: 4 }}>{metricMeta.help}</div>
+        <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>{metricMeta.help}</div>
       </div>
       <div style={{ display: "flex", gap: 10 }}>
         {metricMeta.units.length > 1 && <div className="fld" style={{ flex: 1 }}><label className="lbl">Unit</label>
@@ -1124,7 +1124,7 @@ function BenchmarkForm({ data, coachId, mode, sourceDrill, baseVersion, example,
       </div>}
       {metricType === "score_rubric" && <div className="fld"><label className="lbl">Levels (low to high)</label>
         {levels.map((l, i) => <div key={l.id} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
-          <span style={{ fontSize: 12, color: "var(--td)", width: 16 }}>{i + 1}</span>
+          <span style={{ fontSize: 12, color: "var(--text-dim)", width: 16 }}>{i + 1}</span>
           <input className="inp" style={{ flex: 1 }} value={l.label} placeholder="Label" onChange={e => setLevels(levels.map(x => x.id === l.id ? { ...x, label: e.target.value } : x))} />
           <button type="button" className="btn ghost bxs" disabled={levels.length <= 2} onClick={() => setLevels(levels.filter(x => x.id !== l.id))}>&times;</button>
         </div>)}
@@ -1143,11 +1143,11 @@ function BenchmarkForm({ data, coachId, mode, sourceDrill, baseVersion, example,
       </div>
 
       <button type="button" className="btn ghost bxs" onClick={() => setAdvanced(a => !a)} style={{ marginBottom: 8 }}>{advanced ? "Hide" : "Show"} advanced setup</button>
-      {advanced && <div style={{ borderLeft: "2px solid var(--b)", paddingLeft: 10, marginBottom: 10 }}>
+      {advanced && <div style={{ borderLeft: "2px solid var(--border)", paddingLeft: 10, marginBottom: 10 }}>
         <div className="fld"><label className="lbl">Skill tags</label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {tagsForSport.length === 0 && <span style={{ fontSize: 12, color: "var(--td)" }}>No skill categories for {sport} yet.</span>}
-            {tagsForSport.map(t => <button key={t.id} type="button" onClick={() => setTagIds(tagIds.includes(t.id) ? tagIds.filter(x => x !== t.id) : [...tagIds, t.id])} style={{ padding: "4px 10px", borderRadius: 20, border: "1.5px solid var(--b)", background: tagIds.includes(t.id) ? "var(--green)" : "var(--s1)", color: tagIds.includes(t.id) ? "#fff" : "var(--black)", fontSize: 12, cursor: "pointer" }}>{t.name}</button>)}
+            {tagsForSport.length === 0 && <span style={{ fontSize: 12, color: "var(--text-dim)" }}>No skill categories for {sport} yet.</span>}
+            {tagsForSport.map(t => <button key={t.id} type="button" className={"fchip"+(tagIds.includes(t.id)?" on":"")} style={{fontSize:12}} onClick={() => setTagIds(tagIds.includes(t.id) ? tagIds.filter(x => x !== t.id) : [...tagIds, t.id])}>{t.name}</button>)}
           </div>
         </div>
         <div className="fld"><label className="lbl">Planned activity minutes</label><input className="inp" type="number" min={0} value={plannedMin} onChange={e => setPlannedMin(e.target.value)} placeholder="Optional" /></div>
@@ -1160,7 +1160,7 @@ function BenchmarkForm({ data, coachId, mode, sourceDrill, baseVersion, example,
         <div className="fld"><label className="lbl">Invalid attempt guidance</label><textarea className="inp" rows={2} maxLength={1000} value={invalidGuidance} onChange={e => setInvalidGuidance(e.target.value)} placeholder="Default: an invalid attempt does not score; repeat the slot." /></div>
       </div>}
 
-      {err && <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 8 }}>{err}</div>}
+      {err && <div style={{ color: "var(--danger)", fontSize: 13, marginBottom: 8 }}>{err}</div>}
       <button type="button" className="btn primary bmd bfull" disabled={saving} onClick={save}>{saving ? "Saving..." : versioning ? "Save New Version" : "Create Benchmark"}</button>
     </div>
   );
@@ -1176,7 +1176,7 @@ function WordingForm({ version, onCancel, onSaved }) {
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900 }}>Clarify Wording</div>
         <button type="button" className="btn ghost bxs" onClick={onCancel}>Cancel</button>
       </div>
-      <div style={{ fontSize: 12, color: "var(--td)", marginBottom: 10 }}>A wording correction stays on the same version and never changes what is scored. To change the test setup, create a new version instead.</div>
+      <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 10 }}>A wording correction stays on the same version and never changes what is scored. To change the test setup, create a new version instead.</div>
       <div className="fld"><label className="lbl">Instructions</label><textarea className="inp" rows={4} maxLength={4000} value={instr} onChange={e => setInstr(e.target.value)} /></div>
       <div className="fld"><label className="lbl">What changed and why</label><input className="inp" value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. fixed a typo" /></div>
       <button type="button" className="btn primary bmd bfull" disabled={saving || !instr.trim()} onClick={async () => { setSaving(true); const r = await correctBenchmarkVersionWording(version.id, { instructions: instr.trim(), note: note.trim() || null }); setSaving(false); if (!r.error) onSaved(); }}>{saving ? "Saving..." : "Save Correction"}</button>
@@ -1208,7 +1208,7 @@ function BenchmarkDetail({ data, coachId, mode, benchmark, teamId, setTeamId, ca
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, margin: "10px 0" }}>
         <div>
           <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900 }}>{benchmark.title}</div>
-          <div style={{ fontSize: 12, color: "var(--td)" }}>{benchmark.sport} · {benchmark.subjectMode === "team" ? "Whole-team benchmark" : "Individual-player benchmark"}{benchmark.archivedAt ? " · Archived" : ""}</div>
+          <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{benchmark.sport} · {benchmark.subjectMode === "team" ? "Whole-team benchmark" : "Individual-player benchmark"}{benchmark.archivedAt ? " · Archived" : ""}</div>
         </div>
         {canManage && <button type="button" className="btn ghost bxs" onClick={async () => { benchmark.archivedAt ? await restoreBenchmark(benchmark.id) : await archiveBenchmark(benchmark.id); await refreshLibrary(); onBack(); }}>{benchmark.archivedAt ? "Restore" : "Archive"}</button>}
       </div>
@@ -1217,14 +1217,14 @@ function BenchmarkDetail({ data, coachId, mode, benchmark, teamId, setTeamId, ca
         <div className="clbl mb8">Current protocol (version {v.versionNumber})</div>
         <div style={{ fontSize: 13, fontWeight: 700 }}>{bmMetricSummary(v)}</div>
         <div style={{ fontSize: 13, whiteSpace: "pre-wrap", marginTop: 8 }}>{v.instructions}</div>
-        {v.protocolConditions && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 8 }}>
+        {v.protocolConditions && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 8 }}>
           {v.protocolConditions.distance && <div>Distance / layout: {v.protocolConditions.distance}</div>}
           {v.protocolConditions.timedWindowSeconds && <div>Timed window: {v.protocolConditions.timedWindowSeconds}s</div>}
           {v.protocolConditions.surfaceSetup && <div>Setup: {v.protocolConditions.surfaceSetup}</div>}
           {v.protocolConditions.scoringCriteria && <div>Scoring: {v.protocolConditions.scoringCriteria}</div>}
         </div>}
         {(v.tagSnapshot || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>{v.tagSnapshot.map((t, i) => <span key={i} className="bdg bs">{t}</span>)}</div>}
-        {v.invalidGuidance && <div style={{ fontSize: 12, color: "var(--td)", marginTop: 8 }}>Invalid attempts: {v.invalidGuidance}</div>}
+        {v.invalidGuidance && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 8 }}>Invalid attempts: {v.invalidGuidance}</div>}
         {canManage && !benchmark.archivedAt && <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           <button type="button" className="btn ghost bxs" onClick={() => setNewVersion(true)}>New version (setup change)</button>
           <button type="button" className="btn ghost bxs" onClick={() => setWording(v)}>Clarify wording</button>
@@ -1233,35 +1233,35 @@ function BenchmarkDetail({ data, coachId, mode, benchmark, teamId, setTeamId, ca
 
       {benchmark.versions.length > 1 && <div className="card" style={{ marginBottom: 12 }}>
         <div className="clbl mb8">Version history</div>
-        {benchmark.versions.map(ver => <div key={ver.id} style={{ fontSize: 12, padding: "4px 0", borderTop: ver === benchmark.versions[0] ? "none" : "1px solid var(--b)" }}>
-          <b>v{ver.versionNumber}</b> {bmMetricSummary(ver)} {ver.firstUsedAt ? <span style={{ color: "var(--td)" }}>· in use</span> : <span style={{ color: "var(--td)" }}>· not yet used</span>}
+        {benchmark.versions.map(ver => <div key={ver.id} style={{ fontSize: 12, padding: "4px 0", borderTop: ver === benchmark.versions[0] ? "none" : "1px solid var(--border)" }}>
+          <b>v{ver.versionNumber}</b> {bmMetricSummary(ver)} {ver.firstUsedAt ? <span style={{ color: "var(--text-dim)" }}>· in use</span> : <span style={{ color: "var(--text-dim)" }}>· not yet used</span>}
         </div>)}
       </div>}
 
       <div className="card">
         <div className="clbl mb8">Team results</div>
-        {teams.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>You are not on any team yet.</div>}
+        {teams.length === 0 && <div style={{ fontSize: 13, color: "var(--text-dim)" }}>You are not on any team yet.</div>}
         {teams.length > 0 && <select className="inp" value={teamId || ""} onChange={e => setTeamId(e.target.value || null)} style={{ marginBottom: 10 }}>
           <option value="">Choose a team to see results</option>
           {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>}
-        {teamId && assessments === null && <div style={{ fontSize: 12, color: "var(--td)" }}>Loading...</div>}
+        {teamId && assessments === null && <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Loading...</div>}
         {teamId && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
             <button type="button" className="btn ghost bsm" onClick={async () => { await adoptBenchmarkForTeam(benchmark.id, teamId, v.id); setReloadKey(k => k + 1); }}>Add to {adopted ? adopted.name : "team"}</button>
             {!benchmark.archivedAt && <button type="button" className="btn primary bsm" onClick={() => setMeasureAgain(true)}>Measure again</button>}
           </div>
         )}
-        {teamId && assessments === null && <div style={{ fontSize: 12, color: "var(--td)" }}>Loading...</div>}
-        {teamId && assessments && assessments.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>
+        {teamId && assessments === null && <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Loading...</div>}
+        {teamId && assessments && assessments.length === 0 && <div style={{ fontSize: 13, color: "var(--text-dim)" }}>
           No measurements for {adopted ? adopted.name : "this team"} yet. Add it to a practice in the Builder, or use Measure Again to record now.
         </div>}
         {teamId && assessments && assessments.length > 0 && <div>
-          {assessments.map(a => <div key={a.id} style={{ fontSize: 13, padding: "6px 0", borderTop: "1px solid var(--b)" }}>
+          {assessments.map(a => <div key={a.id} style={{ fontSize: 13, padding: "6px 0", borderTop: "1px solid var(--border)" }}>
             <b>{a.measuredLocalDate}</b>{a.label ? " · " + a.label : ""} <span className="bdg bs">{a.state}{a.underCorrection ? " (under correction)" : ""}</span>
             {a.excludedFromComparisons && <span className="bdg bs" style={{ marginLeft: 4 }}>excluded</span>}
           </div>)}
-          <div style={{ fontSize: 11, color: "var(--td)", marginTop: 8 }}>Comparisons, targets and player history are in Goals &amp; Insights &rarr; Benchmarks and each player's profile.</div>
+          <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}>Comparisons, targets and player history are in Goals &amp; Insights &rarr; Benchmarks and each player's profile.</div>
         </div>}
       </div>
 
@@ -1338,16 +1338,16 @@ function BenchmarksTab({ data, coachId, mode, refreshLibrary, fromDrill, clearFr
 
       {list.length === 0 && <div className="card" style={{ textAlign: "center", padding: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{all.length === 0 ? "No benchmarks yet" : "Nothing matches"}</div>
-        <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>Define a repeatable test once, then measure it as many times as you like.</div>
+        <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 12 }}>Define a repeatable test once, then measure it as many times as you like.</div>
         {all.length === 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
-          {BM_EXAMPLES.map(ex => <button key={ex.title} type="button" className="btn ghost bxs" onClick={() => setCreating({ example: ex })}>{ex.title} <span style={{ color: "var(--td)" }}>({ex.hint})</span></button>)}
+          {BM_EXAMPLES.map(ex => <button key={ex.title} type="button" className="btn ghost bxs" onClick={() => setCreating({ example: ex })}>{ex.title} <span style={{ color: "var(--text-dim)" }}>({ex.hint})</span></button>)}
         </div>}
       </div>}
 
       <div style={isBB ? { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 } : undefined}>
         {list.map(b => <div key={b.id} className="card" style={{ cursor: "pointer", marginBottom: isBB ? 0 : 10, opacity: b.archivedAt ? 0.6 : 1 }} onClick={() => { setDetailId(b.id); }}>
           <div style={{ fontSize: 15, fontWeight: 800 }}>{b.title}</div>
-          <div style={{ fontSize: 12, color: "var(--td)", marginTop: 2 }}>{b.sport} · {b.subjectMode === "team" ? "Whole team" : "Individual"}</div>
+          <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2 }}>{b.sport} · {b.subjectMode === "team" ? "Whole team" : "Individual"}</div>
           <div style={{ fontSize: 12, marginTop: 6 }}>{bmMetricSummary(b.latestVersion)}</div>
           {(b.latestVersion && b.latestVersion.tagSnapshot || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>{b.latestVersion.tagSnapshot.map((t, i) => <span key={i} className="bdg bs">{t}</span>)}</div>}
         </div>)}
@@ -1711,13 +1711,13 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           box was exactly text-sized. Padding widened, row gap shrank to
           compensate so all 5 tabs still fit without extra scrolling. */}
       <div style={{display:"flex",gap:8,padding:"6px 2px 0",overflowX:"auto"}}>
-        {[{k:"drills",label:"Drills"},{k:"templates",label:"Templates"},{k:"benchmarks",label:"Benchmarks"},{k:"locations",label:"Locations"},{k:"equipment",label:"Equipment"},{k:"skills",label:"Skill Tags"}].map(t=>(<button key={t.k} onClick={()=>setMineTab(t.k)} style={{flexShrink:0,background:"none",border:"none",cursor:"pointer",padding:"8px 6px",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap",color:mineTab===t.k?"var(--green)":"var(--td)",borderBottom:"2px solid "+(mineTab===t.k?"var(--green)":"transparent")}}>{t.label}</button>))}
+        {[{k:"drills",label:"Drills"},{k:"templates",label:"Templates"},{k:"benchmarks",label:"Benchmarks"},{k:"locations",label:"Locations"},{k:"equipment",label:"Equipment"},{k:"skills",label:"Skill Tags"}].map(t=>(<button key={t.k} onClick={()=>setMineTab(t.k)} style={{flexShrink:0,background:"none",border:"none",cursor:"pointer",padding:"8px 6px",fontFamily:"Barlow Condensed,sans-serif",fontSize:14,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap",color:mineTab===t.k?"var(--field)":"var(--text-dim)",borderBottom:"2px solid "+(mineTab===t.k?"var(--field)":"transparent")}}>{t.label}</button>))}
       </div>
       {/* My Drills / Team Libraries -- Drills-only, since Explore never
           applied to Templates/Locations/Equipment/Skill Tags in the first
           place (each of those is always just "mine," coach- or org-scoped). */}
-      {mineTab==="drills"&&<div style={{display:"flex",gap:0,background:"var(--s2)",borderRadius:"var(--r)",padding:3,marginTop:10}}>
-        {[{k:"mine",label:isOrgMode?"Org Drills":"My Drills"},{k:"explore",label:"Explore"}].map(t=>(<button key={t.k} onClick={()=>goSection(t.k)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--r) - 2px)",background:section===t.k?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:section===t.k?"var(--black)":"var(--td)"}}>{t.label}</button>))}
+      {mineTab==="drills"&&<div style={{display:"flex",gap:0,background:"var(--surface-soft)",borderRadius:"var(--radius-lg)",padding:3,marginTop:10}}>
+        {[{k:"mine",label:isOrgMode?"Org Drills":"My Drills"},{k:"explore",label:"Explore"}].map(t=>(<button key={t.k} onClick={()=>goSection(t.k)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--radius-lg) - 2px)",background:section===t.k?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:section===t.k?"var(--ink)":"var(--text-dim)"}}>{t.label}</button>))}
       </div>}
     </div>
     {mineTab==="benchmarks"&&<div style={{padding:"0 16px"}}><BenchmarksTab data={data} coachId={coachId} mode={mode} refreshLibrary={refreshLibrary} fromDrill={benchmarkFromDrill} clearFromDrill={()=>setBenchmarkFromDrill(null)}/></div>}
@@ -1725,7 +1725,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
     {mineTab==="equipment"&&<div style={{padding:"0 16px"}}><EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode={mode}/></div>}
     {mineTab==="skills"&&<div style={{padding:"0 16px"}}><SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} isAdmin={isAdmin} mode={mode}/></div>}
     {showDrillList&&<div style={{padding:"0 16px"}} onClick={()=>{setDrillMenu(null);setShareMenuId(null);}}>
-      {untaggedDeepLink&&<div className="card" style={{marginBottom:12,background:"var(--ambg)",border:"1px solid var(--ambb)"}} onClick={e=>e.stopPropagation()}>
+      {untaggedDeepLink&&<div className="card" style={{marginBottom:12,background:"var(--caution-tint)",border:"1px solid var(--caution-tint-border)"}} onClick={e=>e.stopPropagation()}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
           <div style={{fontSize:13}}>
             {untaggedOnly?"Showing "+untaggedDeepLink.untaggedForSport+" drills with no skill tag yet.":"Showing all "+untaggedDeepLink.untaggedForSport+" drills."} Tag one and it'll {untaggedOnly?"drop off this list":"update below"} automatically.
@@ -1735,12 +1735,12 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
         <button type="button" className="btn outline bsm" style={{marginTop:8}} onClick={()=>navigate(untaggedDeepLink.returnTo||"/team/"+untaggedDeepLink.teamId+"/goals")}>&larr; Back to Goals &amp; Insights</button>
       </div>}
       {section==="explore"&&exploreShelves.length>1&&<div style={{display:"flex",gap:6,overflowX:"auto",marginBottom:12,paddingBottom:2}}>
-        {exploreShelves.map(s=>(<button key={s.key} onClick={()=>{setShelf(s.key);setTagFilter([]);setTagSearch("");}} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:"1.5px solid var(--b)",background:shelf===s.key?"var(--green)":"var(--s1)",color:shelf===s.key?"#fff":"var(--black)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{s.label}</button>))}
+        {exploreShelves.map(s=>(<button key={s.key} className={"fchip"+(shelf===s.key?" on":"")} style={{flexShrink:0,fontSize:12,fontWeight:700,whiteSpace:"nowrap"}} onClick={()=>{setShelf(s.key);setTagFilter([]);setTagSearch("");}}>{s.label}</button>))}
       </div>}
       {shelf==="public"?(
         <div onClick={e=>e.stopPropagation()}><PublicLibraryScreen data={data} isAdmin={isAdmin} refreshLibrary={refreshLibrary} openModal={openModal} doCopy={doCopy} copyingId={copyingId} mode={mode}/></div>
       ):(<>
-      {drillSort==="suggested"&&isMine&&!suggestedReport&&<div style={{fontSize:12,color:"var(--td)",marginBottom:10}}>Loading goal priorities...</div>}
+      {drillSort==="suggested"&&isMine&&!suggestedReport&&<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:10}}>Loading goal priorities...</div>}
       {/* Direct feedback: Sort used to be its own plain label+select row,
           styled nothing like Filter/+Add Drill right below it -- now a
           real .btn ghost bsm select sharing the same row, so the whole
@@ -1764,15 +1764,15 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
         {isMine&&<button className="btn primary bsm" onClick={()=>openModal("addActivity")}>+ Add Drill</button>}
       </div>
       {(tagFilter.length>0||publisherFilter.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center",marginBottom:12}} onClick={e=>e.stopPropagation()}>
-        {tagFilter.map(id=>{const t=skillTagsById[id];if(!t)return null;return(<span key={id} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 4px 3px 10px",borderRadius:20,background:"var(--green)",color:"#fff",fontSize:12,fontWeight:600}}>
+        {tagFilter.map(id=>{const t=skillTagsById[id];if(!t)return null;return(<span key={id} className="fchip tag" style={{fontSize:12}}>
           {t.name}
           <button type="button" onClick={()=>toggleTagFilter(id)} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:14,lineHeight:1,padding:"2px 4px"}}>&times;</button>
         </span>);})}
-        {publisherFilter.map(key=>(<span key={key} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 4px 3px 10px",borderRadius:20,background:"#7c3aed",color:"#fff",fontSize:12,fontWeight:600}}>
+        {publisherFilter.map(key=>(<span key={key} className="fchip tag" style={{fontSize:12,background:"#7c3aed"}}>
           {publisherLabelOf(key)}
           <button type="button" onClick={()=>togglePublisherFilter(key)} style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:14,lineHeight:1,padding:"2px 4px"}}>&times;</button>
         </span>))}
-        <button type="button" onClick={()=>{setTagFilter([]);setPublisherFilter([]);}} style={{background:"none",border:"none",color:"var(--td)",fontSize:12,cursor:"pointer",textDecoration:"underline",padding:0}}>Clear all</button>
+        <button type="button" onClick={()=>{setTagFilter([]);setPublisherFilter([]);}} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:12,cursor:"pointer",textDecoration:"underline",padding:0}}>Clear all</button>
       </div>}
       {showFilter&&<div className="movly" style={{zIndex:300}} onClick={e=>{if(e.target===e.currentTarget)setShowFilter(false);}}>
         <div className="modal">
@@ -1783,26 +1783,26 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           {isMine&&availablePublishers.length>1&&<>
             <div className="clbl mb8">Publisher</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
-              {availablePublishers.map(p=>(<button key={p.key} type="button" onClick={()=>togglePublisherFilter(p.key)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:publisherFilter.includes(p.key)?"#7c3aed":"var(--s1)",color:publisherFilter.includes(p.key)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{p.label} <span style={{opacity:.7}}>{p.count}</span></button>))}
+              {availablePublishers.map(p=>(<button key={p.key} type="button" className={"fchip"+(publisherFilter.includes(p.key)?" on":"")} style={{"--fchip-on":"#7c3aed"}} onClick={()=>togglePublisherFilter(p.key)}>{p.label} <span style={{opacity:.7}}>{p.count}</span></button>))}
             </div>
           </>}
           <div className="clbl mb8">Skill Tags</div>
           {availableTags.length>8&&<input className="inp" placeholder="Search skill tags..." value={tagSearch} onChange={e=>setTagSearch(e.target.value)} style={{marginBottom:10}}/>}
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
-            {visibleTagChips.map(t=>(<button key={t.id} type="button" onClick={()=>toggleTagFilter(t.id)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid var(--b)",background:tagFilter.includes(t.id)?"var(--green)":"var(--s1)",color:tagFilter.includes(t.id)?"#fff":"var(--black)",fontSize:13,cursor:"pointer"}}>{t.name} <span style={{opacity:.7}}>{tagCounts[t.id]}</span></button>))}
-            {visibleTagChips.length===0&&<span style={{fontSize:13,color:"var(--td)"}}>No skill tags match "{tagSearch}"</span>}
+            {visibleTagChips.map(t=>(<button key={t.id} type="button" className={"fchip"+(tagFilter.includes(t.id)?" on":"")} onClick={()=>toggleTagFilter(t.id)}>{t.name} <span style={{opacity:.7}}>{tagCounts[t.id]}</span></button>))}
+            {visibleTagChips.length===0&&<span style={{fontSize:13,color:"var(--text-dim)"}}>No skill tags match "{tagSearch}"</span>}
           </div>
           {(tagFilter.length>0||publisherFilter.length>0)&&<button type="button" className="btn ghost bxs" onClick={()=>{setTagFilter([]);setPublisherFilter([]);}}>Clear all filters</button>}
           <button type="button" className="btn primary bmd bfull" style={{marginTop:14}} onClick={()=>setShowFilter(false)}>Done</button>
         </div>
       </div>}
-      {shelfDrillsAll.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>{isMine?"No drills yet. Tap + Add Drill.":shelf.startsWith("orgLib:")?"No drills shared to this org yet -- share one from My Library.":"No drills shared by other coaches yet."}</div>}
-      {shelfDrillsAll.length>0&&shelfDrills.length===0&&untaggedDeepLink&&untaggedOnly&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>All caught up -- every {untaggedDeepLink.untaggedForSport} drill has a skill tag.</div>}
-      {shelfDrillsAll.length>0&&shelfDrills.length===0&&!(untaggedDeepLink&&untaggedOnly)&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No drills match the selected filters.</div>}
+      {shelfDrillsAll.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>{isMine?"No drills yet. Tap + Add Drill.":shelf.startsWith("orgLib:")?"No drills shared to this org yet -- share one from My Library.":"No drills shared by other coaches yet."}</div>}
+      {shelfDrillsAll.length>0&&shelfDrills.length===0&&untaggedDeepLink&&untaggedOnly&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>All caught up -- every {untaggedDeepLink.untaggedForSport} drill has a skill tag.</div>}
+      {shelfDrillsAll.length>0&&shelfDrills.length===0&&!(untaggedDeepLink&&untaggedOnly)&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>No drills match the selected filters.</div>}
       {sports.map(sport=>(<div key={sport} style={{marginBottom:8}}>
-        <button onClick={()=>toggle(sport)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--s1)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
-          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--green)"}}>{sport}</span>
-          <span style={{fontSize:12,color:"var(--td)"}}>{shelfDrills.filter(a=>(a.sport||"General")===sport).length} drills {collapsed[sport]?"▶":"▼"}</span>
+        <button onClick={()=>toggle(sport)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--surface)",border:"none",borderRadius:"var(--radius-lg)",cursor:"pointer"}}>
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--field)"}}>{sport}</span>
+          <span style={{fontSize:12,color:"var(--text-dim)"}}>{shelfDrills.filter(a=>(a.sport||"General")===sport).length} drills {collapsed[sport]?"▶":"▼"}</span>
         </button>
         {!collapsed[sport]&&(()=>{
           const bySport=shelfDrills.filter(a=>(a.sport||"General")===sport);
@@ -1828,23 +1828,23 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
               ?drillOrderOverride[sport].map(id=>naturalOrder.find(a=>a.id===id)).filter(Boolean)
               :naturalOrder;
           }
-          const Row=({act,dragHandle})=>(<div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderBottom:"1px solid var(--b)",background:"#fff"}}>
+          const Row=({act,dragHandle})=>(<div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderBottom:"1px solid var(--border)",background:"#fff"}}>
             {dragHandle}
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
                 <span style={{fontWeight:700,fontSize:14}}>{act.name}</span>
-                {isMine&&act.isPrivate&&<span title="Private -- not visible to coaches you share your library with" aria-label="Private drill" style={{color:"var(--td)",display:"flex",flexShrink:0}}><Ic_Lock/></span>}
+                {isMine&&act.isPrivate&&<span title="Private -- not visible to coaches you share your library with" aria-label="Private drill" style={{color:"var(--text-dim)",display:"flex",flexShrink:0}}><Ic_Lock/></span>}
                 {isMine&&(act.sharedWithOrganizationIds||[]).length>0&&<span className="bdg bp" style={{fontSize:10}}>Shared</span>}
               </div>
               {isMine&&publisherKeyOf(act)!=="self"&&<div style={{fontSize:11,color:"#7c3aed",marginBottom:2}}>From {publisherLabelOf(publisherKeyOf(act))}</div>}
-              {act.description&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2,lineHeight:1.4}}>{act.description}</div>}
-              {act.coachingPoints&&<div style={{fontSize:12,color:"var(--td)",marginBottom:2}}>{act.coachingPoints}</div>}
-              {act.equipment&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>Needs: {equipNames(act.equipment).join(", ")}</div>}
-              {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>{act.grouping==="partners"?"Partners":act.numGroups+" groups"}</div>}
+              {act.description&&<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:2,lineHeight:1.4}}>{act.description}</div>}
+              {act.coachingPoints&&<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:2}}>{act.coachingPoints}</div>}
+              {act.equipment&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>Needs: {equipNames(act.equipment).join(", ")}</div>}
+              {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>{act.grouping==="partners"?"Partners":act.numGroups+" groups"}</div>}
               {act.skillTagIds&&act.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
                 {tagNames(act.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
               </div>}
-              {!isMine&&<div style={{fontSize:11,color:"var(--green2)",marginTop:4}}>Shared by {(data.profilesById&&data.profilesById[act.ownerUserId]&&data.profilesById[act.ownerUserId].name)||"a coach"}</div>}
+              {!isMine&&<div style={{fontSize:11,color:"var(--field-accent)",marginTop:4}}>Shared by {(data.profilesById&&data.profilesById[act.ownerUserId]&&data.profilesById[act.ownerUserId].name)||"a coach"}</div>}
               {!isMine&&shelf.startsWith("sharedBy:")&&<button className="btn outline bxs" style={{marginTop:6}} onClick={()=>doCopy(act)} disabled={copyingId===act.id}>{copyingId===act.id?"Copying...":isOrgMode?"Copy to Org Library":"Copy to My Library"}</button>}
             </div>
             {isMine&&<div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
@@ -1925,9 +1925,9 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
                 const key="skillcat_"+cid;
                 const isCollapsed=collapsed[key];
                 return (<div key={cid} style={{marginBottom:8}}>
-                  <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[key]:!c[key]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"var(--gbg)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
-                    <span style={{fontSize:12,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".05em"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"}</span>
-                    <span style={{fontSize:12,color:"var(--td)"}}>{byCat[cid].length} drills {isCollapsed?"▶":"▼"}</span>
+                  <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[key]:!c[key]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"var(--field-tint)",border:"none",borderRadius:"var(--radius-lg)",cursor:"pointer"}}>
+                    <span style={{fontSize:12,fontWeight:700,color:"var(--field)",textTransform:"uppercase",letterSpacing:".05em"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"}</span>
+                    <span style={{fontSize:12,color:"var(--text-dim)"}}>{byCat[cid].length} drills {isCollapsed?"▶":"▼"}</span>
                   </button>
                   {!isCollapsed&&byCat[cid].map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
                 </div>);
@@ -1935,9 +1935,9 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
               {untagged.length>0&&(()=>{
                 const isCollapsed=collapsed.skillcat_untagged;
                 return (<div style={{marginBottom:8}}>
-                  <button onClick={()=>setCollapsed(c=>Object.assign({},c,{skillcat_untagged:!c.skillcat_untagged}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"var(--s2)",border:"none",borderRadius:"var(--r)",cursor:"pointer"}}>
-                    <span style={{fontSize:12,fontWeight:700,color:"var(--td)",textTransform:"uppercase",letterSpacing:".05em"}}>Untagged</span>
-                    <span style={{fontSize:12,color:"var(--td)"}}>{untagged.length} drills {isCollapsed?"▶":"▼"}</span>
+                  <button onClick={()=>setCollapsed(c=>Object.assign({},c,{skillcat_untagged:!c.skillcat_untagged}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"var(--surface-soft)",border:"none",borderRadius:"var(--radius-lg)",cursor:"pointer"}}>
+                    <span style={{fontSize:12,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".05em"}}>Untagged</span>
+                    <span style={{fontSize:12,color:"var(--text-dim)"}}>{untagged.length} drills {isCollapsed?"▶":"▼"}</span>
                   </button>
                   {!isCollapsed&&untagged.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
                 </div>);
@@ -1959,21 +1959,21 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
         <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder="e.g. Tuesday Skills Day" value={newTplNameDraft} onChange={e=>setNewTplNameDraft(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createNewTpl()}/></div>
         <div className="brow"><button className="btn ghost bmd" onClick={()=>setNewTplPrompt(false)}>Cancel</button><button className="btn primary bmd" disabled={!newTplNameDraft.trim()} onClick={createNewTpl}>Create</button></div>
       </div></div>}
-      {templates.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--td)",fontSize:14}}>No templates yet.<br/>Build a practice and save it as a template.</div>}
+      {templates.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>No templates yet.<br/>Build a practice and save it as a template.</div>}
       {templates.map(tpl=>{
         const breakdown=skillBreakdown(tpl.activities);
         return(<div key={tpl.id} className="card" style={{marginBottom:10}}>
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:6}}>
           <div>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:18,fontWeight:900,lineHeight:1}}>{tpl.name}</div>
-            <div style={{fontSize:12,color:"var(--td)",marginTop:2}}>{(tpl.activities||[]).length} activities - {tpl.durMin||0}min</div>
-            {(tpl.createdAt||tpl.updatedAt)&&<div style={{fontSize:11,color:"var(--td)",marginTop:2}}>
+            <div style={{fontSize:12,color:"var(--text-dim)",marginTop:2}}>{(tpl.activities||[]).length} activities - {tpl.durMin||0}min</div>
+            {(tpl.createdAt||tpl.updatedAt)&&<div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>
               {tpl.createdAt&&<span>Created {fmtShort(tpl.createdAt)}</span>}
               {tpl.updatedAt&&tpl.createdAt&&fmtShort(tpl.updatedAt)!==fmtShort(tpl.createdAt)&&<span> - Updated {fmtShort(tpl.updatedAt)}</span>}
             </div>}
             {breakdown.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>
               {breakdown.slice(0,6).map(t=>(<span key={t.id} className="bdg bs" style={{fontSize:10}}>{t.name}</span>))}
-              {breakdown.length>6&&<span style={{fontSize:10,color:"var(--td)",alignSelf:"center"}}>+{breakdown.length-6} more</span>}
+              {breakdown.length>6&&<span style={{fontSize:10,color:"var(--text-dim)",alignSelf:"center"}}>+{breakdown.length-6} more</span>}
             </div>}
           </div>
           <div style={{position:"relative"}}>
@@ -1993,7 +1993,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           <button className="btn primary bmd" style={{flex:1}} onClick={()=>goToBuilder(null,tpl.id)}>Run Now</button>
         </div>
       </div>);})}
-      {confirmDel&&<div className="movly" onClick={()=>setConfirmDel(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="mtitle">Delete template?</div><div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This cannot be undone.</div><div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDel(null)}>Cancel</button><button className="btn primary bmd" onClick={async()=>{await archiveTemplate(confirmDel);await refreshPlanning();setConfirmDel(null);}}>Delete</button></div></div></div>}
+      {confirmDel&&<div className="movly" onClick={()=>setConfirmDel(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="mtitle">Delete template?</div><div style={{fontSize:14,color:"var(--text-dim)",marginBottom:16}}>This cannot be undone.</div><div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDel(null)}>Cancel</button><button className="btn primary bmd" onClick={async()=>{await archiveTemplate(confirmDel);await refreshPlanning();setConfirmDel(null);}}>Delete</button></div></div></div>}
     </div>}
     {showBuildChoice&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowBuildChoice(false);}}>
       <div className="modal">
@@ -2001,11 +2001,11 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
         <div className="mtitle">Build Practice</div>
         <div className="li tap" style={{marginBottom:8}} onClick={()=>{setShowBuildChoice(false);goToBuilder(null);}}>
           <div className="lim"><div className="lin">Unscheduled Practice</div><div className="limt">Build now, then save it as a template or run it right away.</div></div>
-          <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+          <span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span>
         </div>
         <div className="li tap" onClick={()=>{setShowBuildChoice(false);setShowSchedulePicker(true);}}>
           <div className="lim"><div className="lin">A Scheduled Practice</div><div className="limt">Pick an upcoming practice from your schedule to plan.</div></div>
-          <span style={{color:"var(--td)",fontSize:18}}>&#8250;</span>
+          <span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span>
         </div>
         <button className="btn ghost bmd bfull" style={{marginTop:12}} onClick={()=>setShowBuildChoice(false)}>Cancel</button>
       </div>
@@ -2015,7 +2015,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
     {openInsightsId&&<DrillInsightsView libraryActivityId={openInsightsId} drillName={(data.activityLibrary||[]).find(a=>a.id===openInsightsId)?.name||"Drill"} onClose={()=>setOpenInsightsId(null)}/>}
     {confirmMakePublicId&&<div className="movly" onClick={()=>setConfirmMakePublicId(null)}><div className="modal" onClick={e=>e.stopPropagation()}>
       <div className="mtitle">Make this drill public?</div>
-      <div style={{fontSize:14,color:"var(--td)",marginBottom:16}}>This drill will be visible to coaches you share your library with.</div>
+      <div style={{fontSize:14,color:"var(--text-dim)",marginBottom:16}}>This drill will be visible to coaches you share your library with.</div>
       <div className="brow">
         <button className="btn ghost bmd" onClick={()=>setConfirmMakePublicId(null)}>Cancel</button>
         <button className="btn primary bmd" onClick={()=>{const id=confirmMakePublicId;setConfirmMakePublicId(null);toggleDrillPrivate(id,false);}}>Make Public</button>

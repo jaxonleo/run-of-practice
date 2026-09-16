@@ -24,20 +24,20 @@ import { setOwnLibraryShare, setManagerLibraryShare, setPracticeDelegate } from 
 // Toggle switch styling copied verbatim from SettingsScreen.jsx's
 // "Show on Home" control for visual consistency, not a new pattern.
 function Toggle({ on, onClick, disabled }) {
-  return (<button type="button" onClick={onClick} disabled={disabled} style={{ width: 44, height: 26, borderRadius: 13, border: "none", cursor: disabled ? "default" : "pointer", background: on ? "var(--green)" : "var(--s2)", position: "relative", flexShrink: 0, opacity: disabled ? 0.6 : 1 }}>
+  return (<button type="button" onClick={onClick} disabled={disabled} style={{ width: 44, height: 26, borderRadius: 13, border: "none", cursor: disabled ? "default" : "pointer", background: on ? "var(--field)" : "var(--surface-soft)", position: "relative", flexShrink: 0, opacity: disabled ? 0.6 : 1 }}>
     <span style={{ position: "absolute", top: 2, left: on ? 20 : 2, width: 22, height: 22, borderRadius: "50%", background: "#fff", transition: "left .15s" }} />
   </button>);
 }
 
 function Row({ label, blurb, on, onToggle, busy, readOnly, readOnlyNote }) {
-  return (<div style={{ padding: "12px 0", borderBottom: "1px solid var(--b)" }}>
+  return (<div style={{ padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
       <span style={{ fontSize: 14, fontWeight: 700 }}>{label}</span>
       {readOnly
-        ? <span style={{ fontSize: 12.5, color: "var(--td)", flexShrink: 0 }}>{readOnlyNote}</span>
+        ? <span style={{ fontSize: 12.5, color: "var(--text-dim)", flexShrink: 0 }}>{readOnlyNote}</span>
         : <Toggle on={on} onClick={onToggle} disabled={busy} />}
     </div>
-    <div style={{ fontSize: 12.5, color: "var(--td)", lineHeight: 1.5, marginTop: 4 }}>{blurb}</div>
+    <div style={{ fontSize: 12.5, color: "var(--text-dim)", lineHeight: 1.5, marginTop: 4 }}>{blurb}</div>
   </div>);
 }
 
@@ -60,7 +60,7 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
     <div className="modal">
       <div className="mhandle" />
       <div className="mtitle">Permissions{managerView ? ": " + coach.name : ""}</div>
-      <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 4 }}>{team.name}</div>
+      <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 4 }}>{team.name}</div>
 
       {managerView && (<>
         <Row
@@ -107,7 +107,7 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
         />
       </>)}
 
-      {error && <div style={{ fontSize: 13, color: "var(--red)", marginTop: 10 }}>{error}</div>}
+      {error && <div style={{ fontSize: 13, color: "var(--danger)", marginTop: 10 }}>{error}</div>}
       <button className="btn ghost bmd bfull" style={{ marginTop: 16 }} onClick={onClose}>Close</button>
     </div>
   </div>);

@@ -21,7 +21,7 @@ function PlanPill({ practice }) {
   const exceeds = st === "exceeds";
   // whiteSpace:nowrap -- otherwise a tight card can wrap mid-phrase (e.g.
   // "0/60" on one line, "min" starting the next), which reads as broken.
-  return <span style={{ color: onTrack ? "var(--green)" : exceeds ? "var(--amber)" : "var(--red)", fontWeight: 600, whiteSpace: "nowrap" }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
+  return <span style={{ color: onTrack ? "var(--field)" : exceeds ? "var(--caution)" : "var(--danger)", fontWeight: 600, whiteSpace: "nowrap" }}>{onTrack ? "✓ " : ""}{total}/{practice.scheduledDurationMinutes} min</span>;
 }
 
 // §6: getting-started checklist, completion fully derived from existing
@@ -77,10 +77,10 @@ function GettingStartedCard({ data, hasCompleted, coachId, mode, goToBuilder, go
       </div>
       {steps.map((s, i) => {
         const Row = s.onClick ? "button" : "div";
-        return (<Row key={i} onClick={s.onClick} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: "none", borderLeft: "none", borderRight: "none", borderBottom: i < steps.length - 1 ? "1px solid var(--s2)" : "none", width: "100%", background: "none", textAlign: "left", cursor: s.onClick ? "pointer" : "default", font: "inherit" }}>
-          <span style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, background: s.done ? "var(--green)" : "var(--s2)", color: s.done ? "#fff" : "var(--td)" }}>{s.done ? "✓" : i + 1}</span>
-          <span style={{ flex: 1, fontSize: 14, color: s.done ? "var(--td)" : "var(--black)", textDecoration: s.done ? "line-through" : "none" }}>{s.label}</span>
-          {s.onClick && !s.done && <span style={{ color: "var(--td)", fontSize: 18 }}>&#8250;</span>}
+        return (<Row key={i} onClick={s.onClick} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: "none", borderLeft: "none", borderRight: "none", borderBottom: i < steps.length - 1 ? "1px solid var(--surface-soft)" : "none", width: "100%", background: "none", textAlign: "left", cursor: s.onClick ? "pointer" : "default", font: "inherit" }}>
+          <span style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, background: s.done ? "var(--field)" : "var(--surface-soft)", color: s.done ? "#fff" : "var(--text-dim)" }}>{s.done ? "✓" : i + 1}</span>
+          <span style={{ flex: 1, fontSize: 14, color: s.done ? "var(--text-dim)" : "var(--ink)", textDecoration: s.done ? "line-through" : "none" }}>{s.label}</span>
+          {s.onClick && !s.done && <span style={{ color: "var(--text-dim)", fontSize: 18 }}>&#8250;</span>}
         </Row>);
       })}
     </div>
@@ -108,7 +108,7 @@ function FeedbackModal({ coachId, coachEmail, onClose }) {
       <div className="mhandle" />
       <div className="mtitle">Send Feedback</div>
       {done ? (<div>
-        <div style={{ fontSize: 14, color: "var(--black2)", marginBottom: 16 }}>Thanks, got it.</div>
+        <div style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 16 }}>Thanks, got it.</div>
         <button className="btn ghost bmd bfull" onClick={onClose}>Close</button>
       </div>) : (<div>
         <div className="fld mb10">
@@ -665,7 +665,7 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   if (viewPractice) return (<div style={{ padding: "0 0 calc(var(--tab) + 20px)" }}><PracticeDetail practice={viewPractice} data={data} goToBuilder={goToBuilder} goToRun={goToRun} coachId={coachId} refreshPlanning={refreshPlanning} onBack={() => setViewPractice(null)} mode={mode} /></div>);
 
   const joinBarContent = (<>
-    {joinableLiveSessions.map(s => (<button key={s.sessionId} onClick={() => goToRun(s.practiceId)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 16px", background: "var(--green)", color: "#fff", border: "none", borderBottom: "1px solid rgba(255,255,255,.15)", cursor: "pointer", fontFamily: "Barlow Condensed,sans-serif" }}>
+    {joinableLiveSessions.map(s => (<button key={s.sessionId} onClick={() => goToRun(s.practiceId)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 16px", background: "var(--field)", color: "#fff", border: "none", borderBottom: "1px solid rgba(255,255,255,.15)", cursor: "pointer", fontFamily: "Barlow Condensed,sans-serif" }}>
       <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff", flexShrink: 0 }} />
       {/* setupConfirmedAt distinguishes a real running practice from one
           still sitting in Practice Setup (shared pre-live stage) -- both
@@ -679,14 +679,14 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   const headerContent = (<div style={{ padding: "20px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
     <div>
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{greeting},</div>
-      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, color: (isOrgMode && activeOrg && activeOrg.color) || "var(--green)", lineHeight: 1, display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, color: (isOrgMode && activeOrg && activeOrg.color) || "var(--field)", lineHeight: 1, display: "flex", alignItems: "center", gap: 8 }}>
         {isOrgMode && activeOrg && activeOrg.color && <span style={{ width: 14, height: 14, borderRadius: "50%", background: activeOrg.color, flexShrink: 0 }} />}
         {isOrgMode ? (activeOrg ? activeOrg.name : "Organization") : coachName}
       </div>
     </div>
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <div style={{ position: "relative" }}>
-        <button onClick={() => setShowHelpMenu(s => !s)} style={{ position: "relative", background: "var(--s2)", border: "1.5px solid var(--b)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, color: "var(--green)" }}>
+        <button onClick={() => setShowHelpMenu(s => !s)} style={{ position: "relative", background: "var(--surface-soft)", border: "1.5px solid var(--border)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 900, color: "var(--field)" }}>
           ?
         </button>
         {/* Getting Started moved out of this menu entirely -- it's now a
@@ -698,15 +698,15 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
           <button className="mm-item" onClick={() => { setShowHelpMenu(false); setShowFeedback(true); }}>Send Feedback</button>
         </div>}
       </div>
-      <button onClick={goToSettings} aria-label="Settings" style={{ background: "var(--s2)", border: "1.5px solid var(--b)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, color: "var(--tm)" }}>
+      <button onClick={goToSettings} aria-label="Settings" style={{ background: "var(--surface-soft)", border: "1.5px solid var(--border)", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, color: "var(--text-muted)" }}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1.03 1.56V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1.11-1.56 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.56-1.03H3a2 2 0 110-4h.09a1.7 1.7 0 001.56-1.11 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34h.08A1.7 1.7 0 0010.12 3.6V3a2 2 0 114 0v.09a1.7 1.7 0 001.03 1.56 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87v.08c.26.63.87 1.05 1.56 1.03H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.51 1.03z"/></svg>
       </button>
     </div>
   </div>);
   const modeToggleContent = (myOrgs.length > 0 && <div style={{ padding: "0 16px 12px" }}>
-    <div style={{ display: "flex", gap: 0, background: "var(--s2)", borderRadius: "var(--r)", padding: 3 }}>
-      <button onClick={() => setMode({ type: "coach" })} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: !isOrgMode ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: !isOrgMode ? "var(--black)" : "var(--td)" }}>Coach Mode</button>
-      <button onClick={switchToOrgMode} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--r) - 2px)", background: isOrgMode ? "var(--green)" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: isOrgMode ? "#fff" : "var(--td)" }}>Organization Mode</button>
+    <div style={{ display: "flex", gap: 0, background: "var(--surface-soft)", borderRadius: "var(--radius-lg)", padding: 3 }}>
+      <button onClick={() => setMode({ type: "coach" })} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--radius-lg) - 2px)", background: !isOrgMode ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: !isOrgMode ? "var(--ink)" : "var(--text-dim)" }}>Coach Mode</button>
+      <button onClick={switchToOrgMode} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--radius-lg) - 2px)", background: isOrgMode ? "var(--field)" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: isOrgMode ? "#fff" : "var(--text-dim)" }}>Organization Mode</button>
     </div>
     {showOrgPicker && <div className="card" style={{ marginTop: 6, padding: 8 }}>
       {myOrgs.map(org => (<button key={org.id} className="mm-item" style={{ width: "100%", textAlign: "left" }} onClick={() => pickOrg(org.id)}>{org.name}</button>))}
@@ -769,11 +769,11 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   const orgRollupContent = (isOrgMode && <div style={{ padding: "0 16px 16px" }}>
     <div className="clbl mb8">Weekly Live Practices</div>
     <div className="card" style={{ padding: 12 }}>
-      {rollup.length === 0 && <div style={{ fontSize: 13, color: "var(--td)" }}>No live practices run yet.</div>}
+      {rollup.length === 0 && <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No live practices run yet.</div>}
       {rollup.length > 0 && <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 60 }}>
         {rollup.map(w => (<div key={w.wk} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
-          <div style={{ width: "100%", background: "var(--green)", borderRadius: 3, height: Math.max(2, (w.live_practices / maxRun) * 52) }} />
-          <div style={{ fontSize: 9, color: "var(--td)", marginTop: 2 }}>{w.live_practices}</div>
+          <div style={{ width: "100%", background: "var(--field)", borderRadius: 3, height: Math.max(2, (w.live_practices / maxRun) * 52) }} />
+          <div style={{ fontSize: 9, color: "var(--text-dim)", marginTop: 2 }}>{w.live_practices}</div>
         </div>))}
       </div>}
     </div>
@@ -790,14 +790,14 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
     <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
       {data.teams.map(team => (<div key={team.id} className="card" style={{ flexShrink: 0, minWidth: 140, cursor: "pointer", borderLeft: "4px solid " + (team.colorPrimary || "transparent"), padding: "10px 12px" }} onClick={() => goToTeam(team.id)}>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 15, fontWeight: 700, whiteSpace: "nowrap" }}>{team.name}</div>
-        <div style={{ fontSize: 11, color: "var(--td)" }}>{team.sport}</div>
+        <div style={{ fontSize: 11, color: "var(--text-dim)" }}>{team.sport}</div>
         {/* Org name shown here (Coach mode only) so a coach juggling
             personal teams and org teams together can tell which is
             which at a glance -- Org mode already says the org's name
             in the greeting header above, so repeating it per-card there
             would just be noise. */}
-        {!isOrgMode && team.organizationName && <div style={{ fontSize: 10, color: "var(--td)", marginTop: 2 }}>{team.organizationName}</div>}
-        {!isOrgMode && <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--td)", marginTop: 2 }}>{myTeamRole(team, coachId)}</div>}
+        {!isOrgMode && team.organizationName && <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>{team.organizationName}</div>}
+        {!isOrgMode && <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--text-dim)", marginTop: 2 }}>{myTeamRole(team, coachId)}</div>}
       </div>))}
     </div>
   </div>);
@@ -828,16 +828,16 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
         const dnum = Number(d.slice(8, 10));
         const visible = dayPractices.slice(0, 2);
         const overflow = dayPractices.length - visible.length;
-        return (<button key={d} onClick={() => setGlanceDate(d)} style={{ flex: 1, minWidth: 0, textAlign: "center", background: isToday ? "var(--s2)" : "none", border: "1px solid " + (isToday ? "var(--b)" : "transparent"), borderRadius: 7, padding: "5px 2px 4px", cursor: "pointer", font: "inherit" }}>
-          <span style={{ display: "block", fontSize: 9, fontWeight: 700, color: "var(--td)", letterSpacing: ".04em", marginBottom: 3 }}>{dow}</span>
-          <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--black)", marginBottom: 3 }}>{dnum}</span>
+        return (<button key={d} onClick={() => setGlanceDate(d)} style={{ flex: 1, minWidth: 0, textAlign: "center", background: isToday ? "var(--surface-soft)" : "none", border: "1px solid " + (isToday ? "var(--border)" : "transparent"), borderRadius: 7, padding: "5px 2px 4px", cursor: "pointer", font: "inherit" }}>
+          <span style={{ display: "block", fontSize: 9, fontWeight: 700, color: "var(--text-dim)", letterSpacing: ".04em", marginBottom: 3 }}>{dow}</span>
+          <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--ink)", marginBottom: 3 }}>{dnum}</span>
           <span style={{ display: "flex", gap: 2, alignItems: "center", justifyContent: "center", height: 6 }}>
             {visible.length === 0 && <span style={{ display: "block", width: 6, height: 6, borderRadius: "50%", background: "transparent", border: "1.3px solid transparent" }} />}
             {visible.map(p => {
-              const team = teamById(p.teamId), planned = isPlanned(p), cancelled = isCancelled(p), color = (team && team.colorPrimary) || "var(--green)";
-              return (<span key={p.id} style={{ display: "block", width: 6, height: 6, borderRadius: "50%", background: planned && !cancelled ? color : "transparent", border: "1.3px solid " + (cancelled ? "var(--td)" : color), opacity: cancelled ? .5 : 1, flexShrink: 0 }} />);
+              const team = teamById(p.teamId), planned = isPlanned(p), cancelled = isCancelled(p), color = (team && team.colorPrimary) || "var(--field)";
+              return (<span key={p.id} style={{ display: "block", width: 6, height: 6, borderRadius: "50%", background: planned && !cancelled ? color : "transparent", border: "1.3px solid " + (cancelled ? "var(--text-dim)" : color), opacity: cancelled ? .5 : 1, flexShrink: 0 }} />);
             })}
-            {overflow > 0 && <span style={{ fontSize: 8, fontWeight: 700, color: "var(--td)", lineHeight: 1 }}>+{overflow}</span>}
+            {overflow > 0 && <span style={{ fontSize: 8, fontWeight: 700, color: "var(--text-dim)", lineHeight: 1 }}>+{overflow}</span>}
           </span>
         </button>);
       })}
@@ -845,20 +845,20 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   </div>);
 
   const heroContent = (!runStatusLoaded && upcomingCandidates.length > 0) ? (
-    <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px", color: "var(--td)", fontSize: 14 }}>Loading...</div>
+    <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px", color: "var(--text-dim)", fontSize: 14 }}>Loading...</div>
   ) : (<>
     {!nextPractice && nextCancelledPractice && (() => {
       const team = teamById(nextCancelledPractice.teamId);
-      return (<div className="card" style={{ marginBottom: 16, borderColor: "var(--b)" }}>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)", marginBottom: 6 }}>{dayLbl(nextCancelledPractice.date, todayStr, tomorrowStr)}{nextCancelledPractice.startTime ? " · " + timeLbl(nextCancelledPractice) : ""} · Cancelled</div>
-        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1, marginBottom: 4, color: "var(--td)", textDecoration: "line-through" }}>{team ? team.name : "Practice"}</div>
-        <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>This practice was cancelled -- nothing else is coming up yet.</div>
+      return (<div className="card" style={{ marginBottom: 16, borderColor: "var(--border)" }}>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-dim)", marginBottom: 6 }}>{dayLbl(nextCancelledPractice.date, todayStr, tomorrowStr)}{nextCancelledPractice.startTime ? " · " + timeLbl(nextCancelledPractice) : ""} · Cancelled</div>
+        <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1, marginBottom: 4, color: "var(--text-dim)", textDecoration: "line-through" }}>{team ? team.name : "Practice"}</div>
+        <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 12 }}>This practice was cancelled -- nothing else is coming up yet.</div>
         <button className="btn outline blg bfull" onClick={() => setViewPractice(nextCancelledPractice)}>View Practice</button>
       </div>);
     })()}
     {!nextPractice && !nextCancelledPractice && <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px" }}>
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{data.teams.length === 0 ? "Set up your practice schedule" : "Nothing on the schedule"}</div>
-      <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 16 }}>{!canManageAnyTeam ? "Nothing planned yet." : data.teams.length === 0 ? "Add a team, then set up a recurring schedule to get started." : "Build a practice or set up a recurring schedule."}</div>
+      <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>{!canManageAnyTeam ? "Nothing planned yet." : data.teams.length === 0 ? "Add a team, then set up a recurring schedule to get started." : "Build a practice or set up a recurring schedule."}</div>
       {canManageAnyTeam && <div style={{ display: "flex", gap: 8 }}>
         <button className="btn primary bmd" style={{ flex: 1 }} onClick={() => goToBuilder(null)}>+ Build a Practice</button>
         <button className="btn outline bmd" style={{ flex: 1 }} onClick={goToSchedule}>Set Up Schedule</button>
@@ -875,13 +875,13 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
       // practice -- distinct from the "Upcoming Practices" list further
       // down, which covers the whole week.
       return (<><div className="clbl mb8">Up Next</div>
-      <div className="card" style={{ marginBottom: 16, borderColor: soon ? "var(--green)" : "var(--b)", borderWidth: soon ? 2 : 1.5 }}>
+      <div className="card" style={{ marginBottom: 16, borderColor: soon ? "var(--field)" : "var(--border)", borderWidth: soon ? 2 : 1.5 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
           {team && team.colorPrimary && <span style={{ width: 10, height: 10, borderRadius: "50%", boxSizing: "border-box", background: planned ? team.colorPrimary : "transparent", border: "1.5px solid " + team.colorPrimary, flexShrink: 0 }} />}
-          <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)" }}>{dayLbl(nextPractice.date, todayStr, tomorrowStr)}{nextPractice.startTime ? " · " + timeLbl(nextPractice) : ""}</span>
+          <span style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-dim)" }}>{dayLbl(nextPractice.date, todayStr, tomorrowStr)}{nextPractice.startTime ? " · " + timeLbl(nextPractice) : ""}</span>
         </div>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 26, fontWeight: 900, lineHeight: 1, marginBottom: 4 }}>{team ? team.name : "Practice"}</div>
-        <div style={{ fontSize: 13, color: "var(--td)", marginBottom: 12 }}>
+        <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 12 }}>
           {loc ? loc.name : "Location TBD"}
           {headcount !== null && <span> · {headcount} of {team.players.length} expected</span>}
           {planningState(nextPractice) && <span> · <PlanPill practice={nextPractice} /></span>}
@@ -929,8 +929,8 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
         toward the one thing that would actually unlock it, same "Create a
         team" entry point Getting Started's own first step uses. */}
     {!isOrgMode && !focusTeam && headCoachTeams.length === 0 && <div className="card" style={{ marginBottom: 16, padding: "14px 16px" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--td)", marginBottom: 6 }}>Development Pulse</div>
-      <div style={{ fontSize: 14, color: "var(--black2)", marginBottom: 12, lineHeight: 1.5 }}>Development Pulse tracks how a team's practices compare to its goals over time -- it's for teams you head-coach. Create a team to start seeing it.</div>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-dim)", marginBottom: 6 }}>Development Pulse</div>
+      <div style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 12, lineHeight: 1.5 }}>Development Pulse tracks how a team's practices compare to its goals over time -- it's for teams you head-coach. Create a team to start seeing it.</div>
       <button className="btn outline bmd bfull" onClick={() => navigate("/teams", { state: { openAddTeam: true } })}>Create a Team</button>
     </div>}
   </>);
@@ -942,7 +942,7 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   // saying the same thing was redundant.
   const upcomingContent = (<>
     <div className="sechdr" style={{ marginBottom: 8 }}><span className="sectitle">Upcoming Practices</span><button className="btn ghost bxs" onClick={goToSchedule}>My Schedule</button></div>
-    {agendaWindow.length === 0 && <div style={{ padding: "16px 0", textAlign: "center", color: "var(--td)", fontSize: 14 }}>Nothing scheduled.</div>}
+    {agendaWindow.length === 0 && <div style={{ padding: "16px 0", textAlign: "center", color: "var(--text-dim)", fontSize: 14 }}>Nothing scheduled.</div>}
     {agendaWindow.map(p => {
       // agendaWindow already excludes completed practices, so no "· Completed"
       // badge branch is needed here (unlike the old 14-day list).
