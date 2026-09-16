@@ -110,6 +110,22 @@ export function SortableActivityRow({id,children,sticky,stickyTop,raised,stickyB
     return()=>obs.disconnect();
   },[sticky,stickyTop]);
   const showBackdrop=sticky&&stickyBg&&isStuck;
+  // Direct feedback: the App.jsx "torn edge" strip this row sits below
+  // animates its own height over .2s when it opens/closes (see its own
+  // comment there for why a plain instant snap read as jerky). This row's
+  // `top` -- which is exactly ropStickyTop+ropZigzagH, i.e. it grows by
+  // the same 16px the strip grows by, from the same state flip -- needs
+  // the *identical* transition, not just an update in the same render:
+  // two properties that both jump instantly agree at rest but can still
+  // independently reach their new values at different browser-paint
+  // moments; two properties transitioning with the same duration/easing
+  // from the same trigger interpolate the same 16px delta in lockstep at
+  // every intermediate frame, which is what actually keeps this row's
+  // rendered position from ever drifting ahead of or behind the strip's
+  // visible height mid-animation. Only added while sticky -- dnd-kit's own
+  // `transition` (drag-reorder's transform animation) is untouched
+  // otherwise, and `top` isn't set at all when this row isn't sticky.
+  const stickyTransition=sticky?[transition,"top .2s ease"].filter(Boolean).join(", "):transition;
   // zIndex always at least 1 (not just when dragging/sticky) -- Builder's
   // Run of Practice paints its green background as an absolutely
   // positioned backdrop behind these rows (position:absolute, zIndex:0),
@@ -129,7 +145,7 @@ export function SortableActivityRow({id,children,sticky,stickyTop,raised,stickyB
   // row in a list needs this exactly as much as a middle one, since
   // without it the row's own trailing padding/the list's own edge clips
   // the popover the same way a sibling row's background would.
-  const style={transform:CSS.Transform.toString(transform),transition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?(stickyTop||0):undefined,zIndex:isDragging?1:(raised?10:(sticky?5:1)),background:showBackdrop?stickyBg:undefined,paddingTop:showBackdrop?8:undefined,paddingBottom:showBackdrop?10:undefined};
+  const style={transform:CSS.Transform.toString(transform),transition:stickyTransition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?(stickyTop||0):undefined,zIndex:isDragging?1:(raised?10:(sticky?5:1)),background:showBackdrop?stickyBg:undefined,paddingTop:showBackdrop?8:undefined,paddingBottom:showBackdrop?10:undefined};
   // touchAction:"none" alone stops the page from scrolling under a drag,
   // but iOS Safari still fires its own long-press text-selection callout
   // (the magnifying-glass loupe) independently of that -- WebkitTouchCallout

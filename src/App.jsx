@@ -1698,6 +1698,27 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // drill with no visual confirmation it landed, since the activities list
   // it was appended to has long since scrolled out of view above.
   const [lastAddedId,setLastAddedId]=useState(null);
+  // Direct feedback, BB specifically: with more drills than fit on screen,
+  // a coach adding several in a row from the right-hand library pane had
+  // no way to tell an add landed once the list scrolled past what's
+  // visible in the left pane -- the sticky-pin-on-scroll-past trick above
+  // only helps once the coach's *own* scrolling happens to reach that row.
+  // This is deliberately BB-only: the two-rounds-of-feedback note on
+  // collapseAndScroll above is about mobile specifically, where the drill
+  // list and the library share one scroll container, so forcing a scroll
+  // there yanks the coach away from wherever they were browsing below. In
+  // BB the library lives in its own independently-scrolling right pane
+  // (.bb-pane), so scrolling the left pane to reveal the new row here
+  // never touches the coach's place in the library at all -- there's no
+  // version of the old complaint to reopen. block:"nearest" only moves the
+  // minimum distance needed, so this is a no-op whenever the new row
+  // already fits on screen.
+  useEffect(()=>{
+    if(!isBB||!lastAddedId)return;
+    const el=rowRefs.current[lastAddedId];
+    if(!el)return;
+    el.scrollIntoView({behavior:"smooth",block:"nearest"});
+  },[isBB,lastAddedId]);
   // equipmentOverride lets the mismatch-dialog flow below substitute
   // resolved (coach-owned) asset ids in place of lib.equipment's raw ones
   // -- see addActChecked.
@@ -2186,20 +2207,26 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           it permanently pushed the first drill down even with nothing
           scrolled -- ropZigzagH now collapses to 0 until ropContentHidden
           actually goes true.
-          Real bug found live from a follow-up screenshot: this div's
-          height briefly *did* have its own CSS transition here, animating
-          16<->0 over .2s to open in step with the line's opacity fade. But
-          the pinned last row's own `top` (ropStickyTop+ropZigzagH, on the
-          SortableActivityRow below) jumps to its new value the instant
-          React re-renders, with no matching transition -- so for that same
-          ~200ms, the row's clamp position and the strip's actual on-screen
-          height disagreed, and scrolling up (strip shrinking 16->0) let the
-          row's now-lower clamp target render *underneath* the still-tall
-          strip until the CSS transition caught up. Removed the transition
-          instead of trying to keep two independently-updated values in
-          lockstep -- both now change atomically in the same render, at the
-          cost of the strip opening with a hard snap instead of a slide. */}
-      {acts.length>1&&(<div style={{position:"sticky",top:ropStickyTop,zIndex:8,height:ropZigzagH,background:"var(--field-strong)",overflow:"hidden"}}>
+          Real bug found live from a follow-up screenshot, then fixed
+          properly rather than just removed: this div's height had its own
+          CSS transition, animating 16<->0 over .2s to open in step with
+          the line's opacity fade, but the pinned last row's own `top`
+          (ropStickyTop+ropZigzagH, on SortableActivityRow below) jumped to
+          its new value the instant React re-rendered, with no matching
+          transition -- so for that same ~200ms, the row's clamp position
+          and the strip's actual on-screen height disagreed, and scrolling
+          up (strip shrinking 16->0) let the row's now-lower clamp target
+          render *underneath* the still-tall strip until the CSS
+          transition caught up. Direct feedback again: a plain instant
+          snap (the first fix) reads as jerky, not as "fixed" -- the two
+          values need to move in lockstep, not just agree at rest. Fixed
+          for real by giving the row's own `top` the *same* `.2s ease`
+          transition as this height (see SortableActivityRow) -- both
+          interpolate the identical 16px delta over the identical curve
+          from the identical state flip, so at any instant mid-transition
+          the row's rendered position is still exactly "current strip
+          height + ropStickyTop," never ahead of or behind it. */}
+      {acts.length>1&&(<div style={{position:"sticky",top:ropStickyTop,zIndex:8,height:ropZigzagH,background:"var(--field-strong)",overflow:"hidden",transition:"height .2s ease"}}>
         <svg viewBox={"0 0 100 "+ropZigzagH} preserveAspectRatio="none" style={{width:"100%",height:"100%",display:"block"}}>
           <polyline points={"0,"+(ropZigzagH/2)+" 6,"+(ropZigzagH/2)+" 7.5,"+(ropZigzagH*0.6)+" 9,"+(ropZigzagH*0.03)+" 10.5,"+(ropZigzagH*0.97)+" 12,"+(ropZigzagH*0.4)+" 13.5,"+(ropZigzagH/2)+" 100,"+(ropZigzagH/2)} fill="none" stroke="#fff" strokeWidth="2" vectorEffect="non-scaling-stroke" style={{opacity:ropContentHidden?1:0,transition:"opacity .2s ease"}}/>
         </svg>
