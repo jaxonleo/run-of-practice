@@ -2566,7 +2566,7 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   };
   const throwsLabel=((HAND_FIELDS_BY_SPORT[team.sport]||[]).find(hf=>hf.key==="throws")||{}).label||"Throws";
 
-  return (<div className={isBB?"bb-centered-page":undefined} style={{paddingBottom:80}}>
+  return (<div className={isBB?"bb-centered-page":undefined} style={{paddingBottom:160}}>
     <div className="row mb10" style={{justifyContent:"space-between",alignItems:"flex-start"}}>
       <div style={{flex:1,minWidth:0}}>
         {!canManage?(<>
@@ -2580,7 +2580,6 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
         )}
       </div>
     </div>
-    <button className="btn outline bsm bfull" style={{marginBottom:10}} onClick={()=>setMarkingOut(true)}>Mark Out For...</button>
     {markingOut&&<AbsencePicker data={data} coachId={coachId} mode="pickPlayerThenPractices" presetPlayer={Object.assign({},player,{teamId:team.id})} onClose={()=>setMarkingOut(false)}/>}
 
     <div className="card mb10">
@@ -2612,14 +2611,29 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
         :(player.notes?<div style={{fontSize:14,color:"var(--ink)",lineHeight:1.6}}>{player.notes}</div>:<div style={{fontSize:13,color:"var(--text-dim)"}}>No notes yet.</div>)}
     </div>
 
-    {/* Save now always present (not just once dirty) -- direct feedback:
-        a button that appears/disappears as you type made it easy to lose
-        track of where it'd be. Discard stays conditional since there's
-        nothing to discard until something's actually changed. */}
-    {canManage&&<div className="brow mt10 mb10">
-      {isDirty&&<button className="btn ghost bmd" style={{flex:1}} onClick={discardEdits} disabled={saving}>Discard Changes</button>}
-      <button className="btn primary bmd" style={{flex:1}} onClick={saveAndReturn} disabled={saving||!isDirty||!f.firstName.trim()}>{saving?"Saving...":"Save"}</button>
-    </div>}
+    {/* Persistent action tray (design system v1): Save now always present
+        (not just once dirty) -- direct feedback said a button that
+        appears/disappears as you type made it easy to lose track of where
+        it'd be. Mark Out lives here too now, rather than as its own
+        standalone button up by the name field, so the two actions a coach
+        actually needs while looking at this player are always reachable
+        together, regardless of scroll position through Player Focus/Notes/
+        Benchmarks below -- position:sticky can't do that since this isn't
+        the last content on the page, so this is a real fixed overlay,
+        the same proven pattern CommandScreen's own bottom action bars use.
+        left clears the BB rail (.bb .tabbar is a static 88px-wide flex
+        item there, not an overlay, so nothing to clear at mobile width);
+        bottom clears the mobile tab bar, which BB doesn't have. Outline
+        keeps Mark Out from competing with Save's primary weight. */}
+    <div style={{position:"fixed",left:isBB?88:0,right:0,bottom:isBB?0:"var(--tab)",background:"var(--canvas)",borderTop:"1px solid var(--border)",padding:"10px 16px calc(10px + env(safe-area-inset-bottom,0))",zIndex:20}}>
+      <div style={{maxWidth:isBB?820:480,margin:"0 auto"}}>
+        {canManage&&isDirty&&<button className="btn ghost bmd bfull mb8" onClick={discardEdits} disabled={saving}>Discard Changes</button>}
+        <div className="brow">
+          <button className="btn outline bmd" style={{flex:1}} onClick={()=>setMarkingOut(true)}>Mark Out For...</button>
+          {canManage&&<button className="btn primary bmd" style={{flex:1}} onClick={saveAndReturn} disabled={saving||!isDirty||!f.firstName.trim()}>{saving?"Saving...":"Save"}</button>}
+        </div>
+      </div>
+    </div>
     {showLeavePrompt&&<div className="confirm-box mb10">
       <div className="confirm-title">Unsaved Changes</div>
       <div className="confirm-body">You have unsaved changes to this player. Would you like to save before leaving?</div>
