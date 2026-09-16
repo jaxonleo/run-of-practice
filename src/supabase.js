@@ -2661,6 +2661,33 @@ export async function revokeBenchmarkRecordingGrant(grantId) {
   if (error) console.error('revokeBenchmarkRecordingGrant:', error)
   return { data, error }
 }
+export async function listBenchmarkRecordingGrants(assessmentId) {
+  const { data, error } = await supabase.rpc('list_benchmark_recording_grants', { p_assessment_id: assessmentId })
+  if (error) { console.error('listBenchmarkRecordingGrants:', error); return { error } }
+  return { data }
+}
+
+// ── Participant reservations (design system v1 SS11: "Being recorded by") ──
+export async function reserveBenchmarkParticipant(participantId, takeOver = false) {
+  const { data, error } = await supabase.rpc('reserve_benchmark_participant', { p_participant_id: participantId, p_take_over: takeOver })
+  if (error) { console.error('reserveBenchmarkParticipant:', error); return { error } }
+  return { data }
+}
+export async function releaseBenchmarkParticipant(participantId) {
+  const { data, error } = await supabase.rpc('release_benchmark_participant', { p_participant_id: participantId })
+  if (error) console.error('releaseBenchmarkParticipant:', error)
+  return { data, error }
+}
+export async function reserveBenchmarkParticipantByToken(token, participantId, takeOver = false) {
+  const { data, error } = await supabase.rpc('reserve_benchmark_participant_by_token', { p_token: token, p_participant_id: participantId, p_take_over: takeOver })
+  if (error) { console.error('reserveBenchmarkParticipantByToken:', error); return { error } }
+  return { data }
+}
+export async function releaseBenchmarkParticipantByToken(token, participantId) {
+  const { data, error } = await supabase.rpc('release_benchmark_participant_by_token', { p_token: token, p_participant_id: participantId })
+  if (error) console.error('releaseBenchmarkParticipantByToken:', error)
+  return { data, error }
+}
 
 // ── Anonymous helper recording (token) ────────────────────────────────────
 export async function getBenchmarkRecordingViewByToken(token) {

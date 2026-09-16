@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import BenchmarkRecorder from "./BenchmarkRecorder.jsx";
-import { getBenchmarkRecordingViewByToken, saveBenchmarkAttemptByToken, mapBenchmarkVersion } from "../supabase.js";
+import {
+  getBenchmarkRecordingViewByToken, saveBenchmarkAttemptByToken, mapBenchmarkVersion,
+  reserveBenchmarkParticipantByToken, releaseBenchmarkParticipantByToken,
+} from "../supabase.js";
 import { outboxScopeForGrant } from "../benchmarkOutbox.js";
 
 // Anonymous, scoped helper recording surface: /brec/:token (ROP-Benchmarks
@@ -62,6 +65,8 @@ export default function BenchmarkRecordView({ token }) {
     }
     return { data };
   };
+  const reserveParticipant = (participantId, takeOver) => reserveBenchmarkParticipantByToken(token, participantId, takeOver);
+  const releaseParticipant = (participantId) => releaseBenchmarkParticipantByToken(token, participantId);
 
   return (
     <Shell wide>
@@ -81,7 +86,8 @@ export default function BenchmarkRecordView({ token }) {
           onRefresh={load}
           readOnly={closed}
           mineOnlyEdit
-          isDesktop={typeof window !== "undefined" && window.innerWidth >= 900}
+          reserveParticipant={reserveParticipant}
+          releaseParticipant={releaseParticipant}
         />
       </div>
       <div style={{ fontSize: 11, color: "#9fb3ab", marginTop: 10 }}>

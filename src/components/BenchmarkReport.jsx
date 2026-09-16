@@ -7,7 +7,7 @@ import {
 } from "../supabase.js";
 import {
   officialResult, isOfficial, teamPerformanceIndividual, matchedImprovement, collectiveImprovement,
-  personalBest, classifyAgainstPersonalBest, targetAttainment, meetsTarget,
+  personalBest, classifyAgainstPersonalBest, targetAttainment, meetsTarget, benchmarkStatusLabel,
   comparableAssessments, isEligibleAssessment, previousEligibleAssessment,
   displayDecimals, roundTo, changeVerb,
   formatMeasurement, displayMagnitude, unitIsInline, parseDisplayValue,
@@ -276,7 +276,7 @@ function TeamBenchmarkDetail({ teamId, team, coachId, benchmarkId, canManage, on
           {protocol.metricType === "success_rate" && cur.teamPerf.pooledOpportunities > 0 && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2 }}>
             Pooled: {cur.teamPerf.pooledSuccesses}/{cur.teamPerf.pooledOpportunities} ({roundTo(cur.teamPerf.pooledProportion * 100, 1)}%) · range {roundTo(cur.teamPerf.minProportion * 100, 0)}%&ndash;{roundTo(cur.teamPerf.maxProportion * 100, 0)}%
           </div>}
-          <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{cur.teamPerf.measuredCount} measured · {cur.teamPerf.notMeasuredCount} not measured · {cur.teamPerf.partialCount} partial · {cur.teamPerf.skippedCount} skipped · {cur.teamPerf.unableCount} unable</div>
+          <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{cur.teamPerf.measuredCount} measured · {cur.teamPerf.notMeasuredCount} waiting · {cur.teamPerf.partialCount} partial · {cur.teamPerf.skippedCount} skipped · {cur.teamPerf.unableCount} unable</div>
         </>}
         {cur && !cur.collective && cur.teamPerf && cur.teamPerf.noResults && <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No completed results.</div>}
       </div>}
@@ -331,7 +331,7 @@ function TeamBenchmarkDetail({ teamId, team, coachId, benchmarkId, canManage, on
         <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
           <tbody>{cur.rows.slice().sort((a, b) => (a.name || "").localeCompare(b.name || "")).map(r => <tr key={r.playerId || r.name}>
             <td style={{ borderBottom: "1px solid var(--border)" }}>{r.name}{r.jersey ? " #" + r.jersey : ""}</td>
-            <td style={{ borderBottom: "1px solid var(--border)", textAlign: "right" }}>{r.status === "complete" ? fmtResult(protocol, r.result) : (r.status || "not measured").replace("_", " ")}</td>
+            <td style={{ borderBottom: "1px solid var(--border)", textAlign: "right" }}>{r.status === "complete" ? fmtResult(protocol, r.result) : benchmarkStatusLabel(r.status)}</td>
             <td style={{ borderBottom: "1px solid var(--border)", textAlign: "right", width: 60 }}>{targetObj && r.status === "complete" ? (meetsTarget(protocol, targetObj, r.result) ? "✓" : "—") : ""}</td>
           </tr>)}</tbody>
         </table>

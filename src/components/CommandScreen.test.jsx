@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { advanceButtonLabel } from './CommandScreen.jsx'
+import { advanceButtonLabel, isFinalAdvance } from './CommandScreen.jsx'
 
 describe('advanceButtonLabel (scrimmage Next-button audit fix)', () => {
   const base = { isBlock: false, blockRotate: false, isScrim: true, inBlockIntro: false, scrimRoundIdx: 0, scrimRoundCount: 3, roundLabel: 'Round', idx: 1, liveActs: [{}, {}, { type: 'checklist', name: 'Checklist' }, { type: 'checklist', name: 'Closer' }] }
@@ -34,5 +34,32 @@ describe('advanceButtonLabel (scrimmage Next-button audit fix)', () => {
     expect(advanceButtonLabel({ isBlock: false, blockRotate: false, isScrim: false })).toBe('Next >')
     expect(advanceButtonLabel({ isBlock: true, blockRotate: false, isScrim: false })).toBe('End Block')
     expect(advanceButtonLabel({ isBlock: true, blockRotate: true, isScrim: false })).toBe('Next >')
+  })
+})
+
+describe('isFinalAdvance (End Practice visual indicator, design system v1)', () => {
+  const plain = { isBlock: false, blockRotate: false, isScrim: false, inBlockIntro: false, scrimRoundIdx: 0, scrimRoundCount: 0, stIdx: 0, stationsLength: 0 }
+
+  it('is not final when there is a later activity in the plan', () => {
+    expect(isFinalAdvance({ ...plain, idx: 0, liveActs: [{}, {}] })).toBe(false)
+  })
+
+  it('is final on the last plain activity', () => {
+    expect(isFinalAdvance({ ...plain, idx: 1, liveActs: [{}, {}] })).toBe(true)
+  })
+
+  it('is never final while still inside a station block\'s intro or rotations, even on the last liveAct', () => {
+    expect(isFinalAdvance({ ...plain, isBlock: true, blockRotate: true, inBlockIntro: true, idx: 0, liveActs: [{}], stIdx: 0, stationsLength: 3 })).toBe(false)
+    expect(isFinalAdvance({ ...plain, isBlock: true, blockRotate: true, idx: 0, liveActs: [{}], stIdx: 0, stationsLength: 3 })).toBe(false)
+  })
+
+  it('is final once a station block reaches its last rotation and is the last liveAct', () => {
+    expect(isFinalAdvance({ ...plain, isBlock: true, blockRotate: true, idx: 0, liveActs: [{}], stIdx: 2, stationsLength: 3 })).toBe(true)
+  })
+
+  it('mirrors the scrimmage case: never final during intro or mid-rounds, final on the last round of the last liveAct', () => {
+    expect(isFinalAdvance({ ...plain, isScrim: true, inBlockIntro: true, idx: 0, liveActs: [{}], scrimRoundCount: 3 })).toBe(false)
+    expect(isFinalAdvance({ ...plain, isScrim: true, idx: 0, liveActs: [{}], scrimRoundIdx: 0, scrimRoundCount: 3 })).toBe(false)
+    expect(isFinalAdvance({ ...plain, isScrim: true, idx: 0, liveActs: [{}], scrimRoundIdx: 2, scrimRoundCount: 3 })).toBe(true)
   })
 })

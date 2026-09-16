@@ -162,7 +162,7 @@ function ShareSheet({token,scope,onClose,title}){
   // tell them apart. `title` is built by the caller from the real
   // practice/team, falling back to the old generic text if unavailable.
   const share=()=>{if(navigator.share)navigator.share({title:title||"Run of Practice - Live View",url});else copy();};
-  return (<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:200,display:"flex",alignItems:"flex-end"}}><div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"24px 20px 40px"}}><div style={{width:36,height:4,background:"var(--border)",borderRadius:2,margin:"0 auto 20px"}}/><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>{isAttendance?"Share for Attendance":"Share Live View"}</div><div style={{fontSize:13,color:"var(--text-dim)",marginBottom:20}}>{isAttendance?"Anyone with this link can follow along AND mark players present/absent.":"Anyone with this link can follow along in real time."}</div><div style={{background:"var(--surface-soft)",border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"12px 14px",marginBottom:12,wordBreak:"break-all",fontSize:13,color:"var(--ink-soft)",fontFamily:"DM Mono,monospace"}}>{url}</div><div className="brow"><button className="btn outline bmd" style={{flex:1}} onClick={copy}>{copied?"Copied!":"Copy Link"}</button><button className="btn primary bmd" style={{flex:1}} onClick={share}>Share</button></div><button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={onClose}>Done</button></div></div>);
+  return (<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:200,display:"flex",alignItems:"flex-end"}}><div style={{background:"#fff",width:"100%",borderRadius:"20px 20px 0 0",padding:"24px 20px 40px"}}><div style={{width:36,height:4,background:"var(--border)",borderRadius:2,margin:"0 auto 20px"}}/><div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>{isAttendance?"Share for Attendance":"Share Live Link"}</div><div style={{fontSize:13,color:"var(--text-dim)",marginBottom:20}}>{isAttendance?"Anyone with this link can follow along AND mark players present/absent.":"Anyone with this link can follow along in real time."}</div><div style={{background:"var(--surface-soft)",border:"1.5px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"12px 14px",marginBottom:12,wordBreak:"break-all",fontSize:13,color:"var(--ink-soft)",fontFamily:"DM Mono,monospace"}}>{url}</div><div className="brow"><button className="btn outline bmd" style={{flex:1}} onClick={copy}>{copied?"Copied!":"Copy Link"}</button><button className="btn primary bmd" style={{flex:1}} onClick={share}>Share</button></div><button className="btn ghost bmd bfull" style={{marginTop:8}} onClick={onClose}>Done</button></div></div>);
 }
 
 // Direct feedback, a real bug: tapping anywhere on a player's row toggled
@@ -311,6 +311,18 @@ export function advanceButtonLabel({isBlock,blockRotate,isScrim,inBlockIntro,scr
     return next?"Next Activity: "+actLabel(next):"Finish Practice";
   }
   return isBlock&&!blockRotate?"End Block":"Next >";
+}
+// Direct feedback: a coach reaching the true last activity had no visual
+// warning that the next tap ends practice, not just advances -- mirrors
+// advance()'s own early-return branches (CommandScreen) so this is purely a
+// display decision layered on top of the exact same state, never a second
+// source of truth for when practice actually ends.
+export function isFinalAdvance({isBlock,blockRotate,isScrim,inBlockIntro,scrimRoundIdx,scrimRoundCount,idx,liveActs,stIdx,stationsLength}){
+  if(isBlock&&inBlockIntro)return false;
+  if(isBlock&&blockRotate&&stIdx<stationsLength-1)return false;
+  if(isScrim&&inBlockIntro)return false;
+  if(isScrim&&scrimRoundIdx<scrimRoundCount-1)return false;
+  return idx>=liveActs.length-1;
 }
 function equipNamesFor(ids,data){
   return (Array.isArray(ids)?ids:[]).map(id=>{const a=(data&&data.assets||[]).find(a=>a.id===id);return a?{name:a.name,acquired:a.acquired!==false,type:a.type}:null;}).filter(Boolean);
@@ -961,7 +973,7 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
         {loc&&<span style={{fontSize:11,color:"#555",marginLeft:4}}>· {loc.name}</span>}
       </div>
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:10}}>{team&&team.name}</div>
-      <button className="btn outline bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} disabled={sharing} onClick={shareSetupLink}>{shareUrl?"Setup Link Copied/Shared":"Share Setup Link"}</button>
+      <button className="btn outline bxs" style={{background:"transparent",color:"#fff",borderColor:"rgba(255,255,255,.3)"}} disabled={sharing} onClick={shareSetupLink}>{shareUrl?"Live Link Copied/Shared":"Share Live Link"}</button>
     </div>
     <div style={{padding:"24px 20px",textAlign:"center",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
       {diffSecs!==null?<div>
@@ -1380,7 +1392,7 @@ export function PreviewView({token}){
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900,lineHeight:1,marginBottom:4}}>{preview.team_name||"Practice"}</div>
       {preview.scheduled_at&&<div style={{fontSize:13,color:"#aaa"}}>{new Date(preview.scheduled_at).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})} at {new Date(preview.scheduled_at).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</div>}
       <div style={{marginTop:10}}><PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount} dark/></div>
-      {preview.can_manage&&<button className="btn outline bxs" style={{marginTop:10,background:"transparent",borderColor:"rgba(255,255,255,.25)",color:"#fff"}} onClick={shareSetup}>{copied?"Link Copied!":"Share Setup Link"}</button>}
+      {preview.can_manage&&<button className="btn outline bxs" style={{marginTop:10,background:"transparent",borderColor:"rgba(255,255,255,.25)",color:"#fff"}} onClick={shareSetup}>{copied?"Link Copied!":"Share Live Link"}</button>}
     </div>
 
     <div style={{padding:"24px 20px",textAlign:"center",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
@@ -3916,7 +3928,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);goHome();}}>Leave (keeps running)</button>
               {isController&&amHeadCoach&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowEditBuilder(true);}}>Edit Practice</button>}
-              {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_read");}}>Share Live View</button>}
+              {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_read");}}>Share Live Link</button>}
               {isController&&<button className="mm-item" onClick={endPractice}>End Practice</button>}
               {isController&&<button className="mm-item mm-danger" onClick={abortPractice}>Abort Practice</button>}
             </div>}
@@ -3961,6 +3973,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       </div>))}
       <div style={{padding:"8px 14px"}}><button className="btn ghost bxs" onClick={()=>setShowROS(false)}>Close</button></div>
     </div>}
+    {isFinalAdvance({isBlock,blockRotate,isScrim,inBlockIntro,scrimRoundIdx,scrimRoundCount,idx,liveActs,stIdx,stationsLength:cur&&cur.stations?cur.stations.length:0})&&<div style={{textAlign:"center",padding:"6px 14px 0"}}><span className="status caution" style={{letterSpacing:".06em"}}>FINAL ACTIVITY</span></div>}
     <div className="cc-timer-row">
       <div className={"cc-timer"+(urg?" urg":"")+(isOver?" over":"")}>{fmt(rem)}</div>
       {isController&&<button onClick={togglePlay} style={{width:52,height:52,borderRadius:"50%",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:isOver?"var(--danger)":running?"var(--surface-pressed)":"var(--field)",color:isOver?"#fff":running?"var(--ink-soft)":"#fff",boxShadow:running?"none":"0 2px 8px rgba(45,106,79,.35)"}}>
@@ -3975,7 +3988,9 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     <div className="cc-prog"><div className={"cc-prog-bar"+(isOver?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div>
     {isController&&<div className="cc-controls">
       <button className="btn ghost bmd" style={{minWidth:52}} onClick={goBack} disabled={idx===0&&stIdx===0&&!inTrans}>&lt;</button>
-      <button className="btn primary blg" style={{flex:1}} onClick={advance}>{advanceButtonLabel({isBlock,blockRotate,isScrim,inBlockIntro,scrimRoundIdx,scrimRoundCount,roundLabel:scrimCfg&&scrimCfg.roundLabel,idx,liveActs})}</button>
+      {(()=>{const final=isFinalAdvance({isBlock,blockRotate,isScrim,inBlockIntro,scrimRoundIdx,scrimRoundCount,idx,liveActs,stIdx,stationsLength:cur&&cur.stations?cur.stations.length:0});
+        return <button className={"btn "+(final?"strong":"primary")+" blg"} style={{flex:1}} onClick={advance}>{final?"End Practice":advanceButtonLabel({isBlock,blockRotate,isScrim,inBlockIntro,scrimRoundIdx,scrimRoundCount,roundLabel:scrimCfg&&scrimCfg.roundLabel,idx,liveActs})}</button>;
+      })()}
     </div>}
     {/* Assistant-coach handoff §1.3, confirmed decision: this exact spot --
         where advance/+-1min normally sit -- is where a thumb lands out of
@@ -4448,7 +4463,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             <div style={{fontWeight:700,fontSize:14}}>{st.name||"Station"}</div>
             <div className="row" style={{gap:6}}>
               <button className="btn outline bxs" onClick={()=>{setShowStationWarning(false);setReassignStationId(st.id);}}>Assign</button>
-              <button className="btn ghost bxs" onClick={()=>shareLive("helper_read")}>Share Link</button>
+              <button className="btn ghost bxs" onClick={()=>shareLive("helper_read")}>Share Live Link</button>
             </div>
           </div>))}
           <button className="btn primary bmd bfull" style={{marginTop:4}} onClick={()=>setShowStationWarning(false)}>Leave As-Is For Now</button>
