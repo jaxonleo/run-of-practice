@@ -129,7 +129,7 @@ function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
               <div className="lin">{m.name}{isSelf ? " (You)" : ""}{m.email ? " · " + m.email : ""}</div>
               <div className="limt">{ORG_ROLE_LABELS[m.role] || m.role} · Added {fmtDate(m.createdAt)}</div>
             </div>
-            <button className="ell-btn" onClick={e => {
+            <button className="ell-btn" aria-label={"Options for "+m.name} onClick={e => {
               e.stopPropagation();
               if (openMenuId === m.id) { setOpenMenuId(null); return; }
               setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(), 120));

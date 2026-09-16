@@ -2850,7 +2850,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
               a non-manager otherwise, so this is a plain text button
               instead of hiding the same action inside one. */}
           {!canManage&&c.userId===coachId&&c.role!=="Head Coach"&&<button className="btn ghost bxs" onClick={e=>{e.stopPropagation();setPermissionsCoachId(c.id);}}>Permissions</button>}
-          {canManage&&<button className="ell-btn" onClick={e=>{
+          {canManage&&<button className="ell-btn" aria-label={"Options for "+c.name} onClick={e=>{
             e.stopPropagation();
             if(openMenu==="coach_"+c.id){setOpenMenu(null);return;}
             setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),160));
@@ -2876,7 +2876,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
         {(team.invites||[]).length>0&&(<div className="sechdr mb8" style={{marginTop:16}}><span className="sectitle" style={{fontSize:13,color:"var(--text-dim)"}}>Pending Invites</span></div>)}
         {(team.invites||[]).map(inv=>(<div key={inv.id} className="li" style={{position:"relative"}}>
           <div className="lim"><div className="lin">{inv.name}</div><div className="limt">{inv.role} · {inv.status==="pending"?"Invite pending":"Declined"} ({inv.email})</div></div>
-          {canManage&&<button className="ell-btn" onClick={e=>{
+          {canManage&&<button className="ell-btn" aria-label={"Options for "+inv.name} onClick={e=>{
             e.stopPropagation();
             if(openMenu==="invite_"+inv.id){setOpenMenu(null);return;}
             setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),160));

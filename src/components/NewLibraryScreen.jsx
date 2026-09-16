@@ -65,7 +65,7 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
         <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{loc.name}</span>
         <div className="row">
           <button className="btn ghost bxs" onClick={()=>openModal("addSublocation",{location:loc})}>+ Area</button>
-          <button className="ell-btn" onClick={e=>{
+          <button className="ell-btn" aria-label={"Options for "+loc.name} onClick={e=>{
             e.stopPropagation();
             if(menu===loc.id){setMenu(null);return;}
             setSubMenu(null);
@@ -87,7 +87,7 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
             the same row). */}
         {loc.sublocations.map(sl=>(<div key={sl.id} className="bdg bs" style={{position:"relative",paddingRight:2,gap:2}}>
           <span>{sl.name}</span>
-          <button className="ell-btn" style={{padding:"2px"}} onClick={e=>{
+          <button className="ell-btn" style={{padding:"2px"}} aria-label={"Options for "+sl.name} onClick={e=>{
             e.stopPropagation();
             if(subMenu===sl.id){setSubMenu(null);return;}
             setMenu(null);
@@ -287,7 +287,7 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
         <div className="lin">{a.name}</div>
         {locs.length>0&&<div className="limt">📍 {locs.join(", ")}</div>}
       </div>
-      <button className="ell-btn" onClick={e=>{
+      <button className="ell-btn" aria-label={"Options for "+a.name} onClick={e=>{
         e.stopPropagation();
         if(openMenu===a.id){setOpenMenu(null);return;}
         setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));
@@ -1855,7 +1855,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
             </div>
             {isMine&&<div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
               <div style={{position:"relative",flexShrink:0}}>
-              <button className="ell-btn" onClick={e=>{
+              <button className="ell-btn" aria-label={"Options for "+act.name} onClick={e=>{
                 e.stopPropagation();
                 if(drillMenu===act.id){setDrillMenu(null);return;}
                 // Direct feedback: a drill near the bottom of the list had
@@ -1983,7 +1983,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
             </div>}
           </div>
           <div style={{position:"relative"}}>
-            <button className="ell-btn" onClick={e=>{
+            <button className="ell-btn" aria-label={"Options for "+tpl.name} onClick={e=>{
               if(openMenu===tpl.id){setOpenMenu(null);return;}
               setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));
               setOpenMenu(tpl.id);

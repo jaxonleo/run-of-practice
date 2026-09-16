@@ -252,7 +252,7 @@ function AttendanceScreen({practice,team,data,amHeadCoach,isUpdate,initialPresen
           <div className={"att-circle "+(present.has(p.id)?"on":"")}>{present.has(p.id)&&<Ic.Check/>}</div>
         </button>
         <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:present.has(p.id)?"var(--ink)":"var(--text-dim)"}}>{p.firstName}</div></div>
-        <button type="button" className="ell-btn" style={{flexShrink:0}} onClick={()=>setPlayerCardId(p.id)}><span/><span/><span/></button>
+        <button type="button" className="ell-btn" style={{flexShrink:0}} aria-label={"Options for "+p.firstName} onClick={()=>setPlayerCardId(p.id)}><span/><span/><span/></button>
       </div>))}
     </div>
     {team&&team.coaches.length>0&&(<div>
@@ -954,7 +954,7 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
     <div style={{padding:"14px 20px 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <button className="btn ghost bxs" style={{color:"#aaa",background:"transparent"}} onClick={onBack}>&#8249; Back</button>
       <div style={{position:"relative"}}>
-        <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
+        <button className="ell-btn" aria-label="Practice options" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
         {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
           <button className="mm-item" onClick={()=>{setShowEllipsis(false);onBack();}}>Leave</button>
           {isController&&amHeadCoach&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);onEditPractice();}}>Edit Practice</button>}
@@ -3924,7 +3924,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
             spoken.current={};buzzedRef.current=false;warnedRef.current=false;setAudioOn(a=>!a);
           }} style={{background:audioOn?"var(--field-tint)":"var(--surface-soft)",border:"1.5px solid var(--border)",borderRadius:"var(--radius-md)",padding:"4px 8px",fontSize:13,fontWeight:700,cursor:"pointer",color:audioOn?"var(--field)":"var(--text-dim)",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:13,lineHeight:1}}>{audioOn?"🔊":"🔇"}</span><span>{audioOn?"On":"Off"}</span></button>
           <div style={{position:"relative"}}>
-            <button className="ell-btn" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
+            <button className="ell-btn" aria-label="Live practice options" onClick={()=>setShowEllipsis(s=>!s)}><span/><span/><span/></button>
             {showEllipsis&&<div className="mini-menu" style={{right:0,minWidth:160}}>
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);goHome();}}>Leave (keeps running)</button>
               {isController&&amHeadCoach&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowEditBuilder(true);}}>Edit Practice</button>}

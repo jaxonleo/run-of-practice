@@ -959,7 +959,7 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
           </div>
         </div>
         <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
-          <button className="ell-btn" onClick={e => {
+          <button className="ell-btn" aria-label={"Options for "+(team?team.name:"Practice")+" on "+dayLbl(p.date, todayStr, tomorrowStr)} onClick={e => {
             e.stopPropagation();
             if (practiceMenuId === p.id) { setPracticeMenuId(null); return; }
             setPracticeMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(), 120));

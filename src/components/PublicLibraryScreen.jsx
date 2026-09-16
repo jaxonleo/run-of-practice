@@ -131,7 +131,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
           <div className="limt" style={{color: "var(--field-accent)"}}>Published by {(catalog && catalog.publisherName) || "Staff Editor"}{catalog && catalog.organizationName ? " - " + catalog.organizationName : ""}</div>
         </div>
         {isAdmin && <div style={{position: "relative", flexShrink: 0}}>
-          <button className="ell-btn" onClick={e => {
+          <button className="ell-btn" aria-label={"Options for "+d.name} onClick={e => {
             e.stopPropagation();
             if (drillMenu === d.id) { setDrillMenu(null); return; }
             setDrillMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(), 120));
