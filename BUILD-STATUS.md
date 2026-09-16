@@ -658,6 +658,16 @@ Verified live on staging at desktop width (BB layout, the QA fixture's `Home-to-
 
 **Phase 2 (Live Practice visual work + the full Benchmark functional/visual redesign) is now complete.** Jaxon reviewed both Phase 1 and Phase 2 on staging and had them merged (`design-system-foundation` and `design-system-live-benchmarks` both merged into `staging`, clean, no conflicts, verified live on the real `staging.runofpractice.com` domain afterward -- SAVE renders ink-fill, Share Live Link wording present). Phase 3 (remaining per-screen passes) started on a new branch, `design-system-screens`, off the now-current `staging`.
 
+### 2026-09-16: Design System v1 -- Phase 3 merged to staging (verified live), then the whole project shipped to production
+
+Jaxon reviewed Phase 3 on staging (`design-system-screens` merged into `staging`, clean, no conflicts, re-verified on the real `staging.runofpractice.com` -- "Options for Alex Adams" and the Player Detail persistent tray both confirmed live) and asked for the full design system to go to production.
+
+**Sequenced deliberately, migrations before code**, per this project's own established rule (a migration must be "dry-run and applied on staging, and the affected flow clicked through on the staging domain" before touching prod, and `db_push_prod.sh` itself refuses to run outside that order): the two Phase 2 Benchmark reservation migrations were staging-only going into this merge, so pushing `main` first would have shipped client code referencing RPCs that didn't exist yet in production (degrades gracefully, per earlier testing, but the reservation/Helpers features would have silently done nothing until fixed). Ran `npm run db:check:prod` (SAFE, zero active sessions/users) and `npm run db:push:prod` (production dump taken first, `backups/20260916_062938/`) -- the CLI's post-migration pg-delta catalog-cache step failed on a missing local cert file, a cosmetic/unrelated warning, not the migration itself; confirmed independently with a direct read-only query against `PROD_DB_URL` that both migration versions are recorded in `supabase_migrations.schema_migrations`, all 5 new `benchmark_participants` columns exist, and all 5 new functions exist in `pg_proc`. Only then merged `staging` into `main` (clean, no conflicts -- `main` had zero commits `staging` didn't already have) and pushed.
+
+Verified the production deploy itself minimally and non-invasively (no login, this is the real product with real coaches) -- `runofpractice.com` loads cleanly, zero console errors.
+
+**The full ROP Design System v1 (tokens/shared components, the Live Practice + Benchmark functional/visual redesign, and every per-screen pass) is now live in production**, migrations `20260915000000`/`20260915000100` applied, `main` at `2ac2439`.
+
 ### 2026-09-15 (continued a fifth time): Design System v1, Phase 3 begins -- Teams/Roster/Schedule, team header, Library, Player Detail persistent tray, and an app-wide icon-button accessibility sweep
 
 Branch `design-system-screens`, off `staging` (which now carries all of Phase 1 + 2). Several commits, each verified independently.
