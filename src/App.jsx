@@ -2759,7 +2759,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
         <div className="sechdr mb8">
           <div className="row"><span className="sectitle">{team.players.length} Players</span>
             <div style={{position:"relative"}}>
-              <button className="sort-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="__sort__"?null:"__sort__");}}><Ic.Sort/></button>
+              <button className="sort-btn" aria-label="Sort players" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="__sort__"?null:"__sort__");}}><Ic.Sort/></button>
               {openMenu==="__sort__"&&(<div className="mini-menu" style={{left:0,minWidth:170}}>
                 {[
                   {by:"firstName",dir:"asc",label:"Sort: First Name A-Z"},
@@ -2791,7 +2791,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
                 {(p.focusAreas&&p.focusAreas.length>0)&&<div className="limt">{p.focusAreas.length} focus area{p.focusAreas.length>1?"s":""}</div>}
                 {(!p.focusAreas||!p.focusAreas.length)&&p.notes&&<div className="limt">{p.notes}</div>}
               </div>
-              {canManage&&<button className="ell-btn" onClick={e=>{
+              {canManage&&<button className="ell-btn" aria-label={"Options for "+p.firstName+" "+p.lastName} onClick={e=>{
                 e.stopPropagation();
                 if(openMenu===menuKey){setOpenMenu(null);return;}
                 setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));

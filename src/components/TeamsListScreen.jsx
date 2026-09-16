@@ -236,7 +236,7 @@ export default function TeamsListScreen({ data, goToTeam, openModal, mode, refre
               (myTeamRole), so a coach juggling several teams gets the same
               at-a-glance context here, not just on Home. Org membership is
               already covered by the organizationName segment above. */}
-          {!isOrgMode && myTeamRole(t, coachId) && <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--text-dim)", marginTop: 2 }}>{myTeamRole(t, coachId)}</div>}
+          {!isOrgMode && myTeamRole(t, coachId) && <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--text-muted)", marginTop: 2 }}>{myTeamRole(t, coachId)}</div>}
         </div>
         <span style={{ color: "var(--field)", fontSize: 22 }}>&#8250;</span>
       </div>))}
