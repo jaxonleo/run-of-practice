@@ -1487,25 +1487,45 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     ro.observe(el);
     return()=>ro.disconnect();
   },[]);
-  // The always-last-positional-drill sticky spacer's own height (the "torn
-  // edge" strip below, present only when there's more than one activity --
-  // with exactly one, there's nothing that could ever be hidden between the
-  // header and "the last drill," so no strip/zigzag makes sense at all).
-  const ropZigzagH=acts.length>1?16:0;
+  // Whether any activity between the header and the pinned last row is
+  // currently scrolled out of view -- drives both the torn/zigzag edge's
+  // visibility AND (direct feedback: the strip used to permanently reserve
+  // 16px the moment a second activity existed, even with nothing scrolled
+  // yet, which just read as extra dead space above the first drill) the
+  // strip's own height, so it starts collapsed and only opens up once
+  // there's actually something for it to represent. Watches the *first*
+  // row specifically: since rows scroll away top-to-bottom under the
+  // sticky header, the first row is always the first thing to disappear,
+  // and by the time it's gone the header is necessarily already pinned (it
+  // sits above every row in document order) -- one observer target is
+  // enough, no need to watch every row in between. rootMargin shrinks the
+  // effective viewport by the sticky stack's own height, so "visible" means
+  // "visible in the actual remaining scroll area," not just "touches the
+  // literal top of the browser window" (which the sticky bar/header/strip
+  // already cover).
+  //
+  // Feeding ropContentHidden back into ropZigzagH (which the observer's own
+  // rootMargin is built from) looks circular but isn't unstable: growing
+  // the strip from 0 to 16px shifts the first row down by exactly 16px in
+  // document coordinates, and rootMargin's offset grows by the same 16px at
+  // the same time, so the scroll position where isIntersecting actually
+  // flips never moves -- recomputing under the new rootMargin reports the
+  // same boolean, not a different one, so this settles in one extra render
+  // rather than oscillating.
+  const [ropContentHidden,setRopContentHidden]=useState(false);
+  const ropZigzagH=(acts.length>1&&ropContentHidden)?16:0;
   const ropStickyTop=stickyHeaderH+ropHeaderH;
   const ropLastId=acts.length>0?acts[acts.length-1].id:null;
-  // Whether any activity between the header and the pinned last row is
-  // currently scrolled out of view -- drives the torn/zigzag edge on the
-  // spacer strip between them. Watches the *first* row specifically: since
-  // rows scroll away top-to-bottom under the sticky header, the first row
-  // is always the first thing to disappear, and by the time it's gone the
-  // header is necessarily already pinned (it sits above every row in
-  // document order) -- one observer target is enough, no need to watch
-  // every row in between. rootMargin shrinks the effective viewport by the
-  // sticky stack's own height, so "visible" means "visible in the actual
-  // remaining scroll area," not just "touches the literal top of the
-  // browser window" (which the sticky bar/header/strip already cover).
-  const [ropContentHidden,setRopContentHidden]=useState(false);
+  // Real bug found live while building this: the dependency array used to
+  // be just [acts.length&&acts[0].id,ropStickyTop,ropZigzagH]. Right at the
+  // 1-to-2-activities transition (the one moment this effect actually needs
+  // to switch from "do nothing" to "create the observer"), acts[0].id is
+  // unchanged (same first activity either way) and ropZigzagH is 0 in both
+  // cases (it only becomes 16 once ropContentHidden is already true, which
+  // requires the observer that's supposed to be getting created right now)
+  // -- so nothing in the array actually changed, the effect never re-ran,
+  // and the observer was never created at all. acts.length>1 as its own
+  // explicit dependency is what actually catches that transition.
   useEffect(()=>{
     if(acts.length<=1){setRopContentHidden(false);return;}
     const firstEl=rowRefs.current[acts[0].id];
@@ -1515,7 +1535,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     io.observe(firstEl);
     return()=>io.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[acts.length&&acts[0].id,ropStickyTop,ropZigzagH]);
+  },[acts.length>1,acts.length&&acts[0].id,ropStickyTop,ropZigzagH]);
   // Snapshot of what's actually persisted, so the router blocker (and the
   // beforeunload guard below) can warn before discarding edits that only
   // exist in this component's state. Replaces the old App-level
@@ -2158,11 +2178,27 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           header's own white text/icon for contrast against the solid
           green, `vectorEffect="non-scaling-stroke"` so the line stays a
           crisp constant width regardless of how wide this stretches.
-          Opacity-toggled (not clip-path-toggled) by ropContentHidden --
-          invisible at 0 (flush green, matching the header/backdrop) the
-          moment the IntersectionObserver above reports the first activity
-          has scrolled back into view, fully visible the moment it's
-          scrolled out. */}
+          Opacity-toggled by ropContentHidden -- invisible at 0 (flush
+          green) the moment the IntersectionObserver above reports the
+          first activity has scrolled back into view, fully visible the
+          moment it's scrolled out. Direct feedback: the strip's own height
+          used to be a flat 16px the instant a second activity existed, so
+          it permanently pushed the first drill down even with nothing
+          scrolled -- ropZigzagH now collapses to 0 until ropContentHidden
+          actually goes true.
+          Real bug found live from a follow-up screenshot: this div's
+          height briefly *did* have its own CSS transition here, animating
+          16<->0 over .2s to open in step with the line's opacity fade. But
+          the pinned last row's own `top` (ropStickyTop+ropZigzagH, on the
+          SortableActivityRow below) jumps to its new value the instant
+          React re-renders, with no matching transition -- so for that same
+          ~200ms, the row's clamp position and the strip's actual on-screen
+          height disagreed, and scrolling up (strip shrinking 16->0) let the
+          row's now-lower clamp target render *underneath* the still-tall
+          strip until the CSS transition caught up. Removed the transition
+          instead of trying to keep two independently-updated values in
+          lockstep -- both now change atomically in the same render, at the
+          cost of the strip opening with a hard snap instead of a slide. */}
       {acts.length>1&&(<div style={{position:"sticky",top:ropStickyTop,zIndex:8,height:ropZigzagH,background:"var(--field-strong)",overflow:"hidden"}}>
         <svg viewBox={"0 0 100 "+ropZigzagH} preserveAspectRatio="none" style={{width:"100%",height:"100%",display:"block"}}>
           <polyline points={"0,"+(ropZigzagH/2)+" 6,"+(ropZigzagH/2)+" 7.5,"+(ropZigzagH*0.6)+" 9,"+(ropZigzagH*0.03)+" 10.5,"+(ropZigzagH*0.97)+" 12,"+(ropZigzagH*0.4)+" 13.5,"+(ropZigzagH/2)+" 100,"+(ropZigzagH/2)} fill="none" stroke="#fff" strokeWidth="2" vectorEffect="non-scaling-stroke" style={{opacity:ropContentHidden?1:0,transition:"opacity .2s ease"}}/>
