@@ -906,8 +906,8 @@ function SchedulePracticePicker({data,onPick,onClose}){
     <div className="modal" style={{maxHeight:"80vh",overflowY:"auto"}}>
       <div className="mhandle"/>
       <div className="mtitle">Choose a Scheduled Practice</div>
-      <div style={{display:"flex",gap:0,background:"var(--surface-soft)",borderRadius:"var(--radius-lg)",padding:3,marginBottom:12}}>
-        {["agenda","month"].map(m=>(<button key={m} onClick={()=>setMode(m)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--radius-lg) - 2px)",background:mode===m?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:mode===m?"var(--ink)":"var(--text-dim)"}}>{m}</button>))}
+      <div className="segtrack" style={{marginBottom:12}}>
+        {["agenda","month"].map(m=>(<button key={m} className={"seg2"+(mode===m?" on":"")} onClick={()=>setMode(m)}>{m}</button>))}
       </div>
       {mode==="agenda"&&<div>
         {groupByDay(upcoming).map(g=>(<div key={g.date} style={{marginBottom:14}}>
@@ -1716,8 +1716,8 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       {/* My Drills / Team Libraries -- Drills-only, since Explore never
           applied to Templates/Locations/Equipment/Skill Tags in the first
           place (each of those is always just "mine," coach- or org-scoped). */}
-      {mineTab==="drills"&&<div style={{display:"flex",gap:0,background:"var(--surface-soft)",borderRadius:"var(--radius-lg)",padding:3,marginTop:10}}>
-        {[{k:"mine",label:isOrgMode?"Org Drills":"My Drills"},{k:"explore",label:"Explore"}].map(t=>(<button key={t.k} onClick={()=>goSection(t.k)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--radius-lg) - 2px)",background:section===t.k?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:section===t.k?"var(--ink)":"var(--text-dim)"}}>{t.label}</button>))}
+      {mineTab==="drills"&&<div className="segtrack" style={{marginTop:10}}>
+        {[{k:"mine",label:isOrgMode?"Org Drills":"My Drills"},{k:"explore",label:"Explore"}].map(t=>(<button key={t.k} className={"seg2"+(section===t.k?" on":"")} onClick={()=>goSection(t.k)}>{t.label}</button>))}
       </div>}
     </div>
     {mineTab==="benchmarks"&&<div style={{padding:"0 16px"}}><BenchmarksTab data={data} coachId={coachId} mode={mode} refreshLibrary={refreshLibrary} fromDrill={benchmarkFromDrill} clearFromDrill={()=>setBenchmarkFromDrill(null)}/></div>}

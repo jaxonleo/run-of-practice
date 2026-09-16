@@ -179,7 +179,7 @@ body{background:var(--canvas);color:var(--ink);font-family:'Barlow',sans-serif;f
    visual (Schedule's Agenda/Month, Equipment's Team/Player tabs). */
 .segtrack{display:flex;gap:0;background:var(--surface-soft);border-radius:var(--radius-lg);padding:3px;}
 .segtrack .seg2{flex:1;padding:8px 0;border:none;border-radius:calc(var(--radius-lg) - 2px);cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;background:transparent;color:var(--text-dim);}
-.segtrack .seg2.on{background:#fff;color:var(--ink);}
+.segtrack .seg2.on{background:var(--seg2-on,#fff);color:var(--seg2-on-color,var(--ink));}
 .confirm-box{background:var(--danger-tint);border:1.5px solid var(--danger-tint-border);border-radius:var(--radius-lg);padding:14px;margin-top:8px;}
 .confirm-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--danger);margin-bottom:4px;}
 .confirm-body{font-size:13px;color:var(--ink-soft);margin-bottom:12px;line-height:1.5;}

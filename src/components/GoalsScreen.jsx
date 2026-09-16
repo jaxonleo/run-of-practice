@@ -756,9 +756,9 @@ function GoalsSubnav({ view, setView, anyUnviewed }) {
   // Direct feedback: sat flush against the team workspace's own top tab
   // row (Schedule/Roster/Equipment/Goals & Insights) with no breathing
   // room -- marginTop gives it real separation from that row.
-  return (<div style={{ display: "flex", gap: 0, background: "var(--surface-soft)", borderRadius: "var(--radius-lg)", padding: 3, marginTop: 14, marginBottom: 14 }}>
+  return (<div className="segtrack" style={{ marginTop: 14, marginBottom: 14 }}>
     {[{ k: "overview", label: "Overview" }, { k: "trends", label: "Trends" }, { k: "benchmarks", label: "Benchmarks" }, { k: "history", label: "History" }].map(t => (
-      <button key={t.k} onClick={() => setView(t.k)} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--radius-lg) - 2px)", background: view === t.k ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: view === t.k ? "var(--ink)" : "var(--text-dim)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+      <button key={t.k} className={"seg2" + (view === t.k ? " on" : "")} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }} onClick={() => setView(t.k)}>
         {t.label}
         {/* Direct feedback: a coach had no way to tell a session had an
             unreviewed note without already being on the History tab --

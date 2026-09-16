@@ -195,7 +195,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
               {category.name}{someSelected ? (allSelected ? " (all selected)" : " (some selected)") : ""}
             </button>
             <div style={{display: "flex", flexWrap: "wrap", gap: 6}}>
-              {tags.map(t => (<button key={t.id} type="button" onClick={() => setTagFilter(p => p.includes(t.id) ? p.filter(x => x !== t.id) : [...p, t.id])} style={{padding: "4px 10px", borderRadius: 20, border: "1.5px solid var(--border)", background: tagFilter.includes(t.id) ? "var(--field)" : "var(--surface)", color: tagFilter.includes(t.id) ? "#fff" : "var(--ink)", fontSize: 13, cursor: "pointer"}}>{t.name} <span style={{opacity: .7}}>{tagCounts[t.id]}</span></button>))}
+              {tags.map(t => (<button key={t.id} type="button" className={"fchip"+(tagFilter.includes(t.id)?" on":"")} onClick={() => setTagFilter(p => p.includes(t.id) ? p.filter(x => x !== t.id) : [...p, t.id])}>{t.name} <span style={{opacity: .7}}>{tagCounts[t.id]}</span></button>))}
             </div>
           </div>);
         })}
