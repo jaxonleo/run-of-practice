@@ -244,7 +244,15 @@ body{background:var(--canvas);color:var(--ink);font-family:'Barlow',sans-serif;f
 .sport-hdr.tint .sport-name,.sport-hdr.muted .sport-name{font-size:12px;text-transform:uppercase;letter-spacing:.05em;}
 .sport-hdr.muted .sport-name{color:var(--text-dim);}
 .sport-meta{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-dim);flex-shrink:0;}
-.sport-meta .chev{display:inline-flex;transition:transform .15s;}
+/* Direct feedback: on a tinted header (.sport-hdr.tint's light mint
+   background, e.g. Public Library's category headers), this chevron
+   inheriting --text-dim from .sport-meta -- a light gray-green already
+   chosen to be the app's dimmest tone -- had too little contrast to read
+   as an actual clickable affordance, not just decoration. The count text
+   next to it (e.g. "20 drills") stays dim on purpose -- it's secondary
+   info -- but the interactive icon itself needs to be unambiguous
+   regardless of which header variant it sits on. */
+.sport-meta .chev{display:inline-flex;color:var(--ink);transition:transform .15s;}
 .sport-meta .chev.collapsed{transform:rotate(-90deg);}
 .movly{position:fixed;inset:0;background:rgba(17,23,20,.55);display:flex;align-items:flex-end;justify-content:center;z-index:200;}
 .modal{background:#fff;border:1px solid var(--border);border-radius:16px 16px 0 0;padding:18px 16px;width:100%;max-width:480px;max-height:88dvh;overflow-y:auto;}
@@ -1497,21 +1505,19 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // row specifically: since rows scroll away top-to-bottom under the
   // sticky header, the first row is always the first thing to disappear,
   // and by the time it's gone the header is necessarily already pinned (it
-  // sits above every row in document order) -- one observer target is
-  // enough, no need to watch every row in between. rootMargin shrinks the
-  // effective viewport by the sticky stack's own height, so "visible" means
-  // "visible in the actual remaining scroll area," not just "touches the
-  // literal top of the browser window" (which the sticky bar/header/strip
-  // already cover).
+  // sits above every row in document order) -- checking one row is enough,
+  // no need to check every row in between.
   //
-  // Feeding ropContentHidden back into ropZigzagH (which the observer's own
-  // rootMargin is built from) looks circular but isn't unstable: growing
-  // the strip from 0 to 16px shifts the first row down by exactly 16px in
-  // document coordinates, and rootMargin's offset grows by the same 16px at
-  // the same time, so the scroll position where isIntersecting actually
-  // flips never moves -- recomputing under the new rootMargin reports the
-  // same boolean, not a different one, so this settles in one extra render
-  // rather than oscillating.
+  // Direct feedback (mobile): this used to be an IntersectionObserver with
+  // a shrunk rootMargin. That worked on BB but on mobile, under iOS
+  // Safari's momentum/inertial scrolling, IO callbacks are throttled/
+  // batched well behind the actual scroll position -- so the row (and
+  // sometimes the row after it) had already visibly scrolled out from
+  // under the header before the callback caught up and flipped the strip
+  // open. Recomputing synchronously on the scroll container's own "scroll"
+  // event (rather than waiting on an async observer callback) tracks the
+  // real, current scroll position every time and has no such lag on either
+  // platform.
   const [ropContentHidden,setRopContentHidden]=useState(false);
   const ropZigzagH=(acts.length>1&&ropContentHidden)?16:0;
   const ropStickyTop=stickyHeaderH+ropHeaderH;
@@ -1519,21 +1525,24 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // Real bug found live while building this: the dependency array used to
   // be just [acts.length&&acts[0].id,ropStickyTop,ropZigzagH]. Right at the
   // 1-to-2-activities transition (the one moment this effect actually needs
-  // to switch from "do nothing" to "create the observer"), acts[0].id is
+  // to switch from "do nothing" to "start checking"), acts[0].id is
   // unchanged (same first activity either way) and ropZigzagH is 0 in both
   // cases (it only becomes 16 once ropContentHidden is already true, which
-  // requires the observer that's supposed to be getting created right now)
-  // -- so nothing in the array actually changed, the effect never re-ran,
-  // and the observer was never created at all. acts.length>1 as its own
-  // explicit dependency is what actually catches that transition.
+  // requires the check that's supposed to be starting right now) -- so
+  // nothing in the array actually changed, the effect never re-ran, and the
+  // listener was never attached at all. acts.length>1 as its own explicit
+  // dependency is what actually catches that transition.
   useEffect(()=>{
     if(acts.length<=1){setRopContentHidden(false);return;}
     const firstEl=rowRefs.current[acts[0].id];
     if(!firstEl)return;
     const topOffset=ropStickyTop+ropZigzagH;
-    const io=new IntersectionObserver(([entry])=>{setRopContentHidden(!entry.isIntersecting);},{rootMargin:(-topOffset)+"px 0px 0px 0px",threshold:0});
-    io.observe(firstEl);
-    return()=>io.disconnect();
+    const check=()=>{setRopContentHidden(firstEl.getBoundingClientRect().bottom<=topOffset);};
+    check();
+    const pane=firstEl.closest(".bb-pane, .screen");
+    pane&&pane.addEventListener("scroll",check,{passive:true});
+    window.addEventListener("resize",check);
+    return()=>{pane&&pane.removeEventListener("scroll",check);window.removeEventListener("resize",check);};
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[acts.length>1,acts.length&&acts[0].id,ropStickyTop,ropZigzagH]);
   // Snapshot of what's actually persisted, so the router blocker (and the
@@ -2169,7 +2178,15 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           border + light green fill against the solid green backdrop is the
           "visual distinction from the rest of the practice plan" asked for. */}
       <div style={{position:"relative",zIndex:1,marginLeft:10,marginRight:10,marginBottom:9,background:"var(--field-tint)",border:"2px dashed var(--field-accent)",borderRadius:"var(--radius-lg)",padding:"11px 12px"}}>
-        <button type="button" onClick={()=>setWarmupOpen(o=>!o)} style={{display:"flex",alignItems:"center",width:"100%",background:"none",border:"none",padding:0,cursor:"pointer",gap:8,textAlign:"left"}}>
+        {/* Real bug found live (mobile): Ic.Chev strokes "currentColor",
+            and this button never set its own `color` -- so the caret
+            inherited whatever a bare unstyled <button> defaults to, which
+            on iOS Safari is a system link-blue, not the app's ink. The
+            label span already sets its own explicit color and so was
+            unaffected; the caret (and the collapsed-notes-preview span,
+            which sets its own dim color too) were the only children
+            actually relying on inheritance. */}
+        <button type="button" onClick={()=>setWarmupOpen(o=>!o)} style={{display:"flex",alignItems:"center",width:"100%",background:"none",border:"none",padding:0,cursor:"pointer",gap:8,textAlign:"left",color:"var(--ink)"}}>
           <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:900,letterSpacing:".05em",textTransform:"uppercase",color:"var(--field)",flex:1}}>Pre-Practice Warmup</span>
           {!warmupOpen&&prePracticeNotes&&<span style={{fontSize:11,color:"var(--text-dim)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:140}}>{prePracticeNotes}</span>}
           <Ic.Chev up={warmupOpen}/>
