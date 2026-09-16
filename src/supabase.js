@@ -603,6 +603,14 @@ export async function archiveSkillTag(id) {
   if (error) console.error('archiveSkillTag:', error)
   return { error }
 }
+// Same RLS policy as archiveSkillTag (skill_tags_update_manage) covers any
+// column, not just archived_at -- a coach/org-admin can rename their own
+// tag, a founder-admin can rename a global one.
+export async function renameSkillTag(id, name) {
+  const { error } = await supabase.from('skill_tags').update({ name }).eq('id', id)
+  if (error) console.error('renameSkillTag:', error)
+  return { error }
+}
 // Founder-admin only (RLS: skill_tags_insert_scoped requires is_admin() for
 // scope='global') -- shared by every coach, unlike a personal scope='coach' tag.
 export async function createGlobalSkillTag({ categoryId, name }) {

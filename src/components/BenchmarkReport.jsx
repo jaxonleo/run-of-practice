@@ -104,8 +104,12 @@ function fmtChange(protocol, m) {
 }
 
 // ── Goals & Insights: overview + detail ─────────────────────────────────────
-export function TeamBenchmarksView({ teamId, team, coachId, canManage, isBB }) {
-  const [openId, setOpenId] = useState(null);
+// initialBenchmarkId: an optional deep link straight into one benchmark's
+// own detail/history view (Library's Benchmarks tab "View Results" button)
+// rather than landing on the overview list -- same shape as GoalsScreen's
+// own openGoalsView state-based deep link.
+export function TeamBenchmarksView({ teamId, team, coachId, canManage, isBB, initialBenchmarkId }) {
+  const [openId, setOpenId] = useState(initialBenchmarkId || null);
   if (openId) return <TeamBenchmarkDetail teamId={teamId} team={team} coachId={coachId} benchmarkId={openId} canManage={canManage} onBack={() => setOpenId(null)} isBB={isBB} />;
   return <TeamBenchmarksOverview teamId={teamId} canManage={canManage} onOpen={setOpenId} />;
 }

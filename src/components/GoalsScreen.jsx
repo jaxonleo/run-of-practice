@@ -1018,6 +1018,10 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
   const location = useLocation();
   const navigate = useNavigate();
   const [view, setView] = useState(() => (location.state && location.state.openGoalsView) || "overview");
+  // Same one-time-initializer convention as openGoalsView above -- lets
+  // Library's Benchmarks tab "View Results" button land directly on one
+  // benchmark's own history/detail rather than the plain overview list.
+  const [initialBenchmarkId] = useState(() => (location.state && location.state.openBenchmarkId) || null);
   const goToUntaggedDrills = () => navigate("/library", {
     state: { untaggedForSport: (team && team.sport) || "General", teamId, returnTo: "/team/" + teamId + "/goals" },
   });
@@ -1110,7 +1114,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
       </>)}
     </>)}
     {view === "trends" && <TrendsView teamId={teamId} team={team} canManage={canManage} isBB={isBB} />}
-    {view === "benchmarks" && <TeamBenchmarksView teamId={teamId} team={team} coachId={coachId} canManage={canManage} isBB={isBB} />}
+    {view === "benchmarks" && <TeamBenchmarksView teamId={teamId} team={team} coachId={coachId} canManage={canManage} isBB={isBB} initialBenchmarkId={initialBenchmarkId} />}
     {view === "history" && (isBB ? (
       <TwoPane
         left={<>

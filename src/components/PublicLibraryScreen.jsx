@@ -1,6 +1,18 @@
 import React, { useState } from "react";
 import { archiveCatalogDrill } from "../supabase.js";
 import { menuNeedsToOpenUpward } from "../constants.js";
+import { Ic } from "../icons.jsx";
+
+// Collapsible category header -- same shape as NewLibraryScreen.jsx's
+// GroupHeader (see .sport-hdr in App.jsx), duplicated locally rather than
+// imported to avoid a circular import (NewLibraryScreen.jsx already imports
+// this file).
+function GroupHeader({label,meta,collapsed,onClick,variant}){
+  return(<button type="button" onClick={onClick} className={"sport-hdr"+(variant?" "+variant:"")}>
+    <span className="sport-name">{label}</span>
+    <span className="sport-meta">{meta}<span className={"chev"+(collapsed?" collapsed":"")}><Ic.Chev/></span></span>
+  </button>);
+}
 
 // Wraps the substring of `text` that matches `query` (case-insensitive) in a
 // <mark> -- a small, standard content-search touch that makes scanning a
@@ -149,7 +161,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
         {d.equipment && d.equipment.length > 0 && <div style={{fontSize: 11, color: "var(--text-dim)", marginTop: 2}}>Needs: {equipNames(d.equipment).join(", ")}</div>}
         {d.grouping && d.grouping !== "whole" && <div style={{fontSize: 11, color: "var(--text-dim)", marginTop: 2}}>{d.grouping === "partners" ? "Partners" : d.numGroups + " groups"}</div>}
         {d.skillTagIds && d.skillTagIds.length > 0 && <div style={{display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4}}>
-          {tagNames(d.skillTagIds).map(name => (<span key={name} className="bdg bs" style={{fontSize: 10}}>{name}</span>))}
+          {tagNames(d.skillTagIds).map(name => (<span key={name} className="tagchip">{name}</span>))}
         </div>}
         <button className="btn outline bxs" style={{marginTop: 8}} onClick={() => doCopy(d)} disabled={copyingId === d.id}>{copyingId === d.id ? "Copying..." : isOrgMode ? "Copy to Org Library" : "Copy to My Library"}</button>
       </div>}
@@ -208,21 +220,15 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
       const key = "cat_" + cid;
       const isCollapsed = collapsedCat[key];
       const catDrills = byCategory[cid];
-      return (<div key={cid} style={{marginBottom: 8}}>
-        <button onClick={() => toggleCatCollapsed(key)} style={{width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "var(--field-tint)", border: "none", borderRadius: "var(--radius-lg)", cursor: "pointer"}}>
-          <span style={{fontSize: 12, fontWeight: 700, color: "var(--field)", textTransform: "uppercase", letterSpacing: ".05em"}}>{(categoriesById[cid] && categoriesById[cid].name) || "Category"}</span>
-          <span style={{fontSize: 12, color: "var(--text-dim)"}}>{catDrills.length} drills {isCollapsed ? "▶" : "▼"}</span>
-        </button>
+      return (<div key={cid} className="sport-group">
+        <GroupHeader variant="tint" label={(categoriesById[cid] && categoriesById[cid].name) || "Category"} meta={catDrills.length+" drill"+(catDrills.length!==1?"s":"")} collapsed={isCollapsed} onClick={() => toggleCatCollapsed(key)}/>
         {!isCollapsed && catDrills.map(drillRow)}
       </div>);
     })}
     {untaggedDrills.length > 0 && (() => {
       const isCollapsed = collapsedCat.cat_untagged;
-      return (<div style={{marginBottom: 8}}>
-        <button onClick={() => toggleCatCollapsed("cat_untagged")} style={{width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "var(--surface-soft)", border: "none", borderRadius: "var(--radius-lg)", cursor: "pointer"}}>
-          <span style={{fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".05em"}}>Untagged</span>
-          <span style={{fontSize: 12, color: "var(--text-dim)"}}>{untaggedDrills.length} drills {isCollapsed ? "▶" : "▼"}</span>
-        </button>
+      return (<div className="sport-group">
+        <GroupHeader variant="muted" label="Untagged" meta={untaggedDrills.length+" drill"+(untaggedDrills.length!==1?"s":"")} collapsed={isCollapsed} onClick={() => toggleCatCollapsed("cat_untagged")}/>
         {!isCollapsed && untaggedDrills.map(drillRow)}
       </div>);
     })()}

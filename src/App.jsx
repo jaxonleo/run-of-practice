@@ -131,6 +131,31 @@ body{background:var(--canvas);color:var(--ink);font-family:'Barlow',sans-serif;f
 .bp{background:var(--field-tint);color:var(--field);border:1px solid var(--field-tint-border);}
 .bs{background:var(--surface-soft);color:var(--text-muted);border:1px solid var(--border);}
 .bk{background:var(--ink);color:#fff;}
+/* Read-only descriptive-label pill (design system v1 follow-up, Library
+   consistency pass) -- skill tags shown on a drill/template/benchmark card
+   were reusing .bdg, the app's data-badge (duration, counts, "Shared"),
+   which reads as a small mono data chip rather than a qualitative label.
+   Same pill family as .fchip (the interactive filter/toggle chip) but
+   deliberately quieter/non-clickable-looking, so "a tag on a thing" has one
+   consistent, modern shape distinct from both .bdg and .fchip's own states. */
+.tagchip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;background:var(--surface-soft);border:1px solid var(--border);color:var(--ink-soft);font-size:11px;font-weight:600;}
+/* Direct-child combinator, not a bare descendant selector: this must only
+   style the chip's own inline edit-mode Save/Cancel buttons. A skill tag's
+   .mini-menu (Edit/Delete) is also DOM-nested inside .tagchip (it opens
+   from the chip's own ellipsis), and a bare ".tagchip button" would win
+   over .mini-menu's own .mm-item rule on specificity, silently squashing
+   Edit/Delete to this tiny inline size -- found live: the menu rendered at
+   28px tall instead of the ~76px two real menu items need, so it looked
+   like it was painting underneath the next row's tag pills when it had
+   actually just collapsed to a sliver above them. */
+.tagchip>button{background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:13px;line-height:1;padding:0 1px;}
+/* Global-scope skill tag (curated, shared by every coach) -- the Skill Tags
+   manager mixes a coach's own tags with global ones in the same category,
+   and they used to look identical. Field-tinted so the curated taxonomy
+   visibly stands out from a coach's personal additions. */
+.tagchip.global{background:var(--field-tint);border-color:var(--field-tint-border);color:var(--field);}
+.tagchip .ell-btn{padding:2px;margin-left:1px;}
+.tagchip .ell-btn span{width:3px;height:3px;}
 .cgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px;}
 .chip{display:flex;flex-direction:column;align-items:center;padding:8px 4px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:#fff;cursor:pointer;min-height:48px;justify-content:center;}
 .chip.on{border-color:var(--field);background:var(--field-tint);}
@@ -190,10 +215,31 @@ body{background:var(--canvas);color:var(--ink);font-family:'Barlow',sans-serif;f
 .mm-item{display:block;width:100%;padding:11px 14px;background:none;border:none;cursor:pointer;font-family:'Barlow',sans-serif;font-size:14px;font-weight:500;text-align:left;color:var(--ink);}
 .mm-item:active{background:var(--surface-soft);}.mm-danger{color:var(--danger);}
 .sort-btn{background:none;border:1px solid var(--border);border-radius:6px;padding:5px 7px;cursor:pointer;display:inline-flex;align-items:center;color:var(--text-dim);}
-.sport-group{margin-bottom:4px;}
-.sport-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface-soft);border:1px solid var(--border);border-radius:var(--radius-lg);cursor:pointer;margin-bottom:6px;}
+/* Collapsible group header (Library consistency pass) -- one shape for
+   "sport" (default), "skill category" (.tint), and "untagged/other" (.muted)
+   accordion headers, replacing ~9 copy-pasted inline style blocks that had
+   quietly drifted (some bordered/joined to a flush row-box below, some not;
+   some rounded top-only while open, some always fully rounded). Rows below
+   are now always self-contained .li cards with their own margin.
+   Real gap found live (direct feedback): the header itself had no border
+   and no margin-bottom, while every .li card below it has both -- so the
+   header read as a visually different, lesser element than its own
+   contents, and the gap from header to the first card was 0 while every
+   card-to-card gap was 7px (the gap comes from each card's own
+   margin-bottom, which the header didn't share). Giving the header the
+   same border + margin-bottom as .li makes the whole group -- header and
+   every row -- read as one consistent, evenly-spaced family. */
+.sport-group{margin-bottom:8px;}
+.sport-hdr{width:100%;display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);cursor:pointer;text-align:left;margin-bottom:7px;}
 .sport-hdr:active{background:var(--surface-pressed);}
-.sport-name{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);}
+.sport-hdr.tint{background:var(--field-tint);border-color:var(--field-tint-border);}.sport-hdr.tint:active{background:var(--field-tint-border);}
+.sport-hdr.muted{background:var(--surface-soft);}.sport-hdr.muted:active{background:var(--surface-pressed);}
+.sport-name{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:.03em;color:var(--field);}
+.sport-hdr.tint .sport-name,.sport-hdr.muted .sport-name{font-size:12px;text-transform:uppercase;letter-spacing:.05em;}
+.sport-hdr.muted .sport-name{color:var(--text-dim);}
+.sport-meta{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-dim);flex-shrink:0;}
+.sport-meta .chev{display:inline-flex;transition:transform .15s;}
+.sport-meta .chev.collapsed{transform:rotate(-90deg);}
 .movly{position:fixed;inset:0;background:rgba(17,23,20,.55);display:flex;align-items:flex-end;justify-content:center;z-index:200;}
 .modal{background:#fff;border:1px solid var(--border);border-radius:16px 16px 0 0;padding:18px 16px;width:100%;max-width:480px;max-height:88dvh;overflow-y:auto;}
 .mhandle{width:38px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px;}

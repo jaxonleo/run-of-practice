@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { uid, sumMins, localDateStr, planningState, teamsForMode, menuNeedsToOpenUpward, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES, SPORTS } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig, ScrimmageConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
-import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, archiveSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport, createBenchmark, createBenchmarkVersion, correctBenchmarkVersionWording, archiveBenchmark, restoreBenchmark, adoptBenchmarkForTeam, fetchBenchmarkAssessments } from "../supabase.js";
+import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, renameSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, archiveSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport, createBenchmark, createBenchmarkVersion, correctBenchmarkVersionWording, archiveBenchmark, restoreBenchmark, adoptBenchmarkForTeam, fetchBenchmarkAssessments } from "../supabase.js";
 import { METRIC_META, displayDecimals } from "../benchmarks.js";
 import { MeasureAgainModal } from "./BenchmarkReport.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
@@ -16,6 +16,26 @@ const Ic_Chev=({up})=><svg width="16" height="16" viewBox="0 0 16 16" fill="none
 // session continued) -- small enough to sit inline next to the drill name
 // without competing with it.
 const Ic_Lock=()=><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="2.5" y="5.2" width="7" height="5.3" rx="1"/><path d="M4 5.2V3.6a2 2 0 0 1 4 0v1.6"/></svg>;
+
+// ── Shared Library visual primitives ──────────────────────────────────────────
+// One collapsible group header for every sport/category accordion in this
+// file (Drills, Equipment, Skill Tags) -- was 9 near-identical inline style
+// blocks that had quietly drifted from each other (see .sport-hdr in
+// App.jsx). `variant` is "tint" (skill-category header) or "muted"
+// (untagged/other), default is the plain sport header.
+export function GroupHeader({label,meta,collapsed,onClick,variant}){
+  return(<button type="button" onClick={onClick} className={"sport-hdr"+(variant?" "+variant:"")}>
+    <span className="sport-name">{label}</span>
+    <span className="sport-meta">{meta}<span className={"chev"+(collapsed?" collapsed":"")}><Ic_Chev/></span></span>
+  </button>);
+}
+// Read-only descriptive label for a skill tag on a drill/template/benchmark
+// card -- see .tagchip in App.jsx for why this replaced the old .bdg.bs
+// mono data-badge reuse. The Skill Tags manager itself (where a tag is
+// actually editable) builds its own richer chip with an ellipsis menu.
+export function TagChip({children}){
+  return(<span className="tagchip">{children}</span>);
+}
 
 // ── ActConfig, ChecklistConfig, StationConfig ─────────────────────────────────
 // (kept here since they are only used inside Library/Builder/TemplateWorkspace)
@@ -280,9 +300,9 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
     setNewName("");setNewLocationIds([]);setShowAdd(false);
   };
   const del=async id=>{await archiveAsset(id);await refreshLibrary();};
-  const AssetRow=({a,borderBottom,onEdit})=>{
+  const AssetRow=({a,onEdit})=>{
     const locs=locNames(a.locationIds);
-    return(<div className="li" style={{position:"relative",marginBottom:borderBottom===undefined?6:0,borderBottom,borderRadius:borderBottom!==undefined?0:undefined}}>
+    return(<div className="li" style={{position:"relative"}}>
       <div className="lim">
         <div className="lin">{a.name}</div>
         {locs.length>0&&<div className="limt">📍 {locs.join(", ")}</div>}
@@ -311,14 +331,9 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
       return sportKeys.map(sport=>{
         const isCollapsed=collapsed[prefix+sport];
         const its=bySport[sport];
-        return(<div key={sport} style={{marginBottom:8}}>
-          <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[prefix+sport]:!c[prefix+sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--surface)",border:"none",borderRadius:isCollapsed?"var(--radius-lg)":"var(--radius-lg) var(--radius-lg) 0 0",cursor:"pointer"}}>
-            <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--field)"}}>{sport}</span>
-            <span style={{fontSize:12,color:"var(--text-dim)"}}>{its.length} item{its.length!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
-          </button>
-          {!isCollapsed&&<div style={{border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 var(--radius-lg) var(--radius-lg)"}}>
-            {its.map((a,i)=>renderRow(a,i<its.length-1?"1px solid var(--border)":"none"))}
-          </div>}
+        return(<div key={sport} className="sport-group">
+          <GroupHeader label={sport} meta={its.length+" item"+(its.length!==1?"s":"")} collapsed={isCollapsed} onClick={()=>setCollapsed(c=>Object.assign({},c,{[prefix+sport]:!c[prefix+sport]}))}/>
+          {!isCollapsed&&its.map(a=>renderRow(a))}
         </div>);
       });
     }
@@ -347,7 +362,7 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
         <div className="brow"><button className="btn ghost bsm" onClick={()=>{setShowAdd(false);setNewLocationIds([]);}}>Cancel</button><button className="btn primary bsm" onClick={addNew} disabled={!newName.trim()}>Add</button></div>
       </div>}
       {teamAssets.length===0&&!showAdd&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>No team equipment yet.</div>}
-      <BySportList items={teamAssets} prefix="te_" renderRow={(a,borderBottom)=><AssetRow key={a.id} a={a} borderBottom={borderBottom}/>}/>
+      <BySportList items={teamAssets} prefix="te_" renderRow={a=><AssetRow key={a.id} a={a}/>}/>
     </div>}
 
     {equipTab==="player"&&<div>
@@ -375,20 +390,15 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
         return sportKeys.map(sport=>{
           const isCollapsed=collapsed["pg_"+sport];
           const items=bySport[sport];
-          return(<div key={sport} style={{marginBottom:8}}>
-            <button onClick={()=>setCollapsed(c=>Object.assign({},c,{["pg_"+sport]:!c["pg_"+sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--surface)",border:"none",borderRadius:isCollapsed?"var(--radius-lg)":"var(--radius-lg) var(--radius-lg) 0 0",cursor:"pointer"}}>
-              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--field)"}}>{sport}</span>
-              <span style={{fontSize:12,color:"var(--text-dim)"}}>{items.length} item{items.length!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
-            </button>
-            {!isCollapsed&&<div style={{border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 var(--radius-lg) var(--radius-lg)"}}>
-              {items.map((a,i)=>{
-                const isEditing=openMenu==="edit_"+a.id;
-                return(<div key={a.id}>
-                  {!isEditing&&<AssetRow a={a} borderBottom={i<items.length-1?"1px solid var(--border)":"none"} onEdit={()=>setOpenMenu("edit_"+a.id)}/>}
-                  {isEditing&&<GearEditRow asset={a} locations={myLocations} refreshLibrary={refreshLibrary} onDone={()=>setOpenMenu(null)}/>}
-                </div>);
-              })}
-            </div>}
+          return(<div key={sport} className="sport-group">
+            <GroupHeader label={sport} meta={items.length+" item"+(items.length!==1?"s":"")} collapsed={isCollapsed} onClick={()=>setCollapsed(c=>Object.assign({},c,{["pg_"+sport]:!c["pg_"+sport]}))}/>
+            {!isCollapsed&&items.map(a=>{
+              const isEditing=openMenu==="edit_"+a.id;
+              return(<div key={a.id}>
+                {!isEditing&&<AssetRow a={a} onEdit={()=>setOpenMenu("edit_"+a.id)}/>}
+                {isEditing&&<GearEditRow asset={a} locations={myLocations} refreshLibrary={refreshLibrary} onDone={()=>setOpenMenu(null)}/>}
+              </div>);
+            })}
           </div>);
         });
       })()}
@@ -408,9 +418,21 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
 // Add/Edit Skill Tags flow still covers the frequent in-context case.
 export function SkillsTab({data,coachId,refreshLibrary,isAdmin,mode}){
   const [collapsed,setCollapsed]=useState({});
-  const [drafts,setDrafts]=useState({});
-  const [globalDrafts,setGlobalDrafts]=useState({});
-  const [newCatDrafts,setNewCatDrafts]=useState({});
+  // Add-tag and add-category are both reveal-on-demand now (direct
+  // feedback: a permanently-visible input under every single category, plus
+  // a second one for admins, read as dated/cluttered) -- one open at a time
+  // is plenty since opening a new one implicitly makes sense as replacing
+  // whichever other add row was open.
+  const [addingTag,setAddingTag]=useState(null); // categoryId, or null
+  const [draftName,setDraftName]=useState("");
+  const [addScope,setAddScope]=useState("personal"); // admin only: personal | global
+  const [addingCategory,setAddingCategory]=useState(null); // sport, or null
+  const [catDraftName,setCatDraftName]=useState("");
+  const [tagMenuId,setTagMenuId]=useState(null);
+  const [tagMenuUp,setTagMenuUp]=useState(false);
+  const [editingTagId,setEditingTagId]=useState(null);
+  const [editValue,setEditValue]=useState("");
+  const [confirmDeleteTag,setConfirmDeleteTag]=useState(null);
   const cats=(data.skillCategories||[]).filter(c=>!c.archived_at);
   const isOrgMode=mode&&mode.type==="org";
   // Global tags (curated, everyone's) always show. Coach mode adds this
@@ -432,76 +454,143 @@ export function SkillsTab({data,coachId,refreshLibrary,isAdmin,mode}){
   // skill tags here before they'd actually joined anything.
   const myTeamSports=new Set(teamsForMode(data.teams,mode,coachId).map(t=>t.sport).filter(Boolean));
   const sports=[...new Set(cats.map(c=>c.sport))].filter(s=>isAdmin||myTeamSports.has(s)).sort();
+  // `tags` above is already scoped to rows this coach/org owns for the
+  // coach/org branches -- so any non-global tag in this list is always
+  // this viewer's own. A global one is only manageable by a founder-admin
+  // (same gate as skill_tags_update_manage's RLS), which is also why a
+  // non-admin never saw a real edit/delete succeed on one before this --
+  // it just silently failed server-side. No ellipsis at all now for a
+  // tag the viewer can't actually manage.
+  const canManageTag=t=>t.scope==="global"?isAdmin:true;
   const del=async id=>{await archiveSkillTag(id);await refreshLibrary();};
-  const add=async categoryId=>{
-    const name=(drafts[categoryId]||"").trim();
-    if(!name)return;
-    if(isOrgMode)await createOrgSkillTag(mode.orgId,{categoryId,name});
-    else await createSkillTag(coachId,{categoryId,name});
-    setDrafts(p=>Object.assign({},p,{[categoryId]:""}));
+  const openAdd=categoryId=>{setAddingTag(categoryId);setDraftName("");setAddScope("personal");};
+  const closeAdd=()=>{setAddingTag(null);setDraftName("");};
+  const submitAdd=async()=>{
+    const name=draftName.trim();
+    if(!name||!addingTag)return;
+    if(addScope==="global")await createGlobalSkillTag({categoryId:addingTag,name});
+    else if(isOrgMode)await createOrgSkillTag(mode.orgId,{categoryId:addingTag,name});
+    else await createSkillTag(coachId,{categoryId:addingTag,name});
+    closeAdd();
     await refreshLibrary();
   };
-  const addGlobal=async categoryId=>{
-    const name=(globalDrafts[categoryId]||"").trim();
-    if(!name)return;
-    await createGlobalSkillTag({categoryId,name});
-    setGlobalDrafts(p=>Object.assign({},p,{[categoryId]:""}));
-    await refreshLibrary();
-  };
-  const addCategory=async sport=>{
-    const name=(newCatDrafts[sport]||"").trim();
-    if(!name)return;
-    const sportCats=cats.filter(c=>c.sport===sport);
+  const openAddCategory=sport=>{setAddingCategory(sport);setCatDraftName("");};
+  const closeAddCategory=()=>{setAddingCategory(null);setCatDraftName("");};
+  const submitAddCategory=async()=>{
+    const name=catDraftName.trim();
+    if(!name||!addingCategory)return;
+    const sportCats=cats.filter(c=>c.sport===addingCategory);
     const sortOrder=sportCats.length?Math.max(...sportCats.map(c=>c.sort_order||0))+1:0;
-    await createSkillCategory({sport,name,sortOrder});
-    setNewCatDrafts(p=>Object.assign({},p,{[sport]:""}));
+    await createSkillCategory({sport:addingCategory,name,sortOrder});
+    closeAddCategory();
     await refreshLibrary();
   };
   const delCategory=async id=>{await archiveSkillCategory(id);await refreshLibrary();};
+  const openTagMenu=(e,t)=>{
+    e.stopPropagation();
+    if(tagMenuId===t.id){setTagMenuId(null);return;}
+    setTagMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),100));
+    setTagMenuId(t.id);
+  };
+  const startEdit=t=>{setTagMenuId(null);setEditingTagId(t.id);setEditValue(t.name);};
+  const cancelEdit=()=>{setEditingTagId(null);setEditValue("");};
+  const saveEdit=async()=>{
+    const name=editValue.trim();
+    if(!name){cancelEdit();return;}
+    await renameSkillTag(editingTagId,name);
+    cancelEdit();
+    await refreshLibrary();
+  };
+  const doDeleteTag=async()=>{
+    const t=confirmDeleteTag;
+    setConfirmDeleteTag(null);
+    await del(t.id);
+  };
   if(cats.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>No skill categories set up yet.</div>;
   if(sports.length===0)return <div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>Add or join a team to see skill tags for its sport here.</div>;
-  return(<div>
+  return(<div onClick={()=>setTagMenuId(null)}>
     {sports.map(sport=>{
       const isCollapsed=collapsed[sport];
       const sportCats=cats.filter(c=>c.sport===sport).slice().sort((a,b)=>a.sort_order-b.sort_order);
       const tagCount=tags.filter(t=>sportCats.some(c=>c.id===t.categoryId)).length;
-      return(<div key={sport} style={{marginBottom:8}}>
-        <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--surface)",border:"none",borderRadius:isCollapsed?"var(--radius-lg)":"var(--radius-lg) var(--radius-lg) 0 0",cursor:"pointer"}}>
-          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--field)"}}>{sport}</span>
-          <span style={{fontSize:12,color:"var(--text-dim)"}}>{tagCount} tag{tagCount!==1?"s":""} {isCollapsed?"▶":"▼"}</span>
-        </button>
-        {!isCollapsed&&<div style={{border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 var(--radius-lg) var(--radius-lg)",padding:"12px"}}>
-          {sportCats.map((cat,i)=>{
-            const catTags=tags.filter(t=>t.categoryId===cat.id);
-            return(<div key={cat.id} style={{marginBottom:i<sportCats.length-1?16:0}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                <div style={{fontSize:11,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".06em"}}>{cat.name}</div>
+      return(<div key={sport} className="sport-group">
+        <GroupHeader label={sport} meta={tagCount+" tag"+(tagCount!==1?"s":"")} collapsed={isCollapsed} onClick={()=>setCollapsed(c=>Object.assign({},c,{[sport]:!c[sport]}))}/>
+        {/* Each category is its own bordered card, directly under the sport
+            header -- a category name floating above a shared, undifferentiated
+            box (the old layout) left it ambiguous which tags belonged to
+            which category once a sport had more than one. One card per
+            category makes the boundary unambiguous, and matches the same
+            header-then-cards shape every other Library list now uses. */}
+        {!isCollapsed&&sportCats.map(cat=>{
+          const catTags=tags.filter(t=>t.categoryId===cat.id);
+          return(<div key={cat.id} className="card">
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:8}}>
+              <div className="clbl" style={{marginBottom:0,color:"var(--ink)",fontSize:13,letterSpacing:".08em"}}>{cat.name}</div>
+              <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+                {addingTag!==cat.id&&<button type="button" className="btn ghost bxs" onClick={()=>openAdd(cat.id)}>+ New</button>}
                 {isAdmin&&<button type="button" onClick={()=>delCategory(cat.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-dim)",fontSize:11}}>Remove category</button>}
               </div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
-                {catTags.map(t=>(<span key={t.id} className="bdg bs" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 6px 4px 10px"}}>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
+              {catTags.map(t=>{
+                const manageable=canManageTag(t);
+                if(editingTagId===t.id)return(<span key={t.id} className="tagchip" style={{paddingRight:4,gap:3}}>
+                  <input autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveEdit();if(e.key==="Escape")cancelEdit();}} style={{border:"none",background:"none",padding:0,font:"inherit",color:"inherit",width:Math.max(50,editValue.length*7)+"px"}}/>
+                  <button type="button" onClick={saveEdit} aria-label="Save" style={{color:"var(--field)",fontWeight:700}}>&#10003;</button>
+                  <button type="button" onClick={cancelEdit} aria-label="Cancel">&times;</button>
+                </span>);
+                // Real bug found live: siblings later in this flex-wrap row
+                // paint after this chip in DOM order, so its own z-index:50
+                // mini-menu (scoped to this chip's own stacking context) can
+                // still render underneath a later sibling -- same class of
+                // issue SortableActivityRow's "raised" prop already
+                // documents elsewhere in this app. Lifting the open chip
+                // itself above its siblings fixes it.
+                return(<span key={t.id} className={"tagchip"+(t.scope==="global"?" global":"")} style={{position:"relative",paddingRight:manageable?4:10,zIndex:tagMenuId===t.id?10:undefined}}>
                   {t.name}
-                  <button type="button" onClick={()=>del(t.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-dim)",fontSize:14,lineHeight:1,padding:"0 2px"}}>×</button>
-                </span>))}
-                {catTags.length===0&&<span style={{fontSize:12,color:"var(--text-dim)"}}>No tags yet</span>}
-              </div>
-              <div style={{display:"flex",gap:6}}>
-                <input className="inp" placeholder={"Add a "+cat.name.toLowerCase()+" tag..."} style={{flex:1}} value={drafts[cat.id]||""} onChange={e=>setDrafts(p=>Object.assign({},p,{[cat.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&add(cat.id)}/>
-                <button type="button" className="btn ghost bxs" onClick={()=>add(cat.id)}>Add</button>
-              </div>
-              {isAdmin&&<div style={{display:"flex",gap:6,marginTop:6}}>
-                <input className="inp" placeholder={"Add a global "+cat.name.toLowerCase()+" tag (visible to everyone)..."} style={{flex:1}} value={globalDrafts[cat.id]||""} onChange={e=>setGlobalDrafts(p=>Object.assign({},p,{[cat.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addGlobal(cat.id)}/>
-                <button type="button" className="btn ghost bxs" onClick={()=>addGlobal(cat.id)}>Add Global</button>
+                  {manageable&&<button type="button" className="ell-btn" aria-label={"Options for "+t.name} onClick={e=>openTagMenu(e,t)}><span/><span/><span/></button>}
+                  {tagMenuId===t.id&&<div className="mini-menu" style={Object.assign({minWidth:110},tagMenuUp?{right:0,top:"auto",bottom:"calc(100% - 4px)"}:{right:0})} onClick={e=>e.stopPropagation()}>
+                    <button className="mm-item" onClick={()=>startEdit(t)}>Edit</button>
+                    <button className="mm-item mm-danger" onClick={()=>{setTagMenuId(null);setConfirmDeleteTag(t);}}>Delete</button>
+                  </div>}
+                </span>);
+              })}
+              {catTags.length===0&&<span style={{fontSize:12,color:"var(--text-dim)"}}>No tags yet</span>}
+            </div>
+            {addingTag===cat.id&&<div>
+              {isAdmin&&<div className="segtrack" style={{width:180,marginBottom:8}}>
+                <button type="button" className={"seg2"+(addScope==="personal"?" on":"")} onClick={()=>setAddScope("personal")}>Personal</button>
+                <button type="button" className={"seg2"+(addScope==="global"?" on":"")} onClick={()=>setAddScope("global")}>Global</button>
               </div>}
-            </div>);
-          })}
-          {isAdmin&&<div style={{display:"flex",gap:6,marginTop:sportCats.length?16:0,paddingTop:sportCats.length?12:0,borderTop:sportCats.length?"1px solid var(--border)":"none"}}>
-            <input className="inp" placeholder="New category name..." style={{flex:1}} value={newCatDrafts[sport]||""} onChange={e=>setNewCatDrafts(p=>Object.assign({},p,{[sport]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addCategory(sport)}/>
-            <button type="button" className="btn ghost bxs" onClick={()=>addCategory(sport)}>+ Category</button>
-          </div>}
-        </div>}
+              <div style={{display:"flex",gap:6}}>
+                <input className="inp" autoFocus placeholder={"New "+cat.name.toLowerCase()+" tag..."} style={{flex:1}} value={draftName} onChange={e=>setDraftName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")submitAdd();if(e.key==="Escape")closeAdd();}}/>
+                <button type="button" className="btn ghost bxs" onClick={closeAdd}>Cancel</button>
+                <button type="button" className="btn primary bxs" onClick={submitAdd} disabled={!draftName.trim()}>Add</button>
+              </div>
+            </div>}
+          </div>);
+        })}
+        {!isCollapsed&&isAdmin&&(addingCategory===sport?(
+          <div className="card">
+            <div className="clbl mb8">New Category</div>
+            <div style={{display:"flex",gap:6}}>
+              <input className="inp" autoFocus placeholder="Category name..." style={{flex:1}} value={catDraftName} onChange={e=>setCatDraftName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")submitAddCategory();if(e.key==="Escape")closeAddCategory();}}/>
+              <button type="button" className="btn ghost bxs" onClick={closeAddCategory}>Cancel</button>
+              <button type="button" className="btn primary bxs" onClick={submitAddCategory} disabled={!catDraftName.trim()}>Add</button>
+            </div>
+          </div>
+        ):(
+          <button type="button" className="btn ghost bsm" onClick={()=>openAddCategory(sport)}>+ Category</button>
+        ))}
       </div>);
     })}
+    {confirmDeleteTag&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setConfirmDeleteTag(null);}}>
+      <div className="modal">
+        <div className="mtitle">Delete {confirmDeleteTag.name}?</div>
+        <div style={{fontSize:14,color:"var(--text-dim)",marginBottom:16}}>Removes this tag from every drill and benchmark using it. Cannot be undone.</div>
+        <div className="brow"><button className="btn ghost bmd" onClick={()=>setConfirmDeleteTag(null)}>Cancel</button><button className="btn danger bmd" onClick={doDeleteTag}>Delete</button></div>
+      </div>
+    </div>}
   </div>);
 }
 
@@ -811,7 +900,7 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
               <div className="limt">{lib.duration}min{lib.description?" - "+lib.description:""}</div>
               {lib.coachingPoints&&<div style={{fontSize:11,color:"var(--field-accent)",marginTop:2}}>{lib.coachingPoints}</div>}
               {lib.skillTagIds&&lib.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                {tagNames(lib.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+                {tagNames(lib.skillTagIds).map(name=>(<TagChip key={name}>{name}</TagChip>))}
               </div>}
             </div>
             <div className="lir"><span className="bdg bp">{lib.duration}m</span><span style={{color:"var(--field)",fontSize:20,fontWeight:700,marginLeft:4}}>+</span></div>
@@ -1185,6 +1274,7 @@ function WordingForm({ version, onCancel, onSaved }) {
 }
 
 function BenchmarkDetail({ data, coachId, mode, benchmark, teamId, setTeamId, canManage, onBack, refreshLibrary }) {
+  const navigate = useNavigate();
   const [assessments, setAssessments] = useState(null);
   const [newVersion, setNewVersion] = useState(false);
   const [wording, setWording] = useState(null);
@@ -1223,7 +1313,7 @@ function BenchmarkDetail({ data, coachId, mode, benchmark, teamId, setTeamId, ca
           {v.protocolConditions.surfaceSetup && <div>Setup: {v.protocolConditions.surfaceSetup}</div>}
           {v.protocolConditions.scoringCriteria && <div>Scoring: {v.protocolConditions.scoringCriteria}</div>}
         </div>}
-        {(v.tagSnapshot || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>{v.tagSnapshot.map((t, i) => <span key={i} className="bdg bs">{t}</span>)}</div>}
+        {(v.tagSnapshot || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>{v.tagSnapshot.map((t, i) => <TagChip key={i}>{t}</TagChip>)}</div>}
         {v.invalidGuidance && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 8 }}>Invalid attempts: {v.invalidGuidance}</div>}
         {canManage && !benchmark.archivedAt && <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           <button type="button" className="btn ghost bxs" onClick={() => setNewVersion(true)}>New version (setup change)</button>
@@ -1246,10 +1336,17 @@ function BenchmarkDetail({ data, coachId, mode, benchmark, teamId, setTeamId, ca
           {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>}
         {teamId && assessments === null && <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Loading...</div>}
+        {/* Direct feedback: this list was a dead end -- the closing line
+            below just named where the real comparisons/trends/history live
+            (Goals & Insights -> Benchmarks) without a way to actually get
+            there. View Results is that path, straight into this same
+            benchmark's own detail view there (initialBenchmarkId deep
+            link), not just the generic tab. */}
         {teamId && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+            <button type="button" className="btn primary bsm" onClick={() => navigate("/team/" + teamId + "/goals", { state: { openGoalsView: "benchmarks", openBenchmarkId: benchmark.id } })}>View Results</button>
             <button type="button" className="btn ghost bsm" onClick={async () => { await adoptBenchmarkForTeam(benchmark.id, teamId, v.id); setReloadKey(k => k + 1); }}>Add to {adopted ? adopted.name : "team"}</button>
-            {!benchmark.archivedAt && <button type="button" className="btn primary bsm" onClick={() => setMeasureAgain(true)}>Measure again</button>}
+            {!benchmark.archivedAt && <button type="button" className="btn ghost bsm" onClick={() => setMeasureAgain(true)}>Measure again</button>}
           </div>
         )}
         {teamId && assessments === null && <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Loading...</div>}
@@ -1261,7 +1358,6 @@ function BenchmarkDetail({ data, coachId, mode, benchmark, teamId, setTeamId, ca
             <b>{a.measuredLocalDate}</b>{a.label ? " · " + a.label : ""} <span className="bdg bs">{a.state}{a.underCorrection ? " (under correction)" : ""}</span>
             {a.excludedFromComparisons && <span className="bdg bs" style={{ marginLeft: 4 }}>excluded</span>}
           </div>)}
-          <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}>Comparisons, targets and player history are in Goals &amp; Insights &rarr; Benchmarks and each player's profile.</div>
         </div>}
       </div>
 
@@ -1349,7 +1445,7 @@ function BenchmarksTab({ data, coachId, mode, refreshLibrary, fromDrill, clearFr
           <div style={{ fontSize: 15, fontWeight: 800 }}>{b.title}</div>
           <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2 }}>{b.sport} · {b.subjectMode === "team" ? "Whole team" : "Individual"}</div>
           <div style={{ fontSize: 12, marginTop: 6 }}>{bmMetricSummary(b.latestVersion)}</div>
-          {(b.latestVersion && b.latestVersion.tagSnapshot || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>{b.latestVersion.tagSnapshot.map((t, i) => <span key={i} className="bdg bs">{t}</span>)}</div>}
+          {(b.latestVersion && b.latestVersion.tagSnapshot || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>{b.latestVersion.tagSnapshot.map((t, i) => <TagChip key={i}>{t}</TagChip>)}</div>}
         </div>)}
       </div>
 
@@ -1471,6 +1567,13 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const [tagFilter,setTagFilter]=useState([]);
   const [tagSearch,setTagSearch]=useState("");
   const [publisherFilter,setPublisherFilter]=useState([]);
+  // Findability gap (direct feedback): tag-based narrowing already existed
+  // in the Filter modal, but there was no plain search-by-title at all --
+  // Public Library already has one (PublicLibraryScreen.jsx), My/Org Drills
+  // and Explore didn't. Same shape (a plain .inp above the list), applied
+  // last so it narrows whatever the sport/tag/publisher filters already
+  // produced, same order PublicLibraryScreen's own search does.
+  const [nameSearch,setNameSearch]=useState("");
   const [showFilter,setShowFilter]=useState(false);
   const [newTplPrompt,setNewTplPrompt]=useState(false);
   const [newTplNameDraft,setNewTplNameDraft]=useState("");
@@ -1552,7 +1655,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const goSection=s=>{
     setSection(s);
     setShelf(s==="mine"?"mine":(exploreShelves[0]?exploreShelves[0].key:""));
-    setTagFilter([]);setTagSearch("");setPublisherFilter([]);
+    setTagFilter([]);setTagSearch("");setPublisherFilter([]);setNameSearch("");
   };
   const showDrillList=mineTab==="drills"&&(section==="mine"||exploreShelves.length>0);
   // shelf==="public" is handled entirely by PublicLibraryScreen (search-first
@@ -1623,7 +1726,9 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   // here"), with the no-tag filter itself independently toggleable so the
   // coach can peek at the sport's already-tagged drills without leaving.
   const shelfDrillsSportScoped=untaggedDeepLink?shelfDrillsPublisher.filter(a=>(a.sport||"General")===untaggedDeepLink.untaggedForSport):shelfDrillsPublisher;
-  const shelfDrills=untaggedOnly?shelfDrillsSportScoped.filter(a=>!(a.skillTagIds&&a.skillTagIds.length)):shelfDrillsSportScoped;
+  const shelfDrillsUntagged=untaggedOnly?shelfDrillsSportScoped.filter(a=>!(a.skillTagIds&&a.skillTagIds.length)):shelfDrillsSportScoped;
+  const nameSearchQ=nameSearch.trim().toLowerCase();
+  const shelfDrills=nameSearchQ?shelfDrillsUntagged.filter(a=>a.name.toLowerCase().includes(nameSearchQ)):shelfDrillsUntagged;
   const sports=[...new Set(shelfDrills.map(a=>a.sport||"General").filter(Boolean))].sort();
   const assetsById=Object.fromEntries((data.assets||[]).map(a=>[a.id,a]));
   const equipNames=ids=>(ids||[]).map(id=>assetsById[id]?assetsById[id].name:null).filter(Boolean);
@@ -1740,6 +1845,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       {shelf==="public"?(
         <div onClick={e=>e.stopPropagation()}><PublicLibraryScreen data={data} isAdmin={isAdmin} refreshLibrary={refreshLibrary} openModal={openModal} doCopy={doCopy} copyingId={copyingId} mode={mode}/></div>
       ):(<>
+      <input className="inp" placeholder={isMine?"Search "+(isOrgMode?"org":"my")+" drills...":"Search drills..."} value={nameSearch} onChange={e=>setNameSearch(e.target.value)} style={{marginBottom:10}} onClick={e=>e.stopPropagation()}/>
       {drillSort==="suggested"&&isMine&&!suggestedReport&&<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:10}}>Loading goal priorities...</div>}
       {/* Direct feedback: Sort used to be its own plain label+select row,
           styled nothing like Filter/+Add Drill right below it -- now a
@@ -1798,12 +1904,9 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       </div>}
       {shelfDrillsAll.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>{isMine?"No drills yet. Tap + Add Drill.":shelf.startsWith("orgLib:")?"No drills shared to this org yet -- share one from My Library.":"No drills shared by other coaches yet."}</div>}
       {shelfDrillsAll.length>0&&shelfDrills.length===0&&untaggedDeepLink&&untaggedOnly&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>All caught up -- every {untaggedDeepLink.untaggedForSport} drill has a skill tag.</div>}
-      {shelfDrillsAll.length>0&&shelfDrills.length===0&&!(untaggedDeepLink&&untaggedOnly)&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>No drills match the selected filters.</div>}
-      {sports.map(sport=>(<div key={sport} style={{marginBottom:8}}>
-        <button onClick={()=>toggle(sport)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"var(--surface)",border:"none",borderRadius:"var(--radius-lg)",cursor:"pointer"}}>
-          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:15,fontWeight:700,color:"var(--field)"}}>{sport}</span>
-          <span style={{fontSize:12,color:"var(--text-dim)"}}>{shelfDrills.filter(a=>(a.sport||"General")===sport).length} drills {collapsed[sport]?"▶":"▼"}</span>
-        </button>
+      {shelfDrillsAll.length>0&&shelfDrills.length===0&&!(untaggedDeepLink&&untaggedOnly)&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)",fontSize:14}}>{nameSearchQ?"No drills match \""+nameSearch+"\".":"No drills match the selected filters."}</div>}
+      {sports.map(sport=>(<div key={sport} className="sport-group">
+        <GroupHeader label={sport} meta={(()=>{const n=shelfDrills.filter(a=>(a.sport||"General")===sport).length;return n+" drill"+(n!==1?"s":"");})()} collapsed={!!collapsed[sport]} onClick={()=>toggle(sport)}/>
         {!collapsed[sport]&&(()=>{
           const bySport=shelfDrills.filter(a=>(a.sport||"General")===sport);
           const naturalOrder=bySport.slice().sort((a,b)=>isMine?a.position-b.position:a.name.localeCompare(b.name));
@@ -1828,7 +1931,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
               ?drillOrderOverride[sport].map(id=>naturalOrder.find(a=>a.id===id)).filter(Boolean)
               :naturalOrder;
           }
-          const Row=({act,dragHandle})=>(<div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderBottom:"1px solid var(--border)",background:"#fff"}}>
+          const Row=({act,dragHandle})=>(<div className="li" style={{alignItems:"flex-start"}}>
             {dragHandle}
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
@@ -1846,8 +1949,8 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
                 const shown=names.slice(0,4);
                 const extra=names.length-shown.length;
                 return (<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                  {shown.map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
-                  {extra>0&&<span className="bdg bs" style={{fontSize:10}}>+{extra} more</span>}
+                  {shown.map(name=>(<TagChip key={name}>{name}</TagChip>))}
+                  {extra>0&&<TagChip>+{extra} more</TagChip>}
                 </div>);
               })()}
               {!isMine&&<div style={{fontSize:11,color:"var(--field-accent)",marginTop:4}}>Shared by {(data.profilesById&&data.profilesById[act.ownerUserId]&&data.profilesById[act.ownerUserId].name)||"a coach"}</div>}
@@ -1930,21 +2033,15 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
               {catIds.map(cid=>{
                 const key="skillcat_"+cid;
                 const isCollapsed=collapsed[key];
-                return (<div key={cid} style={{marginBottom:8}}>
-                  <button onClick={()=>setCollapsed(c=>Object.assign({},c,{[key]:!c[key]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"var(--field-tint)",border:"none",borderRadius:"var(--radius-lg)",cursor:"pointer"}}>
-                    <span style={{fontSize:12,fontWeight:700,color:"var(--field)",textTransform:"uppercase",letterSpacing:".05em"}}>{(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"}</span>
-                    <span style={{fontSize:12,color:"var(--text-dim)"}}>{byCat[cid].length} drills {isCollapsed?"▶":"▼"}</span>
-                  </button>
+                return (<div key={cid} className="sport-group">
+                  <GroupHeader variant="tint" label={(skillCategoriesById[cid]&&skillCategoriesById[cid].name)||"Category"} meta={byCat[cid].length+" drill"+(byCat[cid].length!==1?"s":"")} collapsed={isCollapsed} onClick={()=>setCollapsed(c=>Object.assign({},c,{[key]:!c[key]}))}/>
                   {!isCollapsed&&byCat[cid].map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
                 </div>);
               })}
               {untagged.length>0&&(()=>{
                 const isCollapsed=collapsed.skillcat_untagged;
-                return (<div style={{marginBottom:8}}>
-                  <button onClick={()=>setCollapsed(c=>Object.assign({},c,{skillcat_untagged:!c.skillcat_untagged}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"var(--surface-soft)",border:"none",borderRadius:"var(--radius-lg)",cursor:"pointer"}}>
-                    <span style={{fontSize:12,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".05em"}}>Untagged</span>
-                    <span style={{fontSize:12,color:"var(--text-dim)"}}>{untagged.length} drills {isCollapsed?"▶":"▼"}</span>
-                  </button>
+                return (<div className="sport-group">
+                  <GroupHeader variant="muted" label="Untagged" meta={untagged.length+" drill"+(untagged.length!==1?"s":"")} collapsed={isCollapsed} onClick={()=>setCollapsed(c=>Object.assign({},c,{skillcat_untagged:!c.skillcat_untagged}))}/>
                   {!isCollapsed&&untagged.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(act=>(<Row key={act.id} act={act} dragHandle={null}/>))}
                 </div>);
               })()}
@@ -1978,7 +2075,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
               {tpl.updatedAt&&tpl.createdAt&&fmtShort(tpl.updatedAt)!==fmtShort(tpl.createdAt)&&<span> - Updated {fmtShort(tpl.updatedAt)}</span>}
             </div>}
             {breakdown.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>
-              {breakdown.slice(0,6).map(t=>(<span key={t.id} className="bdg bs" style={{fontSize:10}}>{t.name}</span>))}
+              {breakdown.slice(0,6).map(t=>(<TagChip key={t.id}>{t.name}</TagChip>))}
               {breakdown.length>6&&<span style={{fontSize:10,color:"var(--text-dim)",alignSelf:"center"}}>+{breakdown.length-6} more</span>}
             </div>}
           </div>
