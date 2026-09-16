@@ -65,7 +65,7 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
         <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:16,fontWeight:700}}>{loc.name}</span>
         <div className="row">
           <button className="btn ghost bxs" onClick={()=>openModal("addSublocation",{location:loc})}>+ Area</button>
-          <button className="ell-btn" onClick={e=>{
+          <button className="ell-btn" aria-label={"Options for "+loc.name} onClick={e=>{
             e.stopPropagation();
             if(menu===loc.id){setMenu(null);return;}
             setSubMenu(null);
@@ -87,7 +87,7 @@ export function LocationsSection({data,openModal,refreshPlanning,coachId,mode}){
             the same row). */}
         {loc.sublocations.map(sl=>(<div key={sl.id} className="bdg bs" style={{position:"relative",paddingRight:2,gap:2}}>
           <span>{sl.name}</span>
-          <button className="ell-btn" style={{padding:"2px"}} onClick={e=>{
+          <button className="ell-btn" style={{padding:"2px"}} aria-label={"Options for "+sl.name} onClick={e=>{
             e.stopPropagation();
             if(subMenu===sl.id){setSubMenu(null);return;}
             setMenu(null);
@@ -287,7 +287,7 @@ export function EquipmentTab({data,coachId,refreshLibrary,openModal,forceType,sp
         <div className="lin">{a.name}</div>
         {locs.length>0&&<div className="limt">📍 {locs.join(", ")}</div>}
       </div>
-      <button className="ell-btn" onClick={e=>{
+      <button className="ell-btn" aria-label={"Options for "+a.name} onClick={e=>{
         e.stopPropagation();
         if(openMenu===a.id){setOpenMenu(null);return;}
         setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));
@@ -906,8 +906,8 @@ function SchedulePracticePicker({data,onPick,onClose}){
     <div className="modal" style={{maxHeight:"80vh",overflowY:"auto"}}>
       <div className="mhandle"/>
       <div className="mtitle">Choose a Scheduled Practice</div>
-      <div style={{display:"flex",gap:0,background:"var(--surface-soft)",borderRadius:"var(--radius-lg)",padding:3,marginBottom:12}}>
-        {["agenda","month"].map(m=>(<button key={m} onClick={()=>setMode(m)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--radius-lg) - 2px)",background:mode===m?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:mode===m?"var(--ink)":"var(--text-dim)"}}>{m}</button>))}
+      <div className="segtrack" style={{marginBottom:12}}>
+        {["agenda","month"].map(m=>(<button key={m} className={"seg2"+(mode===m?" on":"")} onClick={()=>setMode(m)}>{m}</button>))}
       </div>
       {mode==="agenda"&&<div>
         {groupByDay(upcoming).map(g=>(<div key={g.date} style={{marginBottom:14}}>
@@ -1716,8 +1716,8 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       {/* My Drills / Team Libraries -- Drills-only, since Explore never
           applied to Templates/Locations/Equipment/Skill Tags in the first
           place (each of those is always just "mine," coach- or org-scoped). */}
-      {mineTab==="drills"&&<div style={{display:"flex",gap:0,background:"var(--surface-soft)",borderRadius:"var(--radius-lg)",padding:3,marginTop:10}}>
-        {[{k:"mine",label:isOrgMode?"Org Drills":"My Drills"},{k:"explore",label:"Explore"}].map(t=>(<button key={t.k} onClick={()=>goSection(t.k)} style={{flex:1,padding:"7px 0",border:"none",cursor:"pointer",borderRadius:"calc(var(--radius-lg) - 2px)",background:section===t.k?"#fff":"transparent",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,letterSpacing:".03em",textTransform:"uppercase",color:section===t.k?"var(--ink)":"var(--text-dim)"}}>{t.label}</button>))}
+      {mineTab==="drills"&&<div className="segtrack" style={{marginTop:10}}>
+        {[{k:"mine",label:isOrgMode?"Org Drills":"My Drills"},{k:"explore",label:"Explore"}].map(t=>(<button key={t.k} className={"seg2"+(section===t.k?" on":"")} onClick={()=>goSection(t.k)}>{t.label}</button>))}
       </div>}
     </div>
     {mineTab==="benchmarks"&&<div style={{padding:"0 16px"}}><BenchmarksTab data={data} coachId={coachId} mode={mode} refreshLibrary={refreshLibrary} fromDrill={benchmarkFromDrill} clearFromDrill={()=>setBenchmarkFromDrill(null)}/></div>}
@@ -1837,19 +1837,25 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
                 {isMine&&(act.sharedWithOrganizationIds||[]).length>0&&<span className="bdg bp" style={{fontSize:10}}>Shared</span>}
               </div>
               {isMine&&publisherKeyOf(act)!=="self"&&<div style={{fontSize:11,color:"#7c3aed",marginBottom:2}}>From {publisherLabelOf(publisherKeyOf(act))}</div>}
-              {act.description&&<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:2,lineHeight:1.4}}>{act.description}</div>}
+              {act.description&&<div style={{fontSize:12,color:"var(--text-muted)",marginBottom:2,lineHeight:1.4}}>{act.description}</div>}
               {act.coachingPoints&&<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:2}}>{act.coachingPoints}</div>}
               {act.equipment&&act.equipment.length>0&&<div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>Needs: {equipNames(act.equipment).join(", ")}</div>}
               {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:11,color:"var(--text-dim)",marginTop:2}}>{act.grouping==="partners"?"Partners":act.numGroups+" groups"}</div>}
-              {act.skillTagIds&&act.skillTagIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                {tagNames(act.skillTagIds).map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
-              </div>}
+              {act.skillTagIds&&act.skillTagIds.length>0&&(()=>{
+                const names=tagNames(act.skillTagIds);
+                const shown=names.slice(0,4);
+                const extra=names.length-shown.length;
+                return (<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                  {shown.map(name=>(<span key={name} className="bdg bs" style={{fontSize:10}}>{name}</span>))}
+                  {extra>0&&<span className="bdg bs" style={{fontSize:10}}>+{extra} more</span>}
+                </div>);
+              })()}
               {!isMine&&<div style={{fontSize:11,color:"var(--field-accent)",marginTop:4}}>Shared by {(data.profilesById&&data.profilesById[act.ownerUserId]&&data.profilesById[act.ownerUserId].name)||"a coach"}</div>}
               {!isMine&&shelf.startsWith("sharedBy:")&&<button className="btn outline bxs" style={{marginTop:6}} onClick={()=>doCopy(act)} disabled={copyingId===act.id}>{copyingId===act.id?"Copying...":isOrgMode?"Copy to Org Library":"Copy to My Library"}</button>}
             </div>
             {isMine&&<div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
               <div style={{position:"relative",flexShrink:0}}>
-              <button className="ell-btn" onClick={e=>{
+              <button className="ell-btn" aria-label={"Options for "+act.name} onClick={e=>{
                 e.stopPropagation();
                 if(drillMenu===act.id){setDrillMenu(null);return;}
                 // Direct feedback: a drill near the bottom of the list had
@@ -1977,7 +1983,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
             </div>}
           </div>
           <div style={{position:"relative"}}>
-            <button className="ell-btn" onClick={e=>{
+            <button className="ell-btn" aria-label={"Options for "+tpl.name} onClick={e=>{
               if(openMenu===tpl.id){setOpenMenu(null);return;}
               setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));
               setOpenMenu(tpl.id);

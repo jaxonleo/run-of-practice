@@ -33,7 +33,7 @@ export function HandednessPicker({sport,value,onChange}){
       {fields.map(f=>(<div key={f.key}>
         <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:4}}>{f.label}</div>
         <div style={{display:"flex",gap:6}}>
-          {f.options.map(opt=>(<button key={opt} type="button" onClick={()=>onChange(f.key,value[f.key]===opt?"":opt)} style={{flex:1,padding:"7px 0",borderRadius:"var(--radius-lg)",border:"1.5px solid var(--border)",background:value[f.key]===opt?"var(--field)":"var(--surface)",color:value[f.key]===opt?"#fff":"var(--ink)",fontSize:13,fontWeight:700,cursor:"pointer"}}>{HAND_LABELS[opt]}</button>))}
+          {f.options.map(opt=>(<button key={opt} type="button" className={"seg"+(value[f.key]===opt?" on":"")} onClick={()=>onChange(f.key,value[f.key]===opt?"":opt)}>{HAND_LABELS[opt]}</button>))}
         </div>
       </div>))}
     </div>

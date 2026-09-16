@@ -179,7 +179,7 @@ body{background:var(--canvas);color:var(--ink);font-family:'Barlow',sans-serif;f
    visual (Schedule's Agenda/Month, Equipment's Team/Player tabs). */
 .segtrack{display:flex;gap:0;background:var(--surface-soft);border-radius:var(--radius-lg);padding:3px;}
 .segtrack .seg2{flex:1;padding:8px 0;border:none;border-radius:calc(var(--radius-lg) - 2px);cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;background:transparent;color:var(--text-dim);}
-.segtrack .seg2.on{background:#fff;color:var(--ink);}
+.segtrack .seg2.on{background:var(--seg2-on,#fff);color:var(--seg2-on-color,var(--ink));}
 .confirm-box{background:var(--danger-tint);border:1.5px solid var(--danger-tint-border);border-radius:var(--radius-lg);padding:14px;margin-top:8px;}
 .confirm-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--danger);margin-bottom:4px;}
 .confirm-body{font-size:13px;color:var(--ink-soft);margin-bottom:12px;line-height:1.5;}
@@ -2566,7 +2566,7 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   };
   const throwsLabel=((HAND_FIELDS_BY_SPORT[team.sport]||[]).find(hf=>hf.key==="throws")||{}).label||"Throws";
 
-  return (<div className={isBB?"bb-centered-page":undefined} style={{paddingBottom:80}}>
+  return (<div className={isBB?"bb-centered-page":undefined} style={{paddingBottom:160}}>
     <div className="row mb10" style={{justifyContent:"space-between",alignItems:"flex-start"}}>
       <div style={{flex:1,minWidth:0}}>
         {!canManage?(<>
@@ -2580,7 +2580,6 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
         )}
       </div>
     </div>
-    <button className="btn outline bsm bfull" style={{marginBottom:10}} onClick={()=>setMarkingOut(true)}>Mark Out For...</button>
     {markingOut&&<AbsencePicker data={data} coachId={coachId} mode="pickPlayerThenPractices" presetPlayer={Object.assign({},player,{teamId:team.id})} onClose={()=>setMarkingOut(false)}/>}
 
     <div className="card mb10">
@@ -2612,14 +2611,29 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
         :(player.notes?<div style={{fontSize:14,color:"var(--ink)",lineHeight:1.6}}>{player.notes}</div>:<div style={{fontSize:13,color:"var(--text-dim)"}}>No notes yet.</div>)}
     </div>
 
-    {/* Save now always present (not just once dirty) -- direct feedback:
-        a button that appears/disappears as you type made it easy to lose
-        track of where it'd be. Discard stays conditional since there's
-        nothing to discard until something's actually changed. */}
-    {canManage&&<div className="brow mt10 mb10">
-      {isDirty&&<button className="btn ghost bmd" style={{flex:1}} onClick={discardEdits} disabled={saving}>Discard Changes</button>}
-      <button className="btn primary bmd" style={{flex:1}} onClick={saveAndReturn} disabled={saving||!isDirty||!f.firstName.trim()}>{saving?"Saving...":"Save"}</button>
-    </div>}
+    {/* Persistent action tray (design system v1): Save now always present
+        (not just once dirty) -- direct feedback said a button that
+        appears/disappears as you type made it easy to lose track of where
+        it'd be. Mark Out lives here too now, rather than as its own
+        standalone button up by the name field, so the two actions a coach
+        actually needs while looking at this player are always reachable
+        together, regardless of scroll position through Player Focus/Notes/
+        Benchmarks below -- position:sticky can't do that since this isn't
+        the last content on the page, so this is a real fixed overlay,
+        the same proven pattern CommandScreen's own bottom action bars use.
+        left clears the BB rail (.bb .tabbar is a static 88px-wide flex
+        item there, not an overlay, so nothing to clear at mobile width);
+        bottom clears the mobile tab bar, which BB doesn't have. Outline
+        keeps Mark Out from competing with Save's primary weight. */}
+    <div style={{position:"fixed",left:isBB?88:0,right:0,bottom:isBB?0:"var(--tab)",background:"var(--canvas)",borderTop:"1px solid var(--border)",padding:"10px 16px calc(10px + env(safe-area-inset-bottom,0))",zIndex:20}}>
+      <div style={{maxWidth:isBB?820:480,margin:"0 auto"}}>
+        {canManage&&isDirty&&<button className="btn ghost bmd bfull mb8" onClick={discardEdits} disabled={saving}>Discard Changes</button>}
+        <div className="brow">
+          <button className="btn outline bmd" style={{flex:1}} onClick={()=>setMarkingOut(true)}>Mark Out For...</button>
+          {canManage&&<button className="btn primary bmd" style={{flex:1}} onClick={saveAndReturn} disabled={saving||!isDirty||!f.firstName.trim()}>{saving?"Saving...":"Save"}</button>}
+        </div>
+      </div>
+    </div>
     {showLeavePrompt&&<div className="confirm-box mb10">
       <div className="confirm-title">Unsaved Changes</div>
       <div className="confirm-body">You have unsaved changes to this player. Would you like to save before leaving?</div>
@@ -2759,7 +2773,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
         <div className="sechdr mb8">
           <div className="row"><span className="sectitle">{team.players.length} Players</span>
             <div style={{position:"relative"}}>
-              <button className="sort-btn" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="__sort__"?null:"__sort__");}}><Ic.Sort/></button>
+              <button className="sort-btn" aria-label="Sort players" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="__sort__"?null:"__sort__");}}><Ic.Sort/></button>
               {openMenu==="__sort__"&&(<div className="mini-menu" style={{left:0,minWidth:170}}>
                 {[
                   {by:"firstName",dir:"asc",label:"Sort: First Name A-Z"},
@@ -2791,7 +2805,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
                 {(p.focusAreas&&p.focusAreas.length>0)&&<div className="limt">{p.focusAreas.length} focus area{p.focusAreas.length>1?"s":""}</div>}
                 {(!p.focusAreas||!p.focusAreas.length)&&p.notes&&<div className="limt">{p.notes}</div>}
               </div>
-              {canManage&&<button className="ell-btn" onClick={e=>{
+              {canManage&&<button className="ell-btn" aria-label={"Options for "+p.firstName+" "+p.lastName} onClick={e=>{
                 e.stopPropagation();
                 if(openMenu===menuKey){setOpenMenu(null);return;}
                 setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),120));
@@ -2836,7 +2850,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
               a non-manager otherwise, so this is a plain text button
               instead of hiding the same action inside one. */}
           {!canManage&&c.userId===coachId&&c.role!=="Head Coach"&&<button className="btn ghost bxs" onClick={e=>{e.stopPropagation();setPermissionsCoachId(c.id);}}>Permissions</button>}
-          {canManage&&<button className="ell-btn" onClick={e=>{
+          {canManage&&<button className="ell-btn" aria-label={"Options for "+c.name} onClick={e=>{
             e.stopPropagation();
             if(openMenu==="coach_"+c.id){setOpenMenu(null);return;}
             setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),160));
@@ -2862,7 +2876,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibr
         {(team.invites||[]).length>0&&(<div className="sechdr mb8" style={{marginTop:16}}><span className="sectitle" style={{fontSize:13,color:"var(--text-dim)"}}>Pending Invites</span></div>)}
         {(team.invites||[]).map(inv=>(<div key={inv.id} className="li" style={{position:"relative"}}>
           <div className="lim"><div className="lin">{inv.name}</div><div className="limt">{inv.role} · {inv.status==="pending"?"Invite pending":"Declined"} ({inv.email})</div></div>
-          {canManage&&<button className="ell-btn" onClick={e=>{
+          {canManage&&<button className="ell-btn" aria-label={"Options for "+inv.name} onClick={e=>{
             e.stopPropagation();
             if(openMenu==="invite_"+inv.id){setOpenMenu(null);return;}
             setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(),160));

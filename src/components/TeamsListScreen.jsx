@@ -129,7 +129,7 @@ function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
               <div className="lin">{m.name}{isSelf ? " (You)" : ""}{m.email ? " · " + m.email : ""}</div>
               <div className="limt">{ORG_ROLE_LABELS[m.role] || m.role} · Added {fmtDate(m.createdAt)}</div>
             </div>
-            <button className="ell-btn" onClick={e => {
+            <button className="ell-btn" aria-label={"Options for "+m.name} onClick={e => {
               e.stopPropagation();
               if (openMenuId === m.id) { setOpenMenuId(null); return; }
               setOpenMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(), 120));
@@ -236,7 +236,7 @@ export default function TeamsListScreen({ data, goToTeam, openModal, mode, refre
               (myTeamRole), so a coach juggling several teams gets the same
               at-a-glance context here, not just on Home. Org membership is
               already covered by the organizationName segment above. */}
-          {!isOrgMode && myTeamRole(t, coachId) && <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--text-dim)", marginTop: 2 }}>{myTeamRole(t, coachId)}</div>}
+          {!isOrgMode && myTeamRole(t, coachId) && <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--text-muted)", marginTop: 2 }}>{myTeamRole(t, coachId)}</div>}
         </div>
         <span style={{ color: "var(--field)", fontSize: 22 }}>&#8250;</span>
       </div>))}

@@ -178,7 +178,10 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
         already provide their own way out. */}
     {!fixedTeamId && <div style={{ padding: "12px 16px 0" }}><button className="btn ghost bxs" onClick={() => navigate(-1)}>Back</button></div>}
     <div style={{ padding: "20px 16px 12px" }}>
-      <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 28, fontWeight: 900, marginBottom: canScheduleAny ? 10 : 0 }}>Schedule</div>
+      {/* The team workspace's own tab bar already reads "Schedule" when this
+          screen is reached that way -- only the standalone /schedule route
+          (no fixedTeamId, no tab context) needs its own page title here. */}
+      {!fixedTeamId && <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 28, fontWeight: 900, marginBottom: canScheduleAny ? 10 : 0 }}>Schedule</div>}
       {canScheduleAny && <div style={{ display: "flex", gap: 8 }}>
         <button className="btn primary bsm" style={{ flex: 1 }} onClick={() => setShowSingle(true)}>+ Practice</button>
         <button className="btn outline bsm" style={{ flex: 1 }} onClick={() => setShowWizard(true)}>+ Series</button>
@@ -229,7 +232,11 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
             </div>);
           })}
         </div>))}
-        {upcoming.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-dim)", fontSize: 14 }}>{canScheduleAny ? "Nothing scheduled. Tap + Practice or + Series above to get started." : "Nothing scheduled yet."}</div>}
+        {upcoming.length === 0 && <div className="card" style={{ padding: "28px 20px", textAlign: "center" }}>
+          <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Nothing Scheduled</div>
+          <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: canScheduleAny ? 16 : 0 }}>Plan a practice so your team knows when and where to show up.</div>
+          {canScheduleAny && <button className="btn primary bmd" onClick={() => setShowSingle(true)}>+ Create Practice</button>}
+        </div>}
         {/* Direct feedback: history consolidated into Goals & Insights' own
             History tab -- the agenda's own past-practice list was a second,
             redundant place to browse the same thing. Past practices are

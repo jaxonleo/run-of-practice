@@ -131,7 +131,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
           <div className="limt" style={{color: "var(--field-accent)"}}>Published by {(catalog && catalog.publisherName) || "Staff Editor"}{catalog && catalog.organizationName ? " - " + catalog.organizationName : ""}</div>
         </div>
         {isAdmin && <div style={{position: "relative", flexShrink: 0}}>
-          <button className="ell-btn" onClick={e => {
+          <button className="ell-btn" aria-label={"Options for "+d.name} onClick={e => {
             e.stopPropagation();
             if (drillMenu === d.id) { setDrillMenu(null); return; }
             setDrillMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(), 120));
@@ -144,7 +144,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
         </div>}
       </div>
       {expanded && <div onClick={e => e.stopPropagation()} style={{marginTop: 8}}>
-        {d.description && <div style={{fontSize: 12, color: "var(--text-dim)", marginBottom: 4, lineHeight: 1.4}}>{d.description}</div>}
+        {d.description && <div style={{fontSize: 12, color: "var(--text-muted)", marginBottom: 4, lineHeight: 1.4}}>{d.description}</div>}
         {d.coachingPoints && <div style={{fontSize: 12, color: "var(--text-dim)", marginBottom: 4}}>{d.coachingPoints}</div>}
         {d.equipment && d.equipment.length > 0 && <div style={{fontSize: 11, color: "var(--text-dim)", marginTop: 2}}>Needs: {equipNames(d.equipment).join(", ")}</div>}
         {d.grouping && d.grouping !== "whole" && <div style={{fontSize: 11, color: "var(--text-dim)", marginTop: 2}}>{d.grouping === "partners" ? "Partners" : d.numGroups + " groups"}</div>}
@@ -195,7 +195,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
               {category.name}{someSelected ? (allSelected ? " (all selected)" : " (some selected)") : ""}
             </button>
             <div style={{display: "flex", flexWrap: "wrap", gap: 6}}>
-              {tags.map(t => (<button key={t.id} type="button" onClick={() => setTagFilter(p => p.includes(t.id) ? p.filter(x => x !== t.id) : [...p, t.id])} style={{padding: "4px 10px", borderRadius: 20, border: "1.5px solid var(--border)", background: tagFilter.includes(t.id) ? "var(--field)" : "var(--surface)", color: tagFilter.includes(t.id) ? "#fff" : "var(--ink)", fontSize: 13, cursor: "pointer"}}>{t.name} <span style={{opacity: .7}}>{tagCounts[t.id]}</span></button>))}
+              {tags.map(t => (<button key={t.id} type="button" className={"fchip"+(tagFilter.includes(t.id)?" on":"")} onClick={() => setTagFilter(p => p.includes(t.id) ? p.filter(x => x !== t.id) : [...p, t.id])}>{t.name} <span style={{opacity: .7}}>{tagCounts[t.id]}</span></button>))}
             </div>
           </div>);
         })}

@@ -704,9 +704,9 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
     </div>
   </div>);
   const modeToggleContent = (myOrgs.length > 0 && <div style={{ padding: "0 16px 12px" }}>
-    <div style={{ display: "flex", gap: 0, background: "var(--surface-soft)", borderRadius: "var(--radius-lg)", padding: 3 }}>
-      <button onClick={() => setMode({ type: "coach" })} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--radius-lg) - 2px)", background: !isOrgMode ? "#fff" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: !isOrgMode ? "var(--ink)" : "var(--text-dim)" }}>Coach Mode</button>
-      <button onClick={switchToOrgMode} style={{ flex: 1, padding: "7px 0", border: "none", cursor: "pointer", borderRadius: "calc(var(--radius-lg) - 2px)", background: isOrgMode ? "var(--field)" : "transparent", fontFamily: "Barlow Condensed,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: isOrgMode ? "#fff" : "var(--text-dim)" }}>Organization Mode</button>
+    <div className="segtrack">
+      <button className={"seg2" + (!isOrgMode ? " on" : "")} onClick={() => setMode({ type: "coach" })}>Coach Mode</button>
+      <button className={"seg2" + (isOrgMode ? " on" : "")} style={{ "--seg2-on": "var(--field)", "--seg2-on-color": "#fff" }} onClick={switchToOrgMode}>Organization Mode</button>
     </div>
     {showOrgPicker && <div className="card" style={{ marginTop: 6, padding: 8 }}>
       {myOrgs.map(org => (<button key={org.id} className="mm-item" style={{ width: "100%", textAlign: "left" }} onClick={() => pickOrg(org.id)}>{org.name}</button>))}
@@ -959,7 +959,7 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
           </div>
         </div>
         <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
-          <button className="ell-btn" onClick={e => {
+          <button className="ell-btn" aria-label={"Options for "+(team?team.name:"Practice")+" on "+dayLbl(p.date, todayStr, tomorrowStr)} onClick={e => {
             e.stopPropagation();
             if (practiceMenuId === p.id) { setPracticeMenuId(null); return; }
             setPracticeMenuUp(menuNeedsToOpenUpward(e.currentTarget.getBoundingClientRect(), 120));
