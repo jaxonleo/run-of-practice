@@ -165,8 +165,14 @@ body{background:var(--canvas);color:var(--ink);font-family:'Barlow',sans-serif;f
 .itab{padding:9px 14px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-dim);cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;background:none;border-top:none;border-left:none;border-right:none;}
 .itab.on{color:var(--field);border-bottom-color:var(--field);}
 .ablk{border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:9px;overflow:hidden;background:#fff;}
-.abhdr{display:flex;align-items:center;padding:11px 12px;background:var(--surface-soft);gap:8px;cursor:pointer;user-select:none;}
-.abhdr:active{background:var(--surface-pressed);}.abbody{padding:12px;border-top:1px solid var(--border);background:#fff;}
+/* Direct feedback: the collapsed header's own --surface-soft background,
+   sitting on top of .ablk's already-neutral white card, plus every
+   secondary line using --text-dim, read as gray-on-gray with no real
+   focal point. White header (seamless with the card until expanded, same
+   as every other card treatment in this design system) with --surface-soft
+   reserved for the actual press/active feedback state. */
+.abhdr{display:flex;align-items:center;padding:11px 12px;background:#fff;gap:8px;cursor:pointer;user-select:none;}
+.abhdr:active{background:var(--surface-soft);}.abbody{padding:12px;border-top:1px solid var(--border);background:#fff;}
 .dh{color:var(--b2);padding:4px;flex-shrink:0;display:flex;align-items:center;cursor:grab;}
 .sechdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
 .sectitle{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);}
@@ -2205,27 +2211,32 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                   <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {act.type==="station_block"?(act.name||"Station Block"):act.type==="scrimmage"?(act.name||"Scrimmage"):act.type==="benchmark"?(act.name||"Benchmark"):act.name}
                     {act.type==="benchmark"&&<span style={{fontWeight:700,color:"var(--field)",marginLeft:6,fontSize:11,letterSpacing:".04em"}}>BENCHMARK</span>}
-                    {/* Direct feedback: a coach should be able to tell at a
-                        glance who's leading a drill without expanding it --
-                        same coach-or-typed-helper-name label the Practice
-                        Setup screen already shows, just inline in the title
-                        row here instead of its own section. */}
-                    {act.type==="activity"&&<span style={{fontWeight:400,color:"var(--text-dim)"}}> · {act.coachId?((team&&team.coaches.find(c=>c.id===act.coachId))||{}).name||"Unassigned":(act.helperName||"Unassigned")}</span>}
                   </div>
-                  {act.type==="benchmark"?<div className="limt">{(()=>{
+                  {/* Direct feedback: gray-on-gray, no real focal point --
+                      --text-dim (the app's dimmest tone) on every metadata
+                      line here, same "increase metadata contrast" fix
+                      already applied to Teams' role label. Also moved the
+                      coach/helper name down into this line (grouping/area/
+                      coach/equipment) instead of squeezed onto the name
+                      line, where a long name plus a long coach name just
+                      raced each other for the same ellipsis -- a coach
+                      should see Name, Duration (the badge, right), Grouping,
+                      Area and Coach at a glance without those two competing
+                      for space on one line. */}
+                  {act.type==="benchmark"?<div className="limt" style={{color:"var(--text-muted)"}}>{(()=>{
                     const bm=(data.benchmarks||[]).find(b=>b.id===act.benchmarkId);
                     const v=bm&&(bm.versions||[]).find(x=>x.id===act.benchmarkVersionId)||bm&&bm.latestVersion;
                     if(!v)return "Benchmark · "+(act.duration||0)+" min";
                     const dir=v.direction==="track"?"track only":(v.direction==="lower"?"lower better":"higher better");
                     return (bm.subjectMode==="team"?"Whole team":"Individual")+" · "+v.metricType+" · "+dir+" · "+(act.duration||0)+" min activity";
                   })()}</div>:
-                  act.type==="scrimmage"?<div className="limt">{(()=>{
+                  act.type==="scrimmage"?<div className="limt" style={{color:"var(--text-muted)"}}>{(()=>{
                     const c=act.scrimmageConfig||{};
                     const lbl=(c.roundLabel||"Round").toLowerCase();
                     const players=(team&&team.players||[]).filter(p=>!absentPlayerIds.has(p.id)).length;
                     return (c.rounds||0)+" "+lbl+"s · "+(act.duration||0)+" min · "+players+" players"+(act.scrimmageRounds?"":" · Not generated");
                   })()}</div>:
-                  act.type==="station_block"?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m
+                  act.type==="station_block"?<div className="limt" style={{color:"var(--text-muted)"}}>{act.stations.map(s=>s.activityName||s.name).join(" / ")} - {act.stationDuration}m x{act.stations.length} + {act.transitionDuration}m trans = {act.stations.length*act.stationDuration+Math.max(0,act.stations.length-1)*act.transitionDuration}m
                     {/* Only shown once this block actually has a station
                         delegated to someone -- pure noise for the far more
                         common single-owner block, where "planned" isn't a
@@ -2239,15 +2250,16 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                   </div>:
                   // Direct feedback: duration's already in the green badge
                   // to the right -- this line's job is letting a coach spot
-                  // a forgotten grouping/area/equipment setup without
+                  // a forgotten grouping/area/coach/equipment setup without
                   // expanding the row, so it swaps duration out for those
                   // instead.
-                  <div className="limt">{(()=>{
+                  <div className="limt" style={{color:"var(--text-muted)"}}>{(()=>{
                     const g=act.grouping||"whole";
                     const groupingText=g==="whole"?"Whole Team":g==="partners"?"Partners":(act.numGroups||2)+" Groups";
                     const areaText=loc&&act.sublocationId?(loc.sublocations.find(s=>s.id===act.sublocationId)||{}).name:null;
+                    const coachText=act.coachId?((team&&team.coaches.find(c=>c.id===act.coachId))||{}).name:act.helperName;
                     const equipText=(Array.isArray(act.equipment)?act.equipment:[]).map(id=>{const a=(data.assets||[]).find(a=>a.id===id);return a?a.name:null;}).filter(Boolean).join(", ");
-                    return [groupingText,areaText,equipText].filter(Boolean).join(" · ");
+                    return [groupingText,areaText,coachText,equipText].filter(Boolean).join(" · ");
                   })()}</div>}
                 </div>
                 <div className="row">

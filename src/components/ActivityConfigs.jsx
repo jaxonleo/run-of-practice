@@ -84,6 +84,32 @@ const Ic_Grip=()=><svg width="16" height="16" viewBox="0 0 16 16" fill="currentC
 // like a stray white card rather than still being "the Run of Practice."
 export function SortableActivityRow({id,children,sticky,stickyTop,raised,stickyBg}){
   const {attributes,listeners,setNodeRef,transform,transition,isDragging}=useSortable({id});
+  // Real bug found live (direct feedback): the extra padding/green backdrop
+  // below were applied any time this row was merely *eligible* to stick
+  // (the sticky prop, true for the whole time it's the last collapsed row),
+  // not only while it's actually pinned to the top edge during a scroll.
+  // position:sticky itself has no CSS-visible "currently stuck" state, so
+  // that backdrop was permanently on -- the last row always carried 18px
+  // of extra top+bottom padding no other row had, which is exactly the
+  // "bigger gap before the last row" spacing bug. A sentinel just above the
+  // row plus IntersectionObserver is the standard way to detect the real
+  // stuck transition: once the sentinel scrolls past the sticky offset and
+  // out of view, the row below it must be the one now pinned in its place.
+  const sentinelRef=useRef(null);
+  const [isStuck,setIsStuck]=useState(false);
+  useEffect(()=>{
+    // typeof-guarded: jsdom (this project's vitest environment) has no
+    // IntersectionObserver at all, and it's plausible on a genuinely old
+    // browser too -- fails safe to "never stuck" (no backdrop) rather than
+    // throwing and taking the whole row down with it.
+    if(!sticky||typeof IntersectionObserver==="undefined"){setIsStuck(false);return;}
+    const el=sentinelRef.current;
+    if(!el)return;
+    const obs=new IntersectionObserver(([entry])=>setIsStuck(!entry.isIntersecting),{threshold:0,rootMargin:"-"+((stickyTop||0)+1)+"px 0px 0px 0px"});
+    obs.observe(el);
+    return()=>obs.disconnect();
+  },[sticky,stickyTop]);
+  const showBackdrop=sticky&&stickyBg&&isStuck;
   // zIndex always at least 1 (not just when dragging/sticky) -- Builder's
   // Run of Practice paints its green background as an absolutely
   // positioned backdrop behind these rows (position:absolute, zIndex:0),
@@ -103,14 +129,17 @@ export function SortableActivityRow({id,children,sticky,stickyTop,raised,stickyB
   // row in a list needs this exactly as much as a middle one, since
   // without it the row's own trailing padding/the list's own edge clips
   // the popover the same way a sibling row's background would.
-  const style={transform:CSS.Transform.toString(transform),transition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?(stickyTop||0):undefined,zIndex:isDragging?1:(raised?10:(sticky?5:1)),background:sticky&&stickyBg?stickyBg:undefined,paddingTop:sticky&&stickyBg?8:undefined,paddingBottom:sticky&&stickyBg?10:undefined};
+  const style={transform:CSS.Transform.toString(transform),transition,opacity:isDragging?0.5:1,position:sticky?"sticky":"relative",top:sticky?(stickyTop||0):undefined,zIndex:isDragging?1:(raised?10:(sticky?5:1)),background:showBackdrop?stickyBg:undefined,paddingTop:showBackdrop?8:undefined,paddingBottom:showBackdrop?10:undefined};
   // touchAction:"none" alone stops the page from scrolling under a drag,
   // but iOS Safari still fires its own long-press text-selection callout
   // (the magnifying-glass loupe) independently of that -- WebkitTouchCallout
   // is the property that actually suppresses it; WebkitUserSelect covers
   // the same long-press turning into a text-selection highlight instead.
   const handle=(<button type="button" {...attributes} {...listeners} onClick={e=>e.stopPropagation()} style={{background:"none",border:"none",cursor:isDragging?"grabbing":"grab",padding:"6px 4px",marginRight:6,color:"var(--text-dim)",touchAction:"none",WebkitTouchCallout:"none",WebkitUserSelect:"none",userSelect:"none",flexShrink:0,display:"flex",alignItems:"center"}} aria-label="Drag to reorder"><Ic_Grip/></button>);
-  return <div ref={setNodeRef} style={style}>{children(handle)}</div>;
+  return (<>
+    {sticky&&<div ref={sentinelRef} style={{height:0}}/>}
+    <div ref={setNodeRef} style={style}>{children(handle)}</div>
+  </>);
 }
 
 // Grows to fit its content instead of scrolling internally -- coaches were
@@ -291,12 +320,26 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
       if(type==="player")setNewGearOpen(false);
     }finally{equipAddRef.current=false;}
   };
+  // Direct feedback: field order used to be Name/Duration/Description/
+  // Coaching Points/Coach/Area/Grouping/Equipment -- a coach expanding a
+  // freshly-added drill hit two full-width textareas before ever reaching
+  // the per-practice decisions (who's running it, where, how players are
+  // split). Reordered around what's actually being decided *right now* for
+  // *this* practice (logistics: duration/coach/area/grouping) before the
+  // drill's own reference content (description/coaching points, usually
+  // already filled in from the library) and equipment prep, with the
+  // read-only skill tags last. Duration's stepper is a fixed, narrow
+  // control -- full-width was just empty space next to it -- so it now
+  // shares a row with Coach (also a compact dropdown) instead of each
+  // spanning the full width on its own line.
   return (<div>
     <div className="fld"><label className="lbl">Name</label><input className="inp" value={act.name} onChange={e=>onChange({name:e.target.value})}/></div>
-    <div className="fld"><label className="lbl">Duration (min)</label><DurStepper value={act.duration||10} min={1} onChange={v=>onChange({duration:v})}/></div>
-    <div className="fld"><label className="lbl">Description</label><AutoTextarea value={act.description||""} onChange={e=>onChange({description:e.target.value})}/></div>
-    <div className="fld"><label className="lbl">Coaching Points</label><AutoTextarea value={act.coachingPoints||""} onChange={e=>onChange({coachingPoints:e.target.value})}/></div>
-    {team&&<div className="fld"><label className="lbl">Coach</label><select className="sel" value={act.coachId||""} onChange={e=>onChange({coachId:e.target.value})}><option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>}
+    {team?(<div className="g2">
+      <div className="fld"><label className="lbl">Duration (min)</label><DurStepper value={act.duration||10} min={1} onChange={v=>onChange({duration:v})}/></div>
+      <div className="fld"><label className="lbl">Coach</label><select className="sel" value={act.coachId||""} onChange={e=>onChange({coachId:e.target.value})}><option value="">Unassigned</option>{team.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+    </div>):(
+      <div className="fld"><label className="lbl">Duration (min)</label><DurStepper value={act.duration||10} min={1} onChange={v=>onChange({duration:v})}/></div>
+    )}
     <AreaSelect loc={loc} value={act.sublocationId} onChange={v=>onChange({sublocationId:v})} openModal={openModal}/>
     {/* Player Grouping */}
     <div className="fld"><label className="lbl">Player Grouping</label>
@@ -315,6 +358,8 @@ export function ActConfig({act,team,loc,sport:sportProp,onChange,onDone,assets,c
       </div>}
       {(act.grouping||"whole")!=="whole"&&team&&team.players&&team.players.length>0&&<ManualGroupAssign act={act} team={team} sport={sport} onChange={onChange}/>}
     </div>
+    <div className="fld"><label className="lbl">Description</label><AutoTextarea value={act.description||""} onChange={e=>onChange({description:e.target.value})}/></div>
+    <div className="fld"><label className="lbl">Coaching Points</label><AutoTextarea value={act.coachingPoints||""} onChange={e=>onChange({coachingPoints:e.target.value})}/></div>
     {/* Team Equipment */}
     <div className="fld"><label className="lbl">Team Equipment</label>
       <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
