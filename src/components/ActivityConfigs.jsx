@@ -103,17 +103,27 @@ export function SortableActivityRow({id,children,sticky,stickyTop,raised,stickyB
   // out of view, the row below it must be the one now pinned in its place.
   const sentinelRef=useRef(null);
   const [isStuck,setIsStuck]=useState(false);
+  // Direct feedback (mobile, after the EKG strip's own IntersectionObserver
+  // was replaced with a synchronous scroll check for the same reason): this
+  // row's green backdrop was still driven by an IntersectionObserver on the
+  // sentinel above it, which iOS Safari throttles/batches during momentum
+  // scrolling -- so the backdrop's on/off flip (and the padding that comes
+  // with it) lagged visibly behind the row's actual sticking, reading as
+  // jerky exactly like the strip did before that fix. Same cure: a plain
+  // scroll listener recomputing the sentinel's own position synchronously
+  // has no callback to throttle, so it can't fall behind the real, current
+  // scroll position the way the observer could.
   useEffect(()=>{
-    // typeof-guarded: jsdom (this project's vitest environment) has no
-    // IntersectionObserver at all, and it's plausible on a genuinely old
-    // browser too -- fails safe to "never stuck" (no backdrop) rather than
-    // throwing and taking the whole row down with it.
-    if(!sticky||typeof IntersectionObserver==="undefined"){setIsStuck(false);return;}
+    if(!sticky){setIsStuck(false);return;}
     const el=sentinelRef.current;
     if(!el)return;
-    const obs=new IntersectionObserver(([entry])=>setIsStuck(!entry.isIntersecting),{threshold:0,rootMargin:"-"+((stickyTop||0)+1)+"px 0px 0px 0px"});
-    obs.observe(el);
-    return()=>obs.disconnect();
+    const threshold=(stickyTop||0)+1;
+    const check=()=>{setIsStuck(el.getBoundingClientRect().top<threshold);};
+    check();
+    const pane=el.closest(".bb-pane, .screen");
+    pane&&pane.addEventListener("scroll",check,{passive:true});
+    window.addEventListener("resize",check);
+    return()=>{pane&&pane.removeEventListener("scroll",check);window.removeEventListener("resize",check);};
   },[sticky,stickyTop]);
   const showBackdrop=sticky&&stickyBg&&isStuck;
   // This row's own `top` (exactly ropStickyTop+ropZigzagH, on the App.jsx

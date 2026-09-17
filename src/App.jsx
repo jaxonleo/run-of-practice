@@ -1502,56 +1502,51 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     ro.observe(el);
     return()=>ro.disconnect();
   },[]);
-  // Whether any activity between the header and the pinned last row is
-  // currently scrolled out of view -- drives both the torn/zigzag edge's
-  // visibility AND (direct feedback: the strip used to permanently reserve
-  // 16px the moment a second activity existed, even with nothing scrolled
-  // yet, which just read as extra dead space above the first drill) the
-  // strip's own height, so it starts collapsed and only opens up once
-  // there's actually something for it to represent. Watches the *first*
-  // row specifically: since rows scroll away top-to-bottom under the
-  // sticky header, the first row is always the first thing to disappear,
-  // and by the time it's gone the header is necessarily already pinned (it
-  // sits above every row in document order) -- checking one row is enough,
-  // no need to check every row in between.
+  // How many px of the first activity between the header and the pinned
+  // last row are currently tucked under the sticky header -- drives both
+  // the torn/zigzag edge's visibility AND (direct feedback: the strip used
+  // to permanently reserve 16px the moment a second activity existed, even
+  // with nothing scrolled yet, which just read as extra dead space above
+  // the first drill) the strip's own height, so it starts collapsed and
+  // only opens once there's actually something for it to represent.
+  // Watches the *first* row specifically: since rows scroll away top-to-
+  // bottom under the sticky header, the first row is always the first
+  // thing to disappear, and by the time it's gone the header is
+  // necessarily already pinned (it sits above every row in document
+  // order) -- checking one row is enough, no need to check every row in
+  // between.
   //
-  // Direct feedback (mobile): this used to be an IntersectionObserver with
-  // a shrunk rootMargin. That worked on BB but on mobile, under iOS
-  // Safari's momentum/inertial scrolling, IO callbacks are throttled/
-  // batched well behind the actual scroll position -- so the row (and
-  // sometimes the row after it) had already visibly scrolled out from
-  // under the header before the callback caught up and flipped the strip
-  // open. Recomputing synchronously on the scroll container's own "scroll"
-  // event (rather than waiting on an async observer callback) tracks the
-  // real, current scroll position every time and has no such lag on either
-  // platform.
-  const [ropContentHidden,setRopContentHidden]=useState(false);
-  const ropZigzagH=(acts.length>1&&ropContentHidden)?16:0;
+  // A continuous 0-16 value driven directly off the row's own on-screen
+  // position, not a boolean "is it hidden yet" flipped by a threshold.
+  // Earlier versions tried a binary ropContentHidden (first an
+  // IntersectionObserver, then a synchronous scroll check) with the strip
+  // snapping straight from 0 to 16 the instant the row crossed a fixed
+  // point. That fixed the mobile lag (IO throttling under momentum
+  // scrolling) and, once a CSS transition was removed too, the timing
+  // desync it caused -- but direct feedback after both of those landed
+  // found the remaining problem was the snap itself: a rectangle
+  // discretely growing by 16px in a single frame reads as an abrupt "pop,"
+  // regardless of how precisely it's timed to the scroll. Computing the
+  // exact overlap every scroll event instead -- 0 while the row's bottom
+  // is still below ropStickyTop, growing 1:1 with scroll as that bottom
+  // rises above it, capped at 16 once fully tucked away -- makes the strip
+  // grow in the same continuous motion as the scroll itself, the same way
+  // the sticky header's own pinning does, with nothing left to snap.
+  const [ropZigzagH,setRopZigzagH]=useState(0);
   const ropStickyTop=stickyHeaderH+ropHeaderH;
   const ropLastId=acts.length>0?acts[acts.length-1].id:null;
-  // Real bug found live while building this: the dependency array used to
-  // be just [acts.length&&acts[0].id,ropStickyTop,ropZigzagH]. Right at the
-  // 1-to-2-activities transition (the one moment this effect actually needs
-  // to switch from "do nothing" to "start checking"), acts[0].id is
-  // unchanged (same first activity either way) and ropZigzagH is 0 in both
-  // cases (it only becomes 16 once ropContentHidden is already true, which
-  // requires the check that's supposed to be starting right now) -- so
-  // nothing in the array actually changed, the effect never re-ran, and the
-  // listener was never attached at all. acts.length>1 as its own explicit
-  // dependency is what actually catches that transition.
   useEffect(()=>{
-    if(acts.length<=1){setRopContentHidden(false);return;}
+    if(acts.length<=1){setRopZigzagH(0);return;}
     const firstEl=rowRefs.current[acts[0].id];
     if(!firstEl)return;
-    const topOffset=ropStickyTop+ropZigzagH;
-    const check=()=>{setRopContentHidden(firstEl.getBoundingClientRect().bottom<=topOffset);};
+    const check=()=>{setRopZigzagH(Math.max(0,Math.min(16,ropStickyTop-firstEl.getBoundingClientRect().bottom)));};
     check();
     const pane=firstEl.closest(".bb-pane, .screen");
     pane&&pane.addEventListener("scroll",check,{passive:true});
     window.addEventListener("resize",check);
     return()=>{pane&&pane.removeEventListener("scroll",check);window.removeEventListener("resize",check);};
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[acts.length>1,acts.length&&acts[0].id,ropStickyTop,ropZigzagH]);
+  },[acts.length>1,acts.length&&acts[0].id,ropStickyTop]);
   // Snapshot of what's actually persisted, so the router blocker (and the
   // beforeunload guard below) can warn before discarding edits that only
   // exist in this component's state. Replaces the old App-level
@@ -2223,43 +2218,34 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
           header's own white text/icon for contrast against the solid
           green, `vectorEffect="non-scaling-stroke"` so the line stays a
           crisp constant width regardless of how wide this stretches.
-          Opacity-toggled by ropContentHidden -- invisible at 0 (flush
-          green) the moment the IntersectionObserver above reports the
-          first activity has scrolled back into view, fully visible the
-          moment it's scrolled out. Direct feedback: the strip's own height
-          used to be a flat 16px the instant a second activity existed, so
-          it permanently pushed the first drill down even with nothing
-          scrolled -- ropZigzagH now collapses to 0 until ropContentHidden
-          actually goes true.
-          Real bug found live from a follow-up screenshot, then fixed
-          properly rather than just removed: this div's height used to have
-          its own CSS transition, animating 16<->0 over .2s to open in step
-          with the line's opacity fade, with the pinned last row's own
-          `top` (ropStickyTop+ropZigzagH, on SortableActivityRow below)
-          given the identical transition so the two stayed in lockstep
-          instead of one snapping instantly while the other animated.
-          That was a real, verified fix for the *overlap* bug it was
-          written to solve -- but direct feedback afterward (mobile, slow
-          deliberate scrolling rather than a fast flick) found a second,
-          subtler problem the matched transition doesn't touch: this
-          height is now driven by ropContentHidden, which itself flips in
-          perfect sync with the user's own scroll position (see the
-          scroll-listener effect above, not an async observer). At that
-          point a .2s transition is no longer smoothing over any lag -- it
-          adds its own 200ms of independent motion on top of an
-          already-correct instant value, so during a slow scroll the strip
-          (and everything below it) visibly keeps drifting for a moment
-          after the finger/scroll has already stopped moving, reading as a
-          "jump" rather than 1:1 tracking. Since the underlying state has
-          no timing lag left to hide, removing the transition entirely (on
-          both this height and the row's `top`) makes the strip open and
-          the row shift in the exact same paint as the scroll event that
-          caused it -- as instantaneous and trustworthy as the sticky
-          header itself, with no separate clock for the two to fall out of
-          sync on. */}
+          Height and opacity both track ropZigzagH directly -- a continuous
+          0-16 value computed every scroll event from the first row's own
+          on-screen position (see the effect above), not a boolean flipped
+          past a fixed point. Direct feedback, three rounds on this one
+          strip: (1) it used to be a flat 16px the instant a second
+          activity existed, even with nothing scrolled, reading as dead
+          space above the first drill -- fixed by collapsing to 0 until
+          there's actually something hidden to represent; (2) once driven
+          by a boolean with a matched .2s CSS transition on both this
+          height and the pinned last row's own `top` (so neither snapped
+          ahead of the other), mobile's async IntersectionObserver-based
+          detection lagged behind momentum scrolling, and even after that
+          was replaced with a synchronous scroll check, the *transition
+          itself* became the problem -- it added its own 200ms of motion
+          independent of the scroll that triggered it, reading as a
+          "jump" that kept animating after a slow scroll had already
+          stopped; (3) removing the transition fixed that but left a
+          binary 0-or-16 snap, which still read as an abrupt pop even
+          though it was perfectly scroll-synced -- a rectangle instantly
+          growing by 16px in one frame looks abrupt no matter how well
+          timed it is. Computing the exact overlap continuously (this
+          comment's effect) instead of a threshold removes the snap at its
+          root: the strip grows in the same single motion as the scroll
+          itself, the same way the sticky header's own pinning does, so
+          there's nothing left to transition. */}
       {acts.length>1&&(<div style={{position:"sticky",top:ropStickyTop,zIndex:8,height:ropZigzagH,background:"var(--field-strong)",overflow:"hidden"}}>
         <svg viewBox={"0 0 100 "+ropZigzagH} preserveAspectRatio="none" style={{width:"100%",height:"100%",display:"block"}}>
-          <polyline points={"0,"+(ropZigzagH/2)+" 6,"+(ropZigzagH/2)+" 7.5,"+(ropZigzagH*0.6)+" 9,"+(ropZigzagH*0.03)+" 10.5,"+(ropZigzagH*0.97)+" 12,"+(ropZigzagH*0.4)+" 13.5,"+(ropZigzagH/2)+" 100,"+(ropZigzagH/2)} fill="none" stroke="#fff" strokeWidth="2" vectorEffect="non-scaling-stroke" style={{opacity:ropContentHidden?1:0,transition:"opacity .2s ease"}}/>
+          <polyline points={"0,"+(ropZigzagH/2)+" 6,"+(ropZigzagH/2)+" 7.5,"+(ropZigzagH*0.6)+" 9,"+(ropZigzagH*0.03)+" 10.5,"+(ropZigzagH*0.97)+" 12,"+(ropZigzagH*0.4)+" 13.5,"+(ropZigzagH/2)+" 100,"+(ropZigzagH/2)} fill="none" stroke="#fff" strokeWidth="2" vectorEffect="non-scaling-stroke" style={{opacity:ropZigzagH/16}}/>
         </svg>
       </div>)}
       {acts.length>0&&(<ActivityDndContext sensors={dndSensors} onDragEnd={onActDragEnd} items={acts.map(a=>a.id)}>
