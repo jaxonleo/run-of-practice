@@ -56,3 +56,24 @@ on conflict (id) do nothing;
 insert into public.practices (id, team_id, status, name) values
   ('e0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'draft', 'Test Practice A')
 on conflict (id) do nothing;
+
+-- Platform-admin fixture (entitlements admin-RPC tests, 06_entitlements.test.sql)
+-- -- a separate user from every coach above, so "is a platform admin" and
+-- "is a head coach" stay two genuinely independent facts in the fixture,
+-- matching how they're independent in the real schema.
+insert into auth.users (id, email) values
+  ('a0000000-0000-0000-0000-000000000005', 'test-admin@example.com')
+on conflict (id) do nothing;
+update public.profiles set first_name = 'Test', last_name = 'Admin' where id = 'a0000000-0000-0000-0000-000000000005';
+insert into public.admin_users (user_id) values
+  ('a0000000-0000-0000-0000-000000000005')
+on conflict (user_id) do nothing;
+
+-- Organization fixture (entitlements org-scope tests) -- coach A is its
+-- director.
+insert into public.organizations (id, name, created_by) values
+  ('90000000-0000-0000-0000-000000000001', 'Test Org', 'a0000000-0000-0000-0000-000000000001')
+on conflict (id) do nothing;
+insert into public.org_staff (organization_id, user_id, role, invited_by) values
+  ('90000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'director', 'a0000000-0000-0000-0000-000000000001')
+on conflict (organization_id, user_id) where archived_at is null do nothing;

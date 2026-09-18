@@ -2285,6 +2285,61 @@ export async function logGoalViewed(teamId) {
   if (error) console.error('logGoalViewed:', error)
 }
 
+// Entitlements (Run_of_Practice_Entitlement_Architecture_Handoff.md). One
+// resolved feature map per session, fetched once and cached client-side by
+// src/entitlements.js's useEntitlements() -- these are thin RPC wrappers
+// only, no resolution logic lives here (that's resolve_entitlement, server-side).
+export async function fetchMyEntitlements() {
+  const { data, error } = await supabase.rpc('get_my_entitlements')
+  if (error) { console.error('fetchMyEntitlements:', error); return null }
+  return data
+}
+export async function fetchOrganizationEntitlements(organizationId) {
+  const { data, error } = await supabase.rpc('get_organization_entitlements', { p_organization_id: organizationId })
+  if (error) { console.error('fetchOrganizationEntitlements:', error); return null }
+  return data
+}
+// Admin-only (is_admin() re-checked server-side inside every RPC below) --
+// the write surface for the future QA entitlement simulator (handoff §6).
+export async function adminGetEntitlements(subjectType, userId, organizationId) {
+  const { data, error } = await supabase.rpc('admin_get_entitlements', {
+    p_subject_type: subjectType, p_user_id: userId, p_organization_id: organizationId,
+  })
+  if (error) { console.error('adminGetEntitlements:', error); return null }
+  return data
+}
+export async function adminSetPlan(subjectType, userId, organizationId, bundleKey) {
+  const { error } = await supabase.rpc('admin_set_plan', {
+    p_subject_type: subjectType, p_user_id: userId, p_organization_id: organizationId, p_bundle_key: bundleKey,
+  })
+  if (error) console.error('adminSetPlan:', error)
+  return { error }
+}
+export async function adminAssignCohort(subjectType, userId, organizationId, cohortBundleKey, reason) {
+  const { error } = await supabase.rpc('admin_assign_cohort', {
+    p_subject_type: subjectType, p_user_id: userId, p_organization_id: organizationId,
+    p_cohort_bundle_key: cohortBundleKey, p_reason: reason ?? null,
+  })
+  if (error) console.error('adminAssignCohort:', error)
+  return { error }
+}
+export async function adminGrantOverride(subjectType, userId, organizationId, featureKey, state, limitValue, reason, expiresAt) {
+  const { error } = await supabase.rpc('admin_grant_override', {
+    p_subject_type: subjectType, p_user_id: userId, p_organization_id: organizationId,
+    p_feature_key: featureKey, p_state: state, p_limit_value: limitValue ?? null,
+    p_reason: reason ?? null, p_expires_at: expiresAt ?? null,
+  })
+  if (error) console.error('adminGrantOverride:', error)
+  return { error }
+}
+export async function adminRevokeOverride(subjectType, userId, organizationId, featureKey) {
+  const { error } = await supabase.rpc('admin_revoke_override', {
+    p_subject_type: subjectType, p_user_id: userId, p_organization_id: organizationId, p_feature_key: featureKey,
+  })
+  if (error) console.error('adminRevokeOverride:', error)
+  return { error }
+}
+
 // Org Experience (ROP-Org-Experience-Handoff.md). myOrgs (director
 // memberships) already comes back from fetchLibraryData -- these cover the
 // rest: pending invites, org-scoped team/staff/player writes, and the
