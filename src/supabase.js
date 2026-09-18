@@ -2294,6 +2294,19 @@ export async function fetchMyEntitlements() {
   if (error) { console.error('fetchMyEntitlements:', error); return null }
   return data
 }
+// can_view_goals_for_team is a plain SQL function with no explicit REVOKE,
+// so it keeps Postgres's default PUBLIC execute grant (the same reason
+// every RLS policy that calls it already works) -- calling it directly
+// from the client reuses the one real, authoritative check instead of
+// re-deriving a second copy of its role+entitlement logic in JS. Fails
+// open (true) on a transport error: this is UI-only defense in depth for
+// the nav tab/route guard, the RPCs it protects enforce the real gate
+// regardless of what this returns.
+export async function checkCanViewGoals(teamId) {
+  const { data, error } = await supabase.rpc('can_view_goals_for_team', { p_team_id: teamId })
+  if (error) { console.error('checkCanViewGoals:', error); return true }
+  return !!data
+}
 export async function fetchOrganizationEntitlements(organizationId) {
   const { data, error } = await supabase.rpc('get_organization_entitlements', { p_organization_id: organizationId })
   if (error) { console.error('fetchOrganizationEntitlements:', error); return null }

@@ -7,7 +7,7 @@ import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { setSentryUser } from "./sentry.js";
-import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, saveTemplateTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed, adoptBenchmarkForTeam } from "./supabase.js";
+import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, saveTemplateTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed, adoptBenchmarkForTeam, checkCanViewGoals } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, hasVisibleComponentTypesPref, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES } from "./constants.js";
 import { TwoPane } from "./components/BBShells.jsx";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
@@ -1073,7 +1073,25 @@ function TeamGoalsRoute(){
   // every sibling RPC already enforce the real can_view_goals_for_team
   // check server-side regardless of whether this guard fires).
   const myCoach=team?(team.coaches||[]).find(c=>c.userId===coachId):null;
-  const canViewGoals=!!(team&&(canManageTeamInMode(team,coachId,mode)||(myCoach&&myCoach.canBuildPractices)));
+  const roleCanViewGoals=!!(team&&(canManageTeamInMode(team,coachId,mode)||(myCoach&&myCoach.canBuildPractices)));
+  // Entitlement architecture Phase 4 follow-up: the role check above was
+  // the whole story until can_view_goals_for_team gained a plan AND-gate
+  // (2026-09-18) -- a coach a plan locks out of Goals & Insights was still
+  // landing on GoalsScreen itself, which had no way to tell "genuinely no
+  // data yet" apart from "access denied" (its report-fetch helpers
+  // deliberately degrade any RPC error to an empty-but-truthy value, an
+  // earlier session's fix for a different problem). Checking the real,
+  // authoritative server function directly here -- instead of re-deriving
+  // its entitlement half in JS -- means this can never drift out of sync
+  // with it. Starts null (unknown) so a normal, allowed coach never sees a
+  // flash-redirect while this resolves; only an explicit false narrows
+  // access further than the role check alone.
+  const [entitlementOk,setEntitlementOk]=useState(null);
+  useEffect(()=>{
+    setEntitlementOk(null);
+    if(team&&roleCanViewGoals)checkCanViewGoals(teamId).then(setEntitlementOk);
+  },[teamId,roleCanViewGoals,team]);
+  const canViewGoals=roleCanViewGoals&&entitlementOk!==false;
   useEffect(()=>{if(!team)navigate("/teams");else if(!canViewGoals)navigate(`/team/${teamId}/schedule`);},[team,canViewGoals,teamId,navigate]);
   if(!team||!canViewGoals)return null;
   return (<div style={{padding:"16px 16px calc(var(--tab) + 20px)"}}>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Outlet, useNavigate, useParams, useLocation } from "react-router-dom";
 import { Ic } from "./icons.jsx";
 import { canManageTeamInMode, useBigBrowser } from "./constants.js";
+import { checkCanViewGoals } from "./supabase.js";
 
 // App shell shared by every authenticated route (ROP-Goals-TeamNav-Handoff.md
 // §4.1-4.2). Context-sensitive tab bar: outside a team it's Home/Library;
@@ -70,7 +71,17 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
   // uses for Add Coach/Player, +Practice, etc.
   const canManageThisTeam = !!(team && canManageTeamInMode(team, coachId, mode));
   const myCoach = team ? (team.coaches || []).find(c => c.userId === coachId) : null;
-  const canViewGoals = canManageThisTeam || !!(myCoach && myCoach.canBuildPractices);
+  const roleCanViewGoals = canManageThisTeam || !!(myCoach && myCoach.canBuildPractices);
+  // Mirrors TeamGoalsRoute's own entitlement check (App.jsx) so the tab
+  // doesn't stay visible for a coach who'd just get bounced back out the
+  // moment they tapped it -- same real can_view_goals_for_team() call,
+  // same optimistic-while-loading default, not a second copy of the logic.
+  const [goalsEntitlementOk, setGoalsEntitlementOk] = useState(null);
+  useEffect(() => {
+    setGoalsEntitlementOk(null);
+    if (team && roleCanViewGoals) checkCanViewGoals(teamId).then(setGoalsEntitlementOk);
+  }, [teamId, roleCanViewGoals, team]);
+  const canViewGoals = roleCanViewGoals && goalsEntitlementOk !== false;
   const workspaceTabs = inTeam ? teamWorkspaceTabs(teamId, isOrgMode, canViewGoals) : [];
   // Keep the active tab visible and anchored when the row scrolls (design
   // system v1's team-header rule) -- a direct link or programmatic nav
