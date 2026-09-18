@@ -2361,6 +2361,31 @@ export async function adminRevokeOverride(subjectType, userId, organizationId, f
   if (error) console.error('adminRevokeOverride:', error)
   return { error }
 }
+// Entitlement simulator (Phase 5): lookups backing the subject picker.
+export async function adminFindUserByEmail(email) {
+  const { data, error } = await supabase.rpc('admin_find_user_by_email', { p_email: email })
+  if (error) { console.error('adminFindUserByEmail:', error); return null }
+  return (data && data[0]) || null
+}
+export async function adminListOrganizations() {
+  const { data, error } = await supabase.rpc('admin_list_organizations')
+  if (error) { console.error('adminListOrganizations:', error); return [] }
+  return data || []
+}
+// entitlement_bundles/features are plain select-to-authenticated tables
+// (Phase 2) -- registry metadata, not sensitive -- so these are direct
+// table reads, not RPCs, same as any other read-only reference data in
+// this file.
+export async function fetchEntitlementBundles() {
+  const { data, error } = await supabase.from('entitlement_bundles').select('*').order('bundle_key')
+  if (error) { console.error('fetchEntitlementBundles:', error); return [] }
+  return data || []
+}
+export async function fetchFeatureRegistry() {
+  const { data, error } = await supabase.from('features').select('*').order('category').order('feature_key')
+  if (error) { console.error('fetchFeatureRegistry:', error); return [] }
+  return data || []
+}
 
 // Org Experience (ROP-Org-Experience-Handoff.md). myOrgs (director
 // memberships) already comes back from fetchLibraryData -- these cover the

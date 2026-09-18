@@ -376,6 +376,10 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
         <div className="lim"><div className="lin">Founder Metrics</div></div>
         <span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span>
       </div>}
+      {isAdmin&&<div className="li tap" style={{marginBottom:8}} onClick={()=>navigate("/admin/entitlements")}>
+        <div className="lim"><div className="lin">Entitlement Simulator</div><div className="limt">Set a real account's plan/cohort/overrides for QA</div></div>
+        <span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span>
+      </div>}
       {isAdmin&&<div className="li tap" style={{marginBottom:8}} onClick={()=>setSection("admins")}>
         <div className="lim"><div className="lin">Admins</div><div className="limt">Who can manage the Public Library and skill tags</div></div>
         <span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span>

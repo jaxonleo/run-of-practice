@@ -34,6 +34,10 @@ import PricingPage from "./components/PricingPage.jsx";
 // import means it's only fetched once FounderAdminRoute's own isAdmin
 // check has already confirmed this visitor can actually see it.
 const FounderMetricsScreen = React.lazy(() => import("./components/FounderMetricsScreen.jsx"));
+// Same admin-only, lazy-loaded treatment (entitlement architecture Phase 5)
+// -- gated behind FounderAdminRoute's own is_admin() check, no separate
+// route guard needed.
+const EntitlementAdminScreen = React.lazy(() => import("./components/EntitlementAdminScreen.jsx"));
 
 
 // "Run Again" copies a past practice's activities into a brand-new one --
@@ -765,6 +769,7 @@ export default function App(){
       <Route path="/pricing" element={<PricingPage/>}/>
       <Route path="/*" element={<AuthedShell/>}>
         <Route path="admin/metrics" element={<FounderAdminRoute/>}/>
+        <Route path="admin/entitlements" element={<EntitlementAdminRoute/>}/>
         <Route element={<LayoutRoute/>}>
           <Route index element={<HomeRoute/>}/>
           <Route path="library" element={<LibraryRoute/>}/>
@@ -927,6 +932,17 @@ function FounderAdminRoute(){
   if(isAdmin===null)return <LoadingScreen message="Loading..."/>;
   if(!isAdmin)return <Navigate to="/" replace/>;
   return <Suspense fallback={<LoadingScreen message="Loading..."/>}><FounderMetricsScreen/></Suspense>;
+}
+
+// Same is_admin() gate as FounderAdminRoute -- the entitlement simulator
+// (Phase 5) is exactly as sensitive (it can set anyone's plan/cohort/
+// overrides), so it gets the identical treatment, not a lighter one.
+function EntitlementAdminRoute(){
+  const [isAdmin,setIsAdmin]=useState(null);
+  useEffect(()=>{checkIsAdmin().then(setIsAdmin);},[]);
+  if(isAdmin===null)return <LoadingScreen message="Loading..."/>;
+  if(!isAdmin)return <Navigate to="/" replace/>;
+  return <Suspense fallback={<LoadingScreen message="Loading..."/>}><EntitlementAdminScreen/></Suspense>;
 }
 
 function HelperViewRoute(){ const {token}=useParams(); return <HelperView token={token}/>; }
