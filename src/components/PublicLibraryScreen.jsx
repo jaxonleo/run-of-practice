@@ -35,7 +35,7 @@ function highlightMatch(text, query) {
 // dropped here -- a search/filter result set is sorted by relevance/name,
 // not hand-curated order; the founder-admin's add/edit/archive affordances
 // are preserved, just relocated into this flow.
-export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, doCopy, copyingId, mode}) {
+export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, doCopy, copyingId, copyError, mode}) {
   const isOrgMode = mode && mode.type === "org";
   const [selectedSport, setSelectedSport] = useState(null);
   const [search, setSearch] = useState("");
@@ -164,6 +164,7 @@ export function PublicLibraryScreen({data, isAdmin, refreshLibrary, openModal, d
           {tagNames(d.skillTagIds).map(name => (<span key={name} className="tagchip">{name}</span>))}
         </div>}
         <button className="btn outline bxs" style={{marginTop: 8}} onClick={() => doCopy(d)} disabled={copyingId === d.id}>{copyingId === d.id ? "Copying..." : isOrgMode ? "Copy to Org Library" : "Copy to My Library"}</button>
+        {copyError && copyError[d.id] && <div style={{marginTop: 8}}>{copyError[d.id]}</div>}
       </div>}
     </div>);
   };

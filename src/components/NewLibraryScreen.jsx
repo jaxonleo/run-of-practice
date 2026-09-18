@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { uid, sumMins, localDateStr, planningState, teamsForMode, menuNeedsToOpenUpward, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES, SPORTS } from "../constants.js";
 import { ActConfig, ChecklistConfig, StationConfig, ScrimmageConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
-import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, renameSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, archiveSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport, createBenchmark, createBenchmarkVersion, correctBenchmarkVersionWording, archiveBenchmark, restoreBenchmark, adoptBenchmarkForTeam, fetchBenchmarkAssessments } from "../supabase.js";
+import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, renameSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, archiveSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport, createBenchmark, createBenchmarkVersion, correctBenchmarkVersionWording, archiveBenchmark, restoreBenchmark, adoptBenchmarkForTeam, fetchBenchmarkAssessments, canCreatePersonalDrill } from "../supabase.js";
+import { EntitlementLockedMessage } from "./EntitlementNotice.jsx";
 import { METRIC_META, displayDecimals } from "../benchmarks.js";
 import { MeasureAgainModal } from "./BenchmarkReport.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
@@ -1571,6 +1572,13 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const [shelf,setShelf]=useState("mine");
   const [shareMenuId,setShareMenuId]=useState(null);
   const [copyingId,setCopyingId]=useState(null);
+  // Keyed by drill id -- entitlement architecture Phase 4 follow-up: this
+  // path (copyDrillToMyLibrary, a direct .insert()) hits the same
+  // library.personal_drills RLS cap the "New Drill" form does, but its
+  // caller never checked the returned error at all -- a coach at the cap
+  // saw the button flash "Copying..." then silently reset, with no
+  // indication the copy had failed. See BUILD-STATUS.md Session Log.
+  const [copyError,setCopyError]=useState({});
   const [tagFilter,setTagFilter]=useState([]);
   const [tagSearch,setTagSearch]=useState("");
   const [publisherFilter,setPublisherFilter]=useState([]);
@@ -1759,7 +1767,17 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   // actually a gap.
   const ownPoolForCopy=isOrgMode?(data.assets||[]).filter(a=>a.organizationId===mode.orgId):(data.assets||[]).filter(a=>a.ownerUserId===coachId);
   const [copyDialogDrill,setCopyDialogDrill]=useState(null);
+  // Single choke point for every copy path (the plain button below and
+  // both EquipmentMismatchDialog buttons) -- checked here, not in doCopy
+  // alone, so the equipment-dialog path can't bypass it. Org-mode copies
+  // (organization_id set, not owner_user_id) are untouched -- the personal-
+  // drill cap was never about org-shared drills.
   const runCopy=async(drill,createMissingEquipment)=>{
+    if(!isOrgMode&&!(await canCreatePersonalDrill())){
+      setCopyDialogDrill(null);
+      setCopyError(e=>({...e,[drill.id]:<EntitlementLockedMessage message="You've reached your plan's personal drill library limit."/>}));
+      return;
+    }
     setCopyingId(drill.id);
     await copyDrillToMyLibrary(coachId,drill,assetsById,skillTagsById,mode,{createMissingEquipment});
     await refreshLibrary();
@@ -1767,6 +1785,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
     setCopyDialogDrill(null);
   };
   const doCopy=async(drill)=>{
+    setCopyError(e=>({...e,[drill.id]:null}));
     const missing=findMissingEquipment(drill.equipment,assetsById,ownPoolForCopy);
     if(missing.length===0){await runCopy(drill,true);return;}
     setCopyDialogDrill(drill);
@@ -1850,7 +1869,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
         {exploreShelves.map(s=>(<button key={s.key} className={"fchip"+(shelf===s.key?" on":"")} style={{flexShrink:0,fontSize:12,fontWeight:700,whiteSpace:"nowrap"}} onClick={()=>{setShelf(s.key);setTagFilter([]);setTagSearch("");}}>{s.label}</button>))}
       </div>}
       {shelf==="public"?(
-        <div onClick={e=>e.stopPropagation()}><PublicLibraryScreen data={data} isAdmin={isAdmin} refreshLibrary={refreshLibrary} openModal={openModal} doCopy={doCopy} copyingId={copyingId} mode={mode}/></div>
+        <div onClick={e=>e.stopPropagation()}><PublicLibraryScreen data={data} isAdmin={isAdmin} refreshLibrary={refreshLibrary} openModal={openModal} doCopy={doCopy} copyingId={copyingId} copyError={copyError} mode={mode}/></div>
       ):(<>
       <input className="inp" placeholder={isMine?"Search "+(isOrgMode?"org":"my")+" drills...":"Search drills..."} value={nameSearch} onChange={e=>setNameSearch(e.target.value)} style={{marginBottom:10}} onClick={e=>e.stopPropagation()}/>
       {drillSort==="suggested"&&isMine&&!suggestedReport&&<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:10}}>Loading goal priorities...</div>}
@@ -1962,6 +1981,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
               })()}
               {!isMine&&<div style={{fontSize:11,color:"var(--field-accent)",marginTop:4}}>Shared by {(data.profilesById&&data.profilesById[act.ownerUserId]&&data.profilesById[act.ownerUserId].name)||"a coach"}</div>}
               {!isMine&&shelf.startsWith("sharedBy:")&&<button className="btn outline bxs" style={{marginTop:6}} onClick={()=>doCopy(act)} disabled={copyingId===act.id}>{copyingId===act.id?"Copying...":isOrgMode?"Copy to Org Library":"Copy to My Library"}</button>}
+              {copyError[act.id]&&<div style={{marginTop:6}}>{copyError[act.id]}</div>}
             </div>
             {isMine&&<div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
               <div style={{position:"relative",flexShrink:0}}>
