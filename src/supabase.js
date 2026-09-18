@@ -2299,6 +2299,15 @@ export async function fetchOrganizationEntitlements(organizationId) {
   if (error) { console.error('fetchOrganizationEntitlements:', error); return null }
   return data
 }
+// Proactive check before attempting a personal-drill save, rather than
+// attempting the insert and parsing a generic RLS-violation message
+// afterward -- there's no way to tell "blocked by the drill-count cap"
+// apart from any other RLS rejection from that error text alone.
+export async function canCreatePersonalDrill() {
+  const { data, error } = await supabase.rpc('can_create_personal_drill')
+  if (error) { console.error('canCreatePersonalDrill:', error); return true } // fail open -- the RLS policy is still the real gate either way
+  return !!data
+}
 // Admin-only (is_admin() re-checked server-side inside every RPC below) --
 // the write surface for the future QA entitlement simulator (handoff §6).
 export async function adminGetEntitlements(subjectType, userId, organizationId) {

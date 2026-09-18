@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { setOwnLibraryShare, setManagerLibraryShare, setPracticeDelegate } from "../supabase.js";
+import { EntitlementLockedMessage } from "./EntitlementNotice.jsx";
 
 // Reciprocal permissions between a head coach and one rostered assistant/
 // helper on a personal (non-org) team -- each side controls their own
@@ -47,11 +48,15 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
   const isOwnRow = coach.userId === coachId;
   const managerView = canManage && !isOwnRow;
 
-  const run = async (fn) => {
+  // entitlementCta: true only for the practice-delegation toggle -- the
+  // only one of the three toggles here with a real plan-driven failure mode
+  // (set_practice_delegate, since the Phase 3 entitlement gate). Library
+  // sharing has no plan gate, so its errors stay plain text.
+  const run = async (fn, { entitlementCta } = {}) => {
     setBusy(true);
     setError("");
     const { error } = await fn();
-    if (error) setError(error.message || "Something went wrong. Try again.");
+    if (error) setError(entitlementCta ? <EntitlementLockedMessage message={error.message}/> : (error.message || "Something went wrong. Try again."));
     await refreshTeams();
     setBusy(false);
   };
@@ -75,7 +80,7 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
           blurb={"Let " + coach.name + " build and edit this team's scheduled practices, the same as you can, and be assignable to individual stations in Builder."}
           on={coach.canBuildPractices}
           busy={busy}
-          onToggle={() => run(() => setPracticeDelegate(coach.id, !coach.canBuildPractices))}
+          onToggle={() => run(() => setPracticeDelegate(coach.id, !coach.canBuildPractices), { entitlementCta: true })}
         />
         <Row
           label={coach.name + "'s Library"}
@@ -107,7 +112,9 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
         />
       </>)}
 
-      {error && <div style={{ fontSize: 13, color: "var(--danger)", marginTop: 10 }}>{error}</div>}
+      {error && (typeof error === "string"
+        ? <div style={{ fontSize: 13, color: "var(--danger)", marginTop: 10 }}>{error}</div>
+        : <div style={{ marginTop: 10 }}>{error}</div>)}
       <button className="btn ghost bmd bfull" style={{ marginTop: 16 }} onClick={onClose}>Close</button>
     </div>
   </div>);

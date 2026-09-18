@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { uid, TEAM_COLORS, nextTeamColor, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS } from "../constants.js";
-import { createTeam, orgCreateTeam, updateTeam, archiveTeam, setTeamLocations, createPlayer, inviteTeamStaff, updateStaff, editTeamInvite, createAsset, updateAsset, setAssetLocations, setAssetTeamAvailability, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, setLocationTeamAvailability, createSublocation, updateSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag } from "../supabase.js";
+import { createTeam, orgCreateTeam, updateTeam, archiveTeam, setTeamLocations, createPlayer, inviteTeamStaff, updateStaff, editTeamInvite, createAsset, updateAsset, setAssetLocations, setAssetTeamAvailability, createDrill, updateDrill, createSkillTag, createLocation, createOrgLocation, updateLocation, setLocationTeamAvailability, createSublocation, updateSublocation, fetchStaffSuggestions, createCatalogDrill, updateCatalogDrill, createCatalogAsset, createGlobalSkillTag, canCreatePersonalDrill } from "../supabase.js";
 import { AutoTextarea, EquipmentPickerPill, equipmentPickerAssets } from "./ActivityConfigs.jsx";
 import { LocationChips } from "./NewLibraryScreen.jsx";
+import { EntitlementLockedMessage } from "./EntitlementNotice.jsx";
 
 const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
 const STAFF_ROLES=["Head Coach","Assistant Coach","Helper"];
@@ -329,6 +330,16 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
     if(t==="addActivity"){
       if(!f.name)return;
       if(isPublicLibraryAdd&&!catalogId){setSaveError("No public catalog exists for "+(f.sport||"this sport")+" yet.");return;}
+      // Personal drills only -- createDrill always saves owner_user_id with
+      // no organization_id (create_drill_with_equipment has no org
+      // parameter at all), so this cap applies regardless of Coach/Org
+      // mode. Checked proactively rather than attempting the insert and
+      // parsing whatever generic RLS-violation text comes back, which
+      // can't be told apart from any other RLS rejection.
+      if(!isPublicLibraryAdd&&!(await canCreatePersonalDrill())){
+        setSaveError(<EntitlementLockedMessage message="You've reached your plan's personal drill library limit."/>);
+        return;
+      }
       const payload={
         name:f.name,sport:f.sport||"General",duration:+(f.duration||10),
         description:f.description||"",coachingPoints:f.coachingPoints||"",
@@ -597,7 +608,9 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
             <SkillTagPicker data={data} coachId={coachId} sport={f.sport||"General"} selectedIds={f.skillTagIds||[]} onChange={ids=>set("skillTagIds",ids)} refreshLibrary={refreshLibrary} catalogId={catalogId}/>
           </div>
         )}
-        {saveError&&<div style={{fontSize:13,color:"var(--danger)",marginTop:4}}>{saveError}</div>}
+        {saveError&&(typeof saveError==="string"
+          ?<div style={{fontSize:13,color:"var(--danger)",marginTop:4}}>{saveError}</div>
+          :<div style={{marginTop:4}}>{saveError}</div>)}
         <div className="mfooter">{addedCoachInfo?<button className="btn primary bmd" style={{flex:1}} onClick={closeModal}>Got it</button>:(<React.Fragment><button className="btn ghost bmd" onClick={closeModal} disabled={saving}>Cancel</button><button className="btn primary bmd" onClick={save} disabled={saving}>{saving?"Saving...":"Save"}</button></React.Fragment>)}</div>
       </div>
     </div>
