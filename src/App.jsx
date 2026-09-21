@@ -638,14 +638,24 @@ export default function App(){
     await signOut();
   },[coachId]);
   const [teams,setTeams]=useState([]);
+  // fetchMyTeams/fetchLibraryData throw on a primary-query error so a failed
+  // load is never mistaken for "no data" and wiped over good state -- but
+  // that means every caller had to remember to catch. Only the two
+  // allSettled sites below did; the 60s/visibility background refresh and
+  // ~77 screen handlers (`await refreshLibrary()`) did not, so an expired or
+  // failed session surfaced as an unhandled promise rejection (Sentry,
+  // handled:no) and aborted the rest of whichever handler awaited it.
+  // Catching here, once, keeps prior state on failure for every caller.
   const refreshTeams=useCallback(async()=>{
     if(!coachId)return;
-    setTeams(await fetchMyTeams());
+    try{setTeams(await fetchMyTeams());}
+    catch(e){console.error("refreshTeams failed, keeping prior state:",e);}
   },[coachId]);
   const [library,setLibrary]=useState({assets:[],skillCategories:[],skillTags:[],activityLibrary:[],myOrgs:[],pendingOrgInvites:[],pendingTeamDepartures:[],pendingTeamInvites:[],profilesById:{}});
   const refreshLibrary=useCallback(async()=>{
     if(!coachId)return;
-    setLibrary(await fetchLibraryData());
+    try{setLibrary(await fetchLibraryData());}
+    catch(e){console.error("refreshLibrary failed, keeping prior state:",e);}
   },[coachId]);
   const [planning,setPlanning]=useState({locations:[],practices:[],templates:[]});
   // allSettled + per-slice merge, not Promise.all: a failure in any one of
