@@ -6,6 +6,7 @@ import GoalsScreen from "./components/GoalsScreen.jsx";
 import TeamsListScreen from "./components/TeamsListScreen.jsx";
 import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
+import { createSingleFlight } from "./singleFlight.js";
 import { setSentryUser } from "./sentry.js";
 import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, saveTemplateTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed, adoptBenchmarkForTeam, checkCanViewGoals } from "./supabase.js";
 import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, hasVisibleComponentTypesPref, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES } from "./constants.js";
@@ -276,6 +277,10 @@ body{background:var(--canvas);color:var(--ink);font-family:'Barlow',sans-serif;f
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 .loadmark-hand{transform-origin:50px 50px;animation:tick 1.2s linear infinite;}
 @keyframes tick{to{transform:rotate(360deg)}}
+.rop-hand-spin{animation:tick 1.1s linear infinite;}
+.btnspin{display:inline-block;width:11px;height:11px;margin-right:7px;vertical-align:-1px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:tick .7s linear infinite;}
+.btn:disabled.btn-working{opacity:1;cursor:progress;}
+@media (prefers-reduced-motion:reduce){.rop-hand-spin,.btnspin{animation:none;}}
 .row{display:flex;align-items:center;gap:8px;}
 .mt6{margin-top:6px;}.mt8{margin-top:8px;}.mb8{margin-bottom:8px;}.mb10{margin-bottom:10px;}
 .td{color:var(--text-dim);}.tm{color:var(--text-muted);}.tg{color:var(--field);}
@@ -1193,12 +1198,28 @@ function DurStepper({value,min,onChange,step}){
 // or removed (backward), via a CSS transition on the `rotation` prop rather
 // than a keyframe loop. White throughout (not LoadingScreen's black-bg
 // palette) since it sits on the Run of Practice section's solid green.
-function RunOfPracticeMark({rotation}){
+// `rotation` is the one-lap-per-add nudge (a multiple of 360, so it always
+// rests pointing up). `working` is true while a save is running: the hand
+// ticks continuously for as long as it takes, then finishes the lap it's on
+// and settles back at the top -- never a mid-turn snap. Same tick motion as
+// the full-screen LoadingScreen mark, so "the clock is running" reads the
+// same everywhere.
+function RunOfPracticeMark({rotation,working}){
+  const [spinning,setSpinning]=useState(false);
+  useEffect(()=>{
+    if(working){setSpinning(true);return;}
+    // Normally the lap-end handler below stops it; this is the backstop for
+    // when no animation event ever fires (prefers-reduced-motion turns the
+    // animation off), so the hand can't be left in "spinning" mode.
+    const t=setTimeout(()=>setSpinning(false),1300);
+    return()=>clearTimeout(t);
+  },[working]);
   return (<svg width="30" height="30" viewBox="0 0 100 100" style={{flexShrink:0}}>
     <rect x="42" y="0" width="16" height="10" rx="5" fill="#fff" opacity=".85"/>
     <rect x="68" y="6" width="16" height="9" rx="4.5" fill="#fff" opacity=".85" transform="rotate(35 76 10)"/>
     <circle cx="50" cy="50" r="40" fill="none" stroke="#fff" strokeOpacity=".35" strokeWidth="6"/>
-    <g style={{transformOrigin:"50px 50px",transform:"rotate("+rotation+"deg)",transition:"transform .6s cubic-bezier(.4,0,.2,1)"}}>
+    <g className={spinning?"rop-hand-spin":undefined} onAnimationIteration={()=>{if(!working)setSpinning(false);}}
+      style={spinning?{transformOrigin:"50px 50px"}:{transformOrigin:"50px 50px",transform:"rotate("+rotation+"deg)",transition:"transform .6s cubic-bezier(.4,0,.2,1)"}}>
       <line x1="50" y1="50" x2="50" y2="20" stroke="#fff" strokeWidth="7" strokeLinecap="round"/>
     </g>
     <circle cx="50" cy="50" r="6" fill="#fff"/>
@@ -1234,6 +1255,15 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   useEffect(()=>{if(startTemplateId&&setStartTemplateId)setStartTemplateId(null);},[]);
   const [existingId,setExistingId]=useState(editP?editP.id:null);
   const [runError,setRunError]=useState("");
+  // Which save-style action is running ("save" | "run" | "schedule" |
+  // "template"), or null. Shared by every action that writes the practice
+  // so a second click -- on the same button or a different one -- can't
+  // start another save while one is still working (see singleFlight.js).
+  const [savingKind,setSavingKind]=useState(null);
+  const singleFlightRef=useRef(null);
+  if(!singleFlightRef.current)singleFlightRef.current=createSingleFlight(setSavingKind);
+  const runOnce=singleFlightRef.current;
+  const [schedError,setSchedError]=useState("");
   const [teamId,setTeamId]=useState(editP?editP.teamId:(presetTeamId||(startTpl&&startTpl.defaultTeamId)||(data.teams[0]?data.teams[0].id:"")));
   // Real bug found live ("Run Now doesn't work, at least for an unscheduled
   // practice"): for a team with no prior practice yet, this fell back to
@@ -1877,23 +1907,37 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const updAct=(id,ch)=>setActs(p=>p.map(a=>a.id===id?Object.assign({},a,ch):a));
   const updSt=(aid,sid,ch)=>setActs(p=>p.map(a=>a.id===aid?Object.assign({},a,{stations:a.stations.map(s=>s.id===sid?Object.assign({},s,ch):s)}):a));
   const {sensors:dndSensors,onDragEnd:onActDragEnd}=useActivityDnd(setActs);
-  const doSchedule=async(dateVal,timeVal)=>{
+  // Each of these runs through runOnce so only one save is ever in flight.
+  // Real bug (AZBC 10U, 2026-09-21): with no guard, repeated clicks while
+  // the first save was still writing each saw existingId === null and
+  // inserted their own copy of a new practice -- three identical practices.
+  const doSchedule=(dateVal,timeVal)=>runOnce("schedule",async()=>{
     if(!dateVal)return;
-    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:dateVal,startTime:timeVal||"",timezone:team&&team.timezone,scheduledDurationMinutes:schedDuration||null,prePracticeNotes,activities:acts,coachId});
-    if(saved){setExistingId(saved.id);markSaved();}
+    setSchedError("");
+    const {data:saved,error}=await savePracticeTree(existingId,{teamId,locationId:locId,date:dateVal,startTime:timeVal||"",timezone:team&&team.timezone,scheduledDurationMinutes:schedDuration||null,prePracticeNotes,activities:acts,coachId});
+    // Don't claim "Practice scheduled" over a failed save -- the practice row
+    // itself failing to insert leaves saved undefined. (A partial failure
+    // after the row exists still returns saved, with its id stored below so
+    // a retry updates that row instead of inserting another.)
+    if(!saved){setSchedError((error&&error.message)||"Couldn't schedule this practice. Try again.");return;}
+    setExistingId(saved.id);markSaved();
     await refreshPlanning();
     setSchedSuccess(true);
-  };
-  const doSaveTpl=async(tname)=>{
+  });
+  const doSaveTpl=tname=>runOnce("template",async()=>{
     if(!tname.trim())return;
     await saveTemplateTree(coachId,null,{name:tname,sport:teamSport,locationId:locId,prePracticeNotes,activities:acts});
     await refreshPlanning();
     setBottomMode("done_tpl");
     setTimeout(()=>setBottomMode(null),2000);
-  };
-  const handleSave=async()=>{
-    const {data:saved}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,scheduledDurationMinutes:schedDuration||null,prePracticeNotes,activities:acts,coachId});
+  });
+  const handleSave=()=>runOnce("save",async()=>{
+    setRunError("");
+    const {data:saved,error}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,scheduledDurationMinutes:schedDuration||null,prePracticeNotes,activities:acts,coachId});
     if(saved){setExistingId(saved.id);markSaved();}
+    // A failed save used to fall through to navigate(-1) below, dropping the
+    // coach's unsaved edits with no signal. Stay put and say so instead.
+    else{setRunError((error&&error.message)||"Couldn't save this practice. Try again.");return;}
     await refreshPlanning();
     // Saving an already-scheduled practice's plan is a "make this edit and
     // leave" action, not a "keep working here" one -- return to wherever
@@ -1903,11 +1947,14 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
       if(setEditPracticeId)setEditPracticeId(null);
       navigate(-1);
     }
-  };
-  const handleRun=async()=>{
+  });
+  const handleRun=()=>runOnce("run",async()=>{
     setRunError("");
     const {data:saved,error}=await savePracticeTree(existingId,{teamId,locationId:locId,date:schedDate,startTime:schedTime,timezone:team&&team.timezone,scheduledDurationMinutes:schedDuration||null,prePracticeNotes,activities:acts,coachId});
-    if(saved)markSaved();
+    // Store the id (handleSave/doSchedule already did) so that if launching
+    // doesn't leave the screen, a second Run Now updates this practice
+    // rather than inserting another.
+    if(saved){setExistingId(saved.id);markSaved();}
     await refreshPlanning();
     if(saved)launchRun(saved.id);
     // Real bug found live ("Run Now doesn't work"): a save failure (e.g. an
@@ -1917,7 +1964,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     // slow. Surfaced now so a genuine failure is at least visible instead
     // of silent.
     else if(error)setRunError("Couldn't start practice. Check the location and try again.");
-  };
+  });
   // Direct feedback: Run Now shouldn't be available when a scheduled
   // practice is still far off -- it's for "happening now or very soon,"
   // not a way to skip straight past the plan into a live session hours
@@ -1959,8 +2006,13 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
             coach would actually want to do with it (see the savechoice
             row below). An already-scheduled practice's Save still saves
             directly, unchanged. */}
-        {(!bottomMode||bottomMode==="")&&<><button className="btn strong bsm" onClick={editP?handleSave:()=>setBottomMode("savechoice")}>Save</button>
-        <button className="btn primary bsm" onClick={handleRun} disabled={!isSessionLive&&runTooFarAway} title={!isSessionLive&&runTooFarAway?"Run Now unlocks within 1 hour of the scheduled time":""}>{isSessionLive?"Join Practice":"Run Now"}</button></>}
+        {/* While any save is running both buttons are disabled, and the one
+            that was clicked says what it's doing -- saving a plan writes
+            every activity/station in turn and can take several seconds, and
+            without this nothing on screen changed at all (which is also what
+            invited the repeat clicks that made duplicate practices). */}
+        {(!bottomMode||bottomMode==="")&&<><button className={"btn strong bsm"+(savingKind==="save"?" btn-working":"")} onClick={editP?handleSave:()=>setBottomMode("savechoice")} disabled={!!savingKind} aria-busy={savingKind==="save"}>{savingKind==="save"?<><span className="btnspin" aria-hidden="true"/>Saving…</>:"Save"}</button>
+        <button className={"btn primary bsm"+(savingKind==="run"?" btn-working":"")} onClick={handleRun} disabled={!!savingKind||(!isSessionLive&&runTooFarAway)} aria-busy={savingKind==="run"} title={!isSessionLive&&runTooFarAway?"Run Now unlocks within 1 hour of the scheduled time":""}>{savingKind==="run"?<><span className="btnspin" aria-hidden="true"/>{isSessionLive?"Joining…":"Starting…"}</>:(isSessionLive?"Join Practice":"Run Now")}</button></>}
       </div>
       {runError&&<div style={{padding:"0 14px 8px",fontSize:12,color:"var(--danger)"}}>{runError}</div>}
       {editP&&<div style={{padding:"0 14px 8px",display:"flex",alignItems:"baseline",gap:8}}>
@@ -1976,20 +2028,20 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         <div className="brow">
           <button className="btn ghost bsm" onClick={()=>setBottomMode(null)}>Cancel</button>
           <button className="btn outline bsm" style={{flex:1}} onClick={()=>{setTplName("");setBottomMode("template");}}>Template</button>
-          <button className="btn primary bsm" style={{flex:1}} onClick={()=>{setBottomMode(null);setSchedSuccess(false);setShowScheduleModal(true);}}>Add to Schedule</button>
+          <button className="btn primary bsm" style={{flex:1}} onClick={()=>{setBottomMode(null);setSchedSuccess(false);setSchedError("");setShowScheduleModal(true);}}>Add to Schedule</button>
         </div>
       </div>}
       {bottomMode==="template"&&<div style={{padding:"0 14px 10px"}}>
         <div className="fld mb6"><input className="inp" autoFocus placeholder="Template name..." value={tplName} onChange={e=>setTplName(e.target.value)}/></div>
         <div className="brow">
           <button className="btn ghost bsm" onClick={()=>setBottomMode(null)}>Cancel</button>
-          <button className="btn primary bsm" onClick={()=>doSaveTpl(tplName)} disabled={!tplName.trim()}>Save Template</button>
+          <button className={"btn primary bsm"+(savingKind==="template"?" btn-working":"")} onClick={()=>doSaveTpl(tplName)} disabled={!tplName.trim()||!!savingKind} aria-busy={savingKind==="template"}>{savingKind==="template"?<><span className="btnspin" aria-hidden="true"/>Saving…</>:"Save Template"}</button>
         </div>
       </div>}
       </div>);
   return (<div className={isBB?"bb-fill-height":undefined} style={isBB?undefined:{paddingBottom:80}}>
       {!isBB&&stickyBarContent}
-      {showScheduleModal&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setShowScheduleModal(false);}}>
+      {showScheduleModal&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget&&!savingKind)setShowScheduleModal(false);}}>
         <div className="modal">
           {!schedSuccess?<>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>Schedule this practice</div>
@@ -1999,7 +2051,8 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               <div className="fld"><label className="lbl">Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
             </div>
             <div className="fld mb10"><label className="lbl">Duration (min) <span style={{color:"var(--text-dim)",fontWeight:400}}>(optional)</span></label><input className="inp" type="number" min="1" placeholder="e.g. 60" value={schedDuration} onChange={e=>{const v=e.target.value;setSchedDuration(v===""?"":+v);}}/></div>
-            <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowScheduleModal(false)}>Cancel</button><button className="btn primary bsm" style={{flex:1}} onClick={()=>doSchedule(schedDate,schedTime)} disabled={!schedDate}>Schedule Practice</button></div>
+            {schedError&&<div style={{fontSize:13,color:"var(--danger)",marginBottom:10}}>{schedError}</div>}
+            <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowScheduleModal(false)} disabled={!!savingKind}>Cancel</button><button className={"btn primary bsm"+(savingKind==="schedule"?" btn-working":"")} style={{flex:1}} onClick={()=>doSchedule(schedDate,schedTime)} disabled={!schedDate||!!savingKind} aria-busy={savingKind==="schedule"}>{savingKind==="schedule"?<><span className="btnspin" aria-hidden="true"/>Scheduling…</>:"Schedule Practice"}</button></div>
           </>:<>
             <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,marginBottom:4}}>Practice scheduled</div>
             <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:16}}>{team?team.name:"Practice"} · {new Date(schedDate+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}{schedTime?" · "+fmt12(schedTime):""}</div>
@@ -2179,7 +2232,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         <div style={{position:"absolute",top:0,left:0,right:0,height:runOfPracticeH,background:"var(--field-strong)",borderRadius:"var(--radius-lg)",pointerEvents:"none",zIndex:0}}/>
       </div>
       <div ref={ropHeaderRef} style={{position:"sticky",top:stickyHeaderH,zIndex:9,background:"var(--field-strong)",borderRadius:"var(--radius-lg) var(--radius-lg) 0 0",display:"flex",alignItems:"center",gap:10,padding:"10px 10px 8px"}}>
-        <RunOfPracticeMark rotation={handRotation}/>
+        <RunOfPracticeMark rotation={handRotation} working={!!savingKind}/>
         <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:20,fontWeight:900,color:"#fff",letterSpacing:".01em",flex:1,lineHeight:1.1}}>The Run of Practice</span>
         {(()=>{
           // Reads the live schedDuration state, not editP directly, so
