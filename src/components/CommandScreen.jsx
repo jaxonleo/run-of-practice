@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import { createSingleFlight } from "../singleFlight.js";
 import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, chainOnto, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea, menuNeedsToOpenUpward, SCRIMMAGE_FIELD_SLOTS, generateScrimmageBoard, repairScrimmageBoard, summarizeScrimmageFairness, scrimmagePlayerRotation } from "../constants.js";
 import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, saveSessionScrimmageBoard, fetchLatestScrimmageBoard, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, fetchPracticeRunStatus, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
@@ -3428,6 +3429,74 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     await writeSession({scrimmage_round_idx:nextIdx});
   },[session,writeSession]);
 
+  // A terminal write (complete / abort) MUST actually land before we show the
+  // end screen. writeSession silently reconciles on a version conflict and
+  // returns null without retrying -- so a poll tick or realtime bump landing
+  // during the two awaited round-trips above (submitOperation, closeCurrentLog)
+  // used to make this write a no-op while the coach still saw "Practice
+  // Complete"/"Aborted". The row stayed 'active', reappeared on the next visit,
+  // and only the stale-session cron ever cleaned it up (seen live as sessions
+  // abandoned in batch pairs with identical timestamps, never on the tap).
+  const finalizeSession=useCallback(async(status)=>{
+    const patch={status,ended_at:new Date().toISOString(),paused_at:null};
+    const updated=await writeSession(patch);
+    if(updated&&updated.status===status)return true;
+    // Conflict or transient failure -- re-fetch the real row and try once more.
+    const fresh=await findActiveLiveSession(practice.id);
+    if(!fresh)return true; // nothing active anymore: the goal is already met
+    const {data}=await updateLiveSession(fresh.id,fresh.version,patch);
+    if(data&&data.status===status){
+      sessionRef.current=data;setSession(data);
+      return true;
+    }
+    return false;
+  },[writeSession,practice]);
+
+  // Direct feedback ("End Practice took a while"): closeCurrentLog and
+  // finalizeSession are both real network round trips writing to two
+  // unrelated tables (session_activity_log, practice_live_sessions), and
+  // both used to be awaited sequentially with zero visible change on
+  // screen until both finished -- the same "felt laggy" shape transitionTo
+  // above already fixed for every other advance/back/jump action, just
+  // never applied here. Terminal writes deliberately don't get that fix's
+  // optimistic-UI half (see the comment on finalizeSession above -- an
+  // optimistic "Practice Complete" over a write that silently failed left
+  // sessions stuck 'active' before), so the actual fix is: run the two
+  // writes concurrently instead of sequentially (safe -- confirmed via
+  // 20260715050000_close_open_session_activity_rows.sql that a 'completed'
+  // transition already trigger-closes any still-open log row server-side
+  // regardless of client ordering, so parallelizing never orphans one),
+  // and give the button real in-flight state so a coach isn't left
+  // guessing whether the tap registered. One shared choke point for all
+  // three end-of-practice paths (advance's own terminal branch below,
+  // endPractice, abortPractice) rather than three copies of the same
+  // Promise.all-plus-alert logic. Defined here, right before advance,
+  // specifically because advance's own useCallback dependency array below
+  // needs endSession already initialized -- a plain const further down the
+  // component (its original, more narratively-obvious spot right next to
+  // endPractice/abortPractice) hits a temporal-dead-zone ReferenceError,
+  // since a dependency array is evaluated immediately at the useCallback
+  // call site, not lazily inside the closure.
+  const [ending,setEnding]=useState(null); // null | "completing" | "aborting"
+  const endingGuardRef=useRef(null);
+  if(!endingGuardRef.current)endingGuardRef.current=createSingleFlight(setEnding);
+  const endSession=useCallback(async(status,kind)=>{
+    const ok=await endingGuardRef.current(kind,async()=>{
+      const [,success]=await Promise.all([closeCurrentLog(),finalizeSession(status)]);
+      return success;
+    });
+    if(ok===undefined)return false; // dropped: an end was already in flight
+    if(!ok){
+      window.alert(status==="completed"
+        ?"Couldn't reach the server to end the practice. Check your connection and try again."
+        :"Couldn't reach the server to abort the practice. Check your connection and try again.");
+      return false;
+    }
+    setEndReason(status==="completed"?"completed":"abandoned");
+    setStage("end");
+    return true;
+  },[closeCurrentLog,finalizeSession]);
+
   const advance=useCallback(async()=>{
     if(!session||!cur)return;
     submitOperation(session.id,coachId,"advance");
@@ -3450,12 +3519,9 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
       // (not null) even though it also starts on the intro screen.
       await transitionTo({current_practice_activity_id:nextAct.id,current_rotation_number:0,scrimmage_round_idx:0,in_transition:false,in_block_intro:nextIsBlock||nextIsScrim},nextIsBlock?null:nextAct,0);
     }else{
-      await closeCurrentLog();
-      await writeSession({status:"completed",ended_at:new Date().toISOString(),paused_at:null});
-      setEndReason("completed");
-      setStage("end");
+      await endSession("completed","completing");
     }
-  },[session,cur,isBlock,inBlockIntro,blockRotate,inTrans,stIdx,isScrim,scrimRoundIdx,scrimRoundCount,idx,liveActs,coachId,transitionTo,writeSession,closeCurrentLog,stepScrimRound]);
+  },[session,cur,isBlock,inBlockIntro,blockRotate,inTrans,stIdx,isScrim,scrimRoundIdx,scrimRoundCount,idx,liveActs,coachId,transitionTo,stepScrimRound,endSession]);
 
   // Direct feedback: a coach calling "rotate" shouldn't also have to tap
   // Next to actually start the next station's timer -- the transition
@@ -3556,41 +3622,12 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     await writeSession(patch);
   },[session,writeSession]);
 
-  // A terminal write (complete / abort) MUST actually land before we show the
-  // end screen. writeSession silently reconciles on a version conflict and
-  // returns null without retrying -- so a poll tick or realtime bump landing
-  // during the two awaited round-trips above (submitOperation, closeCurrentLog)
-  // used to make this write a no-op while the coach still saw "Practice
-  // Complete"/"Aborted". The row stayed 'active', reappeared on the next visit,
-  // and only the stale-session cron ever cleaned it up (seen live as sessions
-  // abandoned in batch pairs with identical timestamps, never on the tap).
-  const finalizeSession=useCallback(async(status)=>{
-    const patch={status,ended_at:new Date().toISOString(),paused_at:null};
-    const updated=await writeSession(patch);
-    if(updated&&updated.status===status)return true;
-    // Conflict or transient failure -- re-fetch the real row and try once more.
-    const fresh=await findActiveLiveSession(practice.id);
-    if(!fresh)return true; // nothing active anymore: the goal is already met
-    const {data}=await updateLiveSession(fresh.id,fresh.version,patch);
-    if(data&&data.status===status){
-      sessionRef.current=data;setSession(data);
-      return true;
-    }
-    return false;
-  },[writeSession,practice]);
-
   const endPractice=useCallback(async()=>{
     setShowEllipsis(false);
     if(!session)return;
     submitOperation(session.id,coachId,"end_practice");
-    await closeCurrentLog();
-    if(!await finalizeSession("completed")){
-      window.alert("Couldn't reach the server to end the practice. Check your connection and try again.");
-      return;
-    }
-    setEndReason("completed");
-    setStage("end");
-  },[session,coachId,finalizeSession,closeCurrentLog]);
+    await endSession("completed","completing");
+  },[session,coachId,endSession]);
 
   // Abort: for a mistaken/test run (e.g. testing new features on tonight's
   // real practice hours early) -- ends the session without it counting as a
@@ -3606,14 +3643,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     if(!session)return;
     if(!window.confirm("Abort this practice? It won't count as completed, and you can start a fresh run any time."))return;
     submitOperation(session.id,coachId,"abort_practice");
-    await closeCurrentLog();
-    if(!await finalizeSession("abandoned")){
-      window.alert("Couldn't reach the server to abort the practice. Check your connection and try again.");
-      return;
-    }
-    setEndReason("abandoned");
-    setStage("end");
-  },[session,coachId,finalizeSession,closeCurrentLog]);
+    await endSession("abandoned","aborting");
+  },[session,coachId,endSession]);
 
   const takeControlNow=useCallback(async()=>{
     if(!session)return;
@@ -3929,8 +3960,8 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
               <button className="mm-item" onClick={()=>{setShowEllipsis(false);goHome();}}>Leave (keeps running)</button>
               {isController&&amHeadCoach&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);setShowEditBuilder(true);}}>Edit Practice</button>}
               {session&&<button className="mm-item" onClick={()=>{setShowEllipsis(false);shareLive("helper_read");}}>Share Live Link</button>}
-              {isController&&<button className="mm-item" onClick={endPractice}>End Practice</button>}
-              {isController&&<button className="mm-item mm-danger" onClick={abortPractice}>Abort Practice</button>}
+              {isController&&<button className="mm-item" onClick={endPractice} disabled={!!ending}>{ending==="completing"?"Ending...":"End Practice"}</button>}
+              {isController&&<button className="mm-item mm-danger" onClick={abortPractice} disabled={!!ending}>{ending==="aborting"?"Aborting...":"Abort Practice"}</button>}
             </div>}
           </div>
         </div>
@@ -3987,9 +4018,16 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     </div>}
     <div className="cc-prog"><div className={"cc-prog-bar"+(isOver?" over":"")} style={{width:(Math.min(1,prog)*100)+"%"}}/></div>
     {isController&&<div className="cc-controls">
-      <button className="btn ghost bmd" style={{minWidth:52}} onClick={goBack} disabled={idx===0&&stIdx===0&&!inTrans}>&lt;</button>
+      <button className="btn ghost bmd" style={{minWidth:52}} onClick={goBack} disabled={!!ending||(idx===0&&stIdx===0&&!inTrans)}>&lt;</button>
       {(()=>{const final=isFinalAdvance({isBlock,blockRotate,isScrim,inBlockIntro,scrimRoundIdx,scrimRoundCount,idx,liveActs,stIdx,stationsLength:cur&&cur.stations?cur.stations.length:0});
-        return <button className={"btn "+(final?"strong":"primary")+" blg"} style={{flex:1}} onClick={advance}>{final?"End Practice":advanceButtonLabel({isBlock,blockRotate,isScrim,inBlockIntro,scrimRoundIdx,scrimRoundCount,roundLabel:scrimCfg&&scrimCfg.roundLabel,idx,liveActs})}</button>;
+        // ending is shared with endPractice/abortPractice (the ellipsis
+        // menu) too, not just this button's own click -- so this label/
+        // spinner is the one visible "something is happening" signal
+        // regardless of which of the three end-of-practice actions
+        // actually triggered it (the menu itself already closes on click,
+        // leaving nothing else on screen to show it's working).
+        const label=ending==="completing"?"Ending practice...":ending==="aborting"?"Aborting practice...":(final?"End Practice":advanceButtonLabel({isBlock,blockRotate,isScrim,inBlockIntro,scrimRoundIdx,scrimRoundCount,roundLabel:scrimCfg&&scrimCfg.roundLabel,idx,liveActs}));
+        return <button className={"btn "+(final?"strong":"primary")+" blg"+(ending?" btn-working":"")} style={{flex:1}} onClick={advance} disabled={!!ending} aria-busy={!!ending}>{ending?<><span className="btnspin" aria-hidden="true"/>{label}</>:label}</button>;
       })()}
     </div>}
     {/* Assistant-coach handoff §1.3, confirmed decision: this exact spot --
