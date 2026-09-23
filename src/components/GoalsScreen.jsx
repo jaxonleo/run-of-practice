@@ -11,6 +11,7 @@ import {
   savePracticeTree, saveTemplateTree,
 } from "../supabase.js";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
+import AttendanceTimeline from "./AttendanceTimeline.jsx";
 
 // Author-role labeling (Assistant Coach handoff §2.3): resolve a staff
 // note's real name+role from the team roster already loaded here (never a
@@ -630,6 +631,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
     </div>}
     {canManage && !showTplInput && <button className="btn ghost bmd bfull" style={{ marginBottom: 8 }} onClick={() => setShowTplInput(true)}>{tplSaved ? "Saved as Template" : "Save as Template"}</button>}
     <button className="btn outline bsm bfull" style={{ marginBottom: 16 }} onClick={() => setShowPrint(true)}>Print / Export PDF</button>
+    <AttendanceTimeline team={team} sessionId={session.session_id} />
 
     {/* Direct feedback: Planned vs. Actual moved up to lead the page --
         visually resembles the schedule history view (activities first),

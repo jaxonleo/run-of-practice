@@ -78,6 +78,109 @@ export function groupEquipmentByArea(items){
 export const fmt=(s)=>{const neg=s<0;const abs=Math.abs(s);const m=Math.floor(abs/60),sec=abs%60;return(neg?"-":"")+String(m).padStart(2,"0")+":"+String(sec).padStart(2,"0");};
 export const actSecs=(a)=>{if(a.type==="station_block"){const n=(a.stations?a.stations.length:0);return(n*(a.stationDuration||0)+Math.max(0,n-1)*(a.transitionDuration||0))*60;}return(a.duration||0)*60;};
 export const sumMins=(acts)=>Math.round(acts.reduce((s,a)=>s+actSecs(a),0)/60);
+// Live pace vs. the real clock (direct feedback 2026-09-23, Coach Mike's
+// practice). The old "ahead/behind" badge measured progress against the
+// coach's own start (minutes since the session row was created, minus plan
+// minutes consumed), so starting 2 minutes early read as "On time" and
+// starting 10 minutes late also read as "On time". Field/gym/ice time
+// doesn't care when we started: the badge now projects when the plan will
+// actually finish (now + what's left of the current activity, including any
+// time added with +1m, + every remaining activity) and compares that to the
+// scheduled end (scheduled start + scheduled duration, or the planned total
+// when no duration was set). Negative = ahead, positive = behind.
+//
+// liveActRunSecs is how long an activity actually takes in the live runner,
+// which is not always actSecs: a station block and a scrimmage both open
+// with an auto-advancing intro screen, and a non-rotating block runs its
+// breakouts once (stationDuration), not once per station.
+export const BLOCK_INTRO_DEFAULT_MINS=2;
+export const SCRIM_INTRO_SECS=45;
+export function liveActRunSecs(a){
+  if(!a)return 0;
+  if(a.type==="station_block"){
+    const intro=(a.transitionDuration||BLOCK_INTRO_DEFAULT_MINS)*60;
+    if(a.rotate===false)return intro+(a.stationDuration||0)*60;
+    return intro+actSecs(a);
+  }
+  if(a.type==="scrimmage")return SCRIM_INTRO_SECS+actSecs(a);
+  return actSecs(a);
+}
+// Seconds left in the current activity as a whole: the current phase's own
+// remaining time (never negative, since running over just means "not done
+// yet") plus every phase of this activity still to come.
+export function currentActRemainingSecs({act,rem,inBlockIntro,inTrans,stIdx}){
+  if(!act)return 0;
+  const r=Math.max(0,rem||0);
+  if(act.type==="station_block"){
+    const n=act.stations?act.stations.length:0;
+    const sd=(act.stationDuration||0)*60,td=(act.transitionDuration||0)*60;
+    if(act.rotate===false)return r+(inBlockIntro?sd:0);
+    if(inBlockIntro)return r+n*sd+Math.max(0,n-1)*td;
+    const left=Math.max(0,n-1-(stIdx||0));
+    if(inTrans)return r+left*sd+Math.max(0,left-1)*td;
+    return r+left*(sd+td);
+  }
+  if(act.type==="scrimmage")return r+(inBlockIntro?actSecs(act):0);
+  return r;
+}
+// A run more than this far from its scheduled start (a practice run on a
+// different day, or an unscheduled one) anchors to its own real start
+// instead, since the scheduled slot clearly isn't the time being managed.
+export const PACE_ANCHOR_WINDOW_MS=3*60*60*1000;
+export function livePace({nowMs,scheduledStartMs,runStartMs,windowMins,acts,idx,currentRemainingSecs}){
+  if(!windowMins||!acts||!acts.length)return null;
+  let anchor=scheduledStartMs;
+  let anchoredToSchedule=true;
+  if(anchor==null||(runStartMs!=null&&Math.abs(runStartMs-anchor)>PACE_ANCHOR_WINDOW_MS)){anchor=runStartMs;anchoredToSchedule=false;}
+  if(anchor==null)return null;
+  const futureSecs=acts.slice(idx+1).reduce((s,a)=>s+liveActRunSecs(a),0);
+  const projectedEndMs=nowMs+(Math.max(0,currentRemainingSecs||0)+futureSecs)*1000;
+  const endMs=anchor+windowMins*60000;
+  const deltaSecs=Math.round((projectedEndMs-endMs)/1000);
+  // Whole minutes for the badge; under 30s either way reads "On time".
+  const deltaMins=Math.round(deltaSecs/60);
+  return {deltaSecs,deltaMins,endMs,projectedEndMs,anchoredToSchedule};
+}
+
+// Per-player presence over one live run, from session_attendance's
+// append-only rows (a full present/absent snapshot at Run Practice, another
+// on every mid-practice Update Attendance, and single rows from a helper
+// link). A player's time on the field is every stretch between a 'present'
+// row and the next 'absent'/'left_early' row (or the end of the run),
+// clamped to the run itself. A late arrival or early exit counts as one
+// only past a one-minute grace, so the few hundred ms between the run
+// starting and the first snapshot landing never reads as "late".
+export const ATTENDANCE_GRACE_MS=60*1000;
+export function attendanceTimeline(rows,runStartMs,runEndMs){
+  const out={};
+  if(runStartMs==null||runEndMs==null||runEndMs<runStartMs)return out;
+  const clamp=t=>Math.min(runEndMs,Math.max(runStartMs,t));
+  const sorted=[...(rows||[])].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+  const open={};
+  for(const row of sorted){
+    const pid=row.player_id;
+    const rec=out[pid]||(out[pid]={intervals:[]});
+    const t=clamp(new Date(row.created_at).getTime());
+    if(row.status==="present"){
+      if(open[pid]==null)open[pid]=t;
+    }else if(open[pid]!=null){
+      if(t>open[pid])rec.intervals.push([open[pid],t]);
+      open[pid]=null;
+    }
+  }
+  for(const pid of Object.keys(open))if(open[pid]!=null&&runEndMs>open[pid])out[pid].intervals.push([open[pid],runEndMs]);
+  for(const pid of Object.keys(out)){
+    const rec=out[pid];
+    rec.presentMs=rec.intervals.reduce((s,[a,b])=>s+(b-a),0);
+    if(!rec.intervals.length){rec.status="absent";rec.arrivedAt=null;rec.leftAt=null;continue;}
+    const first=rec.intervals[0][0],last=rec.intervals[rec.intervals.length-1][1];
+    rec.arrivedAt=first-runStartMs>ATTENDANCE_GRACE_MS?first:null;
+    rec.leftAt=runEndMs-last>ATTENDANCE_GRACE_MS?last:null;
+    const gap=rec.intervals.length>1;
+    rec.status=(rec.arrivedAt||rec.leftAt||gap)?"partial":"full";
+  }
+  return out;
+}
 // Testing-round-1 addendum §1, revised: planned-vs-scheduled indicator,
 // derived only, never stored. Shows for any practice with a scheduled
 // duration, planned or not (0/60 min is exactly the signal an unplanned

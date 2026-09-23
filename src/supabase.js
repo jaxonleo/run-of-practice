@@ -1540,13 +1540,36 @@ export async function setPlannedAbsences(playerId, notedBy, selectedPracticeIds,
 // Self-contained (own query, own table) rather than widening
 // fetchPracticeRunStatus's shared string-status contract, which several
 // unrelated call sites depend on staying a plain "completed"/"started" map.
+// setup_confirmed_at (Run Practice tapped) is the real start; created_at is
+// when Practice Setup was first opened, which can be well before the run.
 export async function fetchPracticeActualStart(practiceId) {
   if (!practiceId) return null
-  const { data, error } = await supabase.from('practice_live_sessions').select('created_at')
+  const { data, error } = await supabase.from('practice_live_sessions').select('created_at,setup_confirmed_at')
     .eq('practice_id', practiceId).eq('status', 'completed')
     .order('created_at', { ascending: false }).limit(1).maybeSingle()
   if (error) { console.error('fetchPracticeActualStart:', error); return null }
-  return data ? data.created_at : null
+  return data ? (data.setup_confirmed_at || data.created_at) : null
+}
+// Everything the history screens need to draw who was there and for how
+// long (attendanceTimeline in constants.js does the math). Pass a sessionId
+// (Goals & Insights' history detail is per session) or a practiceId, which
+// picks that practice's latest completed run, else its latest aborted one
+// that actually started. Returns null when nothing ever ran. The run's end
+// falls back to the last attendance row for a session that has no ended_at.
+export async function fetchRunAttendance({ practiceId, sessionId }) {
+  let q = supabase.from('practice_live_sessions').select('id,status,created_at,setup_confirmed_at,ended_at')
+  q = sessionId ? q.eq('id', sessionId) : q.eq('practice_id', practiceId).in('status', ['completed', 'abandoned']).not('setup_confirmed_at', 'is', null)
+  const { data: sessions, error } = await q.order('created_at', { ascending: false })
+  if (error) { console.error('fetchRunAttendance:', error); return null }
+  const run = (sessions || []).find(s => s.status === 'completed') || (sessions || [])[0]
+  if (!run) return null
+  const { data: rows, error: attErr } = await supabase.from('session_attendance').select('player_id,status,created_at')
+    .eq('session_id', run.id).order('created_at', { ascending: true })
+  if (attErr) { console.error('fetchRunAttendance:', attErr); return null }
+  const runStartMs = new Date(run.setup_confirmed_at || run.created_at).getTime()
+  const lastRowMs = (rows || []).reduce((m, r) => Math.max(m, new Date(r.created_at).getTime()), runStartMs)
+  const runEndMs = run.ended_at ? new Date(run.ended_at).getTime() : lastRowMs
+  return { sessionId: run.id, status: run.status, runStartMs, runEndMs, rows: rows || [] }
 }
 export async function fetchNotesForPractice(practiceId) {
   if (!practiceId) return []

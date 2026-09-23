@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { createSingleFlight } from "../singleFlight.js";
-import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, chainOnto, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea, menuNeedsToOpenUpward, SCRIMMAGE_FIELD_SLOTS, generateScrimmageBoard, repairScrimmageBoard, summarizeScrimmageFairness, scrimmagePlayerRotation } from "../constants.js";
+import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, chainOnto, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea, menuNeedsToOpenUpward, SCRIMMAGE_FIELD_SLOTS, generateScrimmageBoard, repairScrimmageBoard, summarizeScrimmageFairness, scrimmagePlayerRotation, livePace, currentActRemainingSecs, practiceScheduledMs } from "../constants.js";
+import AttendanceTimeline from "./AttendanceTimeline.jsx";
 import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, saveSessionScrimmageBoard, fetchLatestScrimmageBoard, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, fetchPracticeRunStatus, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
 import { SkillTagPicker } from "./ModalLayer.jsx";
@@ -1162,6 +1163,7 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
         to get the plan afterward. Same component, same data this screen
         already has. */}
     <button className="btn outline bsm bfull" style={{marginBottom:12}} onClick={()=>setShowPrint(true)}>Print / Export PDF</button>
+    <AttendanceTimeline team={team} practiceId={practice.id}/>
     <div className="sechdr mb8">
       <span className="sectitle">{practice.activities.length} Activities</span>
       <span className="pill">{sumMins(practice.activities)}m</span>
@@ -1528,7 +1530,9 @@ function computeHelperElapsed(session,nowMs){
   if(!session||!session.current_phase_started_at)return 0;
   const started=new Date(session.current_phase_started_at).getTime();
   const effectiveNow=session.paused_at?new Date(session.paused_at).getTime():nowMs;
-  return Math.max(0,Math.floor((effectiveNow-started)/1000)-(session.total_paused_seconds||0));
+  // Not clamped at 0: time added with +1m past the plan is stored as extra
+  // total_paused_seconds, which can push elapsed below zero (see nudge).
+  return Math.floor((effectiveNow-started)/1000)-(session.total_paused_seconds||0);
 }
 
 // Direct feedback: focus notes used to be hidden behind a tap-to-reveal
@@ -1756,7 +1760,7 @@ function HelperView({token}){
   const phaseSecs=isScrim?(inBlockIntro?45:(cur.duration_minutes||0)*60):isBlock?(inBlockIntro?(cur.transition_duration_seconds||120):(blockRotate&&inTrans?(cur.transition_duration_seconds||0):(cur.station_duration_seconds||0))):(cur?(cur.duration_minutes||0)*60:0);
   const elapsed=valid?computeHelperElapsed(session,now):0;
   const rem=phaseSecs-elapsed;
-  const prog=phaseSecs>0?Math.min(1,elapsed/phaseSecs):0;
+  const prog=phaseSecs>0?Math.max(0,Math.min(1,elapsed/phaseSecs)):0;
   const urg=rem<=30&&rem>0;
 
   useEffect(()=>{
@@ -2124,7 +2128,10 @@ function computeElapsed(session, nowMs) {
   if (!session || !session.current_phase_started_at) return 0;
   const started = new Date(session.current_phase_started_at).getTime();
   const effectiveNow = session.paused_at ? new Date(session.paused_at).getTime() : nowMs;
-  return Math.max(0, Math.floor((effectiveNow - started) / 1000) - (session.total_paused_seconds || 0));
+  // Deliberately not clamped at 0 -- see nudge(): +1m past a phase's full
+  // planned length is stored as elapsed going negative, so rem can exceed
+  // phaseSecs. Every consumer already reads rem/isOver/prog off this.
+  return Math.floor((effectiveNow - started) / 1000) - (session.total_paused_seconds || 0);
 }
 
 // Direct feedback: station blocks now start with no player assignments at
@@ -2645,7 +2652,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     :isBlock?(inBlockIntro?(cur.transitionDuration||2)*60:blockRotate&&inTrans?cur.transitionDuration*60:cur.stationDuration*60):(cur?actSecs(cur):0);
   const isOver=elapsed>phaseSecs;
   const rem=phaseSecs-elapsed;
-  const prog=phaseSecs>0?Math.min(1,elapsed/phaseSecs):0;
+  const prog=phaseSecs>0?Math.max(0,Math.min(1,elapsed/phaseSecs)):0;
   useEffect(()=>{
     if(!isScrim||!session||!cur){setLiveScrimBoard(null);return;}
     let live=true;
@@ -2721,9 +2728,19 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const urg=rem<=30&&rem>0&&running;
   const pCount=presentIds.size;
   const pTotal=team?team.players.length:0;
-  const completedMins=liveActs.slice(0,idx).reduce((s,a)=>s+Math.round(actSecs(a)/60),0);
-  const practiceStart=session?new Date(session.created_at).getTime():null;
-  const schedDelta=(practiceStart&&practice&&practice.startTime&&practice.durMin)?(Math.floor((Date.now()-practiceStart)/60000)-completedMins-Math.floor(elapsed/60)):null;
+  // Ahead/behind against the scheduled END, not our own start -- see
+  // livePace in constants.js. runStart is when Run Practice was actually
+  // tapped (setup_confirmed_at); created_at is when Practice Setup opened,
+  // which can be well before the run itself.
+  const runStartMs=session?new Date(session.setup_confirmed_at||session.created_at).getTime():null;
+  const pace=(session&&practice&&cur)?livePace({
+    nowMs:now,
+    scheduledStartMs:practiceScheduledMs(practice,team),
+    runStartMs,
+    windowMins:practice.scheduledDurationMinutes||sumMins(liveActs),
+    acts:liveActs,idx,
+    currentRemainingSecs:currentActRemainingSecs({act:cur,rem,inBlockIntro,inTrans,stIdx}),
+  }):null;
   const n=isBlock&&cur.stations?cur.stations.length:1;
   // Falls back to the plan's own station rotation when liveGroups hasn't
   // populated yet (a slow or failed fetchLatestGroups round trip) instead of
@@ -2746,6 +2763,14 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     const iv=setInterval(()=>setNow(Date.now()),500);
     return()=>clearInterval(iv);
   },[running]);
+  // Paused, the phase timer is frozen but the real clock isn't -- the
+  // ahead/behind badge (livePace) still needs to see time pass, just not
+  // twice a second.
+  useEffect(()=>{
+    if(running||stage!=="live")return;
+    const iv=setInterval(()=>setNow(Date.now()),5000);
+    return()=>clearInterval(iv);
+  },[running,stage]);
 
   // Voice is coach-selectable (Settings -> Live Practice Audio) -- the
   // coach previews and picks a specific installed voice there, remembered
@@ -3611,13 +3636,20 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
     await writeSession(patch);
   },[session,coachId,writeSession]);
 
+  // Direct feedback (2026-09-23, Coach Mike): +1m used to clamp elapsed at
+  // 0, so on a drill that had barely started, +1m could only ever bring the
+  // clock back to the drill's original planned length, never past it. A
+  // coach can now add as much time as they want: elapsed is allowed to go
+  // negative (stored as extra total_paused_seconds, no schema change), which
+  // reads everywhere as rem > phaseSecs. -1m is unchanged: it moves elapsed
+  // forward. Reads sessionRef (updated the instant setSession runs) rather
+  // than the render closure so two fast taps both count.
   const nudge=useCallback(async(deltaSecs)=>{
-    if(!session)return;
-    const curElapsed=computeElapsed(session,Date.now());
-    const newElapsed=Math.max(0,curElapsed+deltaSecs);
-    const appliedDelta=curElapsed-newElapsed;
+    const base=sessionRef.current||session;
+    if(!base)return;
     buzzedRef.current=false;warnedRef.current=false;transitionAdvancedRef.current=false;
-    const patch={total_paused_seconds:(session.total_paused_seconds||0)+appliedDelta};
+    const patch={total_paused_seconds:(base.total_paused_seconds||0)-deltaSecs};
+    sessionRef.current=Object.assign({},base,patch);
     setSession(s=>s?Object.assign({},s,patch):s);
     await writeSession(patch);
   },[session,writeSession]);
@@ -3912,7 +3944,9 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
   const phaseLabel=isScrim
     ?(inBlockIntro?"GET TO YOUR SPOTS":((scrimCfg.roundLabel||"HALF-INNING").toUpperCase()+" "+(scrimRoundIdx+1)+" OF "+scrimRoundCount))
     :isBlock?(inBlockIntro?"INTRODUCE STATIONS":blockRotate?(inTrans?"TRANSITION":"ROTATION "+(stIdx+1)+" of "+cur.stations.length):"STATION BREAKOUTS"):((cur&&cur.name)||"").toUpperCase();
-  const schedBadge=schedDelta===null?null:(Math.abs(schedDelta)<1?<span style={{background:"var(--field-tint)",color:"var(--field)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>On time</span>:schedDelta>0?<span style={{background:"var(--caution-tint)",color:"var(--caution)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>+{schedDelta}m behind</span>:<span style={{background:"var(--field-tint)",color:"var(--field)",padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>{Math.abs(schedDelta)}m ahead</span>);
+  const paceChip=(bg,fg,txt)=><span title={pace?"Scheduled end "+fmtClock(new Date(pace.endMs))+" · plan finishes "+fmtClock(new Date(pace.projectedEndMs)):undefined} style={{background:bg,color:fg,padding:"3px 10px",borderRadius:20,fontFamily:"DM Mono,monospace",fontSize:11,fontWeight:700}}>{txt}</span>;
+  const schedBadge=!pace?null:(pace.deltaMins===0?paceChip("var(--field-tint)","var(--field)","On time"):pace.deltaMins>0?paceChip("var(--caution-tint)","var(--caution)",pace.deltaMins+"m behind"):paceChip("var(--field-tint)","var(--field)",Math.abs(pace.deltaMins)+"m ahead"));
+  const paceEnd=pace&&pace.anchoredToSchedule?<span style={{fontSize:11,color:"var(--text-dim)",fontFamily:"DM Mono,monospace",alignSelf:"center"}}>ends {fmtClock(new Date(pace.endMs))}</span>:null;
 
   return (<div className="ccs">
     {syncOffline&&<div style={{background:"var(--danger-tint)",borderBottom:"1px solid var(--danger-tint-border)",padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
@@ -3967,7 +4001,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
         </div>
       </div>
       <div className="row" style={{gap:6,flexWrap:"wrap",marginTop:6}}>
-        <SyncBadge health={syncHealth}/>{schedBadge}
+        <SyncBadge health={syncHealth}/>{schedBadge}{paceEnd}
         <PresenceBadge coachNames={presence.coachNames} anonCount={presence.anonCount}/>
       </div>
       <div className="cc-act-name">{phaseLabel}</div>
