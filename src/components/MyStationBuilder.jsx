@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { AutoTextarea, equipmentPickerAssets, EquipmentPickerPill } from "./ActivityConfigs.jsx";
 import { updateStationContent, subscribeToStationPresence, resolveDrillEquipmentForCoach, findMissingEquipment } from "../supabase.js";
 import { timeAgo, useBigBrowser } from "../constants.js";
@@ -217,6 +217,12 @@ export default function MyStationBuilderScreen({ practice, team, data, coachId, 
   // cards right, via the same TwoPane shell Builder uses -- same
   // components/props either way, see the per-station render below.
   const isBB = useBigBrowser();
+  // Home's "you've been asked to plan X" notice passes the station it's
+  // about (direct feedback: tapping the alert should land on the station
+  // being planned, not the top of a multi-station screen).
+  const location = useLocation();
+  const focusStationId = (location.state && location.state.focusStationId) || null;
+  const focusRef = useRef(null);
   const myTeamStaffId = useMemo(() => { const c = (team.coaches || []).find(c => c.userId === coachId); return c ? c.id : null; }, [team, coachId]);
 
   // Every station id this coach has ever had open this session, union-only
@@ -251,6 +257,14 @@ export default function MyStationBuilderScreen({ practice, team, data, coachId, 
     return () => clearInterval(t);
   }, [refreshPlanning]);
 
+  // Once, after the focused station's editor has actually rendered.
+  const didFocusRef = useRef(false);
+  useEffect(() => {
+    if (didFocusRef.current || !focusStationId || !focusRef.current) return;
+    didFocusRef.current = true;
+    focusRef.current.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [focusStationId, openStationIds.size]);
+
   const assetsById = Object.fromEntries((data.assets || []).map(a => [a.id, a]));
   const teamSport = team.sport || "General";
   const teamWithLoc = { ...team, loc: (data.locations || []).find(l => l.id === practice.locationId) };
@@ -284,7 +298,8 @@ export default function MyStationBuilderScreen({ practice, team, data, coachId, 
           <StationSummaryCard key={s.id} station={s} blockDurationMinutes={activity.stationDuration} team={teamWithLoc} assetsById={assetsById} />
         ))}
       </div>;
-      return (<div key={stationId} style={{ marginBottom: 20 }}>
+      const isFocus = stationId === focusStationId;
+      return (<div key={stationId} ref={isFocus ? focusRef : null} style={{ marginBottom: 20, scrollMarginTop: 16 }}>
         {activity && <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-dim)", marginBottom: 8 }}>{activity.name || "Station Block"}</div>}
         {isBB ? <TwoPane left={editorEl} right={siblingsEl} /> : <>{editorEl}{siblingsEl}</>}
       </div>);

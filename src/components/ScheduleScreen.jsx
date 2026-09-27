@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchPlannedAbsences, fetchPracticeRunStatus, savePracticeTree } from "../supabase.js";
-import { canManageTeamInMode, sumMins, planningState, localDateStr, stripIdsForCopy, useBigBrowser } from "../constants.js";
+import { canPlanTeamInMode, sumMins, planningState, localDateStr, stripIdsForCopy, useBigBrowser } from "../constants.js";
 import { TwoPane } from "./BBShells.jsx";
 import PracticeDetail from "./PracticeDetail.jsx";
 import SeriesWizard from "./SeriesWizard.jsx";
@@ -97,9 +97,12 @@ export default function ScheduleScreen({ data, goToBuilder, goToRun, coachId, re
   // canManageTeamInMode, not bare isHeadCoach, in both branches -- a
   // director overseeing an org team can schedule for it without a personal
   // team_staff row on that specific team.
+  // canPlan (head coach, org director, or an assistant granted practice
+  // planning), not canManage -- direct feedback: a plan-permitted assistant
+  // should be able to schedule one practice or a series for that team.
   const canScheduleAny = fixedTeamId
-    ? canManageTeamInMode(data.teams.find(t => t.id === fixedTeamId), coachId, appMode)
-    : data.teams.some(t => canManageTeamInMode(t, coachId, appMode));
+    ? canPlanTeamInMode(data.teams.find(t => t.id === fixedTeamId), coachId, appMode)
+    : data.teams.some(t => canPlanTeamInMode(t, coachId, appMode));
   const toggleTeam = id => setTeamFilter(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const passesFilter = p => teamFilter.size === 0 || teamFilter.has(p.teamId);
   const filtered = data.practices.filter(passesFilter);

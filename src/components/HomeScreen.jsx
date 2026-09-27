@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway, practiceScheduledMs, getGettingStartedHidden, setGettingStartedHidden, menuNeedsToOpenUpward, useBigBrowser } from "../constants.js";
+import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, canPlanTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway, practiceScheduledMs, getGettingStartedHidden, setGettingStartedHidden, menuNeedsToOpenUpward, useBigBrowser } from "../constants.js";
 import { TwoPane } from "./BBShells.jsx";
 import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, acknowledgeStationAssignmentNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchActiveLiveSessions, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
@@ -416,7 +416,9 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
     setShowFutureGuard(false);
     if (saved) goToRun(saved.id);
   };
-  const canManageAnyTeam = data.teams.some(t => canManageTeamInMode(t, coachId, mode));
+  // Building/scheduling entry points follow plan access, not manage access
+  // -- an assistant granted practice planning can build and schedule too.
+  const canPlanAnyTeam = data.teams.some(t => canPlanTeamInMode(t, coachId, mode));
 
   // Development Pulse focus-team resolution (Coach mode only -- data.teams
   // here is already homeTeamsForMode-scoped by HomeRoute, so no re-filter
@@ -608,7 +610,9 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
     await acknowledgeStationAssignmentNotice(pendingStationNotice.id);
     if (refreshLibrary) await refreshLibrary();
     setAckingStationNoticeId(null);
-    goToBuilder(pendingStationNotice.practiceId);
+    // focusStationId: land on the delegated station itself (scrolled to and
+    // highlighted), not just the top of the plan -- direct feedback.
+    goToBuilder(pendingStationNotice.practiceId, null, null, { focusStationId: pendingStationNotice.stationId || null });
   };
 
   // Org Experience handoff Sec 5: unlike the team_staff welcome card above
@@ -858,8 +862,8 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
     })()}
     {!nextPractice && !nextCancelledPractice && <div className="card" style={{ marginBottom: 16, textAlign: "center", padding: "28px 20px" }}>
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{data.teams.length === 0 ? "Set up your practice schedule" : "Nothing on the schedule"}</div>
-      <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>{!canManageAnyTeam ? "Nothing planned yet." : data.teams.length === 0 ? "Add a team, then set up a recurring schedule to get started." : "Build a practice or set up a recurring schedule."}</div>
-      {canManageAnyTeam && <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>{!canPlanAnyTeam ? "Nothing planned yet." : data.teams.length === 0 ? "Add a team, then set up a recurring schedule to get started." : "Build a practice or set up a recurring schedule."}</div>
+      {canPlanAnyTeam && <div style={{ display: "flex", gap: 8 }}>
         <button className="btn primary bmd" style={{ flex: 1 }} onClick={() => goToBuilder(null)}>+ Build a Practice</button>
         <button className="btn outline bmd" style={{ flex: 1 }} onClick={goToSchedule}>Set Up Schedule</button>
       </div>}
@@ -868,7 +872,10 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
     {nextPractice && (() => {
       const team = teamById(nextPractice.teamId), loc = locById(nextPractice.locationId);
       const planned = isPlanned(nextPractice), soon = isSoonOrLive(nextPractice, team);
-      const canManage = canManageTeamInMode(team, coachId, mode);
+      // canPlan, not canManage: a delegated assistant (can_build_practices)
+      // got a "Not planned yet" block styled exactly like a button that did
+      // nothing when tapped (direct feedback, Steph on Tsunami 9-10).
+      const canPlan = canPlanTeamInMode(team, coachId, mode);
       const count = absenceCounts[nextPractice.id] || 0;
       const headcount = team ? Math.max(0, team.players.length - count) : null;
       // "Up Next" names what this card actually is -- the single soonest
@@ -890,8 +897,10 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
             (already sized down from bxl for the same overflow reason
             documented there); bxl here just made this one button read
             taller than every other button on the screen for no reason. */}
-        {!planned && canManage && <button className="btn primary blg bfull" onClick={() => goToBuilder(nextPractice.id)}>Plan Practice</button>}
-        {!planned && !canManage && <div className="btn outline blg bfull" style={{ textAlign: "center", cursor: "default" }}>Not planned yet</div>}
+        {!planned && canPlan && <button className="btn primary blg bfull" onClick={() => goToBuilder(nextPractice.id)}>Plan Practice</button>}
+        {/* Plain status text, not a .btn -- it read as a tappable button
+            that did nothing. */}
+        {!planned && !canPlan && <div style={{ textAlign: "center", fontSize: 13, fontWeight: 600, color: "var(--text-dim)", padding: "10px 0", border: "1.5px dashed var(--border)", borderRadius: "var(--radius-md)" }}>Not planned yet</div>}
         {/* "Practice Setup" as a distinct button/label is gone (direct
             feedback: it showed for a practice over a week away, where
             jumping straight into pre-live setup makes no sense) --
@@ -975,7 +984,7 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   </>);
 
   const bottomRowContent = (<div style={{ marginTop: 20, display: "flex", gap: 8 }}>
-    {canManageAnyTeam && <button className="btn outline bmd" style={{ flex: 1 }} onClick={() => goToBuilder(null)}>+ Practice</button>}
+    {canPlanAnyTeam && <button className="btn outline bmd" style={{ flex: 1 }} onClick={() => goToBuilder(null)}>+ Practice</button>}
     <button className="btn ghost bmd" style={{ flex: 1 }} onClick={() => setShowAbsencePicker(true)}>Player Out</button>
   </div>);
 

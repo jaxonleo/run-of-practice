@@ -345,9 +345,23 @@ export async function acknowledgeTeamJoinNotice(id) {
 // than the manager-side notices above. RLS (station_assignment_notices_select)
 // already scopes this to the caller's own assignments.
 export async function fetchPendingStationAssignmentNotices() {
-  const { data, error } = await supabase.from('station_assignment_notices').select('id, station_id, practice_id, team_id, station_name, practice_name, created_at, teams(name)').is('acknowledged_at', null).order('created_at', { ascending: false })
+  const { data, error } = await supabase.from('station_assignment_notices').select('id, station_id, practice_id, team_id, station_name, practice_name, created_at, teams(name), practices(scheduled_at, scheduled_duration_minutes, archived_at)').is('acknowledged_at', null).order('created_at', { ascending: false })
   if (error) { console.error('fetchPendingStationAssignmentNotices:', error); return [] }
-  return (data || []).map(n => ({ id: n.id, stationId: n.station_id, practiceId: n.practice_id, teamId: n.team_id, teamName: n.teams ? n.teams.name : '', stationName: n.station_name, practiceName: n.practice_name, createdAt: n.created_at }))
+  // Direct feedback: a delegate who didn't log in until after the practice
+  // still got "You've been asked to plan..." -- once the practice has ended
+  // (or was deleted) there is nothing left to plan, so the notice is moot.
+  // Filtered client-side rather than acknowledged server-side so the row
+  // stays as an honest "never seen" record.
+  const now = Date.now()
+  const stillRelevant = n => {
+    const p = n.practices
+    if (!p) return true
+    if (p.archived_at) return false
+    if (!p.scheduled_at) return true
+    const endMs = new Date(p.scheduled_at).getTime() + (p.scheduled_duration_minutes || 0) * 60000
+    return endMs > now
+  }
+  return (data || []).filter(stillRelevant).map(n => ({ id: n.id, stationId: n.station_id, practiceId: n.practice_id, teamId: n.team_id, teamName: n.teams ? n.teams.name : '', stationName: n.station_name, practiceName: n.practice_name, createdAt: n.created_at }))
 }
 export async function acknowledgeStationAssignmentNotice(id) {
   const { error } = await supabase.rpc('acknowledge_station_assignment_notice', { p_notice_id: id })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { myTeamRole, isHeadCoach, canManageTeamInMode, teamsForMode, homeTeamsForMode } from './constants.js'
+import { myTeamRole, isHeadCoach, canManageTeamInMode, canPlanTeamInMode, teamsForMode, homeTeamsForMode } from './constants.js'
 
 const coachMode = { type: 'coach' }
 const orgMode = (orgId) => ({ type: 'org', orgId })
@@ -52,6 +52,32 @@ describe('canManageTeamInMode', () => {
   it('in Org mode, does not grant management for a different org', () => {
     const team = { coaches: [{ userId: 'u1', role: 'Head Coach' }], organizationId: 'org1' }
     expect(canManageTeamInMode(team, 'u1', orgMode('org2'))).toBe(false)
+  })
+})
+
+describe('canPlanTeamInMode', () => {
+  it('lets a head coach plan', () => {
+    const team = { coaches: [{ userId: 'u1', role: 'Head Coach' }] }
+    expect(canPlanTeamInMode(team, 'u1', coachMode)).toBe(true)
+  })
+
+  it('lets an assistant granted practice planning plan (and schedule), without making them a manager', () => {
+    // direct feedback: a delegated assistant saw a dead "Not planned yet"
+    // block on Home and no way to schedule
+    const team = { coaches: [{ userId: 'u2', role: 'Assistant Coach', canBuildPractices: true }] }
+    expect(canPlanTeamInMode(team, 'u2', coachMode)).toBe(true)
+    expect(canManageTeamInMode(team, 'u2', coachMode)).toBe(false)
+  })
+
+  it('does not let a plain assistant plan', () => {
+    const team = { coaches: [{ userId: 'u2', role: 'Assistant Coach', canBuildPractices: false }] }
+    expect(canPlanTeamInMode(team, 'u2', coachMode)).toBe(false)
+    expect(canPlanTeamInMode(null, 'u2', coachMode)).toBe(false)
+  })
+
+  it('follows Org mode management for a director', () => {
+    const team = { coaches: [], organizationId: 'org1' }
+    expect(canPlanTeamInMode(team, 'director1', orgMode('org1'))).toBe(true)
   })
 })
 

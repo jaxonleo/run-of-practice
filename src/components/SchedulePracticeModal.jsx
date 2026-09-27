@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { savePracticeTree } from "../supabase.js";
-import { canManageTeamInMode, localDateStr } from "../constants.js";
+import { canPlanTeamInMode, localDateStr } from "../constants.js";
 import { AddLocationDialog } from "./NewLibraryScreen.jsx";
 
 // Quick single-practice scheduler -- one screen, no day-of-week/date-range
@@ -9,9 +9,9 @@ import { AddLocationDialog } from "./NewLibraryScreen.jsx";
 // team/pattern/location steps, just collapsed since there's no range to
 // preview.
 export default function SchedulePracticeModal({ data, coachId, mode, presetTeamId, refreshPlanning, onClose, onDone }) {
-  // canManageTeamInMode, not bare isHeadCoach -- a director overseeing an
-  // org team can schedule for it without a personal team_staff row there.
-  const myTeams = useMemo(() => data.teams.filter(t => canManageTeamInMode(t, coachId, mode)), [data.teams, coachId, mode]);
+  // canPlanTeamInMode: head coach, an org director (no personal team_staff
+  // row needed), or an assistant granted practice planning on that team.
+  const myTeams = useMemo(() => data.teams.filter(t => canPlanTeamInMode(t, coachId, mode)), [data.teams, coachId, mode]);
   // Opened from inside a specific team's Schedule tab should default to
   // that team, not whichever manageable team happens to sort first --
   // only honored if the coach can actually manage it (myTeams already

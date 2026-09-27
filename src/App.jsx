@@ -9,7 +9,7 @@ import { Ic } from "./icons.jsx";
 import { createSingleFlight } from "./singleFlight.js";
 import { setSentryUser } from "./sentry.js";
 import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, archiveTeam, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, archiveTemplate, savePracticeTree, saveTemplateTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed, adoptBenchmarkForTeam, checkCanViewGoals } from "./supabase.js";
-import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, hasVisibleComponentTypesPref, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES } from "./constants.js";
+import { uid, fmt12, fmt, actSecs, sumMins, shuffle, mkGroups, rebalanceKeep, rebalanceEven, SPORTS, isHeadCoach, canManageTeamInMode, canPlanTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, hasVisibleComponentTypesPref, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES } from "./constants.js";
 import { TwoPane } from "./components/BBShells.jsx";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog, GroupHeader, TagChip } from "./components/NewLibraryScreen.jsx";
@@ -1168,7 +1168,7 @@ function BuilderRoute(){
     return <MyStationBuilderScreen practice={editP} team={teamForEditP} data={data} coachId={coachId} coachLabel={coachName||"Coach"} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} goHome={goHome}/>;
   }
 
-  return <BuilderScreen data={data} openModal={openModal} launchRun={goToRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} startTemplateId={startTemplateId} setStartTemplateId={setStartTemplateId} presetTeamId={presetTeamId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>;
+  return <BuilderScreen data={data} openModal={openModal} launchRun={goToRun} editPracticeId={editPracticeId} setEditPracticeId={setEditPracticeId} startTemplateId={startTemplateId} setStartTemplateId={setStartTemplateId} presetTeamId={presetTeamId} coachId={coachId} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary} mode={mode}/>;
 }
 
 function RunRoute(){
@@ -1226,7 +1226,7 @@ function RunOfPracticeMark({rotation,working}){
   </svg>);
 }
 
-function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,coachId,refreshPlanning,refreshLibrary}){
+function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,coachId,refreshPlanning,refreshLibrary,mode}){
   const navigate=useNavigate();
   // BB layout pass (forty-ninth session): run of practice left, library
   // right, as two independently-scrolling panes -- see the TwoPane usage
@@ -1264,7 +1264,16 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   if(!singleFlightRef.current)singleFlightRef.current=createSingleFlight(setSavingKind);
   const runOnce=singleFlightRef.current;
   const [schedError,setSchedError]=useState("");
-  const [teamId,setTeamId]=useState(editP?editP.teamId:(presetTeamId||(startTpl&&startTpl.defaultTeamId)||(data.teams[0]?data.teams[0].id:"")));
+  // A brand-new practice can only go to a team this coach can plan for
+  // (head coach, org director, or granted practice planning) -- direct
+  // feedback: listing every team they're on let a plain assistant pick one
+  // whose save then failed RLS. An already-saved practice keeps its own
+  // team (not editable here anyway).
+  const plannableTeams=data.teams.filter(t=>canPlanTeamInMode(t,coachId,mode));
+  const defaultTeamId=(presetTeamId&&plannableTeams.some(t=>t.id===presetTeamId))?presetTeamId
+    :(startTpl&&startTpl.defaultTeamId&&plannableTeams.some(t=>t.id===startTpl.defaultTeamId))?startTpl.defaultTeamId
+    :(plannableTeams[0]?plannableTeams[0].id:"");
+  const [teamId,setTeamId]=useState(editP?editP.teamId:defaultTeamId);
   // Real bug found live ("Run Now doesn't work, at least for an unscheduled
   // practice"): for a team with no prior practice yet, this fell back to
   // `data.locations[0]` -- the first location in the coach's entire
@@ -1284,7 +1293,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     const ownLoc=data.locations.find(l=>l.ownerUserId===coachId);
     return ownLoc?ownLoc.id:(data.locations[0]?data.locations[0].id:"");
   };
-  const [locId,setLocId]=useState(editP?editP.locationId:((startTpl&&startTpl.locationId)||lastLocForTeam(editP?editP.teamId:(data.teams[0]?data.teams[0].id:""))));
+  const [locId,setLocId]=useState(editP?editP.locationId:((startTpl&&startTpl.locationId)||lastLocForTeam(editP?editP.teamId:defaultTeamId)));
   const [acts,setActs]=useState(editP?JSON.parse(JSON.stringify(editP.activities)):(startTpl?stripIdsForCopy(startTpl.activities):[]));
   const [expandedId,setExpandedId]=useState(null);
   const [savedTpl,setSavedTpl]=useState(false);
@@ -1497,6 +1506,33 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         const rowEl=rowRefs.current[id];
         if(wasLast&&endEl)endEl.scrollIntoView({behavior:"smooth",block:"end"});
         else if(rowEl)rowEl.scrollIntoView({behavior:"smooth",block:"nearest"});
+      });
+    });
+  };
+  // Direct feedback: expanding the pinned last row (the one stuck to the top
+  // while the coach browses the library below) made it vanish -- an
+  // expanded row is deliberately never sticky (see stickyNow below), so the
+  // moment it expands it drops back to its real spot in the list, usually
+  // far above the current scroll position. After the expand renders, if
+  // the expanded row isn't fully on screen (header scrolled away above, or
+  // its fields running off the bottom), bring its header to just under the
+  // sticky Save bar + Run of Practice title so the drill name sits at the
+  // top with its details right below. A row that already fits isn't moved.
+  const revealExpandedLastRow=id=>{
+    requestAnimationFrame(()=>{
+      recomputeRunOfPracticeH();
+      requestAnimationFrame(()=>{
+        const el=rowRefs.current[id];
+        if(!el)return;
+        const r=el.getBoundingClientRect();
+        const pane=el.closest(".bb-pane");
+        const paneRect=pane?pane.getBoundingClientRect():null;
+        const viewTop=(paneRect?paneRect.top:0)+ropStickyTop;
+        const viewBottom=paneRect?paneRect.bottom:window.innerHeight;
+        if(r.top>=viewTop&&r.bottom<=viewBottom)return;
+        el.style.scrollMarginTop=(ropStickyTop+6)+"px";
+        el.scrollIntoView({block:"start"});
+        recomputeRunOfPracticeH();
       });
     });
   };
@@ -2152,8 +2188,8 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         {detailsOpen&&<div style={{padding:14}}>
           {!editP&&<div className="fld"><label className="lbl">Team</label>
             <select className="sel" value={teamId} onChange={e=>{const tid=e.target.value;setTeamId(tid);setLocId(lastLocForTeam(tid));}}>
-              {!data.teams.length&&<option value="">-- Add a team first --</option>}
-              {data.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+              {!plannableTeams.length&&<option value="">{data.teams.length?"-- No teams you can plan for --":"-- Add a team first --"}</option>}
+              {plannableTeams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>}
           {editP&&<div className="g2">
@@ -2382,7 +2418,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
                   purposes, independent of whether it's still pinned.
                   Clicking away from it (see the click-away effect above)
                   collapses it the same way. */}
-              <div className="abhdr" style={{position:"relative"}} onClick={()=>{const willExpand=expandedId!==act.id;setExpandedId(willExpand?act.id:null);if(act.id===lastAddedId)setLastAddedId(null);}}>
+              <div className="abhdr" style={{position:"relative"}} onClick={()=>{const willExpand=expandedId!==act.id;setExpandedId(willExpand?act.id:null);if(act.id===lastAddedId)setLastAddedId(null);if(willExpand&&isLast)revealExpandedLastRow(act.id);}}>
                 {dragHandle}
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>

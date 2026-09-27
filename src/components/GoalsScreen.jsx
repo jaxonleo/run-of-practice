@@ -12,6 +12,7 @@ import {
 } from "../supabase.js";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
 import AttendanceTimeline from "./AttendanceTimeline.jsx";
+import PlanItemDetails from "./PlanItemDetails.jsx";
 
 // Author-role labeling (Assistant Coach handoff §2.3): resolve a staff
 // note's real name+role from the team roster already loaded here (never a
@@ -423,7 +424,7 @@ function TimeRangeForm({ start, end, setStart, setEnd, onSave, onCancel, busy, s
 // time" client-side guardrail (§5.4) -- the DB-side sane-bounds check
 // (adjust_session_activity's +/-1h/12h window, built in step 2) is the real
 // safety net; this is UI polish on top of it, not core correctness.
-function SessionHistoryDetail({ session, practice, team, data, canManage, coachId, goToRun, refreshPlanning, onBack, onChanged, setSubViewBack }) {
+export function SessionHistoryDetail({ session, practice, team, data, canManage, coachId, goToRun, onRunNow, refreshPlanning, onBack, onChanged, setSubViewBack }) {
   // Nav restructure round 3: GoalsScreen is always team-scoped, so this
   // always registers with Layout's colored bar instead of its own inline
   // Back button -- the !setSubViewBack fallback below is just defensive
@@ -481,7 +482,10 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
   const [tplSaved, setTplSaved] = useState(false);
   const [savingTpl, setSavingTpl] = useState(false);
   const [tplError, setTplError] = useState("");
-  const loc = (practice && data) ? data.locations.find(l => l.id === practice.locationId) : null;
+  // Snapshot fallback once the source location is archived, same as
+  // PracticeDetail/HistoryViewer.
+  const loc = (practice && data) ? (data.locations.find(l => l.id === practice.locationId)
+    || (practice.locationNameSnapshot ? { name: practice.locationNameSnapshot, address: practice.locationAddressSnapshot, sublocations: [] } : null)) : null;
 
   const refresh = useCallback(() => { fetchSessionActivityLog(session.session_id).then(setLogs); }, [session.session_id]);
   useEffect(() => { refresh(); }, [refresh]);
@@ -558,7 +562,11 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
   // HomeScreen/ScheduleScreen's own runAgainFrom, just relabeled "Run Now"
   // per spec here specifically.
   const runNowFrom = async () => {
-    if (!goToRun || runningNow) return;
+    if (runningNow) return;
+    // onRunNow: Schedule/Home's HistoryViewer renders this screen too and
+    // hands in its own already-wired runAgainFrom instead of goToRun.
+    if (onRunNow) { setRunningNow(true); try { await onRunNow(); } finally { setRunningNow(false); } return; }
+    if (!goToRun) return;
     setRunningNow(true);
     const runNow = new Date();
     const { data: saved } = await savePracticeTree(null, {
@@ -621,7 +629,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
         Template -- same look/actions HistoryViewer (Schedule/Home's own
         past-practice screen) already had, brought into this, the one
         canonical History view. */}
-    {goToRun && (canManage || canBuildPractices) && <button className="btn primary bmd bfull" style={{ marginBottom: 8 }} onClick={runNowFrom} disabled={runningNow}>{runningNow ? "Starting..." : "Run Now"}</button>}
+    {(goToRun || onRunNow) && (canManage || canBuildPractices) && <button className="btn primary bmd bfull" style={{ marginBottom: 8 }} onClick={runNowFrom} disabled={runningNow}>{runningNow ? "Starting..." : "Run Now"}</button>}
     {/* Save as Template is an ownership-level action -- head coach only,
         regardless of delegated build access (Delegated Planning spec §6). */}
     {canManage && showTplInput && <div style={{ marginBottom: 8 }}>
@@ -639,7 +647,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
     <div className="clbl mb8">Planned vs. Actual</div>
     {(practice.activities || []).map(act => {
       if (act.type === "station_block") return (<div key={act.id} className="ablk mb8">
-        <div style={{ padding: "10px 12px", background: "var(--surface-soft)", fontFamily: "Barlow Condensed,sans-serif", fontWeight: 700, fontSize: 14 }}>Station Block · planned {act.stationDuration}m/station</div>
+        <div style={{ padding: "10px 12px", background: "var(--surface-soft)", fontFamily: "Barlow Condensed,sans-serif", fontWeight: 700, fontSize: 14 }}>{act.name || "Station Block"} · planned {act.stationDuration}m/station</div>
         {(act.stations || []).map(st => {
           const stLogs = logsForStation(st.id);
           const stTotalMin = stLogs.reduce((s, l) => s + (logMinutes(l) || 0), 0);
@@ -657,6 +665,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
             </div>))}
             {addingFor && addingFor.stationId === st.id && <TimeRangeForm start={addStart} end={addEnd} setStart={setAddStart} setEnd={setAddEnd} onSave={saveAddRow} onCancel={() => setAddingFor(null)} busy={busy} saveLabel="Log time" fallbackDate={session.ended_at} />}
             {stLogs.some(l => l.id === editingLogId) && <TimeRangeForm start={editStart} end={editEnd} setStart={setEditStart} setEnd={setEditEnd} onSave={saveAdjust} onCancel={() => setEditingLogId(null)} busy={busy} fallbackDate={session.ended_at} />}
+            <PlanItemDetails item={st} team={team} loc={loc} data={data} isStation />
           </div>);
         })}
       </div>);
@@ -680,6 +689,7 @@ function SessionHistoryDetail({ session, practice, team, data, canManage, coachI
         {actLogs.length > 1 && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-soft)", marginTop: 4 }}>Total actual: {actTotalMin}m</div>}
         {addingFor && addingFor.practiceActivityId === act.id && <TimeRangeForm start={addStart} end={addEnd} setStart={setAddStart} setEnd={setAddEnd} onSave={saveAddRow} onCancel={() => setAddingFor(null)} busy={busy} saveLabel="Log time" fallbackDate={session.ended_at} />}
         {actLogs.some(l => l.id === editingLogId) && <TimeRangeForm start={editStart} end={editEnd} setStart={setEditStart} setEnd={setEditEnd} onSave={saveAdjust} onCancel={() => setEditingLogId(null)} busy={busy} fallbackDate={session.ended_at} />}
+        <PlanItemDetails item={act} team={team} loc={loc} data={data} />
       </div>);
     })}
 

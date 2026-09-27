@@ -248,6 +248,16 @@ export function canManageTeamInMode(team,coachId,mode){
   if(mode&&mode.type==="org")return !!(team&&team.organizationId===mode.orgId);
   return isHeadCoach(team,coachId);
 }
+// "Can plan" (open Builder for a practice, schedule practices) is wider than
+// "can manage": a head coach can always plan, and so can an assistant the
+// head coach granted can_build_practices on that team. Everything that is
+// strategy/durable-asset territory (goals, templates, roster, permissions)
+// stays on canManageTeamInMode.
+export function canPlanTeamInMode(team,coachId,mode){
+  if(canManageTeamInMode(team,coachId,mode))return true;
+  if(!team||!coachId)return false;
+  return (team.coaches||[]).some(c=>c.userId===coachId&&c.canBuildPractices);
+}
 export const shuffle=(arr)=>[...arr].sort(()=>Math.random()-.5);
 export function mkGroups(ids,n){const s=shuffle(ids),g=Array.from({length:n},()=>[]);s.forEach((id,i)=>g[i%n].push(id));return g;}
 // Real bug found live (audit: "History timing contradicts itself and can

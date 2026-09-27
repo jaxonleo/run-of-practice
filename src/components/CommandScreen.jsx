@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { createSingleFlight } from "../singleFlight.js";
-import { uid, fmt, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, chainOnto, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea, menuNeedsToOpenUpward, SCRIMMAGE_FIELD_SLOTS, generateScrimmageBoard, repairScrimmageBoard, summarizeScrimmageFairness, scrimmagePlayerRotation, livePace, currentActRemainingSecs, practiceScheduledMs } from "../constants.js";
+import { uid, fmt, fmt12, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconcileGroups, assignGroups, groupByAttribute, chainOnto, stripIdsForCopy, HAND_FIELDS_BY_SPORT, HAND_LABELS, isHeadCoach, AUDIO_CUES, getAudioCuePref, getVoiceURIPref, resolveVoiceByURI, resolveDefaultVoice, groupEquipmentByArea, menuNeedsToOpenUpward, SCRIMMAGE_FIELD_SLOTS, generateScrimmageBoard, repairScrimmageBoard, summarizeScrimmageFairness, scrimmagePlayerRotation, livePace, currentActRemainingSecs, practiceScheduledMs } from "../constants.js";
 import AttendanceTimeline from "./AttendanceTimeline.jsx";
-import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, saveSessionScrimmageBoard, fetchLatestScrimmageBoard, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, fetchPracticeRunStatus, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
+import PlanItemDetails from "./PlanItemDetails.jsx";
+import { SessionHistoryDetail } from "./GoalsScreen.jsx";
+import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, saveSessionScrimmageBoard, fetchLatestScrimmageBoard, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, fetchPracticeRunStatus, fetchTeamSessionHistory, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
 import { SkillTagPicker } from "./ModalLayer.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
@@ -1059,7 +1061,45 @@ function PracticeSetupScreen({practice,team,data,coachId,isController,amHeadCoac
   </div>);
 }
 
+// Past practice opened from Schedule or Home (direct feedback: this screen
+// used an older look with no side padding, and didn't match Goals &
+// Insights' Practice History). When the practice was actually run and the
+// viewer can see Goals & Insights for the team (head coach or plan
+// delegate, the same can_view_goals_for_team gate get_team_session_history
+// enforces), render that exact screen (SessionHistoryDetail) so there's one
+// canonical history view. Otherwise (never run, or a plain assistant with no
+// Goals access) fall back to PlanHistoryViewer, restyled to the same layout.
 function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,setSubViewBack}){
+  const team=data.teams.find(t=>t.id===practice.teamId)||null;
+  const canManage=!!(team&&isHeadCoach(team,coachId));
+  const myCoach=team?(team.coaches||[]).find(c=>c.userId===coachId):null;
+  const canViewGoals=canManage||!!(myCoach&&myCoach.canBuildPractices);
+  // undefined = still looking, null = no session to show
+  const [session,setSession]=useState(canViewGoals?undefined:null);
+  const teamId=team?team.id:null;
+  useEffect(()=>{
+    if(!canViewGoals||!teamId){setSession(null);return;}
+    let cancelled=false;
+    fetchTeamSessionHistory(teamId).then(rows=>{
+      if(cancelled)return;
+      const mine=(rows||[]).filter(r=>r.practice_id===practice.id);
+      const byEnd=(a,b)=>String(b.ended_at||"").localeCompare(String(a.ended_at||""));
+      const best=mine.filter(r=>r.status==="completed").sort(byEnd)[0]||mine.sort(byEnd)[0]||null;
+      setSession(best);
+    });
+    return ()=>{cancelled=true;};
+  },[practice.id,teamId,canViewGoals]);
+  if(session===undefined)return (<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)"}}>Loading...</div>);
+  // .bb-centered-page (820px max, centered) is a no-op at phone widths and
+  // keeps the page from stretching edge to edge on a big browser.
+  return (<div className="bb-centered-page" style={{padding:"16px 16px 0",boxSizing:"border-box"}}>
+    {session
+      ?<SessionHistoryDetail session={session} practice={practice} team={team} data={data} canManage={canManage} coachId={coachId} onRunNow={onRunAgain} refreshPlanning={refreshPlanning} onBack={onBack} setSubViewBack={setSubViewBack}/>
+      :<PlanHistoryViewer data={data} practice={practice} team={team} canManage={canManage} canBuildPractices={!!(myCoach&&myCoach.canBuildPractices)} onRunAgain={onRunAgain} onBack={onBack} coachId={coachId} refreshPlanning={refreshPlanning} setSubViewBack={setSubViewBack}/>}
+  </div>);
+}
+
+function PlanHistoryViewer({data,practice,team,canManage,canBuildPractices,onRunAgain,onBack,coachId,refreshPlanning,setSubViewBack}){
   // Nav restructure round 3: same pattern as PracticeDetail -- registers
   // with Layout's colored bar when reached from a team-scoped Schedule tab
   // (setSubViewBack passed in), otherwise keeps its own inline Back button
@@ -1074,23 +1114,12 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
   const [tplSaved,setTplSaved]=useState(false);
   const [tplError,setTplError]=useState("");
   const [savingTpl,setSavingTpl]=useState(false);
-  const [expandedId,setExpandedId]=useState(null);
-  const team=data.teams.find(t=>t.id===practice.teamId)||null;
+  const [runningAgain,setRunningAgain]=useState(false);
   // Falls back to the practice's own snapshot once the source location is
   // archived (see PracticeDetail.jsx's identical fallback and its comment).
   const loc=data.locations.find(l=>l.id===practice.locationId)
     ||(practice.locationNameSnapshot?{name:practice.locationNameSnapshot,address:practice.locationAddressSnapshot,sublocations:[]}:null);
-  // Delegated Planning spec: Run Again follows build access (head coach or
-  // a delegate), Save as Template is head-coach-only regardless of
-  // delegation -- same shape as GoalsScreen.jsx's SessionHistoryDetail.
-  const canManage=!!(team&&isHeadCoach(team,coachId));
-  const myCoach=team?(team.coaches||[]).find(c=>c.userId===coachId):null;
-  const canBuildPractices=!!(myCoach&&myCoach.canBuildPractices);
-  const fmtDate=ds=>new Date(ds+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"});
-  const coachName=id=>{const c=team&&team.coaches.find(c=>c.id===id);return c?c.name:null;};
-  const subName=(id,snap)=>{const s=loc&&loc.sublocations.find(s=>s.id===id);return s?s.name:(snap||null);};
-  const pnames=ids=>(ids||[]).map(id=>{const p=team&&team.players.find(p=>p.id===id);return p?p.firstName:null;}).filter(Boolean).join(", ");
-  const equipNames=ids=>(Array.isArray(ids)?ids:[]).map(id=>{const a=data.assets.find(a=>a.id===id);return a?a.name:null;}).filter(Boolean).join(", ");
+  const fmtDate=ds=>new Date(ds+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"});
   const [tplNameInput,setTplNameInput]=useState("");
   const [showTplInput,setShowTplInput]=useState(false);
   const [showPrint,setShowPrint]=useState(false);
@@ -1116,11 +1145,11 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
   // template row) -- looked like it worked (button flips to "Saved as
   // Template") but nothing ever reached the templates table, so it vanished
   // on refresh and never showed up in Library. stripIdsForCopy matches
-  // runAgainFrom's pattern just below (App.jsx/HomeScreen.jsx/
-  // ScheduleScreen.jsx): a completed practice's activity ids are real
-  // practice_activities rows, not template_activities ones, so they need
-  // fresh ids or saveActivityTree would try to update rows that don't exist
-  // in the destination table.
+  // runAgainFrom's pattern (App.jsx/HomeScreen.jsx/ScheduleScreen.jsx): a
+  // completed practice's activity ids are real practice_activities rows,
+  // not template_activities ones, so they need fresh ids or
+  // saveActivityTree would try to update rows that don't exist in the
+  // destination table.
   const handleSaveAsTpl=async()=>{
     if(!tplNameInput.trim()||savingTpl)return;
     setSavingTpl(true);setTplError("");
@@ -1139,6 +1168,7 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
     setTplSaved(true);setShowTplInput(false);setTplNameInput("");
     setTimeout(()=>setTplSaved(false),2500);
   };
+  const runAgain=async()=>{if(runningAgain)return;setRunningAgain(true);try{await onRunAgain();}finally{setRunningAgain(false);}};
   const NotesList=({notes})=>{
     if(!notes||!notes.length)return null;
     return(<div style={{marginTop:8,paddingTop:8,borderTop:"1px dashed var(--border)"}}>
@@ -1148,104 +1178,61 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
       </div>))}
     </div>);
   };
+  const blockMins=act=>act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*(act.transitionDuration||0):0);
+  // Same layout as SessionHistoryDetail (GoalsScreen.jsx): date title,
+  // actions up top, then one card per activity with collapsible details.
   return (<div style={{paddingBottom:80}}>
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-      {!setSubViewBack&&<button className="btn ghost bxs" onClick={onBack}>Back</button>}
-      <div>
-        <div className="ptitle" style={{fontSize:20}}>{team?team.name:"Practice"}</div>
-        <div className="limt">{actualStart?new Date(actualStart).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"})+" at "+new Date(actualStart).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}):fmtDate(practice.date)+(practice.startTime?" at "+practice.startTime:"")}{loc?" · "+loc.name:""}</div>
-      </div>
+    {!setSubViewBack&&<div className="row mb10"><button className="btn ghost bxs" onClick={onBack}>&#8249; Back</button></div>}
+    <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>
+      {actualStart?new Date(actualStart).toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"}):fmtDate(practice.date)}
     </div>
-    {runStat==="abandoned"&&<div style={{background:"var(--caution-tint)",border:"1.5px solid var(--caution-tint-border)",borderRadius:"var(--radius-lg)",padding:"8px 12px",marginBottom:12,fontSize:12,color:"var(--caution)",fontWeight:600}}>This practice was aborted before it finished. It doesn't count as a completed run.</div>}
+    <div style={{fontSize:13,color:"var(--text-dim)",marginBottom:12}}>
+      {actualStart?new Date(actualStart).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}):fmt12(practice.startTime)}
+      {loc?" · "+loc.name:""}
+      {" · "+sumMins(practice.activities)+"m planned"}
+      {runStat==="abandoned"&&<span className="bdg" style={{marginLeft:6,background:"var(--caution-tint)",color:"var(--caution)"}}>Abandoned</span>}
+    </div>
+    {runStat==="abandoned"&&<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:12}}>This practice was aborted before it finished. It doesn't count as a completed run.</div>}
+    {(canManage||canBuildPractices)&&<button className="btn primary bmd bfull" style={{marginBottom:8}} onClick={runAgain} disabled={runningAgain}>{runningAgain?"Starting...":"Run Again"}</button>}
+    {/* Save as Template is an ownership-level action -- head coach only,
+        regardless of delegated build access (Delegated Planning spec §6). */}
+    {canManage&&showTplInput&&<div style={{marginBottom:8}}>
+      <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder={(team?team.name:"Practice")+" Template"} value={tplNameInput} onChange={e=>{setTplNameInput(e.target.value);if(tplError)setTplError("");}} onKeyDown={e=>e.key==="Enter"&&handleSaveAsTpl()}/></div>
+      {tplError&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:6}}>{tplError}</div>}
+      <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowTplInput(false)}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsTpl} disabled={!tplNameInput.trim()||savingTpl}>{savingTpl?"Saving...":"Save"}</button></div>
+    </div>}
+    {canManage&&!showTplInput&&<button className="btn ghost bmd bfull" style={{marginBottom:8}} onClick={()=>setShowTplInput(true)}>{tplSaved?"Saved as Template":"Save as Template"}</button>}
     {/* Print/PDF export used to only exist on PracticeDetail, which a
-        past/run practice never routes to (ScheduleScreen sends those here
-        instead) -- so a coach who forgot to print beforehand had no way
-        to get the plan afterward. Same component, same data this screen
-        already has. */}
-    <button className="btn outline bsm bfull" style={{marginBottom:12}} onClick={()=>setShowPrint(true)}>Print / Export PDF</button>
+        past/run practice never routes to -- so a coach who forgot to print
+        beforehand had no way to get the plan afterward. */}
+    <button className="btn outline bsm bfull" style={{marginBottom:16}} onClick={()=>setShowPrint(true)}>Print / Export PDF</button>
     <AttendanceTimeline team={team} practiceId={practice.id}/>
-    <div className="sechdr mb8">
-      <span className="sectitle">{practice.activities.length} Activities</span>
-      <span className="pill">{sumMins(practice.activities)}m</span>
-    </div>
+    <div className="clbl mb8">The Plan</div>
     {practice.activities.map(act=>{
-      const isExpanded=expandedId===act.id;
-      const actNotes=practiceNotes.filter(n=>n.practiceActivityId===act.id);
-      const hasNotes=actNotes.length>0;
-      return(<div key={act.id} className="ablk" style={{marginBottom:8}}>
-        {/* Header row */}
-        <div style={{display:"flex",alignItems:"center",padding:"11px 12px",background:"var(--surface-soft)",gap:8,cursor:"pointer"}} onClick={()=>setExpandedId(isExpanded?null:act.id)}>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{font:"700 14px Barlow Condensed,sans-serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-              {act.type==="station_block"?(act.name||"Station Block"):act.name}
-              {hasNotes&&<span style={{marginLeft:6,fontSize:10,background:"var(--field)",color:"#fff",borderRadius:10,padding:"1px 6px"}}>{actNotes.length} note{actNotes.length>1?"s":""}</span>}
-            </div>
-            {act.type==="station_block"
-              ?<div className="limt">{act.stations.map(s=>s.activityName||s.name).join(" / ")} · {act.stationDuration}m each{act.rotate!==false?" · rotates":""}</div>
-              :<div className="limt">{act.duration}min{coachName(act.coachId)?" · "+coachName(act.coachId):""}{act.grouping&&act.grouping!=="whole"?" · "+(act.grouping==="partners"?"Partners":act.numGroups+" groups"):""}</div>}
-          </div>
-          {act.type!=="station_block"&&<span className="bdg bs">{act.duration}m</span>}
-          {act.type==="station_block"&&<span className="bdg bs">{act.stations.length*act.stationDuration+(act.rotate!==false?Math.max(0,act.stations.length-1)*(act.transitionDuration||0):0)}m</span>}
-          <span style={{color:"var(--text-dim)",fontSize:12}}>{isExpanded?"▲":"▼"}</span>
+      if(act.type==="station_block")return (<div key={act.id} className="ablk mb8">
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"10px 12px",background:"var(--surface-soft)"}}>
+          <span style={{fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,fontSize:14}}>{act.name||"Station Block"} · {act.stationDuration}m/station{act.rotate!==false?" · rotates":""}</span>
+          <span className="bdg bp">{blockMins(act)}m planned</span>
         </div>
-        {/* Expanded detail */}
-        {isExpanded&&<div style={{padding:"10px 12px",borderTop:"1px solid var(--border)"}}>
-          {act.type==="activity"&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {act.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:8}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
-              <div style={{fontSize:13,lineHeight:1.5}}>{act.coachingPoints}</div>
-            </div>}
-            {subName(act.sublocationId,act.sublocationNameSnapshot)&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Location: </span>{subName(act.sublocationId,act.sublocationNameSnapshot)}</div>}
-            {equipNames(act.equipment)&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Equipment: </span>{equipNames(act.equipment)}</div>}
-            {act.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Player Gear: </span>{act.playerGear}</div>}
-            {act.grouping&&act.grouping!=="whole"&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Grouping: </span>{act.grouping==="partners"?"Partners":act.numGroups+" Groups"}</div>}
-            {act.assignments&&act.assignments.length>0&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Players: </span>{pnames(act.assignments)}</div>}
-            <NotesList notes={notesForActivity(act.id)}/>
-          </div>}
-          {act.type==="checklist"&&<div>
-            {(act.items||[]).map(it=>(<div key={it.id} style={{fontSize:13,padding:"4px 0",borderBottom:"1px solid var(--border)",color:"var(--ink)"}}>{it.text}</div>))}
-            <NotesList notes={notesForActivity(act.id)}/>
-          </div>}
-          {act.type==="station_block"&&<div>
-            {act.stations.map(st=>{
-              const stNotes=notesForStation(st.id);
-              return(<div key={st.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--border)"}}>
-                <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:"var(--field)",letterSpacing:".05em",marginBottom:4}}>
-                  {st.name}{st.activityName&&st.activityName!==st.name?": "+st.activityName:""}
-                </div>
-                <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                  {coachName(st.coachId)&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Coach: </span>{coachName(st.coachId)}</div>}
-                  {subName(st.sublocationId,st.sublocationNameSnapshot)&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Area: </span>{subName(st.sublocationId,st.sublocationNameSnapshot)}</div>}
-                  {st.coachingPoints&&<div style={{borderLeft:"3px solid #16a34a",paddingLeft:8,marginTop:2}}>
-                    <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:".08em",textTransform:"uppercase",marginBottom:2}}>Coaching Focus</div>
-                    <div style={{fontSize:13,lineHeight:1.5}}>{st.coachingPoints}</div>
-                  </div>}
-                  {equipNames(st.equipment)&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Equipment: </span>{equipNames(st.equipment)}</div>}
-                  {st.playerGear&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Player Gear: </span>{st.playerGear}</div>}
-                  {st.assignments&&st.assignments.length>0&&<div style={{fontSize:13}}><span style={{color:"var(--text-dim)"}}>Players: </span>{pnames(st.assignments)}</div>}
-                  <NotesList notes={stNotes}/>
-                </div>
-              </div>);
-            })}
-            {/* Block-level notes not tied to a specific station */}
-            <NotesList notes={notesForActivity(act.id)}/>
-          </div>}
-        </div>}
+        {act.stations.map(st=>(<div key={st.id} style={{padding:"10px 12px",borderTop:"1px solid var(--border)"}}>
+          <div style={{fontSize:13,fontWeight:600}}>{st.name}{st.activityName&&st.activityName!==st.name?": "+st.activityName:""}</div>
+          <PlanItemDetails item={st} team={team} loc={loc} data={data} isStation/>
+          <NotesList notes={notesForStation(st.id)}/>
+        </div>))}
+        {notesForActivity(act.id).length>0&&<div style={{padding:"0 12px 10px"}}><NotesList notes={notesForActivity(act.id)}/></div>}
+      </div>);
+      return (<div key={act.id} className="card mb8">
+        <div style={{display:"flex",justifyContent:"space-between",gap:8}}>
+          <span style={{fontSize:14,fontWeight:600}}>{act.name}</span>
+          <span className="bdg bp" style={{flexShrink:0}}>{act.duration}m planned</span>
+        </div>
+        <PlanItemDetails item={act} team={team} loc={loc} data={data}/>
+        <NotesList notes={notesForActivity(act.id)}/>
       </div>);
     })}
-    {/* End of practice notes */}
     {generalNotes.length>0&&<div className="card mb10">
-      <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,marginBottom:8}}>End of Practice Notes</div>
+      <div className="clbl mb8">End of Practice Notes</div>
       <NotesList notes={generalNotes}/>
-    </div>}
-    {(canManage||canBuildPractices)&&<div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--border)"}}>
-      <button className="btn primary bxl bfull" style={{marginBottom:8}} onClick={onRunAgain}>Run Again</button>
-      {canManage&&showTplInput&&<div>
-        <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder={(team?team.name:"Practice")+" Template"} value={tplNameInput} onChange={e=>{setTplNameInput(e.target.value);if(tplError)setTplError("");}} onKeyDown={e=>e.key==="Enter"&&handleSaveAsTpl()}/></div>
-        {tplError&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:6}}>{tplError}</div>}
-        <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowTplInput(false)}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsTpl} disabled={!tplNameInput.trim()||savingTpl}>{savingTpl?"Saving...":"Save"}</button></div>
-      </div>}
-      {canManage&&!showTplInput&&<button className="btn ghost bmd bfull" onClick={()=>setShowTplInput(true)}>{tplSaved?"Saved as Template":"Save as Template"}</button>}
     </div>}
     {showPrint&&<PracticePlanPrint practice={practice} team={team} loc={loc} data={data} onClose={()=>setShowPrint(false)}/>}
   </div>);
