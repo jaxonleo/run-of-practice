@@ -590,9 +590,6 @@ export default function App(){
   useEffect(()=>{let el=document.getElementById('rop-css');if(!el){el=document.createElement('style');el.id='rop-css';document.head.appendChild(el);}el.textContent=CSS;},[]);
   const [loaded,setLoaded]=useState(false);
   const [modal,setModal]=useState(null);
-  const [liveId,setLiveId]=useState(null);
-  const [editPracticeId,setEditPracticeId]=useState(null);
-  const [startTemplateId,setStartTemplateId]=useState(null);
   const [session,setSession]=useState(undefined); // undefined=loading, null=signed out, object=signed in
   const [wantsAuth,setWantsAuth]=useState(false);
   useEffect(()=>{
@@ -741,10 +738,10 @@ export default function App(){
     try{
       const saved=JSON.parse(localStorage.getItem("rop_mode")||"null");
       if(saved&&saved.type==="org"&&saved.orgId)return saved;
-    }catch(e){}
+    }catch{}
     return {type:"coach"};
   });
-  useEffect(()=>{try{localStorage.setItem("rop_mode",JSON.stringify(mode));}catch(e){}},[mode]);
+  useEffect(()=>{try{localStorage.setItem("rop_mode",JSON.stringify(mode));}catch{}},[mode]);
   // Guard against a persisted org the coach is no longer a director of
   // (left, or it was archived) -- falls back to Coach mode instead of
   // showing a broken/empty org view. Gated on `loaded`, not just the
@@ -1181,17 +1178,6 @@ function RunRoute(){
   return <CommandScreen data={data} liveId={liveId} setLiveId={setLiveId} coachId={coachId} goHome={goHome} refreshPlanning={refreshPlanning} refreshLibrary={refreshLibrary}/>;
 }
 
-function DurStepper({value,min,onChange,step}){
-  const s=step||1;
-  const mn=min||1;
-  return (<div style={{display:"flex",alignItems:"center",gap:0,border:"1.5px solid var(--border)",borderRadius:"var(--radius-md)",overflow:"hidden",background:"#fff"}}>
-      <button onClick={()=>onChange(Math.max(mn,value-s))} style={{width:40,height:40,border:"none",background:"var(--surface-soft)",color:"var(--ink-soft)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>-</button>
-      <div style={{flex:1,textAlign:"center",fontFamily:"DM Mono,monospace",fontSize:15,fontWeight:600,color:"var(--ink)"}}>{value}m</div>
-      <button onClick={()=>onChange(value+s)} style={{width:40,height:40,border:"none",background:"var(--surface-soft)",color:"var(--ink-soft)",fontSize:20,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
-    </div>
-  );
-}
-
 // Same stopwatch mark as LoadingScreen (the app's own loading-screen logo),
 // but the hand's rotation is controlled here rather than an infinite CSS
 // animation -- Builder spins it exactly once per activity added (forward)
@@ -1296,7 +1282,6 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const [locId,setLocId]=useState(editP?editP.locationId:((startTpl&&startTpl.locationId)||lastLocForTeam(editP?editP.teamId:defaultTeamId)));
   const [acts,setActs]=useState(editP?JSON.parse(JSON.stringify(editP.activities)):(startTpl?stripIdsForCopy(startTpl.activities):[]));
   const [expandedId,setExpandedId]=useState(null);
-  const [savedTpl,setSavedTpl]=useState(false);
   const [bottomMode,setBottomMode]=useState(null);
   const [schedDate,setSchedDate]=useState(editP?(editP.date||localDateStr()):localDateStr());
   const [schedTime,setSchedTime]=useState(editP?(editP.startTime||"16:00"):"16:00");
@@ -2962,7 +2947,7 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   </div>);
 }
 
-function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,refreshLibrary,mode}){
+function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,mode}){
   // BB layout pass: a width cap (CenteredPage's own .bb-centered-page
   // class) on the list, same treatment as PlayerProfile below -- no
   // permission-toggle/deep-link/staleness logic touched.
