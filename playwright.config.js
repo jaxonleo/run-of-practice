@@ -12,6 +12,14 @@ const baseURL = process.env.PW_BASE_URL || 'http://localhost:5173';
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
+  // One worker, always. Every spec writes to the same shared staging
+  // fixture (QA Persistent Wolves, as the QA head), so parallel files
+  // collide: builder-schedule-once counts every practice the QA head
+  // created in the last minute (other specs' practices inflated it to 3),
+  // and two live-practice specs running at once fight over the same
+  // session's control ("Read-only · has control"). fullyParallel:false
+  // alone only serializes tests *within* a file, not across files/projects.
+  workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: 'list',
   use: {
