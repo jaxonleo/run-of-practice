@@ -8,7 +8,10 @@ import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { createSingleFlight } from "./singleFlight.js";
 import { setSentryUser } from "./sentry.js";
-import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, savePracticeTree, saveTemplateTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchNotesForPlayer, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed, adoptBenchmarkForTeam, checkCanViewGoals } from "./supabase.js";
+import { setEntitlementAnalyticsUser, clearEntitlementsCache, useEntitlements, useTeamEntitlements, underLimit } from "./entitlements.js";
+import { EntitlementLockedMessage } from "./components/EntitlementNotice.jsx";
+import { catalogIdForError } from "./upsellCatalog.js";
+import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, savePracticeTree, saveTemplateTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchPlayerNotes, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed, adoptBenchmarkForTeam, checkCanViewGoals, canCreatePersonalTemplate } from "./supabase.js";
 import { uid, fmt12, sumMins, isHeadCoach, canManageTeamInMode, canPlanTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, hasVisibleComponentTypesPref, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES } from "./constants.js";
 import { TwoPane } from "./components/BBShells.jsx";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
@@ -598,12 +601,20 @@ export default function App(){
     return ()=>sub.unsubscribe();
   },[]);
   const coachId=session?session.user.id:null;
+  // Warm the signed-in coach's plan map once, so UX pre-checks (T1, L1, L3)
+  // have it before a modal or screen first asks; everything that reads it
+  // shares this one cached RPC.
+  useEntitlements(!!session);
   // Tie every Sentry error/replay/trace to the signed-in coach (cleared on
   // sign-out). session is undefined while loading -- only act on a resolved
   // value.
   useEffect(()=>{
     if(session===undefined)return;
     setSentryUser(session?session.user:null);
+    // Upsell analytics attribute to the signed-in coach; cached plan data
+    // never carries over from a previous account on this device.
+    setEntitlementAnalyticsUser(session?session.user.id:null);
+    if(!session)clearEntitlementsCache();
   },[session]);
   // Real-usage feedback: silently clearing deactivated_at on sign-in (no
   // prompt at all) was surprising -- a coach signed back in, went to check
@@ -1241,6 +1252,10 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   useEffect(()=>{if(startTemplateId&&setStartTemplateId)setStartTemplateId(null);},[]);
   const [existingId,setExistingId]=useState(editP?editP.id:null);
   const [runError,setRunError]=useState("");
+  // Packaging Phase C (L3): Builder's Save as Template. Pre-checked when the
+  // template panel opens (UX only, fails open) and mapped from the server's
+  // ENTITLEMENT_LIMIT:library.personal_templates refusal on save.
+  const [tplSaveError,setTplSaveError]=useState(null);
   // Which save-style action is running ("save" | "run" | "schedule" |
   // "template"), or null. Shared by every action that writes the practice
   // so a second click -- on the same button or a different one -- can't
@@ -1947,7 +1962,9 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   });
   const doSaveTpl=tname=>runOnce("template",async()=>{
     if(!tname.trim())return;
-    await saveTemplateTree(coachId,null,{name:tname,sport:teamSport,locationId:locId,prePracticeNotes,activities:acts});
+    setTplSaveError(null);
+    const {data:created,error}=await saveTemplateTree(coachId,null,{name:tname,sport:teamSport,locationId:locId,prePracticeNotes,activities:acts});
+    if(error&&!created){setTplSaveError(catalogIdForError(error)==="L3"?<EntitlementLockedMessage catalogId="L3"/>:"Couldn't save the template. Try again.");return;}
     await refreshPlanning();
     setBottomMode("done_tpl");
     setTimeout(()=>setBottomMode(null),2000);
@@ -2048,12 +2065,15 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:8}}>Save this practice as...</div>
         <div className="brow">
           <button className="btn ghost bsm" onClick={()=>setBottomMode(null)}>Cancel</button>
-          <button className="btn outline bsm" style={{flex:1}} onClick={()=>{setTplName("");setBottomMode("template");}}>Template</button>
+          <button className="btn outline bsm" style={{flex:1}} onClick={()=>{setTplName("");setTplSaveError(null);setBottomMode("template");canCreatePersonalTemplate().then(ok=>{if(!ok)setTplSaveError(<EntitlementLockedMessage catalogId="L3"/>);});}}>Template</button>
           <button className="btn primary bsm" style={{flex:1}} onClick={()=>{setBottomMode(null);setSchedSuccess(false);setSchedError("");setShowScheduleModal(true);}}>Add to Schedule</button>
         </div>
       </div>}
       {bottomMode==="template"&&<div style={{padding:"0 14px 10px"}}>
         <div className="fld mb6"><input className="inp" autoFocus placeholder="Template name..." value={tplName} onChange={e=>setTplName(e.target.value)}/></div>
+        {tplSaveError&&(typeof tplSaveError==="string"
+          ?<div style={{fontSize:12,color:"var(--danger)",marginBottom:6}}>{tplSaveError}</div>
+          :<div style={{marginBottom:6}}>{tplSaveError}</div>)}
         <div className="brow">
           <button className="btn ghost bsm" onClick={()=>setBottomMode(null)}>Cancel</button>
           <button className={"btn primary bsm"+(savingKind==="template"?" btn-working":"")} onClick={()=>doSaveTpl(tplName)} disabled={!tplName.trim()||!!savingKind} aria-busy={savingKind==="template"}>{savingKind==="template"?<><span className="btnspin" aria-hidden="true"/>Saving…</>:"Save Template"}</button>
@@ -2778,8 +2798,11 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
   // -- a new read path (fetchNotesForPlayer), not a new write path; no RLS
   // beyond "can the viewer already see this team's data," same as
   // everything else on this screen.
+  // Packaging Phase C (H3): notes from practices outside the team plan's
+  // visible history are left out and counted (never deleted).
   const [playerNotes,setPlayerNotes]=useState([]);
-  useEffect(()=>{fetchNotesForPlayer(player.id).then(setPlayerNotes);},[player.id]);
+  const [hiddenPlayerNotes,setHiddenPlayerNotes]=useState(0);
+  useEffect(()=>{fetchPlayerNotes(player.id).then(r=>{setPlayerNotes(r.notes);setHiddenPlayerNotes(r.hiddenCount);});},[player.id]);
   const playerNoteAuthor=n=>{
     if(n.authorKind==="anonymous")return (n.authorLabel||"A helper")+" · Helper";
     const c=team.coaches.find(c=>c.userId===n.createdBy);
@@ -2929,9 +2952,10 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
       </div>))}
     </div>}
 
-    {playerNotes.length>0&&<div>
+    {(playerNotes.length>0||hiddenPlayerNotes>0)&&<div>
       <div className="clbl mb8">Practice Notes</div>
       <div className="card mb10">
+        {playerNotes.length===0&&<div style={{fontSize:13,color:"var(--text-dim)",marginBottom:10}}>No notes from recent practices.</div>}
         {playerNotes.map(n=>(<div key={n.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--border)"}}>
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
             <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:2}}>{playerNoteAuthor(n)} · {new Date(n.createdAt).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</div>
@@ -2939,6 +2963,8 @@ function PlayerProfile({player:playerInit,team:teamInit,data,refreshTeams,coachI
           </div>
           <div style={{fontSize:14}}>{n.text}</div>
         </div>))}
+        {hiddenPlayerNotes>0&&<EntitlementLockedMessage catalogId="H3" role={team.ownerUserId===coachId?"head":"assistant"} teamId={team.id}
+          tokens={{hidden_count:hiddenPlayerNotes,"player first name":player.firstName}}/>}
       </div>
     </div>}
 
@@ -3005,6 +3031,11 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,mode}){
   // personal team_staff row on that specific team (org_create_team no
   // longer auto-creates one; see BUILD-STATUS).
   const canManage=canManageTeamInMode(team,coachId,mode);
+  // Packaging Phase C (T2): "Request Again" on a declined invite makes it
+  // pending again, which counts toward the team's staff cap. UX pre-check
+  // only (fails open); invite_team_staff refuses with the same code.
+  const {entitlements:rosterTeamEnts}=useTeamEntitlements(team&&!team.organizationId?team.id:null);
+  const [inviteLimitNotice,setInviteLimitNotice]=useState(false);
   const delP=async id=>{await archivePlayer(id);await refreshTeams();};
   const doRemovePlayer=async()=>{
     await delP(confirmRemovePlayer.id);
@@ -3019,7 +3050,16 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,mode}){
   // it again with the same stored fields just refreshes the existing
   // pending row (or revives a declined one) rather than creating a
   // duplicate, no separate "resend" RPC needed.
-  const resendInvite=async inv=>{await inviteTeamStaff(inv.teamId,{name:inv.name,role:inv.role,inviteEmail:inv.email});await refreshTeams();};
+  const resendInvite=async inv=>{
+    setInviteLimitNotice(false);
+    if(inv.status!=="pending"&&team){
+      const count=team.coaches.filter(c=>c.userId!==team.ownerUserId).length+(team.invites||[]).filter(i=>i.status==="pending").length;
+      if(!underLimit("teams.assistants",count,rosterTeamEnts)){setInviteLimitNotice(true);return;}
+    }
+    const r=await inviteTeamStaff(inv.teamId,{name:inv.name,role:inv.role,inviteEmail:inv.email});
+    if(r&&r.error&&catalogIdForError(r.error)==="T2"){setInviteLimitNotice(true);return;}
+    await refreshTeams();
+  };
   const clearInvite=async id=>{await cancelTeamInvite(id);await refreshTeams();};
   const sorted=team?[...team.players].sort((a,b)=>{
     let av,bv;
@@ -3146,6 +3186,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,mode}){
             ever respond" at a glance, per direct feedback that a silently-
             added assistant was confusing. */}
         {(team.invites||[]).length>0&&(<div className="sechdr mb8" style={{marginTop:16}}><span className="sectitle" style={{fontSize:13,color:"var(--text-dim)"}}>Pending Invites</span></div>)}
+        {inviteLimitNotice&&<div style={{marginBottom:8}}><EntitlementLockedMessage catalogId="T2" role={team.ownerUserId===coachId?"head":"assistant"} teamId={team.id}/></div>}
         {(team.invites||[]).map(inv=>(<div key={inv.id} className="li" style={{position:"relative"}}>
           <div className="lim"><div className="lin">{inv.name}</div><div className="limt">{inv.role} · {inv.status==="pending"?"Invite pending":"Declined"} ({inv.email})</div></div>
           {canManage&&<button className="ell-btn" aria-label={"Options for "+inv.name} onClick={e=>{

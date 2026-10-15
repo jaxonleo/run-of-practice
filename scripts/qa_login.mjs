@@ -1,5 +1,7 @@
-// Reusable QA session minting for the two persistent Run of Practice test
-// accounts (ropqa-head@example.com / ropqa-asst@example.com). Run any time
+// Reusable QA session minting for the persistent Run of Practice test
+// accounts (ropqa-head@example.com / ropqa-asst@example.com, plus the
+// staging-only ropqa-free@example.com Free-plan head coach added 2026-10-14
+// for packaging QA -- it exists only on staging, so it is skipped elsewhere). Run any time
 // you need fresh tokens for these accounts -- their underlying data (teams,
 // roster, drills) persists across sessions, only the auth session expires.
 // Defaults to production; pass PROJECT_REF (plus the matching service-role
@@ -26,6 +28,7 @@ const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { autoRefreshToken: fa
 const emails = {
   head: 'ropqa-head@example.com',
   asst: 'ropqa-asst@example.com',
+  free: 'ropqa-free@example.com',
 };
 
 async function mint(email) {
@@ -39,6 +42,12 @@ async function mint(email) {
 
 const head = await mint(emails.head);
 const asst = await mint(emails.asst);
+// Never minted against production: a magic-link mint can create the
+// account if it does not exist, and this fixture must never exist there.
+let free = null;
+if (PROJECT_REF !== PROD_PROJECT_REF) {
+  try { free = await mint(emails.free); } catch { console.error('ropqa-free not present on this project; skipped'); }
+}
 
 console.error(`localStorage key for this project: sb-${PROJECT_REF}-auth-token`);
-console.log(JSON.stringify({ head, asst }, null, 2));
+console.log(JSON.stringify({ head, asst, free }, null, 2));

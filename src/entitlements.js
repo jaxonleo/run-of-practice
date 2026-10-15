@@ -7,14 +7,12 @@
 // (supabase/migrations/20260918000400_entitlement_resolution_functions.sql);
 // this file is just a thin, cached reader of get_my_entitlements()'s result.
 //
-// Not wired into any screen yet, on purpose -- this is Phase 2 of the
-// handoff's own sequencing (schema + resolution engine). Phase 3 wires a
-// few representative real features through useEntitlements()/can() below;
-// until then this stays real, callable, and unused, same as the scaffolding
-// it replaces was for its first two months.
+// Packaging Phase C (2026-10-14) added the team-scoped reader
+// (useTeamEntitlements), the display gates (upsellCtasVisible), and
+// analytics logging below; copy lives in upsellCatalog.js.
 
 import { useEffect, useState, useCallback } from "react";
-import { fetchMyEntitlements } from "./supabase.js";
+import { fetchMyEntitlements, fetchTeamEntitlements, logEntitlementEvent } from "./supabase.js";
 
 // Global product/marketing copy-display state -- what the pricing page
 // says, not per-subject entitlement data. Unrelated to the resolution
@@ -47,6 +45,7 @@ export function clearEntitlementsCache() {
   _cache = null;
   _inflight = null;
   _notify();
+  clearTeamEntitlementsCache();
 }
 
 async function _load(force) {
@@ -98,4 +97,108 @@ export function can(featureKey, entitlementsMap = _cache) {
     limitValue: entry.limit_value,
     source: entry.source,
   };
+}
+
+// ── Team-scoped entitlements (packaging Phase C, 2026-10-14) ───────────────
+// Features resolve from the team's owning subject (the owner for a personal
+// team, the org for an org team), never the viewer, so an assistant on a Pro
+// coach's team sees Pro there. useEntitlements() above stays for
+// user-scoped caps (teams owned, drills, templates). Cached per team for the
+// session; refreshTeamEntitlements() after any plan change.
+const _teamCache = new Map();     // teamId -> map
+const _teamInflight = new Map();  // teamId -> promise
+const _teamSubscribers = new Set();
+
+export function clearTeamEntitlementsCache() {
+  _teamCache.clear();
+  _teamInflight.clear();
+  for (const fn of _teamSubscribers) fn();
+}
+
+function _loadTeam(teamId, force) {
+  if (!teamId) return Promise.resolve(null);
+  if (!force && _teamCache.has(teamId)) return Promise.resolve(_teamCache.get(teamId));
+  if (!force && _teamInflight.has(teamId)) return _teamInflight.get(teamId);
+  const p = fetchTeamEntitlements(teamId).then((result) => {
+    _teamInflight.delete(teamId);
+    if (result) _teamCache.set(teamId, result);
+    for (const fn of _teamSubscribers) fn();
+    return result;
+  });
+  _teamInflight.set(teamId, p);
+  return p;
+}
+
+export function refreshTeamEntitlements(teamId) {
+  return _loadTeam(teamId, true);
+}
+
+export function useTeamEntitlements(teamId) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const fn = () => setTick((t) => t + 1);
+    _teamSubscribers.add(fn);
+    return () => _teamSubscribers.delete(fn);
+  }, []);
+  useEffect(() => { if (teamId) _loadTeam(teamId, false); }, [teamId]);
+  const entitlements = teamId ? _teamCache.get(teamId) || null : null;
+  const refresh = useCallback(() => _loadTeam(teamId, true), [teamId]);
+  return { entitlements, loading: !!teamId && !entitlements, refresh };
+}
+
+// Count-cap helper for UX pre-checks. Fails open: an unresolved map or a
+// null limit means "allowed", matching canCreatePersonalDrill(); the server
+// is what actually refuses.
+export function underLimit(featureKey, currentCount, entitlementsMap) {
+  const entry = entitlementsMap && entitlementsMap[featureKey];
+  if (!entry) return true;
+  if (entry.state === "locked" || entry.state === "hidden") return false;
+  if (entry.limit_value == null) return true;
+  return currentCount < entry.limit_value;
+}
+export function limitOf(featureKey, entitlementsMap) {
+  const entry = entitlementsMap && entitlementsMap[featureKey];
+  return entry && entry.state !== "locked" && entry.state !== "hidden" ? entry.limit_value : 0;
+}
+// Fails open: an unresolved map counts as full, so nothing renders as
+// locked while loading or on a transport error.
+export function isFull(featureKey, entitlementsMap) {
+  const entry = entitlementsMap && entitlementsMap[featureKey];
+  return !entry || entry.state === "full";
+}
+
+// ── Display gates ───────────────────────────────────────────────────────────
+// Limit notices and previews always show (they are functional); pricing
+// CTAs and value moments only show once billing is on, or in this browser
+// when an admin turned on the QA preview toggle on /admin/entitlements.
+const PREVIEW_KEY = "rop.upsellPreview";
+export function upsellPreviewEnabled() {
+  try { return localStorage.getItem(PREVIEW_KEY) === "1"; } catch { return false; }
+}
+export function setUpsellPreviewEnabled(on) {
+  try { if (on) localStorage.setItem(PREVIEW_KEY, "1"); else localStorage.removeItem(PREVIEW_KEY); } catch { /* storage blocked */ }
+}
+export function upsellCtasVisible() {
+  return FEATURE_FLAGS.BILLING_ENABLED || upsellPreviewEnabled();
+}
+
+// ── Analytics (entitlement_events) ──────────────────────────────────────────
+// App.jsx sets the signed-in user once; components then log by catalog ID
+// without threading a user id through every screen. Logged at most once per
+// (event, catalog, team) per page load for impressions, so a re-render
+// never inflates counts; clicks and dismissals always log.
+let _analyticsUserId = null;
+const _loggedImpressions = new Set();
+export function setEntitlementAnalyticsUser(userId) {
+  _analyticsUserId = userId || null;
+  _loggedImpressions.clear();
+}
+export function logUpsellEvent(event, catalogId, { teamId, featureKey } = {}) {
+  if (!_analyticsUserId) return;
+  if (event === "limit_hit" || event === "preview_view" || event === "moment_shown") {
+    const key = event + "|" + catalogId + "|" + (teamId || "");
+    if (_loggedImpressions.has(key)) return;
+    _loggedImpressions.add(key);
+  }
+  logEntitlementEvent({ userId: _analyticsUserId, teamId, event, catalogId, featureKey });
 }

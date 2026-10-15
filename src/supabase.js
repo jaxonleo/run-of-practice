@@ -286,6 +286,13 @@ export async function acceptTeamInvite(inviteId) {
   if (error) console.error('acceptTeamInvite:', error)
   return { error }
 }
+// T2a copy ("Ask [head coach first name] to make room"). Falls back to a
+// neutral phrase rather than failing the notice.
+export async function fetchTeamInviteHeadCoachName(inviteId) {
+  const { data, error } = await supabase.rpc('get_team_invite_head_coach_name', { p_invite_id: inviteId })
+  if (error) { console.error('fetchTeamInviteHeadCoachName:', error); return 'the head coach' }
+  return data || 'the head coach'
+}
 export async function declineTeamInvite(inviteId) {
   const { error } = await supabase.rpc('decline_team_invite', { p_invite_id: inviteId })
   if (error) console.error('declineTeamInvite:', error)
@@ -1618,16 +1625,19 @@ export async function archiveNote(id) {
   if (error) console.error('archiveNote:', error)
   return { error }
 }
-// Reverse-chron via note_player_tags -> notes (PlayerProfile, §2.4) -- a
-// to-one embed off the join table, not a second query per note.
+// Reverse-chron player notes via get_player_notes (packaging Phase B):
+// on a team whose plan caps history, notes from practices outside the
+// visible history are left out and counted in hiddenCount instead (never
+// deleted). fetchNotesForPlayer keeps its old array shape for callers that
+// do not show the hidden count (the live session's player panel).
+export async function fetchPlayerNotes(playerId) {
+  const { data, error } = await supabase.rpc('get_player_notes', { p_player_id: playerId })
+  if (error) { console.error('fetchPlayerNotes:', error); return { notes: [], hiddenCount: 0 } }
+  const notes = ((data && data.notes) || []).map(n => ({ id: n.id, practiceId: n.practice_id, practiceActivityId: n.practice_activity_id, stationId: n.station_id, text: n.text, authorKind: n.author_kind, authorLabel: n.author_label, createdBy: n.created_by, createdAt: n.created_at }))
+  return { notes, hiddenCount: (data && data.hidden_count) || 0 }
+}
 export async function fetchNotesForPlayer(playerId) {
-  const { data, error } = await supabase.from('note_player_tags')
-    .select('notes(id, practice_id, practice_activity_id, station_id, text, author_kind, author_label, created_by, created_at, archived_at)')
-    .eq('player_id', playerId)
-  if (error) { console.error('fetchNotesForPlayer:', error); return [] }
-  return data.map(r => r.notes).filter(n => n && !n.archived_at)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .map(n => ({ id: n.id, practiceId: n.practice_id, practiceActivityId: n.practice_activity_id, stationId: n.station_id, text: n.text, authorKind: n.author_kind, authorLabel: n.author_label, createdBy: n.created_by, createdAt: n.created_at }))
+  return (await fetchPlayerNotes(playerId)).notes
 }
 
 export async function fetchTemplatesFull() {
@@ -2360,6 +2370,40 @@ export async function canCreatePersonalDrill() {
   const { data, error } = await supabase.rpc('can_create_personal_drill')
   if (error) { console.error('canCreatePersonalDrill:', error); return true } // fail open -- the RLS policy is still the real gate either way
   return !!data
+}
+// Packaging Phase C (2026-10-14). Same convention as canCreatePersonalDrill:
+// client checks are UX only and fail open; the server's cap triggers and
+// RPC guards are the real gate and refuse with ENTITLEMENT_* codes.
+export async function canCreatePersonalTemplate() {
+  const { data, error } = await supabase.rpc('can_create_personal_template')
+  if (error) { console.error('canCreatePersonalTemplate:', error); return true }
+  return !!data
+}
+// The resolved feature map for a team's owning subject (the owner, or the
+// org), so an assistant sees the team's plan rather than their own.
+export async function fetchTeamEntitlements(teamId) {
+  const { data, error } = await supabase.rpc('get_team_entitlements', { p_team_id: teamId })
+  if (error) { console.error('fetchTeamEntitlements:', error); return null }
+  return data
+}
+export async function fetchTeamHistoryHiddenCount(teamId) {
+  const { data, error } = await supabase.rpc('get_team_history_hidden_count', { p_team_id: teamId })
+  if (error) { console.error('fetchTeamHistoryHiddenCount:', error); return 0 }
+  return data || 0
+}
+// Fails open (visible) so a transport error never hides a practice.
+export async function checkPracticeHistoryVisible(practiceId) {
+  const { data, error } = await supabase.rpc('practice_history_visible', { p_practice_id: practiceId })
+  if (error) { console.error('checkPracticeHistoryVisible:', error); return true }
+  return data !== false
+}
+// Insert-only upsell analytics. Fire-and-forget: a failed log never
+// affects the screen that triggered it.
+export function logEntitlementEvent({ userId, teamId, event, catalogId, featureKey }) {
+  if (!userId || !event) return
+  supabase.from('entitlement_events').insert({
+    user_id: userId, team_id: teamId || null, event, catalog_id: catalogId || null, feature_key: featureKey || null,
+  }).then(({ error }) => { if (error) console.error('logEntitlementEvent:', error) })
 }
 // Admin-only (is_admin() re-checked server-side inside every RPC below) --
 // the write surface for the future QA entitlement simulator (handoff §6).

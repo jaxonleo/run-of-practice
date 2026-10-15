@@ -5,6 +5,8 @@ import { createTeam, orgCreateTeam, updateTeam, archiveTeam, setTeamLocations, c
 import { AutoTextarea, EquipmentPickerPill, equipmentPickerAssets } from "./ActivityConfigs.jsx";
 import { LocationChips } from "./NewLibraryScreen.jsx";
 import { EntitlementLockedMessage } from "./EntitlementNotice.jsx";
+import { useEntitlements, useTeamEntitlements, underLimit } from "../entitlements.js";
+import { catalogIdForError, parseEntitlementError } from "../upsellCatalog.js";
 
 const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
 const STAFF_ROLES=["Head Coach","Assistant Coach"];
@@ -256,6 +258,26 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
   const teamAddRef=useRef(false);
   const [teamAddBusyId,setTeamAddBusyId]=useState(null);
   const [addedCoachInfo,setAddedCoachInfo]=useState(null);
+  // Packaging Phase C: UX-only pre-checks for the two caps this modal can
+  // hit (T1 personal teams, T2 rostered staff). They fail open while plan
+  // data loads; the server's cap triggers are the real gate, and a refusal
+  // that slips past is mapped to the same catalog notice in save() below.
+  const {entitlements:myEnts}=useEntitlements(!!coachId);
+  const addTeamPersonal=modal.type==="addTeam"&&!(modal.payload&&modal.payload.organizationId);
+  const ownedPersonalTeams=(data.teams||[]).filter(t=>t.ownerUserId===coachId&&!t.organizationId).length;
+  const teamAtCap=addTeamPersonal&&!underLimit("teams.personal_count",ownedPersonalTeams,myEnts);
+  const coachTeam=modal.type==="addCoach"?(data.teams||[]).find(t=>t.id===modal.payload.teamId):null;
+  const {entitlements:coachTeamEnts}=useTeamEntitlements(coachTeam&&!coachTeam.organizationId?coachTeam.id:null);
+  const staffCount=coachTeam?coachTeam.coaches.filter(c=>c.userId!==coachTeam.ownerUserId).length+(coachTeam.invites||[]).filter(i=>i.status==="pending").length:0;
+  const staffAtCap=!!coachTeam&&!underLimit("teams.assistants",staffCount,coachTeamEnts);
+  const roleOn=team=>team&&team.ownerUserId===coachId?"head":"assistant";
+  const entitlementNotice=(error,team,tokens)=>{
+    const id=catalogIdForError(error);
+    if(!id)return null;
+    const parsed=parseEntitlementError(error)||{};
+    return <EntitlementLockedMessage catalogId={id} role={team?roleOn(team):"head"} teamId={team?team.id:null}
+      tokens={Object.assign({n:parsed.currentCount,limit:parsed.limit},tokens)} onSecondary={id==="T1"?closeModal:undefined}/>;
+  };
   const [staffSuggestions,setStaffSuggestions]=useState([]);
   useEffect(()=>{
     if(modal.type==="addCoach")fetchStaffSuggestions(coachId,modal.payload.teamId).then(setStaffSuggestions);
@@ -284,13 +306,18 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
     if(t==="addTeam"){
       if(!f.name)return;
       const teamFields={name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||nextTeamColor(data.teams)};
-      if(p&&p.organizationId)await orgCreateTeam(p.organizationId,teamFields);
-      else await createTeam(coachId,teamFields);
+      const r=(p&&p.organizationId)?await orgCreateTeam(p.organizationId,teamFields):await createTeam(coachId,teamFields);
+      if(r&&r.error){setSaveError(entitlementNotice(r.error)||"Couldn't create the team. Try again.");return;}
       await refreshTeams();
     }
     if(t==="editTeam"){if(!f.name)return;await updateTeam(p.team.id,{name:f.name,sport:f.sport||"Basketball",colorPrimary:f.colorPrimary||p.team.colorPrimary});await setTeamLocations(p.team.id,f.locationIds||[]);await refreshTeams();}
     if(t==="addPlayer"){if(!f.firstName)return;res=await createPlayer(p.teamId,{firstName:f.firstName,lastName:f.lastName||"",jersey:f.jersey||"",positions:f.positions||[],bats:f.bats||"",throws:f.throws||"",notes:f.notes||""});if(!res.error)await refreshTeams();}
-    if(t==="addCoach"){if(!f.name||!f.inviteEmail)return;await inviteTeamStaff(p.teamId,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail});await refreshTeams();}
+    if(t==="addCoach"){
+      if(!f.name||!f.inviteEmail)return;
+      const r=await inviteTeamStaff(p.teamId,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail});
+      if(r&&r.error){setSaveError(entitlementNotice(r.error,coachTeam)||"Couldn't send the invite. Try again.");return;}
+      await refreshTeams();
+    }
     if(t==="editCoach"){if(!f.name)return;if(!coach.userId&&!f.inviteEmail)return;await updateStaff(p.coach.id,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail||""});await refreshTeams();}
     if(t==="editInvite"){if(!f.name||!f.inviteEmail)return;await editTeamInvite(p.invite.id,{name:f.name,role:f.role||"Assistant Coach",inviteEmail:f.inviteEmail});await refreshTeams();}
     if(t==="addLocation"){
@@ -337,7 +364,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
       // parsing whatever generic RLS-violation text comes back, which
       // can't be told apart from any other RLS rejection.
       if(!isPublicLibraryAdd&&!(await canCreatePersonalDrill())){
-        setSaveError(<EntitlementLockedMessage message="You've reached your plan's personal drill library limit."/>);
+        setSaveError(<EntitlementLockedMessage catalogId="L2"/>);
         return;
       }
       const payload={
@@ -367,7 +394,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
     // row, so retrying can't produce a duplicate the way the old
     // insert-then-link path did. Surface the real Postgres/RLS message
     // rather than a canned one.
-    if(res&&res.error){setSaveError((res.error.message||"Something went wrong")+". Nothing was saved -- adjust and try again.");return;}
+    if(res&&res.error){setSaveError(entitlementNotice(res.error)||((res.error.message||"Something went wrong")+". Nothing was saved -- adjust and try again."));return;}
     if(t==="addCoach"){setAddedCoachInfo({name:f.name,email:f.inviteEmail});}else{closeModal();}
     }finally{savingRef.current=false;setSaving(false);}
   };
@@ -384,6 +411,8 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
         <div className="mhandle"/>
         <div className="mtitle">{addedCoachInfo?"Invite Sent":(TITLES[modal.type]||"Add")}</div>
         {sublocationLocation&&<div style={{fontSize:13,color:"var(--text-dim)",marginTop:-8,marginBottom:12}}>for {sublocationLocation.name}</div>}
+        {!addedCoachInfo&&teamAtCap&&<div style={{marginBottom:12}}><EntitlementLockedMessage catalogId="T1" role="head" onSecondary={closeModal}/></div>}
+        {!addedCoachInfo&&staffAtCap&&<div style={{marginBottom:12}}><EntitlementLockedMessage catalogId="T2" role={roleOn(coachTeam)} teamId={coachTeam.id}/></div>}
         {addedCoachInfo&&<div className="fld"><div style={{fontSize:14,lineHeight:1.5}}>{addedCoachInfo.name} will get an email at {addedCoachInfo.email} to accept or decline. You can see the status of this invite on your Coaches screen.</div></div>}
         {sublocationLocation&&(()=>{
           const others=(sublocationLocation.sublocations||[]).filter(s=>!sublocation||s.id!==sublocation.id);
@@ -611,7 +640,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
         {saveError&&(typeof saveError==="string"
           ?<div style={{fontSize:13,color:"var(--danger)",marginTop:4}}>{saveError}</div>
           :<div style={{marginTop:4}}>{saveError}</div>)}
-        <div className="mfooter">{addedCoachInfo?<button className="btn primary bmd" style={{flex:1}} onClick={closeModal}>Got it</button>:(<React.Fragment><button className="btn ghost bmd" onClick={closeModal} disabled={saving}>Cancel</button><button className="btn primary bmd" onClick={save} disabled={saving}>{saving?"Saving...":"Save"}</button></React.Fragment>)}</div>
+        <div className="mfooter">{addedCoachInfo?<button className="btn primary bmd" style={{flex:1}} onClick={closeModal}>Got it</button>:(<React.Fragment><button className="btn ghost bmd" onClick={closeModal} disabled={saving}>Cancel</button><button className="btn primary bmd" onClick={save} disabled={saving||teamAtCap||staffAtCap}>{saving?"Saving...":"Save"}</button></React.Fragment>)}</div>
       </div>
     </div>
   );

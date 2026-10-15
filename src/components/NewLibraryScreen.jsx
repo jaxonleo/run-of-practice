@@ -4,7 +4,9 @@ import { uid, sumMins, localDateStr, planningState, teamsForMode, menuNeedsToOpe
 import { ActConfig, ChecklistConfig, StationConfig, ScrimmageConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
 import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, renameSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, archiveSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport, createBenchmark, createBenchmarkVersion, correctBenchmarkVersionWording, archiveBenchmark, restoreBenchmark, adoptBenchmarkForTeam, fetchBenchmarkAssessments, canCreatePersonalDrill } from "../supabase.js";
-import { EntitlementLockedMessage } from "./EntitlementNotice.jsx";
+import { EntitlementLockedMessage, UsageMeter } from "./EntitlementNotice.jsx";
+import { catalogIdForError, catalogCopy } from "../upsellCatalog.js";
+import { useEntitlements, limitOf } from "../entitlements.js";
 import { METRIC_META, displayDecimals } from "../benchmarks.js";
 import { MeasureAgainModal } from "./BenchmarkReport.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
@@ -705,8 +707,18 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
     return()=>window.removeEventListener("beforeunload",onBeforeUnload);
   },[dirty]);
 
+  // Packaging Phase C (L3): a new personal template past the plan's cap is
+  // refused server-side (ENTITLEMENT_LIMIT:library.personal_templates).
+  // Both saves used to report success regardless; now a refusal shows the
+  // catalog notice and any other failure says so plainly.
+  const [tplError,setTplError]=useState(null);
+  const templateSaveError=error=>catalogIdForError(error)==="L3"
+    ?<EntitlementLockedMessage catalogId="L3"/>
+    :"Couldn't save the template. Try again.";
   const handleSave=async()=>{
-    const {data:saved}=await saveTemplateTree(coachId,existingId,{name,sport,locationId:locId,teamId,activities:acts});
+    setTplError(null);
+    const {data:saved,error}=await saveTemplateTree(coachId,existingId,{name,sport,locationId:locId,teamId,activities:acts});
+    if(error&&!saved){setTplError(templateSaveError(error));return;}
     if(saved)setExistingId(saved.id);
     savedSnapshotRef.current=snapshot();
     setDirty(false);
@@ -717,7 +729,9 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
 
   const handleSaveAsNew=async()=>{
     if(!newTplName.trim())return;
-    await saveTemplateTree(coachId,null,{name:newTplName.trim(),sport,locationId:locId,teamId,activities:acts});
+    setTplError(null);
+    const {data:created,error}=await saveTemplateTree(coachId,null,{name:newTplName.trim(),sport,locationId:locId,teamId,activities:acts});
+    if(error&&!created){setTplError(templateSaveError(error));return;}
     await refreshPlanning();
     setSavedMsg("Saved as \""+newTplName.trim()+"\"!");
     setShowNewTpl(false);setNewTplName("");
@@ -919,6 +933,9 @@ export function TemplateWorkspace({data,template,onBack,openModal,coachId,refres
 
     {/* Saved confirmation */}
     {savedMsg&&<div style={{textAlign:"center",padding:"10px",color:"var(--field)",fontWeight:700,fontSize:14}}>{savedMsg}</div>}
+    {tplError&&(typeof tplError==="string"
+      ?<div style={{fontSize:13,color:"var(--danger)",margin:"8px 0"}}>{tplError}</div>
+      :<div style={{margin:"8px 0"}}>{tplError}</div>)}
 
     {/* Save as new template */}
     {showNewTpl&&<div className="card mt10">
@@ -1775,7 +1792,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const runCopy=async(drill,createMissingEquipment)=>{
     if(!isOrgMode&&!(await canCreatePersonalDrill())){
       setCopyDialogDrill(null);
-      setCopyError(e=>({...e,[drill.id]:<EntitlementLockedMessage message="You've reached your plan's personal drill library limit."/>}));
+      setCopyError(e=>({...e,[drill.id]:<EntitlementLockedMessage catalogId="L2"/>}));
       return;
     }
     setCopyingId(drill.id);
@@ -1796,6 +1813,17 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   // templates didn't really exist yet; now that Org mode is a real
   // destination for those, Coach mode needs to actually exclude them.)
   const templates=(data.templates||[]).filter(t=>isOrgMode?t.organizationId===mode.orgId:t.ownerUserId===coachId);
+  // Packaging Phase C: the L1 meter (shown at 75% of the personal drill
+  // cap, i.e. 15 of 20) and the L3 pre-check on "+ New Template". Personal
+  // caps only, so Org mode never shows either. UX only; the server's cap
+  // triggers refuse the write either way.
+  const {entitlements:myEnts}=useEntitlements(!!coachId);
+  const drillLimit=isOrgMode?null:limitOf("library.personal_drills",myEnts);
+  const myDrillCount=(data.activityLibrary||[]).filter(a=>a.ownerUserId===coachId&&!a.organizationId).length;
+  const showDrillMeter=drillLimit!=null&&drillLimit>0&&myDrillCount>=Math.ceil(drillLimit*0.75);
+  const tplLimit=isOrgMode?null:limitOf("library.personal_templates",myEnts);
+  const tplAtCap=tplLimit!=null&&templates.length>=tplLimit;
+  const [tplLimitNotice,setTplLimitNotice]=useState(false);
   const fmtShort=iso=>iso?new Date(iso).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):null;
   // Templates snapshot drill fields at add-time and don't carry their own
   // skillTagIds -- same lookup-through-libraryId approach as the drill rows
@@ -1850,6 +1878,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       {mineTab==="drills"&&<div className="segtrack" style={{marginTop:10}}>
         {[{k:"mine",label:isOrgMode?"Org Drills":"My Drills"},{k:"explore",label:"Explore"}].map(t=>(<button key={t.k} className={"seg2"+(section===t.k?" on":"")} onClick={()=>goSection(t.k)}>{t.label}</button>))}
       </div>}
+      {mineTab==="drills"&&section==="mine"&&showDrillMeter&&<UsageMeter style={{marginTop:10}} used={myDrillCount} limit={drillLimit} label={catalogCopy("L1","head",{n:myDrillCount})}/>}
     </div>
     {mineTab==="benchmarks"&&<div style={{padding:"0 16px"}}><BenchmarksTab data={data} coachId={coachId} mode={mode} refreshLibrary={refreshLibrary} fromDrill={benchmarkFromDrill} clearFromDrill={()=>setBenchmarkFromDrill(null)}/></div>}
     {mineTab==="locations"&&<div style={{padding:"0 16px"}}><LocationsSection data={data} openModal={openModal} refreshPlanning={refreshPlanning} coachId={coachId} mode={mode}/></div>}
@@ -2083,7 +2112,8 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       </>)}
     </div>}
     {mineTab==="templates"&&<div style={{padding:"0 16px"}}>
-      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn primary bsm" onClick={()=>{setNewTplNameDraft("");setNewTplPrompt(true);}}>+ New Template</button></div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn primary bsm" onClick={()=>{if(tplAtCap){setTplLimitNotice(true);return;}setNewTplNameDraft("");setNewTplPrompt(true);}}>+ New Template</button></div>
+      {tplLimitNotice&&tplAtCap&&<div style={{marginBottom:12}}><EntitlementLockedMessage catalogId="L3"/></div>}
       {newTplPrompt&&<div className="movly" onClick={()=>setNewTplPrompt(false)}><div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="mtitle">Name your template</div>
         <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder="e.g. Tuesday Skills Day" value={newTplNameDraft} onChange={e=>setNewTplNameDraft(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createNewTpl()}/></div>

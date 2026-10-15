@@ -6,6 +6,7 @@ import {
   fetchEntitlementBundles, fetchFeatureRegistry,
   fetchEntitlementSettings, adminSetFoundingCutoff,
 } from "../supabase.js";
+import { upsellPreviewEnabled, setUpsellPreviewEnabled } from "../entitlements.js";
 
 // Entitlement architecture, Phase 5 (handoff §6 -- "a practical way for
 // development and QA to simulate different entitlement states"). Sits
@@ -52,6 +53,7 @@ export default function EntitlementAdminScreen() {
   const [settings, setSettings] = useState(null);
   const [cutoffInput, setCutoffInput] = useState("");
   const [cutoffError, setCutoffError] = useState("");
+  const [previewOn, setPreviewOn] = useState(upsellPreviewEnabled());
 
   const loadSettings = useCallback(() => fetchEntitlementSettings().then(st => {
     setSettings(st);
@@ -121,6 +123,17 @@ export default function EntitlementAdminScreen() {
           {settings && settings.founding_cohort_cutoff && <button className="btn ghost bsm" onClick={() => saveCutoff(null)}>Clear</button>}
         </div>
         {cutoffError && <div style={{ fontSize: 13, color: "var(--danger)", marginTop: 8 }}>{cutoffError}</div>}
+      </Card>
+
+      <Card>
+        <SectionTitle>Upsell preview (this browser)</SectionTitle>
+        <div style={{ fontSize: 12.5, color: "var(--text-dim)", marginBottom: 8 }}>
+          While billing is off, pricing buttons and value moments are hidden for everyone. Turn this on to see them in this browser only, for QA. Limit notices and previews always show either way.
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 700 }}>
+          <input type="checkbox" checked={previewOn} onChange={e => { setUpsellPreviewEnabled(e.target.checked); setPreviewOn(e.target.checked); }} />
+          Show upsell buttons and value moments here
+        </label>
       </Card>
 
       <Card>

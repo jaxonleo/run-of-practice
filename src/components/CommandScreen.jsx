@@ -6,12 +6,14 @@ import { uid, fmt, fmt12, actSecs, sumMins, rebalanceKeep, rebalanceEven, reconc
 import AttendanceTimeline from "./AttendanceTimeline.jsx";
 import PlanItemDetails from "./PlanItemDetails.jsx";
 import { SessionHistoryDetail } from "./GoalsScreen.jsx";
-import { savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, saveSessionScrimmageBoard, fetchLatestScrimmageBoard, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, fetchPracticeRunStatus, fetchTeamSessionHistory, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
+import { checkPracticeHistoryVisible, savePracticeTree, saveTemplateTree, fetchPracticesFull, findActiveLiveSession, startOrJoinLiveSession, updateLiveSession, takeControl, subscribeToLiveSession, submitOperation, submitAttendanceSnapshot, fetchLatestAttendance, saveSessionGroups, fetchLatestGroups, saveSessionScrimmageBoard, fetchLatestScrimmageBoard, openActivityLog, closeActivityLog, deleteActivityLog, findOpenActivityLogId, createHelperShareToken, getPreviewByToken, getLiveSessionByToken, linkPreviewToLiveSession, submitHelperAttendanceByToken, fetchPlannedAbsences, fetchNotesForPractice, fetchNotesForPlayer, fetchPracticeActualStart, fetchPracticeRunStatus, fetchTeamSessionHistory, createNote, updateStationLead, updateActivityLead, submitPracticeNoteByToken, archiveNote, subscribeToPracticePresence, teamLocalToScheduledAt, findOrCreatePreviewToken, updateDrill, findMissingEquipment, resolveDrillEquipmentForCoach, toggleSetupPresence } from "../supabase.js";
 import { ActConfig, ChecklistConfig, StationConfig, useActivityDnd, ActivityDndContext, SortableActivityRow } from "./ActivityConfigs.jsx";
 import { SkillTagPicker } from "./ModalLayer.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
 import BenchmarkLivePanel from "./BenchmarkLivePanel.jsx";
+import { EntitlementLockedMessage } from "./EntitlementNotice.jsx";
+import { catalogIdForError } from "../upsellCatalog.js";
 
 // ── Local icon subset ──────────────────────────────────────────────────────────
 const Ic={
@@ -1089,7 +1091,20 @@ function HistoryViewer({data,practice,onRunAgain,onBack,coachId,refreshPlanning,
     });
     return ()=>{cancelled=true;};
   },[practice.id,teamId,canViewGoals]);
-  if(session===undefined)return (<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)"}}>Loading...</div>);
+  // Packaging Phase C (H2): a practice whose completed runs are all older
+  // than the team plan's visible history is saved but not browsable. Fails
+  // open (visible) on a transport error.
+  const [historyVisible,setHistoryVisible]=useState(undefined);
+  useEffect(()=>{
+    let cancelled=false;
+    checkPracticeHistoryVisible(practice.id).then(v=>{if(!cancelled)setHistoryVisible(v);});
+    return ()=>{cancelled=true;};
+  },[practice.id]);
+  if(historyVisible===false)return (<div className="bb-centered-page" style={{padding:"16px 16px 0",boxSizing:"border-box"}}>
+    <button className="btn ghost bxs" style={{marginBottom:12}} onClick={onBack}>&larr; Back</button>
+    <EntitlementLockedMessage catalogId="H2" role={team&&team.ownerUserId===coachId?"head":"assistant"} teamId={teamId}/>
+  </div>);
+  if(session===undefined||historyVisible===undefined)return (<div style={{padding:"40px 0",textAlign:"center",color:"var(--text-dim)"}}>Loading...</div>);
   // .bb-centered-page (820px max, centered) is a no-op at phone widths and
   // keeps the page from stretching edge to edge on a big browser.
   return (<div className="bb-centered-page" style={{padding:"16px 16px 0",boxSizing:"border-box"}}>
@@ -1163,7 +1178,7 @@ function PlanHistoryViewer({data,practice,team,canManage,canBuildPractices,onRun
     // Real, specific errors (RLS rejection, etc.) were being masked behind
     // a generic message -- see GoalsScreen.jsx's own Save as Template for
     // the same fix and its full reasoning.
-    if(error){setTplError(error.message?"Couldn't save: "+error.message:"Something went wrong saving. Try again.");return;}
+    if(error){setTplError(catalogIdForError(error)==="L3"?<EntitlementLockedMessage catalogId="L3"/>:(error.message?"Couldn't save: "+error.message:"Something went wrong saving. Try again."));return;}
     if(refreshPlanning)await refreshPlanning();
     setTplSaved(true);setShowTplInput(false);setTplNameInput("");
     setTimeout(()=>setTplSaved(false),2500);
@@ -1198,7 +1213,9 @@ function PlanHistoryViewer({data,practice,team,canManage,canBuildPractices,onRun
         regardless of delegated build access (Delegated Planning spec §6). */}
     {canManage&&showTplInput&&<div style={{marginBottom:8}}>
       <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder={(team?team.name:"Practice")+" Template"} value={tplNameInput} onChange={e=>{setTplNameInput(e.target.value);if(tplError)setTplError("");}} onKeyDown={e=>e.key==="Enter"&&handleSaveAsTpl()}/></div>
-      {tplError&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:6}}>{tplError}</div>}
+      {tplError&&(typeof tplError==="string"
+        ?<div style={{fontSize:12,color:"var(--danger)",marginBottom:6}}>{tplError}</div>
+        :<div style={{marginBottom:6}}>{tplError}</div>)}
       <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowTplInput(false)}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsTpl} disabled={!tplNameInput.trim()||savingTpl}>{savingTpl?"Saving...":"Save"}</button></div>
     </div>}
     {canManage&&!showTplInput&&<button className="btn ghost bmd bfull" style={{marginBottom:8}} onClick={()=>setShowTplInput(true)}>{tplSaved?"Saved as Template":"Save as Template"}</button>}

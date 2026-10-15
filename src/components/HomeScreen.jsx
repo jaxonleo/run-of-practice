@@ -2,13 +2,15 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, canPlanTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway, practiceScheduledMs, getGettingStartedHidden, setGettingStartedHidden, menuNeedsToOpenUpward, useBigBrowser } from "../constants.js";
 import { TwoPane } from "./BBShells.jsx";
-import { archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, acknowledgeStationAssignmentNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchActiveLiveSessions, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
+import { fetchTeamInviteHeadCoachName, archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, acknowledgeStationAssignmentNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchActiveLiveSessions, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
 import { DaySheet } from "./ScheduleScreen.jsx";
 import DevelopmentPulseCard from "./DevelopmentPulseCard.jsx";
 import FuturePracticeGuardModal from "./FuturePracticeGuardModal.jsx";
+import { EntitlementLockedMessage } from "./EntitlementNotice.jsx";
+import { catalogIdForError } from "../upsellCatalog.js";
 
 // §1: "35/60 min" pill. Shows for any practice with a scheduled duration,
 // planned or not -- an unplanned practice reads "0/60 min" so the gap is
@@ -635,10 +637,22 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   // anything is granted, same pattern as the org-invite card just above.
   const [respondingTeamInviteId,setRespondingTeamInviteId]=useState(null);
   const pendingTeamInvite=(data.pendingTeamInvites||[])[0]||null;
+  // Packaging Phase C (T2a): accept_team_invite re-checks the team's staff
+  // cap and refuses with ENTITLEMENT_LIMIT:teams.assistants when the team
+  // filled up after the invite went out. The invite stays pending, so the
+  // card stays and explains who to ask, with no pricing.
+  const [teamFullNotice,setTeamFullNotice]=useState(null); // {inviteId, teamName, headCoachName}
   const respondToTeamInvite=async(accept)=>{
     if(!pendingTeamInvite)return;
     setRespondingTeamInviteId(pendingTeamInvite.id);
-    if(accept)await acceptTeamInvite(pendingTeamInvite.id); else await declineTeamInvite(pendingTeamInvite.id);
+    setTeamFullNotice(null);
+    const r=accept?await acceptTeamInvite(pendingTeamInvite.id):await declineTeamInvite(pendingTeamInvite.id);
+    if(accept&&r&&r.error&&catalogIdForError(r.error)==="T2"){
+      const headCoachName=await fetchTeamInviteHeadCoachName(pendingTeamInvite.id);
+      setTeamFullNotice({inviteId:pendingTeamInvite.id,teamName:pendingTeamInvite.teamName,headCoachName});
+      setRespondingTeamInviteId(null);
+      return;
+    }
     if(refreshLibrary)await refreshLibrary();
     if(accept&&refreshTeams)await refreshTeams();
     setRespondingTeamInviteId(null);
@@ -738,6 +752,10 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
         <button className="btn primary bxs" disabled={respondingTeamInviteId === pendingTeamInvite.id} onClick={() => respondToTeamInvite(true)}>Accept</button>
         <button className="btn ghost bxs" disabled={respondingTeamInviteId === pendingTeamInvite.id} onClick={() => respondToTeamInvite(false)}>Decline</button>
       </div>
+      {teamFullNotice && teamFullNotice.inviteId === pendingTeamInvite.id && <div style={{ marginTop: 10 }}>
+        <EntitlementLockedMessage catalogId="T2a" role="assistant" teamId={pendingTeamInvite.teamId}
+          tokens={{ "Team": teamFullNotice.teamName, "head coach first name": teamFullNotice.headCoachName }} />
+      </div>}
     </div></div>}
     {pendingDeparture && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 14, marginBottom: 10 }}><strong>{pendingDeparture.departedName}</strong> ({pendingDeparture.role}) left <strong>{pendingDeparture.teamName}</strong>.</div>

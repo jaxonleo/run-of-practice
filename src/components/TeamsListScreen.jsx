@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { fetchOrgMembers, fetchOrgSentInvites, orgInviteCoach, cancelOrgInvite, updateOrganization, setOrgMemberRole, removeOrgMember, ORG_ROLE_LABELS } from "../supabase.js";
+import { fetchOrganizationEntitlements, fetchOrgMembers, fetchOrgSentInvites, orgInviteCoach, cancelOrgInvite, updateOrganization, setOrgMemberRole, removeOrgMember, ORG_ROLE_LABELS } from "../supabase.js";
 import { SPORTS, TEAM_COLORS, myTeamRole, menuNeedsToOpenUpward, useBigBrowser } from "../constants.js";
+import { UsageMeter, EntitlementLockedMessage } from "./EntitlementNotice.jsx";
 
 // Org details (Jax's ask): the Teams list itself just shows a tappable
 // org card now, no inline Edit/Add-Member buttons -- everything lives one
@@ -9,7 +10,7 @@ import { SPORTS, TEAM_COLORS, myTeamRole, menuNeedsToOpenUpward, useBigBrowser }
 // with a real role selector and removal, add-member (with role), and
 // cancel-invite. Team management (head/assistant/helper/players) stays
 // exactly where it already was -- inside each team's own Roster tab.
-function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
+function OrgDetailsView({ org, refreshLibrary, onBack, coachId, orgTeamCount }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(org.name);
   const [sports, setSports] = useState(org.sports || []);
@@ -35,6 +36,17 @@ function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
     fetchOrgSentInvites(org.id).then(setSentInvites);
   };
   useEffect(refresh, [org.id]);
+  // Packaging Phase C (O2): the contracted org team count, set per org by
+  // an org.teams override. Null = uncapped (nothing shown). Directors and
+  // admins only.
+  const [contractedTeams, setContractedTeams] = useState(null);
+  useEffect(() => {
+    if (org.role !== "director" && org.role !== "admin") return;
+    fetchOrganizationEntitlements(org.id).then(m => {
+      const e = m && m["org.teams"];
+      setContractedTeams(e && e.limit_value != null ? e.limit_value : null);
+    });
+  }, [org.id, org.role]);
   const fmtDate = iso => iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
 
   const saveOrgDetails = async () => {
@@ -75,6 +87,12 @@ function OrgDetailsView({ org, refreshLibrary, onBack, coachId }) {
 
   return (<div style={{ paddingBottom: 80 }}>
     <div style={{ padding: "12px 14px 0" }}><button className="btn ghost bxs" onClick={onBack}>&#8249; Teams</button></div>
+    {contractedTeams != null && <div style={{ padding: "12px 16px 0" }}>
+      <UsageMeter used={orgTeamCount} limit={contractedTeams} label={`${orgTeamCount} of ${contractedTeams} contracted teams`} />
+      {orgTeamCount >= contractedTeams && <div style={{ marginTop: 8 }}>
+        <EntitlementLockedMessage catalogId="O2" tokens={{ n: orgTeamCount, limit: contractedTeams }} />
+      </div>}
+    </div>}
     <div style={{ padding: "12px 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 28, fontWeight: 900 }}>Organization</div>
       <button className="btn ghost bxs" onClick={() => setEditing(e => !e)}>{editing ? "Cancel" : "Edit"}</button>
@@ -207,7 +225,8 @@ export default function TeamsListScreen({ data, goToTeam, openModal, mode, refre
   }, [location.state, openedFromDeepLink]);
 
   if (isOrgMode && activeOrg && showOrgDetails) {
-    return <OrgDetailsView org={activeOrg} refreshLibrary={refreshLibrary} onBack={() => setShowOrgDetails(false)} coachId={coachId} />;
+    return <OrgDetailsView org={activeOrg} refreshLibrary={refreshLibrary} onBack={() => setShowOrgDetails(false)} coachId={coachId}
+      orgTeamCount={teams.filter(t => t.organizationId === activeOrg.id).length} />;
   }
 
   return (<div style={{ paddingBottom: 80 }}>

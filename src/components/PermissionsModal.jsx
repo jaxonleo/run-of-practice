@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { setOwnLibraryShare, setManagerLibraryShare, setPracticeDelegate } from "../supabase.js";
 import { EntitlementLockedMessage } from "./EntitlementNotice.jsx";
+import { useTeamEntitlements, underLimit } from "../entitlements.js";
+import { catalogIdForError } from "../upsellCatalog.js";
 
 // Reciprocal permissions between a head coach and one rostered assistant/
 // helper on a personal (non-org) team -- each side controls their own
@@ -47,6 +49,14 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
   const [error, setError] = useState("");
   const isOwnRow = coach.userId === coachId;
   const managerView = canManage && !isOwnRow;
+  // Packaging Phase C (T5): shared planning is part of Pro. Resolved from
+  // the team's owner, never the viewer. UX only; set_practice_delegate is
+  // the real gate. Turning sharing off is never plan-gated.
+  const { entitlements: teamEnts } = useTeamEntitlements(team && !team.organizationId ? team.id : null);
+  const otherDelegates = (team.coaches || []).filter(c => c.canBuildPractices && c.id !== coach.id).length;
+  const delegationLocked = !coach.canBuildPractices && !underLimit("delegation.practice_planning", otherDelegates, teamEnts);
+  const viewerRole = team.ownerUserId === coachId ? "head" : "assistant";
+  const coachFirstName = (coach.name || "").split(" ")[0] || coach.name;
 
   // entitlementCta: true only for the practice-delegation toggle -- the
   // only one of the three toggles here with a real plan-driven failure mode
@@ -56,7 +66,12 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
     setBusy(true);
     setError("");
     const { error } = await fn();
-    if (error) setError(entitlementCta ? <EntitlementLockedMessage message={error.message}/> : (error.message || "Something went wrong. Try again."));
+    if (error) {
+      const id = entitlementCta ? catalogIdForError(error) : null;
+      setError(id
+        ? <EntitlementLockedMessage catalogId={id} role={viewerRole} teamId={team.id} tokens={{ "coach first name": coachFirstName }} />
+        : (error.message || "Something went wrong. Try again."));
+    }
     await refreshTeams();
     setBusy(false);
   };
@@ -79,9 +94,12 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
           label="Share Practice Planning"
           blurb={"Let " + coach.name + " build and edit this team's scheduled practices, the same as you can, and be assignable to individual stations in Builder."}
           on={coach.canBuildPractices}
-          busy={busy}
+          busy={busy || delegationLocked}
           onToggle={() => run(() => setPracticeDelegate(coach.id, !coach.canBuildPractices), { entitlementCta: true })}
         />
+        {delegationLocked && !error && <div style={{ marginTop: 8 }}>
+          <EntitlementLockedMessage catalogId="T5" role={viewerRole} teamId={team.id} tokens={{ "coach first name": coachFirstName }} />
+        </div>}
         <Row
           label={coach.name + "'s Library"}
           blurb={coach.name + " controls this from their own Permissions screen."}

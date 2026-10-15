@@ -5,7 +5,7 @@ import { TwoPane } from "./BBShells.jsx";
 import { TeamBenchmarksView } from "./BenchmarkReport.jsx";
 import {
   fetchTeamGoals, setTeamGoals, updateGoalsWindowWeeks,
-  fetchTeamGoalReport, fetchTeamGoalTrends, fetchTeamSessionHistory, fetchSessionActivityLog, fetchSessionExecutionScorecard, fetchNotesForPractice, archiveNote,
+  fetchTeamGoalReport, fetchTeamGoalTrends, fetchTeamSessionHistory, fetchTeamHistoryHiddenCount, fetchSessionActivityLog, fetchSessionExecutionScorecard, fetchNotesForPractice, archiveNote,
   setSessionExclusion, adjustSessionActivity, addSessionActivityRow, logGoalViewed,
   markPracticeNotesViewed, markNotesViewedForPractices, archivePractice,
   savePracticeTree, saveTemplateTree,
@@ -13,6 +13,8 @@ import {
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
 import AttendanceTimeline from "./AttendanceTimeline.jsx";
 import PlanItemDetails from "./PlanItemDetails.jsx";
+import { EntitlementLockedMessage } from "./EntitlementNotice.jsx";
+import { catalogIdForError } from "../upsellCatalog.js";
 
 // Author-role labeling (Assistant Coach handoff §2.3): resolve a staff
 // note's real name+role from the team roster already loaded here (never a
@@ -596,7 +598,7 @@ export function SessionHistoryDetail({ session, practice, team, data, canManage,
     // violates row-level security policy for table X"), not a mystery.
     // Surface it instead of masking it, same principle as this app's other
     // real-and-user-facing error surfaces (setPracticeDelegate, etc.).
-    if (error) { setTplError(error.message ? "Couldn't save: " + error.message : "Something went wrong saving. Try again."); return; }
+    if (error) { setTplError(catalogIdForError(error) === "L3" ? <EntitlementLockedMessage catalogId="L3" /> : (error.message ? "Couldn't save: " + error.message : "Something went wrong saving. Try again.")); return; }
     if (refreshPlanning) await refreshPlanning();
     setTplSaved(true); setShowTplInput(false); setTplNameInput("");
     setTimeout(() => setTplSaved(false), 2500);
@@ -634,7 +636,9 @@ export function SessionHistoryDetail({ session, practice, team, data, canManage,
         regardless of delegated build access (Delegated Planning spec §6). */}
     {canManage && showTplInput && <div style={{ marginBottom: 8 }}>
       <div className="fld"><label className="lbl">Template Name</label><input className="inp" autoFocus placeholder={(team ? team.name : "Practice") + " Template"} value={tplNameInput} onChange={e => { setTplNameInput(e.target.value); if (tplError) setTplError(""); }} onKeyDown={e => e.key === "Enter" && handleSaveAsTpl()} /></div>
-      {tplError && <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 6 }}>{tplError}</div>}
+      {tplError && (typeof tplError === "string"
+        ? <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 6 }}>{tplError}</div>
+        : <div style={{ marginBottom: 6 }}>{tplError}</div>)}
       <div className="brow"><button className="btn ghost bsm" onClick={() => setShowTplInput(false)}>Cancel</button><button className="btn primary bsm" onClick={handleSaveAsTpl} disabled={!tplNameInput.trim() || savingTpl}>{savingTpl ? "Saving..." : "Save"}</button></div>
     </div>}
     {canManage && !showTplInput && <button className="btn ghost bmd bfull" style={{ marginBottom: 8 }} onClick={() => setShowTplInput(true)}>{tplSaved ? "Saved as Template" : "Save as Template"}</button>}
@@ -1073,7 +1077,13 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
 
   const refreshGoals = useCallback(() => fetchTeamGoals(teamId).then(setGoals), [teamId]);
   const refreshReport = useCallback(() => fetchTeamGoalReport(teamId).then(setReport), [teamId]);
-  const refreshHistory = useCallback(() => fetchTeamSessionHistory(teamId).then(setHistory), [teamId]);
+  // Packaging Phase C (H1): on a plan that caps browsable history, older
+  // runs are hidden server-side (never deleted); the footer says how many.
+  const [hiddenHistoryCount, setHiddenHistoryCount] = useState(0);
+  const refreshHistory = useCallback(() => {
+    fetchTeamHistoryHiddenCount(teamId).then(setHiddenHistoryCount);
+    return fetchTeamSessionHistory(teamId).then(setHistory);
+  }, [teamId]);
   useEffect(() => { refreshGoals(); refreshReport(); refreshHistory(); }, [refreshGoals, refreshReport, refreshHistory]);
   // Fire once per team mount, not on every refresh -- same "call once on
   // view load" convention as log_helper_join_event.
@@ -1104,6 +1114,12 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
       setSubViewBack={setSubViewBack} />
   );
   if (openSession && !isBB) return sessionDetailEl;
+  const historyFooter = hiddenHistoryCount > 0 && (
+    <div style={{ marginTop: 12 }}>
+      <EntitlementLockedMessage catalogId="H1" role={team.ownerUserId === coachId ? "head" : "assistant"} teamId={teamId}
+        tokens={{ hidden_count: hiddenHistoryCount }} />
+    </div>
+  );
 
   // No own page header/title here -- the active "Goals & Insights" top tab
   // (Layout.jsx's team-workspace tab row) already says where you are, same
@@ -1135,6 +1151,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
             {canManage && anyUnviewed && <button className="btn ghost bxs" onClick={markAllViewed}>Mark all as viewed</button>}
           </div>
           <HistoryList history={history} data={data} canManage={canManage} onOpen={s => setOpenSessionId(s.session_id)} />
+          {historyFooter}
         </>}
         right={openSession ? sessionDetailEl : <div className="empty"><div className="emtx">Select a practice from the list to see its details.</div></div>}
       />
@@ -1144,6 +1161,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
         {canManage && anyUnviewed && <button className="btn ghost bxs" onClick={markAllViewed}>Mark all as viewed</button>}
       </div>
       <HistoryList history={history} data={data} canManage={canManage} onOpen={s => setOpenSessionId(s.session_id)} />
+      {historyFooter}
     </>))}
   </div>);
 }

@@ -9,6 +9,8 @@ import {
 } from "../supabase.js";
 import { outboxScopeForUser, outboxClearScope } from "../benchmarkOutbox.js";
 import { missingBenchmarkParticipants } from "../benchmarks.js";
+import { useTeamEntitlements, isFull } from "../entitlements.js";
+import { parseEntitlementError } from "../upsellCatalog.js";
 
 // Coach-side live recording for a benchmark activity or station. Capture runs
 // on its own write path -- it does NOT use the practice controller's write
@@ -36,6 +38,15 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
   const [addingId, setAddingId] = useState(null);
   const [showHelpers, setShowHelpers] = useState(false);
   const pollRef = useRef(null);
+  // Packaging (2026-10-14): on a team whose plan lacks benchmarks.access, a
+  // benchmark activity runs as a plain timed drill. The recording panel
+  // simply does not render, and no message appears during the live session
+  // (never an upsell here). resolve_benchmark_assessment also refuses with
+  // ENTITLEMENT_LOCKED:benchmarks.access; that refusal is silent too, which
+  // covers the moment before the team's plan has loaded.
+  const { entitlements: teamEnts } = useTeamEntitlements(practice && practice.teamId);
+  const benchmarksLocked = !!teamEnts && !isFull("benchmarks.access", teamEnts);
+  const [silentlyLocked, setSilentlyLocked] = useState(false);
 
   const refresh = useCallback(async (aid) => {
     const id = aid || assessmentId;
@@ -57,6 +68,7 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
         liveSessionId, timezone: team && team.timezone,
       });
       if (!alive) return;
+      if (error && parseEntitlementError(error)) { setSilentlyLocked(true); setBusy(false); return; }
       if (error || !data || !data.assessment_id) { setErr("Could not start recording for this benchmark."); setBusy(false); return; }
       setAssessmentId(data.assessment_id);
       await refresh(data.assessment_id);
@@ -85,6 +97,7 @@ export default function BenchmarkLivePanel({ activity, station, practice, team, 
     return () => clearInterval(pollRef.current);
   }, [assessmentId, refresh]);
 
+  if (!standalone && (benchmarksLocked || silentlyLocked)) return null;
   if (busy) return <Box><div style={{ color: "var(--text-dim)", fontSize: 13 }}>Starting recording...</div></Box>;
   if (err) return <Box><div style={{ color: "var(--danger)", fontSize: 13 }}>{err}</div></Box>;
   if (!payload) return null;
