@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { sumMins, isHeadCoach, myTeamRole, canManageTeamInMode, canPlanTeamInMode, planningState, localDateStr, stripIdsForCopy, articleFor, resolveDevelopmentPulseFocusTeamId, isMoreThanTwoHoursAway, practiceScheduledMs, getGettingStartedHidden, setGettingStartedHidden, menuNeedsToOpenUpward, useBigBrowser } from "../constants.js";
 import { TwoPane } from "./BBShells.jsx";
-import { fetchTeamInviteHeadCoachName, archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, acknowledgeStationAssignmentNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchActiveLiveSessions, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
+import { adminPartnerRenewalsDue, fetchTeamInviteHeadCoachName, archivePractice, fetchPlannedAbsences, fetchPracticeRunStatus, markTeamStaffWelcomed, hasCompletedSession, submitFeedback, savePracticeTree, acceptOrgInvite, declineOrgInvite, acknowledgeTeamDeparture, acknowledgeTeamJoinNotice, acknowledgeStationAssignmentNotice, fetchOrgWeeklyPracticeRollup, findActiveLiveSession, fetchActiveLiveSessions, fetchTeamsRecentCompletedSession, fetchTeamsWithUnviewedNotes, ORG_ROLE_LABELS, acceptTeamInvite, declineTeamInvite } from "../supabase.js";
 import PracticeDetail from "./PracticeDetail.jsx";
 import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
@@ -646,6 +646,11 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   // Packaging Phase D: the resolved Development Pulse state, for the value
   // moments slot below it (V1, V4).
   const [pulseState,setPulseState]=useState(null);
+  // Partner program (2026-10-15): the admin is prompted on Home when a
+  // partner's free quarter ends within 14 days, so every next quarter is a
+  // deliberate approval. The RPC returns 0 for anyone who isn't an admin.
+  const [partnerRenewalsDue,setPartnerRenewalsDue]=useState(0);
+  useEffect(()=>{adminPartnerRenewalsDue().then(setPartnerRenewalsDue);},[]);
   const respondToTeamInvite=async(accept)=>{
     if(!pendingTeamInvite)return;
     setRespondingTeamInviteId(pendingTeamInvite.id);
@@ -749,6 +754,10 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
         <button className="btn primary bxs" disabled={respondingInviteId === pendingOrgInvite.id} onClick={() => respondToInvite(true)}>Accept</button>
         <button className="btn ghost bxs" disabled={respondingInviteId === pendingOrgInvite.id} onClick={() => respondToInvite(false)}>Decline</button>
       </div>
+    </div></div>}
+    {partnerRenewalsDue > 0 && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px", borderColor: "var(--caution)" }}>
+      <div style={{ fontSize: 14, marginBottom: 8 }}>{partnerRenewalsDue === 1 ? "1 partner's free quarter is ending soon." : partnerRenewalsDue + " partners' free quarters are ending soon."} Approve another quarter or let it end.</div>
+      <button className="btn primary bxs" onClick={() => navigate("/admin/partners")}>Review partners</button>
     </div></div>}
     {pendingTeamInvite && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px" }}>
       <div style={{ fontSize: 14, marginBottom: 8 }}>You've been invited to join <strong>{pendingTeamInvite.teamName}</strong> as {articleFor(pendingTeamInvite.role)} {pendingTeamInvite.role}.</div>

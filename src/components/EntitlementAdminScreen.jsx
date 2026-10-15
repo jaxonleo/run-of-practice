@@ -7,6 +7,7 @@ import {
   fetchEntitlementSettings, adminSetFoundingCutoff,
 } from "../supabase.js";
 import { upsellPreviewEnabled, setUpsellPreviewEnabled } from "../entitlements.js";
+import AdminBillingCard from "./AdminBillingCard.jsx";
 
 // Entitlement architecture, Phase 5 (handoff §6 -- "a practical way for
 // development and QA to simulate different entitlement states"). Sits
@@ -181,6 +182,11 @@ export default function EntitlementAdminScreen() {
             </select>
           </div>
         </Card>
+
+        {subjectType === "user" && <Card>
+          <SectionTitle>Billing</SectionTitle>
+          <AdminBillingCard userId={subject.id} label={subject.label.split(" (")[0]} />
+        </Card>}
 
         <Card>
           <SectionTitle>Individual overrides</SectionTitle>

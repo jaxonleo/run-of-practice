@@ -2455,6 +2455,64 @@ export async function setActivePersonalTeam(teamId) {
   if (error) console.error('setActivePersonalTeam:', error)
   return { error }
 }
+// Self-serve billing (2026-10-15). Stripe is only ever reached through
+// Edge Functions; these return { url } to redirect to, or { error } with a
+// message that is safe to show.
+export async function fetchMyBilling() {
+  const { data, error } = await supabase.rpc('get_my_billing')
+  if (error) { console.error('fetchMyBilling:', error); return null }
+  return data
+}
+async function invokeFunction(name, body) {
+  const { data, error } = await supabase.functions.invoke(name, { body: body || {} })
+  if (error) {
+    let message = 'Something went wrong. Try again.'
+    try { const ctx = error.context && await error.context.json(); if (ctx && ctx.error) message = ctx.error } catch { /* keep default */ }
+    console.error(name + ':', error)
+    return { error: message }
+  }
+  return data || {}
+}
+export function startProCheckout(interval) { return invokeFunction('stripe-checkout', { interval }) }
+export function openBillingPortal() { return invokeFunction('stripe-portal') }
+// Admin-only (re-checked server-side): payments, credit, refunds.
+export function adminBilling(body) { return invokeFunction('stripe-admin', body) }
+export async function adminGetBilling(userId) {
+  const { data, error } = await supabase.rpc('admin_get_billing', { p_user_id: userId })
+  if (error) { console.error('adminGetBilling:', error); return null }
+  return data
+}
+export async function adminGrantProTime(userId, days, reason) {
+  const { error } = await supabase.rpc('admin_grant_pro_time', { p_user_id: userId, p_days: days, p_reason: reason })
+  if (error) console.error('adminGrantProTime:', error)
+  return { error }
+}
+export async function adminRevokeProGrant(grantId) {
+  const { error } = await supabase.rpc('admin_revoke_pro_grant', { p_grant_id: grantId })
+  if (error) console.error('adminRevokeProGrant:', error)
+  return { error }
+}
+// Partner program.
+export async function submitPartnerApplication({ name, email, sport, teamLevel, message }) {
+  const { error } = await supabase.rpc('submit_partner_application', { p_name: name, p_email: email, p_sport: sport || null, p_team_level: teamLevel || null, p_message: message || null })
+  if (error) console.error('submitPartnerApplication:', error)
+  return { error }
+}
+export async function adminListPartners() {
+  const { data, error } = await supabase.rpc('admin_list_partners')
+  if (error) { console.error('adminListPartners:', error); return [] }
+  return data || []
+}
+export async function adminPartnerRenewalsDue() {
+  const { data, error } = await supabase.rpc('admin_partner_renewals_due')
+  if (error) { console.error('adminPartnerRenewalsDue:', error); return 0 }
+  return data || 0
+}
+export async function adminDecidePartner(applicationId, action, note) {
+  const { error } = await supabase.rpc('admin_decide_partner', { p_application_id: applicationId, p_action: action, p_note: note || null })
+  if (error) console.error('adminDecidePartner:', error)
+  return { error }
+}
 // Insert-only upsell analytics. Fire-and-forget: a failed log never
 // affects the screen that triggered it.
 export function logEntitlementEvent({ userId, teamId, event, catalogId, featureKey }) {

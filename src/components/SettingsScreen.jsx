@@ -338,6 +338,12 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
       <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:28,fontWeight:900}}>Settings</div>
     </div>
     <div style={{padding:"0 16px"}}>
+      {/* Self-serve billing (2026-10-15): its own route, so Stripe can
+          return straight to it after Checkout or the billing portal. */}
+      <div className="li tap" style={{marginBottom:8}} onClick={()=>navigate("/settings/plan")}>
+        <div className="lim"><div className="lin">Plan &amp; Billing</div><div className="limt">Your plan, upgrades, and subscription</div></div>
+        <span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span>
+      </div>
       {NAV_ITEMS.map(item=>(<div key={item.id} className="li tap" style={{marginBottom:8}} onClick={()=>setSection(item.id)}>
         <div className="lim"><div className="lin">{item.label}</div>{item.sub&&<div className="limt">{item.sub}</div>}</div>
         <span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span>
@@ -374,6 +380,10 @@ export default function SettingsScreen({data,coachId,refreshLibrary,refreshTeams
       )}
       {isAdmin&&<div className="li tap" style={{marginBottom:8}} onClick={()=>navigate("/admin/metrics")}>
         <div className="lim"><div className="lin">Founder Metrics</div></div>
+        <span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span>
+      </div>}
+      {isAdmin&&<div className="li tap" style={{marginBottom:8}} onClick={()=>navigate("/admin/partners")}>
+        <div className="lim"><div className="lin">Partner Program</div><div className="limt">Applications and quarterly renewals</div></div>
         <span style={{color:"var(--text-dim)",fontSize:18}}>&#8250;</span>
       </div>}
       {isAdmin&&<div className="li tap" style={{marginBottom:8}} onClick={()=>navigate("/admin/entitlements")}>

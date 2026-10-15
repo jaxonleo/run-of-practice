@@ -1,27 +1,21 @@
 import React, { useEffect, useState } from "react";
-import { FEATURE_FLAGS } from "../entitlements.js";
+import { FEATURE_FLAGS, upsellCtasVisible } from "../entitlements.js";
 import { Ic } from "../icons.jsx";
 
 const CONTACT_EMAIL = "contact@runofpractice.com";
 
-// Public preview page, not yet linked from anywhere in the app (still under
-// review -- reachable only by typing /pricing directly, same deliberate
-// choice as the prior version of this page). Header now matches
-// LandingPage's own lp-header pattern (same sticky white bar, brand, and nav
-// treatment) rather than the plain centered-logo bar this page started with
-// -- reimplemented locally (not imported) since this file is deliberately
+// Public pricing page, linked from the landing page nav and footer and the
+// partners page (2026-10-15). Header matches LandingPage's own lp-header
+// pattern, reimplemented locally since this file is deliberately
 // self-contained, same reasoning as PP_CSS itself.
-// Launch structure: Free, Pro, and Organization (packaging handoff,
-// 2026-10-14). Pro+ is retired and folded into Pro, so shared practice
-// planning is a Pro feature now. The comparison rows mirror the handoff's
-// Plan comparison table; the real values live in bundle_features, this page
-// only describes them. Rows for things not built yet (player development
-// path, the org development suite) are left off on purpose, same rule as
-// the 2026-08-02 redesign below. Forward-looking on purpose: the rest of the site still says
-// "free during early access" everywhere, and FEATURE_FLAGS.BILLING_ENABLED
-// is false, so every CTA here either points a visitor at using the product
-// today or at a plain mailto -- nothing reads as a live checkout that isn't
-// real.
+// Structure: Free, Pro, and Organization (packaging handoff, 2026-10-14).
+// Pro+ is retired and folded into Pro. The comparison rows mirror the
+// handoff's Plan comparison table; the real values live in bundle_features,
+// this page only describes them. Rows for things not built yet (player
+// development path, the org development suite) are left off on purpose.
+// The Pro button goes to /settings/plan (Stripe Checkout) once billing is
+// on, or in an admin's preview browser; until then it says upgrades open
+// soon. The partner banner replaced the old early-access banner.
 const PP_CSS = `
 .pp{background:#fff;color:var(--ink);min-height:100dvh;font-family:'Barlow',sans-serif;}
 .pp-header{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:10px 20px;}
@@ -228,8 +222,8 @@ const FAQ_ITEMS = [
   { q: "Are organization teams counted toward my personal team limit?", a: "No. Organization teams are covered by the organization and do not count against your one Free or three Pro active personal teams." },
   { q: "What happens when a coach leaves an organization?", a: "The organization keeps its teams, practice history, drills, equipment, and locations. The coach keeps personal teams and personal content." },
   { q: "Can I switch between annual and monthly billing?", a: "Yes. Plan changes take effect according to the billing terms shown during checkout. Annual Pro provides the lowest effective monthly price." },
-  { q: "What happens when early access ends?", a: "Early-access coaches will receive at least 30 days' notice. No data will be deleted. Eligible early-access coaches may receive a discounted first year of Pro." },
-  { q: "Is there a Pro trial?", a: "After paid plans launch, new coaches can use a 14-day Pro preview without entering a credit card." },
+  { q: "How does the partner program work?", a: "Coaches who run real practices with Run of Practice and share regular, useful feedback can apply at /partners. Approved partners get Pro free for a quarter at a time, renewed each quarter they keep helping. No card is needed." },
+  { q: "How do I cancel Pro?", a: "Open Settings, then Plan & Billing, then Manage subscription. Pro stays on until the end of the period you paid for, then your account moves to Free. Nothing is deleted." },
   { q: "Do you offer pricing for schools, leagues, or nonprofits?", a: "Organization pricing is based on the number of active teams and the support the program needs. Contact us so we can understand your setup." },
   { q: "What do I do if my sport isn't listed?", a: "If you're creating a team for a sport that isn't listed, reach out to us at " + CONTACT_EMAIL + " and we'll add it." },
 ];
@@ -306,14 +300,15 @@ export default function PricingPage() {
       <div className="pp-sub">Run one team for free. Upgrade when you need more teams, unlimited planning tools, and deeper insight into how your practice time is being used.</div>
     </div>
 
-    {FEATURE_FLAGS.EARLY_ACCESS_ACTIVE && (<div className="pp-early">
-      <div className="pp-early-h">Run of Practice is free during early access</div>
-      <div className="pp-early-body">Every coach can use all currently available features while we test the product and prepare paid plans. Early-access coaches will receive at least 30 days' notice before pricing begins and may be eligible for a first-year Pro offer.</div>
+    {/* Partner program (2026-10-15) replaces the early-access banner. */}
+    <div className="pp-early">
+      <div className="pp-early-h">Help shape Run of Practice, get Pro free</div>
+      <div className="pp-early-body">Partners run real practices with Run of Practice and share regular, honest feedback. Each quarter they keep doing that, their next quarter of Pro is on us.</div>
       <div className="pp-early-ctas">
-        <a href="/" className="pp-btn primary">Start coaching free</a>
-        <a href="#pricing-plans" className="pp-btn outline">See planned pricing</a>
+        <a href="/partners" className="pp-btn primary">Become a partner</a>
+        <a href="#pricing-plans" className="pp-btn outline">See plans</a>
       </div>
-    </div>)}
+    </div>
 
     <div className="pp-toggle-wrap" id="pricing-plans">
       <div className="pp-toggle" role="group" aria-label="Pro billing period">
@@ -342,9 +337,12 @@ export default function PricingPage() {
         <div className="pp-price">{annual ? "$99/year" : "$12/month"}</div>
         <div className="pp-price-sub">{annual ? "Equivalent to $8.25/month" : "Cancel anytime"}</div>
         <div className="pp-cta">
-          {FEATURE_FLAGS.BILLING_ENABLED
-            ? <a href="/" className="pp-btn primary" style={{ width: "100%" }}>Start your Pro preview</a>
-            : <a href="/" className="pp-btn primary" style={{ width: "100%" }}>Included during early access</a>}
+          {/* Self-serve upgrade lives at /settings/plan (signed-out visitors
+              sign in first and land there). Until billing is on, only an
+              admin's preview browser gets the live link. */}
+          {upsellCtasVisible()
+            ? <a href="/settings/plan" className="pp-btn primary" style={{ width: "100%" }}>Get Pro</a>
+            : <span className="pp-btn disabled" style={{ width: "100%" }}>Pro upgrades open soon</span>}
         </div>
         {FEATURE_FLAGS.PRO_PREVIEW_ENABLED && <div className="pp-note" style={{ marginTop: -10, marginBottom: 16 }}>14-day preview. No credit card required.</div>}
         <ul className="pp-feat">

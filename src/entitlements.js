@@ -20,8 +20,8 @@ import { fetchMyEntitlements, fetchTeamEntitlements, logEntitlementEvent } from 
 // as-is from the original scaffolding (values reflect the real current
 // state, not aspirational ones -- see that file's own comment).
 export const FEATURE_FLAGS = {
-  EARLY_ACCESS_ACTIVE: true,
-  PRICING_PAGE_PUBLIC: false, // not linked from nav/landing yet, still under review
+  EARLY_ACCESS_ACTIVE: false, // early access ended with self-serve billing (2026-10-15)
+  PRICING_PAGE_PUBLIC: true, // linked from the landing page nav and footer (2026-10-15)
   BILLING_ENABLED: false,
   PRO_PREVIEW_ENABLED: false, // no 14-day-preview flow built yet
   EARLY_ACCESS_OFFER_ENABLED: false, // eligibility rule not decided yet

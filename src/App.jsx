@@ -10,6 +10,7 @@ import { createSingleFlight } from "./singleFlight.js";
 import { setSentryUser } from "./sentry.js";
 import { setEntitlementAnalyticsUser, clearEntitlementsCache, clearTeamEntitlementsCache, useEntitlements, useTeamEntitlements, underLimit, isFull } from "./entitlements.js";
 import ActiveTeamChooser from "./components/ActiveTeamChooser.jsx";
+import PlanBillingScreen from "./components/PlanBillingScreen.jsx";
 import { EntitlementLockedMessage, ProPreview, ProBadge } from "./components/EntitlementNotice.jsx";
 import { catalogIdForError } from "./upsellCatalog.js";
 import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, savePracticeTree, saveTemplateTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchPlayerNotes, fetchMyTeamPlanStatus, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed, adoptBenchmarkForTeam, checkCanViewGoals, canCreatePersonalTemplate } from "./supabase.js";
@@ -32,6 +33,7 @@ import BuilderGoalGuidance from "./components/BuilderGoalGuidance.jsx";
 import LandingPage from "./components/LandingPage.jsx";
 import { TermsPage, PrivacyPage, FAQPage } from "./components/LegalPages.jsx";
 import PricingPage from "./components/PricingPage.jsx";
+import PartnersPage from "./components/PartnersPage.jsx";
 // Lazy: recharts + its d3-* subpackages are the single largest dependency
 // in this app (~9MB unminified) and this is the only screen that uses
 // them, gated to founder-admins only -- everyone else was downloading that
@@ -43,6 +45,7 @@ const FounderMetricsScreen = React.lazy(() => import("./components/FounderMetric
 // -- gated behind FounderAdminRoute's own is_admin() check, no separate
 // route guard needed.
 const EntitlementAdminScreen = React.lazy(() => import("./components/EntitlementAdminScreen.jsx"));
+const AdminPartnersScreen = React.lazy(() => import("./components/AdminPartnersScreen.jsx"));
 
 
 // "Run Again" copies a past practice's activities into a brand-new one --
@@ -791,14 +794,17 @@ export default function App(){
           Same top-level-sibling pattern as /terms|/privacy|/faq: renders
           regardless of auth/loading state. */}
       <Route path="/pricing" element={<PricingPage/>}/>
+      <Route path="/partners" element={<PartnersPage/>}/>
       <Route path="/*" element={<AuthedShell/>}>
         <Route path="admin/metrics" element={<FounderAdminRoute/>}/>
         <Route path="admin/entitlements" element={<EntitlementAdminRoute/>}/>
+        <Route path="admin/partners" element={<AdminPartnersRoute/>}/>
         <Route element={<LayoutRoute/>}>
           <Route index element={<HomeRoute/>}/>
           <Route path="library" element={<LibraryRoute/>}/>
           <Route path="teams" element={<TeamsRoute/>}/>
           <Route path="settings" element={<SettingsRoute/>}/>
+          <Route path="settings/plan" element={<PlanBillingScreen/>}/>
           <Route path="builder/:practiceId" element={<BuilderRoute/>}/>
           <Route path="run/:practiceId" element={<RunRoute/>}/>
           {/* Step-3 bridge only: the old cross-team Schedule screen, reachable
@@ -980,6 +986,13 @@ function FounderAdminRoute(){
 // Same is_admin() gate as FounderAdminRoute -- the entitlement simulator
 // (Phase 5) is exactly as sensitive (it can set anyone's plan/cohort/
 // overrides), so it gets the identical treatment, not a lighter one.
+function AdminPartnersRoute(){
+  const [isAdmin,setIsAdmin]=useState(null);
+  useEffect(()=>{checkIsAdmin().then(setIsAdmin);},[]);
+  if(isAdmin===null)return <LoadingScreen message="Loading..."/>;
+  if(!isAdmin)return <Navigate to="/" replace/>;
+  return <Suspense fallback={<LoadingScreen message="Loading..."/>}><AdminPartnersScreen/></Suspense>;
+}
 function EntitlementAdminRoute(){
   const [isAdmin,setIsAdmin]=useState(null);
   useEffect(()=>{checkIsAdmin().then(setIsAdmin);},[]);

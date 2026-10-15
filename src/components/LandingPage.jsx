@@ -223,7 +223,8 @@ function Header({ onGetStarted }) {
     <div className="lp-nav">
       <a className="lp-navlink hideonsm" href="#how-it-works">How It Works</a>
       <a className="lp-navlink hideonsm" href="#features">Features</a>
-      <a className="lp-navlink hideonsm" href="#early-access">Early Access</a>
+      <a className="lp-navlink hideonsm" href="/pricing">Pricing</a>
+      <a className="lp-navlink hideonsm" href="/partners">Partners</a>
       <button className="lp-signin" onClick={onGetStarted}>Sign In</button>
       <button className="btn primary bsm" onClick={onGetStarted}>Try It Free</button>
     </div>
@@ -738,7 +739,8 @@ function Section({ id, eyebrow, title, body, visual, reverse, dark, tight, wideV
 }
 
 const FAQS = [
-  { q: "Is Run of Practice free?", a: "Run of Practice is free during early access while the product is being tested and improved." },
+  { q: "Is Run of Practice free?", a: "Yes, to start. The Free plan covers one team, with unlimited live practices and parent-helper links. Pro adds more teams, your whole staff, unlimited drills and templates, and every Goals & Insights tool for $12 a month or $99 a year. No credit card is needed to start." },
+  { q: "What is the partner program?", a: "Coaches who use Run of Practice in real practices and share regular, useful feedback can apply to be partners. Partners get Pro free for each quarter they keep helping us improve it." },
   { q: "Who is it for?", a: "Run of Practice is designed for head coaches, assistant coaches and anyone helping run an organized practice." },
   { q: "Does every helper need an account?", a: "No. Assistant coaches can access practices through their accounts, while temporary or ad hoc helpers can receive a link with the information they need." },
   { q: "Can I use it for different sports?", a: "Yes. Run of Practice is designed around common practice needs such as drills, groups, stations, locations, timing, equipment and transitions. The exact setup can be adjusted for different sports and levels." },
@@ -774,7 +776,7 @@ export default function LandingPage({ onGetStarted }) {
         <button className="btn primary blg" onClick={onGetStarted}>Try It Free</button>
         <a href="#how-it-works" className="btn ghost blg" style={{ textDecoration: "none" }}>See How It Works</a>
       </div>
-      <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 12 }}>Free during early access.</div>
+      <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 12 }}>Free to start. No credit card needed.</div>
       <div className="lp-hero-mark-wrap">
         <div className="lp-hero-mark-glow" aria-hidden="true" />
         <img className="lp-hero-mark" src="/hero-mark.png" alt="" />
@@ -865,13 +867,13 @@ export default function LandingPage({ onGetStarted }) {
       </div>
     </div>
 
-    <div id="early-access" className="lp-section" style={{ background: "var(--field-tint)", textAlign: "center" }}>
+    <div id="partners" className="lp-section" style={{ background: "var(--field-tint)", textAlign: "center" }}>
       <div className="lp-wrap" style={{ maxWidth: 640 }}>
-        <div className="lp-eyebrow">Early Access</div>
-        <div className="lp-title">Use Run of Practice and help shape what comes next.</div>
-        <div className="lp-body">Run of Practice is in early access, and we're looking for coaches to use it in real practices and share what works, what's unclear and where the experience falls short. The goal is to build something coaches can rely on before, during and after every practice.</div>
-        <button className="btn primary blg" onClick={onGetStarted} style={{ marginTop: 8 }}>Try Run of Practice</button>
-        <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 10 }}>Free during early access.</div>
+        <div className="lp-eyebrow">Partner Program</div>
+        <div className="lp-title">Coach with Run of Practice and help shape what comes next.</div>
+        <div className="lp-body">We're looking for coaches who will use Run of Practice in real practices and tell us honestly what works, what's unclear, and where it falls short. Partners get Pro free for each quarter they keep sharing that feedback.</div>
+        <a href="/partners" className="btn primary blg" style={{ marginTop: 8, textDecoration: "none", display: "inline-block" }}>Become a Partner</a>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 10 }}>Or start on the Free plan today. No credit card needed.</div>
       </div>
     </div>
 
@@ -893,7 +895,8 @@ export default function LandingPage({ onGetStarted }) {
         <div className="lp-footer-links">
           <a href="#how-it-works">How It Works</a>
           <a href="#features">Features</a>
-          <a href="#early-access">Early Access</a>
+          <a href="/pricing">Pricing</a>
+          <a href="/partners">Partners</a>
           <button className="lp-signin" style={{ color: "#c9d6cf" }} onClick={onGetStarted}>Sign In</button>
           <a href={"mailto:" + CONTACT_EMAIL}>Contact</a>
           <a href="/terms">Terms of Use</a>
