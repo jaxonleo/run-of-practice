@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { isHeadCoach, categoryMinutesForPracticeActivities, calculateGoalGapGuidance, calculateProjectedGoalImpact } from "../constants.js";
 import { fetchTeamGoalReport } from "../supabase.js";
+import { useTeamEntitlements, isFull } from "../entitlements.js";
+import { ProPreview } from "./EntitlementNotice.jsx";
 
 // Enhancement 3, combined Builder Goal Guidance. Own sibling section between
 // Practice Details and The Run of Practice (never inside Practice Details'
@@ -61,6 +63,13 @@ export default function BuilderGoalGuidance({ team, teamId, data, coachId, acts,
   // can_access_team authorization (owner/org-member/team_staff) already
   // covers a director managing an org team with no personal team_staff row.
   const canManageLoosely = team && isHeadCoach(team, coachId);
+  // Packaging Phase D (G3): without goals.builder_projection only "What to
+  // Consider Planning" shows; the draft mix and projected impact collapse
+  // into one preview. Still zero network calls per edit: this resolves once
+  // per team from the shared cache.
+  const { entitlements: teamEnts } = useTeamEntitlements(team && !team.organizationId ? teamId : null);
+  const projectionLocked = !isFull("goals.builder_projection", teamEnts);
+  const viewerRole = team && team.ownerUserId === coachId ? "head" : "assistant";
 
   const duration = schedDuration || null;
   const hasGoals = report && (report.skills || []).some(s => s.target_pct != null);
@@ -91,6 +100,7 @@ export default function BuilderGoalGuidance({ team, teamId, data, coachId, acts,
   const collapsedSummary = (() => {
     if (!team || !hasGoals) return "Set team goals to see guidance";
     if (!hasDraft) return below.length + " priorit" + (below.length === 1 ? "y" : "ies") + " · nothing planned yet";
+    if (projectionLocked) return below.length + " priorit" + (below.length === 1 ? "y" : "ies");
     const closer = impact.filter(i => i.result === "Closer to goal").length;
     const farther = impact.filter(i => i.result === "Farther from goal").length;
     const phrase = closer > farther ? "plan projects closer to goal" : farther > closer ? "plan projects farther from goal" : "plan holds steady vs. goal";
@@ -129,6 +139,8 @@ export default function BuilderGoalGuidance({ team, teamId, data, coachId, acts,
           {g.minutesNeeded != null && g.closable === false && <span style={{ color: "var(--caution)" }}> · can't be fully closed in one practice</span>}
         </div>))}
 
+        {projectionLocked && <div style={{ marginTop: 12 }}><ProPreview catalogId="G3" role={viewerRole} teamId={teamId} /></div>}
+        {!projectionLocked && <>
         <div className="clbl mb8" style={{ fontSize: 11, marginTop: 12 }}>What You've Planned So Far</div>
         <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 6 }}>
           {Math.round(draft.totalMinutes)} minute{Math.round(draft.totalMinutes) === 1 ? "" : "s"} planned{duration ? " of " + duration + " scheduled" : ""}
@@ -142,6 +154,7 @@ export default function BuilderGoalGuidance({ team, teamId, data, coachId, acts,
           <span style={{ color: "var(--text-dim)" }}>{i.currentPct}% &#8594; {i.projectedPct}% <span style={{ color: i.result === "Closer to goal" ? "var(--field-accent)" : i.result === "Farther from goal" ? "var(--danger)" : "var(--text-dim)" }}>({i.result})</span></span>
         </div>))}
         <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}>Projection assumes the practice runs as currently planned.</div>
+        </>}
       </>)}
     </div>}
   </div>);

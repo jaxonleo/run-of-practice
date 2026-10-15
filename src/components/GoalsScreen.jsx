@@ -8,12 +8,13 @@ import {
   fetchTeamGoalReport, fetchTeamGoalTrends, fetchTeamSessionHistory, fetchTeamHistoryHiddenCount, fetchSessionActivityLog, fetchSessionExecutionScorecard, fetchNotesForPractice, archiveNote,
   setSessionExclusion, adjustSessionActivity, addSessionActivityRow, logGoalViewed,
   markPracticeNotesViewed, markNotesViewedForPractices, archivePractice,
-  savePracticeTree, saveTemplateTree,
+  savePracticeTree, saveTemplateTree, updateUpsellState,
 } from "../supabase.js";
 import PracticePlanPrint from "./PracticePlanPrint.jsx";
 import AttendanceTimeline from "./AttendanceTimeline.jsx";
 import PlanItemDetails from "./PlanItemDetails.jsx";
-import { EntitlementLockedMessage } from "./EntitlementNotice.jsx";
+import { EntitlementLockedMessage, ProPreview, ProBadge } from "./EntitlementNotice.jsx";
+import { useEntitlements, useTeamEntitlements, isFull } from "../entitlements.js";
 import { catalogIdForError } from "../upsellCatalog.js";
 
 // Author-role labeling (Assistant Coach handoff §2.3): resolve a staff
@@ -183,7 +184,7 @@ const UNTAGGED_ROW_HIGHLIGHT_CSS = `
 @media (prefers-reduced-motion: reduce) { .untagged-row-highlighted { animation: none; } }
 `;
 
-function GlanceView({ report, emphasizeUntagged, team, teamId, canManage, onReviewUntaggedDrills, allDrillsTagged, refreshReport, refreshTeams }) {
+function GlanceView({ report, emphasizeUntagged, team, teamId, canManage, onReviewUntaggedDrills, allDrillsTagged, refreshReport, refreshTeams, windowLocked, viewerRole }) {
   // Direct feedback: "Measure over the last N weeks" used to live in the
   // Goals card above (which sets targets, a different concern), even though
   // it's actually this report's own control. Moved into this card's own
@@ -201,6 +202,10 @@ function GlanceView({ report, emphasizeUntagged, team, teamId, canManage, onRevi
   const [windowWeeks, setWindowWeeks] = useState(team ? (team.goalsWindowWeeks || 4) : 4);
   useEffect(() => setWindowWeeks(team ? (team.goalsWindowWeeks || 4) : 4), [team && team.goalsWindowWeeks]);
   const [savingWindow, setSavingWindow] = useState(false);
+  // Packaging Phase D (G1): without goals.window_config the report is a
+  // fixed 4 weeks (the server enforces it); the control becomes plain text
+  // with a Pro badge that reveals the preview. The stored window is kept.
+  const [showWindowPreview, setShowWindowPreview] = useState(false);
   const saveWindow = async () => {
     setSavingWindow(true);
     await updateGoalsWindowWeeks(teamId, windowWeeks);
@@ -221,7 +226,12 @@ function GlanceView({ report, emphasizeUntagged, team, teamId, canManage, onRevi
     {emphasizeUntagged && <style>{UNTAGGED_ROW_HIGHLIGHT_CSS}</style>}
     <div className="clbl mb8" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
       <span>Target vs. Planned vs. Actual</span>
-      {canManage ? (
+      {windowLocked ? (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, textTransform: "none", fontWeight: 400 }}>
+          · last {report.window_weeks} weeks
+          {viewerRole === "head" && <button type="button" onClick={() => setShowWindowPreview(v => !v)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }} aria-label="About longer goal windows"><ProBadge /></button>}
+        </span>
+      ) : canManage ? (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, textTransform: "none", fontWeight: 400 }}>
           · last
           <input type="number" min="1" max="12" className="inp" style={{ width: 40, padding: "2px 4px", fontSize: 12, textAlign: "center" }} value={windowWeeks} onChange={e => setWindowWeeks(Math.max(1, Math.min(12, Number(e.target.value) || 1)))} onBlur={saveWindow} />
@@ -232,6 +242,7 @@ function GlanceView({ report, emphasizeUntagged, team, teamId, canManage, onRevi
         <span style={{ textTransform: "none", fontWeight: 400 }}>· last {report.window_weeks} week{report.window_weeks === 1 ? "" : "s"}</span>
       )}
     </div>
+    {windowLocked && showWindowPreview && <div style={{ marginBottom: 10 }}><ProPreview catalogId="G1" role={viewerRole} teamId={teamId} /></div>}
     {/* Every row already spells out "Planned"/"Actual" in text (not color
         alone), but the target tick mark itself is unlabeled per-row (just a
         plain vertical line) -- one compact legend, not per-row, explains
@@ -472,6 +483,12 @@ export function SessionHistoryDetail({ session, practice, team, data, canManage,
   const [deleting, setDeleting] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
   const [scorecard, setScorecard] = useState(null);
+  // Packaging Phase D (G5): the Execution Scorecard is Pro. On a team
+  // without it, never call the RPC (it refuses anyway); show one collapsed
+  // preview row instead (nothing at all for an assistant).
+  const { entitlements: teamEnts } = useTeamEntitlements(team && !team.organizationId ? team.id : null);
+  const scorecardLocked = !isFull("goals.execution_scorecard", teamEnts);
+  const viewerRole = team && team.ownerUserId === coachId ? "head" : "assistant";
   // Direct feedback: this screen had a separate "Edit" button on every
   // single logged time segment, plus a separate delete (x) on every
   // single note -- one real edit toggle for the whole practice instead,
@@ -494,7 +511,10 @@ export function SessionHistoryDetail({ session, practice, team, data, canManage,
   // Refreshed alongside the raw log (same triggers: initial mount, an
   // adjust/add/exclude edit) so it never displays stale values after a
   // manager edits history, per the spec's explicit requirement.
-  const refreshScorecard = useCallback(() => { setScorecard(null); fetchSessionExecutionScorecard(session.session_id).then(setScorecard); }, [session.session_id]);
+  const refreshScorecard = useCallback(() => {
+    if (scorecardLocked) return;
+    setScorecard(null); fetchSessionExecutionScorecard(session.session_id).then(setScorecard);
+  }, [session.session_id, scorecardLocked]);
   useEffect(() => { refreshScorecard(); }, [refreshScorecard]);
   const refreshNotes = useCallback(() => { if (practice) fetchNotesForPractice(practice.id).then(setNotes); }, [practice && practice.id]);
   useEffect(() => { refreshNotes(); }, [refreshNotes]);
@@ -697,7 +717,9 @@ export function SessionHistoryDetail({ session, practice, team, data, canManage,
       </div>);
     })}
 
-    <PracticeExecutionScorecard scorecard={scorecard} />
+    {scorecardLocked
+      ? <div className="card mb10"><div className="clbl mb8">Practice Execution</div><ProPreview catalogId="G5" role={viewerRole} teamId={team && team.id} /></div>
+      : <PracticeExecutionScorecard scorecard={scorecard} />}
 
     {(session.top_skills || []).length > 0 && <div className="card mb10">
       <div className="clbl mb8">Skill Minutes</div>
@@ -893,9 +915,40 @@ function GoalTrendCard({ cat }) {
 // get_team_goal_report's forward-looking Planned bucket (see
 // GoalTrendCard's own comment for why that mix produced a real, confusing
 // mismatch in live verification).
-function TrendsView({ teamId, team, canManage, isBB }) {
+function TrendsView({ teamId, team, canManage, isBB, report, trendsLocked, viewerRole, coachId }) {
   const [trends, setTrends] = useState(null);
-  useEffect(() => { setTrends(null); fetchTeamGoalTrends(teamId).then(setTrends); }, [teamId]);
+  useEffect(() => { setTrends(null); if (!trendsLocked) fetchTeamGoalTrends(teamId).then(setTrends); }, [teamId, trendsLocked]);
+  // V6 trigger: a coach whose own plan lacks Trends just used them on a
+  // team someone else pays for. Recorded once per visit, Home decides later.
+  const { entitlements: myEnts } = useEntitlements(!!coachId);
+  const ownPlanLacksTrends = !!myEnts && !isFull("goals.trends", myEnts);
+  const someoneElsesTeam = team && (team.organizationId || team.ownerUserId !== coachId);
+  useEffect(() => {
+    if (!trendsLocked && trends && ownPlanLacksTrends && someoneElsesTeam && team) updateUpsellState("set_marker", "v6_team", team.name);
+  }, [trendsLocked, !!trends, ownPlanLacksTrends, someoneElsesTeam, team && team.name]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Packaging Phase D (G4): Trends is Pro. The preview uses this team's
+  // own category names and targets (from the goal report), never invented
+  // numbers, with a static placeholder where the charts would be.
+  if (trendsLocked) {
+    const goalCats = ((report && report.skills) || []).filter(s => s.target_pct != null).sort((a, b) => b.target_pct - a.target_pct);
+    if (!goalCats.length) return (<div className="empty"><div className="emtx">Set team goals to see development trends.</div></div>);
+    return (<div>
+      <div className="card mb10">
+        {goalCats.map(c => (<div key={c.skill_category_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0", borderBottom: "1px solid var(--border)" }}>
+          <span style={{ fontWeight: 700 }}>{c.name}</span>
+          <span style={{ color: "var(--text-dim)" }}>Goal {c.target_pct}%</span>
+        </div>))}
+        <div aria-hidden="true" style={{ height: 90, margin: "12px 0", borderRadius: 8, background: "repeating-linear-gradient(90deg, var(--surface-soft) 0 12px, transparent 12px 24px)", border: "1px dashed var(--border)" }} />
+        <ProPreview catalogId="G4" role={viewerRole} teamId={teamId} tokens={{
+          "top category": goalCats[0].name,
+          "category 1": goalCats[0].name,
+          "category 2": (goalCats[1] || goalCats[0]).name,
+          n: Math.max(0, goalCats.length - 2),
+        }} />
+      </div>
+    </div>);
+  }
 
   if (trends === null) return (<div style={{ padding: "40px 0", textAlign: "center", color: "var(--text-dim)" }}>Loading...</div>);
   const categories = trends.categories || [];
@@ -942,11 +995,11 @@ function drillsForCategory(categoryId, data, coachId) {
     && (a.skillTagIds || []).some(tid => skillTagsById[tid] && skillTagsById[tid].categoryId === categoryId));
 }
 
-function CategoryGapRow({ g, practiceDuration, data, coachId }) {
+function CategoryGapRow({ g, practiceDuration, data, coachId, onExpand }) {
   const [expanded, setExpanded] = useState(false);
   const drills = expanded ? drillsForCategory(g.skillCategoryId, data, coachId) : [];
   return (<div style={{ marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid var(--border)" }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", cursor: "pointer" }} onClick={() => setExpanded(e => !e)}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", cursor: "pointer" }} onClick={() => setExpanded(e => { if (!e && onExpand) onExpand(); return !e; })}>
       <div style={{ fontSize: 13, fontWeight: 700 }}>{g.name} is {g.gapPts} point{g.gapPts === 1 ? "" : "s"} below goal.</div>
       <span style={{ color: "var(--text-dim)", fontSize: 14, flexShrink: 0, marginLeft: 8 }}>{expanded ? "▾" : "▸"}</span>
     </div>
@@ -965,7 +1018,7 @@ function CategoryGapRow({ g, practiceDuration, data, coachId }) {
   </div>);
 }
 
-function NextPracticeGuidance({ team, teamId, data, report, canManage, coachId }) {
+function NextPracticeGuidance({ team, teamId, data, report, canManage, coachId, guidanceLocked, viewerRole }) {
   const [showAll, setShowAll] = useState(false);
   if (!report || !(report.skills || []).length) return null;
 
@@ -994,7 +1047,12 @@ function NextPracticeGuidance({ team, teamId, data, report, canManage, coachId }
 
   const guidance = calculateGoalGapGuidance(categories, practiceDuration);
   const below = guidance.filter(g => !g.atOrAboveGoal).sort((a, b) => b.gapPts - a.gapPts);
-  const shown = showAll ? below : below.slice(0, 3);
+  // Packaging Phase D (G2): without goals.next_practice_guidance only the
+  // first priority shows (still expandable to its drills); the rest
+  // collapse into one preview row. Expanding that first row counts toward
+  // the V3 value moment.
+  const shown = guidanceLocked ? below.slice(0, 1) : (showAll ? below : below.slice(0, 3));
+  const trackExpand = guidanceLocked && viewerRole === "head" ? () => updateUpsellState("track", "npg_expand") : undefined;
   const anyUnclosable = below.some(g => g.closable === false);
 
   return (<div className="card mb10">
@@ -1004,8 +1062,9 @@ function NextPracticeGuidance({ team, teamId, data, report, canManage, coachId }
     {!practiceDuration && <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 8 }}>Schedule a practice to see minute recommendations -- percentages only for now.</div>}
 
     {below.length === 0 && <div style={{ fontSize: 13, color: "var(--text-dim)" }}>Every category is at or above its goal right now.</div>}
-    {shown.map(g => (<CategoryGapRow key={g.skillCategoryId} g={g} practiceDuration={practiceDuration} data={data} coachId={coachId} />))}
-    {below.length > 3 && !showAll && <button className="btn ghost bxs" onClick={() => setShowAll(true)}>Show all categories</button>}
+    {shown.map(g => (<CategoryGapRow key={g.skillCategoryId} g={g} practiceDuration={practiceDuration} data={data} coachId={coachId} onExpand={trackExpand} />))}
+    {guidanceLocked && below.length > 1 && <ProPreview catalogId="G2" role={viewerRole} teamId={teamId} tokens={{ n: below.length - 1 }} />}
+    {!guidanceLocked && below.length > 3 && !showAll && <button className="btn ghost bxs" onClick={() => setShowAll(true)}>Show all categories</button>}
     {anyUnclosable && below.length > 1 && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>The current gaps cannot all be closed in one practice. Prioritize the areas that matter most for this team right now.</div>}
   </div>);
 }
@@ -1080,6 +1139,14 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
   // Packaging Phase C (H1): on a plan that caps browsable history, older
   // runs are hidden server-side (never deleted); the footer says how many.
   const [hiddenHistoryCount, setHiddenHistoryCount] = useState(0);
+  // Packaging Phase D: Goals lite. Resolved from the team's owner (or org),
+  // never the viewer; fails open (full) while loading or for org teams.
+  const { entitlements: teamEnts } = useTeamEntitlements(team && !team.organizationId ? teamId : null);
+  const viewerRole = team && team.ownerUserId === coachId ? "head" : "assistant";
+  const windowLocked = !isFull("goals.window_config", teamEnts);
+  const guidanceLocked = !isFull("goals.next_practice_guidance", teamEnts);
+  const trendsLocked = !isFull("goals.trends", teamEnts);
+  const benchmarksLocked = !isFull("benchmarks.access", teamEnts);
   const refreshHistory = useCallback(() => {
     fetchTeamHistoryHiddenCount(teamId).then(setHiddenHistoryCount);
     return fetchTeamSessionHistory(teamId).then(setHistory);
@@ -1133,15 +1200,16 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
       {canManage && <GoalsEditor teamId={teamId} team={team} data={data} goals={goals} refreshGoals={() => { refreshGoals(); refreshReport(); }} />}
       {isBB ? (
         <TwoPane
-          left={<GlanceView report={report} emphasizeUntagged={emphasizeUntagged} team={team} teamId={teamId} canManage={canManage} onReviewUntaggedDrills={goToUntaggedDrills} allDrillsTagged={allDrillsTagged} refreshReport={refreshReport} refreshTeams={refreshTeams} />}
-          right={<NextPracticeGuidance team={team} teamId={teamId} data={data} report={report} canManage={canManage} coachId={coachId} />}
+          left={<GlanceView windowLocked={windowLocked} viewerRole={viewerRole} report={report} emphasizeUntagged={emphasizeUntagged} team={team} teamId={teamId} canManage={canManage} onReviewUntaggedDrills={goToUntaggedDrills} allDrillsTagged={allDrillsTagged} refreshReport={refreshReport} refreshTeams={refreshTeams} />}
+          right={<NextPracticeGuidance team={team} teamId={teamId} data={data} report={report} canManage={canManage} coachId={coachId} guidanceLocked={guidanceLocked} viewerRole={viewerRole} />}
         />
       ) : (<>
-        <GlanceView report={report} emphasizeUntagged={emphasizeUntagged} team={team} teamId={teamId} canManage={canManage} onReviewUntaggedDrills={goToUntaggedDrills} allDrillsTagged={allDrillsTagged} refreshReport={refreshReport} refreshTeams={refreshTeams} />
-        <NextPracticeGuidance team={team} teamId={teamId} data={data} report={report} canManage={canManage} coachId={coachId} />
+        <GlanceView windowLocked={windowLocked} viewerRole={viewerRole} report={report} emphasizeUntagged={emphasizeUntagged} team={team} teamId={teamId} canManage={canManage} onReviewUntaggedDrills={goToUntaggedDrills} allDrillsTagged={allDrillsTagged} refreshReport={refreshReport} refreshTeams={refreshTeams} />
+        <NextPracticeGuidance team={team} teamId={teamId} data={data} report={report} canManage={canManage} coachId={coachId} guidanceLocked={guidanceLocked} viewerRole={viewerRole} />
       </>)}
     </>)}
-    {view === "trends" && <TrendsView teamId={teamId} team={team} canManage={canManage} isBB={isBB} />}
+    {view === "trends" && <TrendsView teamId={teamId} team={team} canManage={canManage} isBB={isBB} report={report} trendsLocked={trendsLocked} viewerRole={viewerRole} coachId={coachId} />}
+    {view === "benchmarks" && benchmarksLocked && <div style={{ marginBottom: 12 }}><ProPreview catalogId="B1" role={viewerRole} teamId={teamId} /></div>}
     {view === "benchmarks" && <TeamBenchmarksView teamId={teamId} team={team} coachId={coachId} canManage={canManage} isBB={isBB} initialBenchmarkId={initialBenchmarkId} />}
     {view === "history" && (isBB ? (
       <TwoPane

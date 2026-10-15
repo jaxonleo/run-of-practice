@@ -2397,6 +2397,26 @@ export async function checkPracticeHistoryVisible(practiceId) {
   if (error) { console.error('checkPracticeHistoryVisible:', error); return true }
   return data !== false
 }
+// Packaging Phase D: value-moment inputs and the per-coach upsell state
+// (impressions, dismissals, snoozes, small trigger counters). The state is
+// read off the coach's own profile row and written only through
+// update_upsell_state; every helper fails quietly so a hiccup never
+// affects the screen around it.
+export async function fetchTeamCompletedSessionCount(teamId) {
+  const { data, error } = await supabase.rpc('get_team_completed_session_count', { p_team_id: teamId })
+  if (error) { console.error('fetchTeamCompletedSessionCount:', error); return 0 }
+  return data || 0
+}
+export async function fetchUpsellState(userId) {
+  const { data, error } = await supabase.from('profiles').select('upsell_state').eq('id', userId).maybeSingle()
+  if (error) { console.error('fetchUpsellState:', error); return null }
+  return (data && data.upsell_state) || {}
+}
+export async function updateUpsellState(action, key, value) {
+  const { data, error } = await supabase.rpc('update_upsell_state', { p_action: action, p_key: key, p_value: value == null ? null : String(value) })
+  if (error) { console.error('updateUpsellState:', error); return null }
+  return data
+}
 // Insert-only upsell analytics. Fire-and-forget: a failed log never
 // affects the screen that triggered it.
 export function logEntitlementEvent({ userId, teamId, event, catalogId, featureKey }) {

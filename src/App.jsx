@@ -8,8 +8,8 @@ import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { createSingleFlight } from "./singleFlight.js";
 import { setSentryUser } from "./sentry.js";
-import { setEntitlementAnalyticsUser, clearEntitlementsCache, useEntitlements, useTeamEntitlements, underLimit } from "./entitlements.js";
-import { EntitlementLockedMessage } from "./components/EntitlementNotice.jsx";
+import { setEntitlementAnalyticsUser, clearEntitlementsCache, useEntitlements, useTeamEntitlements, underLimit, isFull } from "./entitlements.js";
+import { EntitlementLockedMessage, ProPreview, ProBadge } from "./components/EntitlementNotice.jsx";
 import { catalogIdForError } from "./upsellCatalog.js";
 import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, savePracticeTree, saveTemplateTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchPlayerNotes, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed, adoptBenchmarkForTeam, checkCanViewGoals, canCreatePersonalTemplate } from "./supabase.js";
 import { uid, fmt12, sumMins, isHeadCoach, canManageTeamInMode, canPlanTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, hasVisibleComponentTypesPref, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES } from "./constants.js";
@@ -1686,6 +1686,12 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   const team=data.teams.find(t=>t.id===teamId)||null;
   const loc=data.locations.find(l=>l.id===locId)||null;
   const teamSport=(team&&team.sport)||"General";
+  // Packaging Phase D (B2): the Benchmark tile shows locked on a team whose
+  // plan lacks benchmarks.access; tapping it shows the preview instead of
+  // the picker. Resolved from the team's owner, fails open while loading.
+  const {entitlements:builderTeamEnts}=useTeamEntitlements(team&&!team.organizationId?team.id:null);
+  const builderBenchmarksLocked=!isFull("benchmarks.access",builderTeamEnts);
+  const [showBenchmarkPreview,setShowBenchmarkPreview]=useState(false);
   // Until the coach has picked their own tile set, the default depends on
   // the team's sport: a baseball/softball build shows Scrimmage as a
   // default one-tap tile too, and a switch to a non-scrimmage sport drops
@@ -1934,7 +1940,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
     if(!type)return;
     if(type.kind==="station_block"){addBlock();return;}
     if(type.kind==="scrimmage"){addScrimmage();return;}
-    if(type.kind==="benchmark"){setBenchmarkPickerOpen(true);return;}
+    if(type.kind==="benchmark"){if(builderBenchmarksLocked){setShowBenchmarkPreview(true);return;}setBenchmarkPickerOpen(true);return;}
     const a={id:uid(),type:"checklist",name:type.defaultName,duration:type.defaultDuration,assignments:defaultAssignIds,coachId:headCoachId,items:[],notes:""};
     setActs(p=>[...p,a]);setExpandedId(a.id);setLastAddedId(a.id);
     setHandRotation(r=>r+360);
@@ -2547,7 +2553,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
         {visibleTypeKeys.length>0&&<div className="g2" style={{marginBottom:14}}>
           {PRACTICE_COMPONENT_TYPES.filter(t=>visibleTypeKeys.includes(t.key)).filter(t=>t.key!=="scrimmage"||sportSupportsScrimmage(teamSport)).map(t=>(
             <div key={t.key} className="li tap" style={{marginBottom:0}} onClick={()=>addComponentType(t.key)}>
-              <div className="lim"><div className="lin">{t.label}</div><div className="limt">{t.kind==="station_block"?"2+ stations":t.kind==="scrimmage"?"Everyone rotates":t.kind==="benchmark"?"From your Library":t.defaultDuration+" min"}</div></div>
+              <div className="lim"><div className="lin">{t.label}{t.kind==="benchmark"&&builderBenchmarksLocked&&<ProBadge/>}</div><div className="limt">{t.kind==="station_block"?"2+ stations":t.kind==="scrimmage"?"Everyone rotates":t.kind==="benchmark"?"From your Library":t.defaultDuration+" min"}</div></div>
               <span style={{color:"var(--field)",fontSize:18,fontWeight:700,flexShrink:0}}>+</span>
             </div>
           ))}
@@ -2557,6 +2563,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               Reactive off visibleTypeKeys itself, so this comes back on its
               own any time editing the picker leaves an odd count again,
               never something that has to be dismissed once and remembered. */}
+          {showBenchmarkPreview&&builderBenchmarksLocked&&<div style={{gridColumn:"1 / -1"}}><ProPreview catalogId="B2" role={team&&team.ownerUserId===coachId?"head":"assistant"} teamId={team&&team.id}/></div>}
           {visibleTypeKeys.length%2===1&&<div className="li tap" style={{marginBottom:0,background:"var(--field-tint)",border:"1px dashed var(--field-tint-border)"}} onClick={()=>setShowComponentsPicker(true)}>
             <div className="lim"><div className="limt" style={{color:"var(--field-accent)",lineHeight:1.4}}>Tap ⋯ above to add or remove your default practice components.</div></div>
           </div>}

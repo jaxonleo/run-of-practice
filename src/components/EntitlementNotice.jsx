@@ -110,3 +110,21 @@ export function ProPreview({ catalogId, role = "head", tokens, teamId, children 
     </div>
   );
 }
+
+// A dismissible Home card for a value moment (V1-V6, O1). Promotional, so
+// it only ever renders when the caller has already checked the display
+// gates and throttling (see ValueMomentSlot.jsx). The CTA logs a click;
+// Dismiss is the caller's (it snoozes or retires the moment).
+export function ValueMomentCard({ catalogId, tokens, teamId, onDismiss }) {
+  const text = catalogCopy(catalogId, "head", tokens);
+  if (!text) return null;
+  return (
+    <div className="card" style={{ ...boxStyle, padding: "12px 14px", gap: 10 }}>
+      <span style={{ color: "var(--ink-soft)", fontSize: 13.5, lineHeight: 1.5 }}>{text}</span>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+        <Actions catalogId={catalogId} role="head" teamId={teamId} />
+        <button type="button" className="btn ghost bxs" onClick={onDismiss}>Dismiss</button>
+      </div>
+    </div>
+  );
+}

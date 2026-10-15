@@ -199,7 +199,7 @@ function presentState(result, canManage) {
 // elsewhere in Goals & Insights) for whichever team Home resolved as the
 // focus team -- never a report per visible team, and cached for the
 // mounted Home session per team id.
-export default function DevelopmentPulseCard({ team, nextPractice, canManage, data, coachId, hasSportCategories, isLiveNow, onNavigate }) {
+export default function DevelopmentPulseCard({ team, nextPractice, canManage, data, coachId, hasSportCategories, isLiveNow, onNavigate, onResolved }) {
   const [report, setReport] = useState(null);
   useEffect(() => {
     setReport(null);
@@ -232,6 +232,12 @@ export default function DevelopmentPulseCard({ team, nextPractice, canManage, da
       activityLibraryById, skillTagsById, hasSportCategories, allDrillsTagged,
     });
   }, [team, report, nextPractice, isLiveNow, activityLibraryById, skillTagsById, hasSportCategories, allDrillsTagged]);
+  // Packaging Phase D: Home's value moments (V1, V4) read the resolved
+  // state; this card is the one place it is computed.
+  const resolvedKey = result ? team.id + "|" + result.state + "|" + (result.categoryName || "") : null;
+  useEffect(() => {
+    if (onResolved && result) onResolved({ teamId: team.id, state: result.state, categoryName: result.categoryName || "" });
+  }, [resolvedKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Collapse/expand persists per-coach across sessions (direct feedback) --
   // this is one physical widget on Home, not a per-team preference, so a

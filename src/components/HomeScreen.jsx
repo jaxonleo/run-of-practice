@@ -8,6 +8,7 @@ import AbsencePicker from "./AbsencePicker.jsx";
 import { HistoryViewer } from "./CommandScreen.jsx";
 import { DaySheet } from "./ScheduleScreen.jsx";
 import DevelopmentPulseCard from "./DevelopmentPulseCard.jsx";
+import ValueMomentSlot from "./ValueMomentSlot.jsx";
 import FuturePracticeGuardModal from "./FuturePracticeGuardModal.jsx";
 import { EntitlementLockedMessage } from "./EntitlementNotice.jsx";
 import { catalogIdForError } from "../upsellCatalog.js";
@@ -642,6 +643,9 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   // filled up after the invite went out. The invite stays pending, so the
   // card stays and explains who to ask, with no pricing.
   const [teamFullNotice,setTeamFullNotice]=useState(null); // {inviteId, teamName, headCoachName}
+  // Packaging Phase D: the resolved Development Pulse state, for the value
+  // moments slot below it (V1, V4).
+  const [pulseState,setPulseState]=useState(null);
   const respondToTeamInvite=async(accept)=>{
     if(!pendingTeamInvite)return;
     setRespondingTeamInviteId(pendingTeamInvite.id);
@@ -948,7 +952,8 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
   // a director-facing cross-team version is explicitly a future,
   // separate widget, never this card reused with a random team.
   const devPulseContent = (<>
-    {!isOrgMode && focusTeam && <DevelopmentPulseCard team={focusTeam} nextPractice={nextPractice} canManage={focusTeamCanManage} data={data} coachId={coachId} hasSportCategories={focusTeamHasCategories} isLiveNow={focusTeamIsLiveNow} onNavigate={developmentPulseNavigate} />}
+    {!isOrgMode && focusTeam && <DevelopmentPulseCard team={focusTeam} nextPractice={nextPractice} canManage={focusTeamCanManage} data={data} coachId={coachId} hasSportCategories={focusTeamHasCategories} isLiveNow={focusTeamIsLiveNow} onNavigate={developmentPulseNavigate} onResolved={setPulseState} />}
+    {!isOrgMode && focusTeam && <ValueMomentSlot focusTeam={focusTeam} data={data} coachId={coachId} pulse={pulseState} liveNow={joinableLiveSessions.length > 0} />}
     {/* Direct feedback: an assistant/helper with no head-coached team
         anywhere used to just see nothing here (headCoachTeams.length===0
         means focusTeam is always null for them) -- no explanation why the

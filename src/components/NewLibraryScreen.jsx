@@ -4,9 +4,9 @@ import { uid, sumMins, localDateStr, planningState, teamsForMode, menuNeedsToOpe
 import { ActConfig, ChecklistConfig, StationConfig, ScrimmageConfig, useActivityDnd, useDndSensors, ActivityDndContext, SortableActivityRow, arrayMove } from "./ActivityConfigs.jsx";
 import { PublicLibraryScreen } from "./PublicLibraryScreen.jsx";
 import { archiveDrill, setDrillOrgShares, setDrillPrivate, copyDrillToMyLibrary, findMissingEquipment, saveTemplateTree, savePracticeTree, archiveTemplate, reorderDrills, createSkillTag, createOrgSkillTag, archiveSkillTag, renameSkillTag, checkIsAdmin, createGlobalSkillTag, createSkillCategory, archiveSkillCategory, createAsset, createOrgAsset, updateAsset, setAssetLocations, archiveAsset, archiveLocation, createOrgLocation, createLocation, createSublocation, archiveSublocation, fetchDrillInsightSummaries, fetchTeamGoalReport, createBenchmark, createBenchmarkVersion, correctBenchmarkVersionWording, archiveBenchmark, restoreBenchmark, adoptBenchmarkForTeam, fetchBenchmarkAssessments, canCreatePersonalDrill } from "../supabase.js";
-import { EntitlementLockedMessage, UsageMeter } from "./EntitlementNotice.jsx";
+import { EntitlementLockedMessage, UsageMeter, ProPreview, ProBadge } from "./EntitlementNotice.jsx";
 import { catalogIdForError, catalogCopy } from "../upsellCatalog.js";
-import { useEntitlements, limitOf } from "../entitlements.js";
+import { useEntitlements, limitOf, isFull } from "../entitlements.js";
 import { METRIC_META, displayDecimals } from "../benchmarks.js";
 import { MeasureAgainModal } from "./BenchmarkReport.jsx";
 import EquipmentMismatchDialog from "./EquipmentMismatchDialog.jsx";
@@ -1424,7 +1424,7 @@ const BM_EXAMPLES = [
     instructions: "As a team, count the highest number of consecutive completed passes in one attempt, ending on a drop, turnover, or the time limit." },
 ];
 
-function BenchmarksTab({ data, coachId, mode, refreshLibrary, fromDrill, clearFromDrill }) {
+function BenchmarksTab({ data, coachId, mode, refreshLibrary, fromDrill, clearFromDrill, locked }) {
   const isBB = useBigBrowser();
   const [search, setSearch] = useState("");
   const [sportFilter, setSportFilter] = useState("All");
@@ -1454,13 +1454,16 @@ function BenchmarksTab({ data, coachId, mode, refreshLibrary, fromDrill, clearFr
         <input className="inp" style={{ flex: 1, minWidth: 160 }} placeholder="Search benchmarks..." value={search} onChange={e => setSearch(e.target.value)} />
         <select className="btn ghost bsm" value={sportFilter} onChange={e => setSportFilter(e.target.value)}>{sports.map(s => <option key={s} value={s}>{s}</option>)}</select>
         <button type="button" className="btn ghost bsm" onClick={() => setShowArchived(a => !a)}>{showArchived ? "Hide archived" : "Show archived"}</button>
-        <button type="button" className="btn primary bsm" onClick={() => setCreating(true)}>+ Create Benchmark</button>
+        {!locked && <button type="button" className="btn primary bsm" onClick={() => setCreating(true)}>+ Create Benchmark</button>}
       </div>
+      {/* Packaging Phase D (B1): Benchmarks are Pro. Anything already here
+          stays readable; only creating is refused (server-side too). */}
+      {locked && <div style={{ marginBottom: 12 }}><ProPreview catalogId="B1" /></div>}
 
       {list.length === 0 && <div className="card" style={{ textAlign: "center", padding: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{all.length === 0 ? "No benchmarks yet" : "Nothing matches"}</div>
         <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 12 }}>Define a repeatable test once, then measure it as many times as you like.</div>
-        {all.length === 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+        {all.length === 0 && !locked && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
           {BM_EXAMPLES.map(ex => <button key={ex.title} type="button" className="btn ghost bxs" onClick={() => setCreating({ example: ex })}>{ex.title} <span style={{ color: "var(--text-dim)" }}>({ex.hint})</span></button>)}
         </div>}
       </div>}
@@ -1824,6 +1827,14 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
   const tplLimit=isOrgMode?null:limitOf("library.personal_templates",myEnts);
   const tplAtCap=tplLimit!=null&&templates.length>=tplLimit;
   const [tplLimitNotice,setTplLimitNotice]=useState(false);
+  // Packaging Phase D: Library previews (L4 Drill Insights, L5 Suggested
+  // sort, B1 Benchmarks). The Library is the coach's own, so these resolve
+  // from the coach's personal plan; Org mode never locks anything here.
+  const drillInsightsLocked=!isOrgMode&&!isFull("library.drill_insights",myEnts);
+  const suggestedLocked=!isOrgMode&&!isFull("library.suggested_sort",myEnts);
+  const libBenchmarksLocked=!isOrgMode&&!isFull("benchmarks.access",myEnts);
+  const [insightsPreviewDrill,setInsightsPreviewDrill]=useState(null);
+  const [showSuggestedPreview,setShowSuggestedPreview]=useState(false);
   const fmtShort=iso=>iso?new Date(iso).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):null;
   // Templates snapshot drill fields at add-time and don't carry their own
   // skillTagIds -- same lookup-through-libraryId approach as the drill rows
@@ -1880,7 +1891,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       </div>}
       {mineTab==="drills"&&section==="mine"&&showDrillMeter&&<UsageMeter style={{marginTop:10}} used={myDrillCount} limit={drillLimit} label={catalogCopy("L1","head",{n:myDrillCount})}/>}
     </div>
-    {mineTab==="benchmarks"&&<div style={{padding:"0 16px"}}><BenchmarksTab data={data} coachId={coachId} mode={mode} refreshLibrary={refreshLibrary} fromDrill={benchmarkFromDrill} clearFromDrill={()=>setBenchmarkFromDrill(null)}/></div>}
+    {mineTab==="benchmarks"&&<div style={{padding:"0 16px"}}><BenchmarksTab locked={libBenchmarksLocked} data={data} coachId={coachId} mode={mode} refreshLibrary={refreshLibrary} fromDrill={benchmarkFromDrill} clearFromDrill={()=>setBenchmarkFromDrill(null)}/></div>}
     {mineTab==="locations"&&<div style={{padding:"0 16px"}}><LocationsSection data={data} openModal={openModal} refreshPlanning={refreshPlanning} coachId={coachId} mode={mode}/></div>}
     {mineTab==="equipment"&&<div style={{padding:"0 16px"}}><EquipmentTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} openModal={openModal} mode={mode}/></div>}
     {mineTab==="skills"&&<div style={{padding:"0 16px"}}><SkillsTab data={data} coachId={coachId} refreshLibrary={refreshLibrary} isAdmin={isAdmin} mode={mode}/></div>}
@@ -1906,13 +1917,14 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
           styled nothing like Filter/+Add Drill right below it -- now a
           real .btn ghost bsm select sharing the same row, so the whole
           row reads as one consistent set of controls. */}
+      {showSuggestedPreview&&suggestedLocked&&<div style={{marginBottom:10}} onClick={e=>e.stopPropagation()}><ProPreview catalogId="L5"/></div>}
       <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:6,marginBottom:12,flexWrap:"wrap"}} onClick={e=>e.stopPropagation()}>
-        <select className="btn ghost bsm" value={effSort} onChange={e=>setDrillSort(e.target.value)} style={{flexShrink:0}}>
+        <select className="btn ghost bsm" value={effSort} onChange={e=>{if(e.target.value==="suggested"&&suggestedLocked){setShowSuggestedPreview(true);setDrillSort("custom");return;}setShowSuggestedPreview(false);setDrillSort(e.target.value);}} style={{flexShrink:0}}>
           <optgroup label="Sort">
             {isMine&&<option value="custom">Custom order</option>}
             {isMine&&<option value="frequency">Most used</option>}
             <option value="alpha">Alphabetical</option>
-            {isMine&&<option value="suggested">Suggested</option>}
+            {isMine&&<option value="suggested">{suggestedLocked?"Suggested (Pro)":"Suggested"}</option>}
           </optgroup>
           <optgroup label="Group">
             <option value="byskill">By skill category</option>
@@ -2039,8 +2051,8 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
                     Going public gets a real confirm step; going private is
                     a safe, instant, one-way-reversible action. */}
                 <button className="mm-item" onClick={()=>{setDrillMenu(null);act.isPrivate?setConfirmMakePublicId(act.id):toggleDrillPrivate(act.id,true);}}>{act.isPrivate?"Make Public":"Keep Private"}</button>
-                <button className="mm-item" onClick={()=>{setDrillMenu(null);setOpenInsightsId(act.id);}}>View Drill Insights</button>
-                <button className="mm-item" onClick={()=>{setDrillMenu(null);setBenchmarkFromDrill(act);setMineTab("benchmarks");}}>Create Benchmark from Drill</button>
+                <button className="mm-item" onClick={()=>{setDrillMenu(null);if(drillInsightsLocked){setInsightsPreviewDrill(act);return;}setOpenInsightsId(act.id);}}>View Drill Insights{drillInsightsLocked&&<ProBadge/>}</button>
+                <button className="mm-item" onClick={()=>{setDrillMenu(null);if(!libBenchmarksLocked)setBenchmarkFromDrill(act);setMineTab("benchmarks");}}>Create Benchmark from Drill{libBenchmarksLocked&&<ProBadge/>}</button>
                 <button className="mm-item mm-danger" onClick={async()=>{setDrillMenu(null);await archiveDrill(act.id);await refreshLibrary();}}>Delete</button>
               </div>}
               {shareMenuId===act.id&&<div className="mini-menu" style={drillMenuUp?{right:0,minWidth:160,top:"auto",bottom:"calc(100% - 4px)"}:{right:0,top:"100%",minWidth:160}} onClick={e=>e.stopPropagation()}>
@@ -2172,6 +2184,12 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
     </div>}
     {showSchedulePicker&&<SchedulePracticePicker data={data} onClose={()=>setShowSchedulePicker(false)} onPick={p=>{setShowSchedulePicker(false);goToBuilder(p.id);}}/>}
     {copyDialogDrill&&<EquipmentMismatchDialog drillName={copyDialogDrill.name} missing={findMissingEquipment(copyDialogDrill.equipment,assetsById,ownPoolForCopy)} context="library" onAddWithEquipment={()=>runCopy(copyDialogDrill,true)} onAddAnyway={()=>runCopy(copyDialogDrill,false)} onCancel={()=>setCopyDialogDrill(null)}/>}
+    {insightsPreviewDrill&&<div className="movly" onClick={e=>{if(e.target===e.currentTarget)setInsightsPreviewDrill(null);}}><div className="modal">
+      <div className="mhandle"/>
+      <div className="mtitle">Drill Insights</div>
+      <ProPreview catalogId="L4" tokens={{"drill name":insightsPreviewDrill.name}}/>
+      <div className="mfooter"><button className="btn ghost bmd" style={{flex:1}} onClick={()=>setInsightsPreviewDrill(null)}>Close</button></div>
+    </div></div>}
     {openInsightsId&&<DrillInsightsView libraryActivityId={openInsightsId} drillName={(data.activityLibrary||[]).find(a=>a.id===openInsightsId)?.name||"Drill"} onClose={()=>setOpenInsightsId(null)}/>}
     {confirmMakePublicId&&<div className="movly" onClick={()=>setConfirmMakePublicId(null)}><div className="modal" onClick={e=>e.stopPropagation()}>
       <div className="mtitle">Make this drill public?</div>
