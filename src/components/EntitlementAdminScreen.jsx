@@ -4,6 +4,7 @@ import {
   adminFindUserByEmail, adminListOrganizations, adminGetEntitlements,
   adminSetPlan, adminAssignCohort, adminGrantOverride, adminRevokeOverride,
   fetchEntitlementBundles, fetchFeatureRegistry,
+  fetchEntitlementSettings, adminSetFoundingCutoff,
 } from "../supabase.js";
 
 // Entitlement architecture, Phase 5 (handoff §6 -- "a practical way for
@@ -21,6 +22,12 @@ function Card({ children, style }) {
 }
 function SectionTitle({ children }) {
   return <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontWeight: 700, fontSize: 15, textTransform: "uppercase", letterSpacing: ".03em", color: "var(--ink-soft)", marginBottom: 8 }}>{children}</div>;
+}
+// datetime-local wants "YYYY-MM-DDTHH:mm" in the browser's own zone.
+function toLocalInput(iso) {
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 const STATE_COLORS = { full: "var(--field)", preview: "var(--field-accent)", locked: "var(--text-dim)", hidden: "var(--danger)" };
 function StatePill({ state }) {
@@ -42,8 +49,21 @@ export default function EntitlementAdminScreen() {
   const [overrideState, setOverrideState] = useState("full");
   const [overrideLimit, setOverrideLimit] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
+  const [settings, setSettings] = useState(null);
+  const [cutoffInput, setCutoffInput] = useState("");
+  const [cutoffError, setCutoffError] = useState("");
 
-  useEffect(() => { fetchEntitlementBundles().then(setBundles); fetchFeatureRegistry().then(setFeatures); }, []);
+  const loadSettings = useCallback(() => fetchEntitlementSettings().then(st => {
+    setSettings(st);
+    setCutoffInput(st && st.founding_cohort_cutoff ? toLocalInput(st.founding_cohort_cutoff) : "");
+  }), []);
+  useEffect(() => { fetchEntitlementBundles().then(setBundles); fetchFeatureRegistry().then(setFeatures); loadSettings(); }, [loadSettings]);
+  const saveCutoff = async (value) => {
+    setCutoffError("");
+    const { error } = await adminSetFoundingCutoff(value ? new Date(value).toISOString() : null);
+    if (error) setCutoffError(error.message || "Could not save the cutoff.");
+    loadSettings();
+  };
   useEffect(() => { if (subjectType === "organization") adminListOrganizations().then(setOrgs); }, [subjectType]);
 
   const refresh = useCallback((s) => {
@@ -86,6 +106,24 @@ export default function EntitlementAdminScreen() {
       </div>
 
       <Card>
+        <SectionTitle>Founding Coach cutoff</SectionTitle>
+        <div style={{ fontSize: 12.5, color: "var(--text-dim)", marginBottom: 8 }}>
+          New signups join the Founding Coach cohort (full access) until this moment. After it, new coaches start on Free. Billing must not be enabled while this is unset.
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+          {settings && settings.founding_cohort_cutoff
+            ? `Cutoff: ${new Date(settings.founding_cohort_cutoff).toLocaleString()}`
+            : "No cutoff set. Every new signup is a Founding Coach."}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <input className="inp" style={{ flex: 1, minWidth: 180 }} type="datetime-local" value={cutoffInput} onChange={e => setCutoffInput(e.target.value)} />
+          <button className="btn primary bsm" disabled={!cutoffInput} onClick={() => saveCutoff(cutoffInput)}>Set cutoff</button>
+          {settings && settings.founding_cohort_cutoff && <button className="btn ghost bsm" onClick={() => saveCutoff(null)}>Clear</button>}
+        </div>
+        {cutoffError && <div style={{ fontSize: 13, color: "var(--danger)", marginTop: 8 }}>{cutoffError}</div>}
+      </Card>
+
+      <Card>
         <SectionTitle>Subject</SectionTitle>
         <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
           {["user", "organization"].map(t => (
@@ -118,15 +156,15 @@ export default function EntitlementAdminScreen() {
             <label className="lbl">Active plan bundle</label>
             <select className="sel" value={entitlements.plan_bundle_key || ""} disabled={busy}
               onChange={e => withBusy(() => adminSetPlan(subjectType, userId, organizationId, e.target.value))}>
-              {bundles.filter(b => b.is_plan).map(b => <option key={b.bundle_key} value={b.bundle_key}>{b.display_name} ({b.bundle_key})</option>)}
+              {bundles.filter(b => b.is_plan && (!b.retired_at || b.bundle_key === entitlements.plan_bundle_key)).map(b => <option key={b.bundle_key} value={b.bundle_key}>{b.display_name} ({b.bundle_key})</option>)}
             </select>
           </div>
           <div className="fld">
             <label className="lbl">Cohort / grandfathered bundle</label>
             <select className="sel" value={entitlements.cohort_bundle_key || ""} disabled={busy}
               onChange={e => withBusy(() => adminAssignCohort(subjectType, userId, organizationId, e.target.value || null, "set via entitlement simulator"))}>
-              <option value="">— none (use plan only) —</option>
-              {bundles.map(b => <option key={b.bundle_key} value={b.bundle_key}>{b.display_name} ({b.bundle_key})</option>)}
+              <option value="">None (use plan only)</option>
+              {bundles.filter(b => !b.retired_at || b.bundle_key === entitlements.cohort_bundle_key).map(b => <option key={b.bundle_key} value={b.bundle_key}>{b.display_name} ({b.bundle_key})</option>)}
             </select>
           </div>
         </Card>

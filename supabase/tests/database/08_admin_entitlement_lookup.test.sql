@@ -48,7 +48,7 @@ select is(
 );
 select is(
   public.admin_get_entitlements('user', 'a0000000-0000-0000-0000-000000000001', null) ->> 'cohort_bundle_key',
-  'early_access_all_access', 'admin_get_entitlements reports coach A''s real stored cohort_bundle_key'
+  'founding_coach', 'admin_get_entitlements reports coach A''s real stored cohort_bundle_key'
 );
 
 -- Grant a real override, then confirm it shows up in the overrides array

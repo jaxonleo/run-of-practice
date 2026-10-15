@@ -11,13 +11,13 @@ const CONTACT_EMAIL = "contact@runofpractice.com";
 // treatment) rather than the plain centered-logo bar this page started with
 // -- reimplemented locally (not imported) since this file is deliberately
 // self-contained, same reasoning as PP_CSS itself.
-// Launch structure: Free, Pro, Pro+, and Organizations. Pro+ (added back
-// after a follow-up request) grants everything Pro does, plus delegating
-// practice planning to any number of assistants per team (widened from one,
-// 2026-08-16) and 2 concurrent live practices -- pricing-page content only
-// for now, not enforced anywhere
-// (see src/entitlements.js's PLAN_LIMITS.pro_plus, same inert scaffolding
-// as free/pro). Forward-looking on purpose: the rest of the site still says
+// Launch structure: Free, Pro, and Organization (packaging handoff,
+// 2026-10-14). Pro+ is retired and folded into Pro, so shared practice
+// planning is a Pro feature now. The comparison rows mirror the handoff's
+// Plan comparison table; the real values live in bundle_features, this page
+// only describes them. Rows for things not built yet (player development
+// path, the org development suite) are left off on purpose, same rule as
+// the 2026-08-02 redesign below. Forward-looking on purpose: the rest of the site still says
 // "free during early access" everywhere, and FEATURE_FLAGS.BILLING_ENABLED
 // is false, so every CTA here either points a visitor at using the product
 // today or at a plain mailto -- nothing reads as a live checkout that isn't
@@ -56,8 +56,7 @@ const PP_CSS = `
 .pp-toggle button[aria-pressed="true"]{background:var(--field);color:#fff;}
 .pp-toggle-help{font-size:12.5px;color:var(--text-dim);}
 
-.pp-grid{max-width:1020px;margin:32px auto 0;padding:0 24px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:stretch;}
-@media (max-width:900px){.pp-grid{grid-template-columns:1fr 1fr;max-width:520px;}}
+.pp-grid{max-width:760px;margin:32px auto 0;padding:0 24px;display:grid;grid-template-columns:repeat(2,1fr);gap:16px;align-items:stretch;}
 @media (max-width:560px){.pp-grid{grid-template-columns:1fr;max-width:420px;}}
 .pp-card{border:1.5px solid var(--border);border-radius:16px;padding:26px 22px;display:flex;flex-direction:column;background:#fff;}
 .pp-card.featured{border-color:var(--field);box-shadow:0 0 0 1px var(--field);}
@@ -90,14 +89,13 @@ const PP_CSS = `
 .pp-table-sub{font-size:14px;color:var(--text-muted);text-align:center;max-width:480px;margin:0 auto 24px;line-height:1.5;}
 .pp-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:14px;}
 .pp-cmp{width:100%;border-collapse:collapse;min-width:620px;font-size:13.5px;table-layout:fixed;}
-.pp-cmp col.pp-feat-col{width:36%;}
-.pp-cmp col.pp-plan-col{width:16%;}
+.pp-cmp col.pp-feat-col{width:34%;}
+.pp-cmp col.pp-plan-col{width:22%;}
 .pp-cmp thead th{text-align:center;padding:14px 8px;border-bottom:2px solid var(--ink);background:#fff;}
 .pp-cmp thead th:first-child{text-align:left;font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.03em;font-size:13px;}
 .pp-plan-pill{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:5px 15px;border-radius:20px;}
 .pp-plan-pill.free{background:var(--surface-soft);color:var(--ink-soft);}
 .pp-plan-pill.pro{background:var(--field);color:#fff;}
-.pp-plan-pill.proplus{background:var(--ink);color:#fff;}
 .pp-plan-pill.org{background:#fff;color:var(--ink);border:1.5px solid var(--border);}
 .pp-cmp .pp-group-row th,.pp-cmp .pp-group-row td{text-align:left;background:var(--field-tint);color:var(--field-accent);font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.06em;font-size:11.5px;padding:8px 12px;}
 .pp-cmp .pp-group-row th{position:sticky;left:0;}
@@ -134,30 +132,27 @@ const FREE_FEATURES = [
   "Timers, transitions, rotations, and live adjustments",
   "Up to two assistant coaches",
   "Unlimited parent-helper links",
-  "Player focus areas",
-  "20 active personal drills",
-  "Three active practice templates",
+  "The full Public Library",
+  "20 saved personal drills and two templates",
+  "Team goals, Development Pulse, and your top priority",
   "Your 10 most recent completed practices",
 ];
 
 const PRO_FEATURES = [
   "Up to three active personal teams",
-  "No plan-based assistant limit",
+  "Unlimited assistant coaches",
+  "Shared practice planning with your assistants",
   "Unlimited personal drills and templates",
-  "Full Run of Practice drill library",
+  "Every category below target, with drills from your library",
+  "Builder guidance that projects how a plan moves each goal",
+  "Skill-Development Trends and the Practice Execution Scorecard",
+  "Benchmarks for every player",
+  "Drill Insights and Suggested sort",
   "Complete practice history",
-  "Player focus areas",
-  "Season goals",
-  "Planned-versus-actual practice insights",
 ];
 
-const PROPLUS_FEATURES = PRO_FEATURES.concat([
-  "Delegate practice planning to any number of assistant coaches on each of your teams",
-  "Run two practices live at the same time, ideal when your teams practice at overlapping hours",
-  "Share drill-library and practice-planning permissions with your assistants even when they aren't on Pro themselves",
-]);
-
 const ORG_FEATURES = [
+  "Pro for every coach on every club team",
   "Create and assign organization teams",
   "Add and manage coaches centrally",
   "Publish an organization drill library",
@@ -182,36 +177,44 @@ const COMPARISON_GROUPS = [
   {
     title: "Teams and staff",
     rows: [
-      { feature: "Active personal teams", type: "value", free: "1", pro: "3", proplus: "3", org: "Org-managed" },
-      { feature: "Assistant coaches", type: "value", free: "2", pro: "Unlimited", proplus: "Unlimited", org: "Org-managed" },
-      { feature: "Delegate practice planning to an assistant", type: "value", free: "—", pro: "—", proplus: "Unlimited per team", org: "Org-managed" },
-      { feature: "Concurrent live practices", type: "value", free: "1", pro: "1", proplus: "2", org: "Unlimited" },
+      { feature: "Active personal teams you own", type: "value", free: "1", pro: "3", org: "Contracted team count" },
+      { feature: "Assistant coaches per team", type: "value", free: "2", pro: "Unlimited", org: "Unlimited" },
+      { feature: "Shared practice planning and Plan This Station", type: "check", free: false, pro: true, org: true },
     ],
   },
   {
     title: "Drill library and templates",
     rows: [
-      { feature: "Personal drill library", type: "value", free: "20 drills", pro: "Unlimited", proplus: "Unlimited", org: "Org-managed" },
-      { feature: "Full Run of Practice drill library", type: "check", free: false, pro: true, proplus: true, org: true },
-      { feature: "Personal templates", type: "value", free: "3", pro: "Unlimited", proplus: "Unlimited", org: "Org-managed" },
-      { feature: "Organization drill library", type: "check", free: false, pro: false, proplus: false, org: true },
+      { feature: "Saved personal drills", type: "value", free: "20", pro: "Unlimited", org: "Unlimited, plus Club Library" },
+      { feature: "Saved personal templates", type: "value", free: "2", pro: "Unlimited", org: "Unlimited" },
+      { feature: "Drill Insights", type: "check", free: false, pro: true, org: true },
+      { feature: "Suggested drill sort (by goal gap)", type: "check", free: false, pro: true, org: true },
+    ],
+  },
+  {
+    title: "Goals and insights",
+    rows: [
+      { feature: "Team goals", type: "check", free: true, pro: true, org: true },
+      { feature: "Target vs. Planned vs. Actual window", type: "value", free: "Fixed 4 weeks", pro: "1 to 12 weeks", org: "1 to 12 weeks" },
+      { feature: "Development Pulse on Home", type: "check", free: true, pro: true, org: true },
+      { feature: "Next Practice Guidance", type: "value", free: "Top priority only", pro: "All categories, with library drills", org: "Same as Pro" },
+      { feature: "Builder Goal Guidance", type: "value", free: "Current priorities", pro: "Plus draft mix and projected impact", org: "Same as Pro" },
+      { feature: "Skill-Development Trends", type: "value", free: "Preview", pro: "Yes", org: "Yes" },
+      { feature: "Practice Execution Scorecard", type: "check", free: false, pro: true, org: true },
+      { feature: "Browsable practice history", type: "value", free: "10 most recent completed", pro: "All", org: "All" },
     ],
   },
   {
     title: "Player development",
     rows: [
-      { feature: "Season goals", type: "check", free: false, pro: true, proplus: true, org: true },
-      { feature: "Planned-versus-actual insights", type: "check", free: false, pro: true, proplus: true, org: true },
-      { feature: "Practice history", type: "value", free: "10 most recent", pro: "Complete", proplus: "Complete", org: "Complete" },
+      { feature: "Player Focus (one current per category)", type: "check", free: true, pro: true, org: true },
+      { feature: "Benchmarks", type: "check", free: false, pro: true, org: true },
     ],
   },
   {
-    title: "Organization oversight",
+    title: "Organization",
     rows: [
-      { feature: "Organization equipment and locations", type: "check", free: false, pro: false, proplus: false, org: true },
-      { feature: "Centralized coach management", type: "check", free: false, pro: false, proplus: false, org: true },
-      { feature: "Organization-team history", type: "check", free: false, pro: false, proplus: false, org: true },
-      { feature: "Weekly live-practice dashboard", type: "check", free: false, pro: false, proplus: false, org: true },
+      { feature: "Org mode, directors, Club Library, central equipment", type: "check", free: false, pro: false, org: true },
     ],
   },
 ];
@@ -317,7 +320,7 @@ export default function PricingPage() {
         <button type="button" aria-pressed={annual} onClick={() => setBilling("annual")}>Annual</button>
         <button type="button" aria-pressed={!annual} onClick={() => setBilling("monthly")}>Monthly</button>
       </div>
-      <div className="pp-toggle-help">Save $45/year on Pro or $56/year on Pro+ with annual billing</div>
+      <div className="pp-toggle-help">Save $45/year on Pro with annual billing</div>
     </div>
 
     <div className="pp-grid">
@@ -349,20 +352,6 @@ export default function PricingPage() {
         </ul>
       </div>
 
-      <div className="pp-card">
-        <div className="pp-tier-row"><div className="pp-tier">Pro+</div></div>
-        <div className="pp-pitch">For a coaching staff that plans together: delegate practice building to an assistant and run two practices at once.</div>
-        <div className="pp-price">{annual ? "$124/year" : "$15/month"}</div>
-        <div className="pp-price-sub">{annual ? "Equivalent to $10.33/month" : "Cancel anytime"}</div>
-        <div className="pp-cta">
-          {FEATURE_FLAGS.BILLING_ENABLED
-            ? <a href="/" className="pp-btn primary" style={{ width: "100%" }}>Start your Pro preview</a>
-            : <a href="/" className="pp-btn primary" style={{ width: "100%" }}>Included during early access</a>}
-        </div>
-        <ul className="pp-feat">
-          {PROPLUS_FEATURES.map((f, i) => (<li key={i}><span className="mk">&#10003;</span><span>{f}</span></li>))}
-        </ul>
-      </div>
     </div>
 
     <div className="pp-org">
@@ -370,7 +359,7 @@ export default function PricingPage() {
         <div>
           <div className="pp-org-eyebrow">For clubs, leagues, schools, and programs</div>
           <div className="pp-org-h">Run a consistent program across every team</div>
-          <div className="pp-org-sub">Give directors centralized control while coaches plan and run practices in the same familiar experience.</div>
+          <div className="pp-org-sub">Every coach in your club gets Pro on their team, and directors get centralized control while coaches plan and run practices in the same familiar experience.</div>
           <div className="pp-org-price">Custom pricing</div>
           <div className="pp-org-price-help">Pricing is based on active organization teams, with lower per-team pricing as your organization grows.</div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -385,13 +374,12 @@ export default function PricingPage() {
 
     <div className="pp-table-wrap">
       <div className="pp-table-title">Where the room to grow comes in</div>
-      <div className="pp-table-sub">Every plan starts with the same foundation: practice building, live practice mode with timers and rotations, personal equipment and locations, player focus areas, and unlimited parent-helper links. From here, here's what each plan adds.</div>
+      <div className="pp-table-sub">Every plan starts with the same foundation: the Builder, stations and rotations, recurring schedules, the full live practice, notes, PDF export, the full Public Library, equipment and locations, and unlimited parent-helper links. From here, here's what each plan adds.</div>
       <div className="pp-scroll">
         <table className="pp-cmp">
-          <caption style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }}>Feature comparison across Free, Pro, Pro+, and Organizations plans</caption>
+          <caption style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }}>Feature comparison across Free, Pro, and Organization plans</caption>
           <colgroup>
             <col className="pp-feat-col" />
-            <col className="pp-plan-col" />
             <col className="pp-plan-col" />
             <col className="pp-plan-col" />
             <col className="pp-plan-col" />
@@ -401,18 +389,16 @@ export default function PricingPage() {
               <th scope="col">Feature</th>
               <th scope="col"><span className="pp-plan-pill free">Free</span></th>
               <th scope="col" className="pp-featured-col"><span className="pp-plan-pill pro">Pro</span></th>
-              <th scope="col"><span className="pp-plan-pill proplus">Pro+</span></th>
               <th scope="col"><span className="pp-plan-pill org">Org</span></th>
             </tr>
           </thead>
           <tbody>
             {COMPARISON_GROUPS.map((g) => (<React.Fragment key={g.title}>
-              <tr className="pp-group-row"><th scope="colgroup">{g.title}</th><td colSpan={4} aria-hidden="true"></td></tr>
+              <tr className="pp-group-row"><th scope="colgroup">{g.title}</th><td colSpan={3} aria-hidden="true"></td></tr>
               {g.rows.map((r, i) => (<tr key={i} className={i % 2 === 1 ? "pp-row-alt" : undefined}>
                 <th scope="row">{r.feature}</th>
                 <Cell row={r} plan="free" />
                 <Cell row={r} plan="pro" featured />
-                <Cell row={r} plan="proplus" />
                 <Cell row={r} plan="org" />
               </tr>))}
             </React.Fragment>))}

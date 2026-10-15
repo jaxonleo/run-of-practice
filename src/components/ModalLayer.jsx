@@ -7,7 +7,7 @@ import { LocationChips } from "./NewLibraryScreen.jsx";
 import { EntitlementLockedMessage } from "./EntitlementNotice.jsx";
 
 const SPORTS=["Basketball","Soccer","Baseball","Lacrosse","Football","Softball","Volleyball","Hockey","Tennis","Swimming","General","Other"];
-const STAFF_ROLES=["Head Coach","Assistant Coach","Helper"];
+const STAFF_ROLES=["Head Coach","Assistant Coach"];
 
 // Chip-grid picker for a sport's fixed position list, falling back to a
 // freeform text input for sports with no defined list (Tennis, General,
@@ -422,7 +422,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
             <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
             <div className="fld"><label className="lbl">Role</label>
               <div className="brow">
-                {STAFF_ROLES.map(r=>(<button key={r} type="button" className={"btn bsm "+((f.role||"Assistant Coach")===r?"primary":"ghost")} onClick={()=>set("role",r)}>{r}</button>))}
+                {STAFF_ROLES.map(r=>(<button key={r} type="button" className={"btn bsm "+((STAFF_ROLES.includes(f.role)?f.role:"Assistant Coach")===r?"primary":"ghost")} onClick={()=>set("role",r)}>{r}</button>))}
               </div>
             </div>
             {!(coach&&coach.userId)&&<div className="fld"><label className="lbl">Invite Email</label><input className="inp" type="email" placeholder="Needed to send the invite and link their account" value={f.inviteEmail||""} onChange={e=>set("inviteEmail",e.target.value)}/></div>}

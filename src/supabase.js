@@ -82,8 +82,11 @@ export async function reactivateAccount(userId) {
 
 
 // ── Teams / roster ──────────────────────────────────────────────────────────────
-const ROLE_LABELS = { head_coach: 'Head Coach', assistant_coach: 'Assistant Coach', helper: 'Helper' }
-const ROLE_VALUES = { 'Head Coach': 'head_coach', 'Assistant Coach': 'assistant_coach', 'Helper': 'helper' }
+// The rostered 'helper' role was retired and merged into assistant_coach
+// (packaging handoff, 2026-10-14). "Helper" now means only a parent on an
+// anonymous link (HelperView, /live/:token), never a roster role.
+const ROLE_LABELS = { head_coach: 'Head Coach', assistant_coach: 'Assistant Coach' }
+const ROLE_VALUES = { 'Head Coach': 'head_coach', 'Assistant Coach': 'assistant_coach' }
 
 function mapPlayerRow(p) {
   return { id: p.id, firstName: p.first_name, lastName: p.last_name, jersey: p.jersey_number || '', positions: p.positions || [], bats: p.bats || '', throws: p.throws || '', notes: p.notes || '' }
@@ -263,7 +266,7 @@ export async function archiveStaff(id) {
 // same reasoning (fetchPendingTeamInvites is the invitee's view, matched
 // against their own verified email; edit/cancel are the sender's-side
 // actions, gated server-side on can_manage_team, not the invitee's email).
-const TEAM_INVITE_ROLE_LABELS = { head_coach: 'Head Coach', assistant_coach: 'Assistant Coach', helper: 'Helper' }
+const TEAM_INVITE_ROLE_LABELS = { head_coach: 'Head Coach', assistant_coach: 'Assistant Coach' }
 function mapTeamInviteRow(i, teamsById) {
   const team = teamsById ? teamsById[i.team_id] : null
   return { id: i.id, teamId: i.team_id, teamName: team ? team.name : '', email: i.email, name: (i.first_name + ' ' + (i.last_name || '')).trim(), role: TEAM_INVITE_ROLE_LABELS[i.role] || i.role, status: i.status, createdAt: i.created_at }
@@ -2422,6 +2425,20 @@ export async function fetchFeatureRegistry() {
   const { data, error } = await supabase.from('features').select('*').order('category').order('feature_key')
   if (error) { console.error('fetchFeatureRegistry:', error); return [] }
   return data || []
+}
+// Single-row global entitlement settings (packaging handoff, 2026-10-14):
+// founding_cohort_cutoff decides whether a new signup joins the
+// founding_coach cohort. Select-only for authenticated; writes go through
+// admin_set_founding_cutoff, which re-checks is_admin().
+export async function fetchEntitlementSettings() {
+  const { data, error } = await supabase.from('entitlement_settings').select('*').maybeSingle()
+  if (error) { console.error('fetchEntitlementSettings:', error); return null }
+  return data
+}
+export async function adminSetFoundingCutoff(cutoff) {
+  const { error } = await supabase.rpc('admin_set_founding_cutoff', { p_cutoff: cutoff })
+  if (error) console.error('adminSetFoundingCutoff:', error)
+  return { error }
 }
 
 // Org Experience (ROP-Org-Experience-Handoff.md). myOrgs (director

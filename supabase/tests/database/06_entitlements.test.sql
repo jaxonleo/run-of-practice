@@ -7,8 +7,9 @@
 begin;
 select plan(23);
 
--- Every new signup gets a free plan_state row and an early_access_all_access
--- cohort row (the two triggers added in 20260918000200) -- confirmed for
+-- Every new signup gets a free plan_state row and (while the founding
+-- cutoff is unset) a founding_coach cohort row (packaging 2026-10-14; was
+-- early_access_all_access) (the two triggers added in 20260918000200) -- confirmed for
 -- coach A as coach A, exercising RLS's "select own" branch at the same time.
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000001', true);
@@ -19,7 +20,7 @@ select is(
 );
 select is(
   (select cohort_bundle_key from public.entitlement_cohort_assignments where user_id = 'a0000000-0000-0000-0000-000000000001'),
-  'early_access_all_access', 'coach A''s default cohort is early_access_all_access'
+  'founding_coach', 'coach A''s default cohort is founding_coach'
 );
 
 reset role;
@@ -67,11 +68,11 @@ select is(
 -- bundle (deliberately, per the handoff's own worked example) -- resolves
 -- from features.default_state alone.
 select is(
-  public.resolve_entitlement('user', 'a0000000-0000-0000-0000-000000000002', null, 'benchmarks.history') ->> 'state',
-  'full', 'an unpackaged feature resolves from the registry''s own default_state'
+  public.resolve_entitlement('user', 'a0000000-0000-0000-0000-000000000002', null, 'native.live_activities') ->> 'state',
+  'hidden', 'an unpackaged feature resolves from the registry''s own default_state'
 );
 select is(
-  public.resolve_entitlement('user', 'a0000000-0000-0000-0000-000000000002', null, 'benchmarks.history') ->> 'source',
+  public.resolve_entitlement('user', 'a0000000-0000-0000-0000-000000000002', null, 'native.live_activities') ->> 'source',
   'default', 'resolution source is correctly reported as default'
 );
 

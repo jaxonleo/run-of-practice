@@ -6,7 +6,7 @@
 -- early_access_all_access cohort) completely unaffected -- the whole point
 -- of wiring real enforcement before real billing exists.
 begin;
-select plan(10);
+select plan(11);
 
 -- Gate 1: goals.access. can_view_goals_for_team already required
 -- can_manage_team OR can_build_practice_for_team (role) -- confirm the new
@@ -24,18 +24,34 @@ select ok(
 reset role;
 select set_config('request.jwt.claim.sub', '', true);
 
--- Drop coach A's cohort to exercise the free plan's real goals.access=locked
--- value (rolled back with everything else in this file).
+-- Drop coach A's cohort (rolled back with everything else in this file).
+-- Since the 2026-10-14 packaging, Free includes goals.access, so the free
+-- plan alone still lets her in; a locked override proves the AND-gate
+-- itself still blocks.
 delete from public.entitlement_cohort_assignments where user_id = 'a0000000-0000-0000-0000-000000000001';
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000001', true);
 select ok(
-  not public.can_view_goals_for_team('b0000000-0000-0000-0000-000000000001'),
-  'once the cohort is gone, the free plan''s locked goals.access now actually blocks -- the role check alone is no longer sufficient'
+  public.can_view_goals_for_team('b0000000-0000-0000-0000-000000000001'),
+  'with no cohort, the free plan now includes goals.access (Free flips to full, 2026-10-14)'
 );
 reset role;
 select set_config('request.jwt.claim.sub', '', true);
+
+insert into public.entitlement_overrides (subject_type, user_id, feature_key, state, reason)
+values ('user', 'a0000000-0000-0000-0000-000000000001', 'goals.access', 'locked', 'test: AND-gate');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000001', true);
+select ok(
+  not public.can_view_goals_for_team('b0000000-0000-0000-0000-000000000001'),
+  'a locked goals.access actually blocks -- the role check alone is not sufficient'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+
+delete from public.entitlement_overrides where user_id = 'a0000000-0000-0000-0000-000000000001' and feature_key = 'goals.access';
 
 -- Moving coach A to pro (which grants goals.access) restores access without
 -- restoring the cohort -- proves the plan tier itself, not just the
@@ -84,7 +100,7 @@ update public.team_staff set can_build_practices = true where id = 'f0000000-000
 -- Restore coach A's cohort -- pro_plus-equivalent (uncapped delegation) is
 -- what proves the *upgrade path* works, not just that free is blocked.
 insert into public.entitlement_cohort_assignments (subject_type, user_id, cohort_bundle_key, assigned_reason)
-values ('user', 'a0000000-0000-0000-0000-000000000001', 'early_access_all_access', 'test: restore for later gates');
+values ('user', 'a0000000-0000-0000-0000-000000000001', 'founding_coach', 'test: restore for later gates');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000001', true);
