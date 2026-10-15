@@ -53,8 +53,12 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
   // the team's owner, never the viewer. UX only; set_practice_delegate is
   // the real gate. Turning sharing off is never plan-gated.
   const { entitlements: teamEnts } = useTeamEntitlements(team && !team.organizationId ? team.id : null);
-  const otherDelegates = (team.coaches || []).filter(c => c.canBuildPractices && c.id !== coach.id).length;
-  const delegationLocked = !coach.canBuildPractices && !underLimit("delegation.practice_planning", otherDelegates, teamEnts);
+  // Phase E: coach.canBuildPractices is the effective permission; the
+  // toggle shows the stored grant, which a downgrade suspends but keeps.
+  const granted = coach.canBuildPracticesGranted != null ? coach.canBuildPracticesGranted : coach.canBuildPractices;
+  const suspended = granted && !coach.canBuildPractices;
+  const otherDelegates = (team.coaches || []).filter(c => (c.canBuildPracticesGranted != null ? c.canBuildPracticesGranted : c.canBuildPractices) && c.id !== coach.id).length;
+  const delegationLocked = !granted && !underLimit("delegation.practice_planning", otherDelegates, teamEnts);
   const viewerRole = team.ownerUserId === coachId ? "head" : "assistant";
   const coachFirstName = (coach.name || "").split(" ")[0] || coach.name;
 
@@ -93,11 +97,11 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
         <Row
           label="Share Practice Planning"
           blurb={"Let " + coach.name + " build and edit this team's scheduled practices, the same as you can, and be assignable to individual stations in Builder."}
-          on={coach.canBuildPractices}
+          on={granted}
           busy={busy || delegationLocked}
-          onToggle={() => run(() => setPracticeDelegate(coach.id, !coach.canBuildPractices), { entitlementCta: true })}
+          onToggle={() => run(() => setPracticeDelegate(coach.id, !granted), { entitlementCta: true })}
         />
-        {delegationLocked && !error && <div style={{ marginTop: 8 }}>
+        {(delegationLocked || suspended) && !error && <div style={{ marginTop: 8 }}>
           <EntitlementLockedMessage catalogId="T5" role={viewerRole} teamId={team.id} tokens={{ "coach first name": coachFirstName }} />
         </div>}
         <Row
@@ -126,7 +130,7 @@ export default function PermissionsModal({ team, coach, coachId, canManage, refr
           label="Practice Planning"
           blurb="Your head coach controls this."
           readOnly
-          readOnlyNote={coach.canBuildPractices ? "You can build practices for this team" : "Your head coach controls this"}
+          readOnlyNote={coach.canBuildPractices ? "You can build practices for this team" : suspended ? "Paused on this team's plan" : "Your head coach controls this"}
         />
       </>)}
 

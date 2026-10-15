@@ -254,6 +254,10 @@ export function canManageTeamInMode(team,coachId,mode){
 // strategy/durable-asset territory (goals, templates, roster, permissions)
 // stays on canManageTeamInMode.
 export function canPlanTeamInMode(team,coachId,mode){
+  // Packaging Phase E: a personal team paused by a downgrade (its owner's
+  // plan no longer covers it) can't be planned or scheduled by anyone; the
+  // server refuses those writes too. Undefined planActive = covered.
+  if(team&&team.planActive===false)return false;
   if(canManageTeamInMode(team,coachId,mode))return true;
   if(!team||!coachId)return false;
   return (team.coaches||[]).some(c=>c.userId===coachId&&c.canBuildPractices);

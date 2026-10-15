@@ -940,7 +940,11 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
             viewport. */}
         {planned && <div style={{ display: "flex", gap: 8 }}>
           <button className="btn outline blg" style={{ flex: 1, minWidth: 0 }} onClick={() => setViewPractice(nextPractice)}>Review Plan</button>
-          <button className="btn primary blg" style={{ flex: 1, minWidth: 0 }} onClick={() => isSessionLive ? goToRun(nextPractice.id) : (soon ? goToRun(nextPractice.id) : setShowFutureGuard(true))}>{isSessionLive ? "Join Practice" : "Start Practice →"}</button>
+          {/* Packaging Phase E: a paused team can't start a new run (the
+              server refuses too); joining one already running always works. */}
+          {(isSessionLive || !team || team.planActive !== false)
+            ? <button className="btn primary blg" style={{ flex: 1, minWidth: 0 }} onClick={() => isSessionLive ? goToRun(nextPractice.id) : (soon ? goToRun(nextPractice.id) : setShowFutureGuard(true))}>{isSessionLive ? "Join Practice" : "Start Practice →"}</button>
+            : <div style={{ flex: 1, minWidth: 0, textAlign: "center", fontSize: 13, fontWeight: 600, color: "var(--text-dim)", padding: "10px 0", border: "1.5px dashed var(--border)", borderRadius: "var(--radius-md)" }}>Team paused</div>}
         </div>}
         {showFutureGuard && <FuturePracticeGuardModal practice={nextPractice} team={team} onCancel={() => setShowFutureGuard(false)} onRunAsNew={() => runAsNewFromGuard(nextPractice)} onRunNow={() => { setShowFutureGuard(false); goToRun(nextPractice.id); }} />}
       </div></>);

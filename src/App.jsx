@@ -8,10 +8,11 @@ import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { createSingleFlight } from "./singleFlight.js";
 import { setSentryUser } from "./sentry.js";
-import { setEntitlementAnalyticsUser, clearEntitlementsCache, useEntitlements, useTeamEntitlements, underLimit, isFull } from "./entitlements.js";
+import { setEntitlementAnalyticsUser, clearEntitlementsCache, clearTeamEntitlementsCache, useEntitlements, useTeamEntitlements, underLimit, isFull } from "./entitlements.js";
+import ActiveTeamChooser from "./components/ActiveTeamChooser.jsx";
 import { EntitlementLockedMessage, ProPreview, ProBadge } from "./components/EntitlementNotice.jsx";
 import { catalogIdForError } from "./upsellCatalog.js";
-import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, savePracticeTree, saveTemplateTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchPlayerNotes, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed, adoptBenchmarkForTeam, checkCanViewGoals, canCreatePersonalTemplate } from "./supabase.js";
+import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, savePracticeTree, saveTemplateTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchPlayerNotes, fetchMyTeamPlanStatus, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed, adoptBenchmarkForTeam, checkCanViewGoals, canCreatePersonalTemplate } from "./supabase.js";
 import { uid, fmt12, sumMins, isHeadCoach, canManageTeamInMode, canPlanTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, hasVisibleComponentTypesPref, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES } from "./constants.js";
 import { TwoPane } from "./components/BBShells.jsx";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
@@ -864,6 +865,18 @@ function LoadingScreen({message}){
 function AuthedShell(){
   const ctx=useAppCtx();
   const {session,wantsAuth,setWantsAuth,profile,saveName,loaded,needsReactivationCheck,doReactivate,reactivating,onSignOut}=ctx;
+  // Packaging Phase E (T4): after a downgrade leaves a coach over the
+  // personal-team cap with no chosen active team, a blocking chooser comes
+  // before Home. undefined = still checking; null = check failed (fail open,
+  // the app renders normally and the server still enforces).
+  const [teamPlanStatus,setTeamPlanStatus]=useState(undefined);
+  const sessionUserId=session?session.user.id:null;
+  useEffect(()=>{
+    if(!sessionUserId||!loaded)return;
+    let alive=true;
+    fetchMyTeamPlanStatus().then(st=>{if(alive)setTeamPlanStatus(st||null);});
+    return ()=>{alive=false;};
+  },[sessionUserId,loaded]);
   const [liveId,setLiveId]=useState(null);
   const [editPracticeId,setEditPracticeId]=useState(null);
   const [startTemplateId,setStartTemplateId]=useState(null);
@@ -932,6 +945,13 @@ function AuthedShell(){
   if(profile&&!profile.first_name)return (<NameScreen onSave={saveName}/>);
   // Show data loading spinner after auth but before data loaded
   if(!loaded)return <LoadingScreen message="Loading your data..."/>;
+  if(teamPlanStatus===undefined)return <LoadingScreen message="Loading your data..."/>;
+  if(teamPlanStatus&&teamPlanStatus.limit===1&&teamPlanStatus.owned_active>1&&!teamPlanStatus.chosen_team_id){
+    const ownedPersonal=(ctx.data.teams||[]).filter(t=>t.ownerUserId===ctx.coachId&&!t.organizationId);
+    if(ownedPersonal.length>1)return <ActiveTeamChooser teams={ownedPersonal} practices={ctx.data.practices}
+      onChosen={async()=>{clearTeamEntitlementsCache();await ctx.refreshTeams();setTeamPlanStatus(await fetchMyTeamPlanStatus());}}
+      onExit={onSignOut}/>;
+  }
 
   return (<AppCtx.Provider value={{...ctx,liveId,setLiveId,editPracticeId,setEditPracticeId,startTemplateId,setStartTemplateId,presetTeamId,setPresetTeamId,subViewBack,setSubViewBack,goToBuilder,goToRun,goHome,goToSchedule,goToTeam,goToSettings}}>
     <Outlet/>
@@ -940,8 +960,8 @@ function AuthedShell(){
 }
 
 function LayoutRoute(){
-  const {data,liveId,goToRun,mode,openModal,subViewBack,coachId}=useAppCtx();
-  return <Layout data={data} liveId={liveId} goToRun={goToRun} mode={mode} openModal={openModal} subViewBack={subViewBack} coachId={coachId}/>;
+  const {data,liveId,goToRun,mode,openModal,subViewBack,coachId,refreshTeams}=useAppCtx();
+  return <Layout data={data} liveId={liveId} goToRun={goToRun} mode={mode} openModal={openModal} subViewBack={subViewBack} coachId={coachId} refreshTeams={refreshTeams}/>;
 }
 
 // Founder-only gate. Settings shows a "Founder Metrics" row only when

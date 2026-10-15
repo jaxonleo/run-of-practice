@@ -651,7 +651,7 @@ export function SessionHistoryDetail({ session, practice, team, data, canManage,
         Template -- same look/actions HistoryViewer (Schedule/Home's own
         past-practice screen) already had, brought into this, the one
         canonical History view. */}
-    {(goToRun || onRunNow) && (canManage || canBuildPractices) && <button className="btn primary bmd bfull" style={{ marginBottom: 8 }} onClick={runNowFrom} disabled={runningNow}>{runningNow ? "Starting..." : "Run Now"}</button>}
+    {(goToRun || onRunNow) && (canManage || canBuildPractices) && !(team && team.planActive === false) && <button className="btn primary bmd bfull" style={{ marginBottom: 8 }} onClick={runNowFrom} disabled={runningNow}>{runningNow ? "Starting..." : "Run Now"}</button>}
     {/* Save as Template is an ownership-level action -- head coach only,
         regardless of delegated build access (Delegated Planning spec §6). */}
     {canManage && showTplInput && <div style={{ marginBottom: 8 }}>

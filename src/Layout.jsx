@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { Outlet, useNavigate, useParams, useLocation } from "react-router-dom";
 import { Ic } from "./icons.jsx";
 import { canManageTeamInMode, useBigBrowser } from "./constants.js";
-import { checkCanViewGoals } from "./supabase.js";
+import { checkCanViewGoals, setActivePersonalTeam } from "./supabase.js";
+import { EntitlementLockedMessage } from "./components/EntitlementNotice.jsx";
+import { clearTeamEntitlementsCache } from "./entitlements.js";
+import { parseEntitlementError } from "./upsellCatalog.js";
 
 // App shell shared by every authenticated route (ROP-Goals-TeamNav-Handoff.md
 // §4.1-4.2). Context-sensitive tab bar: outside a team it's Home/Library;
@@ -47,7 +50,7 @@ const teamWorkspaceTabs = (teamId, isOrgMode, canViewGoals) => [
   ...(canViewGoals ? [{ id: "goals", label: "Goals & Insights", path: `/team/${teamId}/goals` }] : []),
 ];
 
-export default function Layout({ data, liveId, goToRun, mode, openModal, subViewBack, coachId }) {
+export default function Layout({ data, liveId, goToRun, mode, openModal, subViewBack, coachId, refreshTeams }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { teamId } = useParams();
@@ -82,6 +85,29 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
     if (team && roleCanViewGoals) checkCanViewGoals(teamId).then(setGoalsEntitlementOk);
   }, [teamId, roleCanViewGoals, team]);
   const canViewGoals = roleCanViewGoals && goalsEntitlementOk !== false;
+  // Packaging Phase E (T3): a personal team the owner's plan no longer
+  // covers after a downgrade is paused: fully viewable, but planning,
+  // scheduling, and starting new live runs are refused server-side. The
+  // owner can make it the active team (once every 30 days); assistants just
+  // see that it is paused, never pricing.
+  const pausedTeam = !!(team && team.planActive === false);
+  const pausedRole = team && team.ownerUserId === coachId ? "head" : "assistant";
+  const [switchMsg, setSwitchMsg] = useState("");
+  const [switching, setSwitching] = useState(false);
+  useEffect(() => { setSwitchMsg(""); }, [teamId]);
+  const switchActiveTeam = async () => {
+    if (switching) return;
+    setSwitching(true); setSwitchMsg("");
+    const { error } = await setActivePersonalTeam(teamId);
+    if (error) {
+      setSwitchMsg(parseEntitlementError(error) ? "You can switch your active team once every 30 days." : "Couldn't switch teams. Try again.");
+      setSwitching(false);
+      return;
+    }
+    clearTeamEntitlementsCache();
+    if (refreshTeams) await refreshTeams();
+    setSwitching(false);
+  };
   const workspaceTabs = inTeam ? teamWorkspaceTabs(teamId, isOrgMode, canViewGoals) : [];
   // Keep the active tab visible and anchored when the row scrolls (design
   // system v1's team-header rule) -- a direct link or programmatic nav
@@ -177,6 +203,11 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
         })}
       </div>}
       <div className="screen">
+        {inTeam && pausedTeam && <div style={{ padding: "10px 16px 0" }}>
+          <EntitlementLockedMessage catalogId="T3" role={pausedRole} teamId={teamId} tokens={{ Team: team.name }}
+            onSecondary={pausedRole === "head" ? switchActiveTeam : undefined} />
+          {switchMsg && <div style={{ fontSize: 12.5, color: "var(--text-dim)", marginTop: 6 }}>{switchMsg}</div>}
+        </div>}
         <Outlet/>
       </div>
       {liveId && !hideTabBar && <button className="live-resume" onClick={() => goToRun(liveId)}>

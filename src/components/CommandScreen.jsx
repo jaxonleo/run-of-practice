@@ -1208,7 +1208,7 @@ function PlanHistoryViewer({data,practice,team,canManage,canBuildPractices,onRun
       {runStat==="abandoned"&&<span className="bdg" style={{marginLeft:6,background:"var(--caution-tint)",color:"var(--caution)"}}>Abandoned</span>}
     </div>
     {runStat==="abandoned"&&<div style={{fontSize:12,color:"var(--text-dim)",marginBottom:12}}>This practice was aborted before it finished. It doesn't count as a completed run.</div>}
-    {(canManage||canBuildPractices)&&<button className="btn primary bmd bfull" style={{marginBottom:8}} onClick={runAgain} disabled={runningAgain}>{runningAgain?"Starting...":"Run Again"}</button>}
+    {(canManage||canBuildPractices)&&!(team&&team.planActive===false)&&<button className="btn primary bmd bfull" style={{marginBottom:8}} onClick={runAgain} disabled={runningAgain}>{runningAgain?"Starting...":"Run Again"}</button>}
     {/* Save as Template is an ownership-level action -- head coach only,
         regardless of delegated build access (Delegated Planning spec §6). */}
     {canManage&&showTplInput&&<div style={{marginBottom:8}}>

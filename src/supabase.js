@@ -133,10 +133,19 @@ export async function fetchMyTeams() {
   const invitesByTeam = {}
   for (const i of invitesRes.data || []) (invitesByTeam[i.team_id] ||= []).push(mapTeamInviteRow(i))
 
-  const [focusRes, deactivatedRes] = await Promise.all([
+  const [focusRes, deactivatedRes, planStatusRes] = await Promise.all([
     players.length ? supabase.from('player_focus_areas').select('id, player_id, category_id, note').in('player_id', players.map(p => p.id)) : Promise.resolve({ data: [] }),
     teamIds.length ? supabase.rpc('get_deactivated_staff_user_ids', { p_team_ids: teamIds }) : Promise.resolve({ data: [] }),
+    teamIds.length ? supabase.rpc('get_teams_plan_status', { p_team_ids: teamIds }) : Promise.resolve({ data: [] }),
   ])
+  // Packaging Phase E: per team, whether the owner's plan still covers it
+  // (planActive, false = paused after a downgrade) and whether delegated
+  // planning is allowed. Fails open: a missing row counts as active and
+  // allowed, so a transport error never locks anyone out client-side (the
+  // server is the real gate either way).
+  if (planStatusRes.error) console.error('fetchMyTeams (plan status):', planStatusRes.error)
+  const planStatusByTeam = {}
+  for (const r of planStatusRes.data || []) planStatusByTeam[r.team_id] = r
   const focusByPlayer = {}
   for (const fa of focusRes.data || []) {
     if (!fa.category_id) continue
@@ -161,7 +170,14 @@ export async function fetchMyTeams() {
     goalsSavedAt: t.goals_saved_at,
     locationIds: locationsByTeam[t.id] || [],
     players: players.filter(p => p.team_id === t.id).map(p => Object.assign(mapPlayerRow(p), { focusAreas: focusByPlayer[p.id] || [] })),
-    coaches: staff.filter(s => s.team_id === t.id && !(s.user_id && deactivatedUserIds.has(s.user_id))).map(mapStaffRow),
+    planActive: !planStatusByTeam[t.id] || planStatusByTeam[t.id].plan_active !== false,
+    // canBuildPractices is the effective permission (granted AND the team's
+    // plan includes delegated planning); canBuildPracticesGranted is the
+    // stored grant, which a downgrade suspends but never clears.
+    coaches: staff.filter(s => s.team_id === t.id && !(s.user_id && deactivatedUserIds.has(s.user_id))).map(mapStaffRow).map(c => {
+      const allowed = !planStatusByTeam[t.id] || planStatusByTeam[t.id].delegation_allowed !== false
+      return Object.assign(c, { canBuildPracticesGranted: c.canBuildPractices, canBuildPractices: c.canBuildPractices && allowed })
+    }),
     invites: invitesByTeam[t.id] || [],
   }))
 }
@@ -2416,6 +2432,20 @@ export async function updateUpsellState(action, key, value) {
   const { data, error } = await supabase.rpc('update_upsell_state', { p_action: action, p_key: key, p_value: value == null ? null : String(value) })
   if (error) { console.error('updateUpsellState:', error); return null }
   return data
+}
+// Packaging Phase E (downgrade): the caller's personal-team cap and chosen
+// active team (null on error, so the chooser never blocks on a hiccup),
+// and the one write path for that choice (30-day switch rule enforced
+// server-side; a refusal comes back as ENTITLEMENT_LIMIT:teams.personal_count).
+export async function fetchMyTeamPlanStatus() {
+  const { data, error } = await supabase.rpc('get_my_team_plan_status')
+  if (error) { console.error('fetchMyTeamPlanStatus:', error); return null }
+  return data
+}
+export async function setActivePersonalTeam(teamId) {
+  const { error } = await supabase.rpc('set_active_personal_team', { p_team_id: teamId })
+  if (error) console.error('setActivePersonalTeam:', error)
+  return { error }
 }
 // Insert-only upsell analytics. Fire-and-forget: a failed log never
 // affects the screen that triggered it.
