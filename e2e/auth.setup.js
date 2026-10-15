@@ -11,8 +11,11 @@ import path from 'path';
 import { readEnvVar } from './env.js';
 
 const authFile = path.join(process.cwd(), 'e2e', '.auth', 'head-coach.json');
+// Staging-only Free-plan head coach (packaging handoff, 2026-10-14), used by
+// packaging-free.spec.js. Never minted against production.
+export const freeAuthFile = path.join(process.cwd(), 'e2e', '.auth', 'free-coach.json');
 
-setup('authenticate as QA head coach', async ({ page, baseURL }) => {
+async function signInAs(page, baseURL, email, file) {
   const projectRef = readEnvVar('STAGING_PROJECT_REF');
   const serviceRoleKey = readEnvVar('STAGING_SERVICE_ROLE_KEY');
   const anonKey = readEnvVar('STAGING_ANON_KEY');
@@ -21,10 +24,7 @@ setup('authenticate as QA head coach', async ({ page, baseURL }) => {
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
   const anon = createClient(supabaseUrl, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
-  const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
-    type: 'magiclink',
-    email: 'ropqa-head@example.com',
-  });
+  const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({ type: 'magiclink', email });
   if (linkErr) throw linkErr;
   const { data: verifyData, error: verifyErr } = await anon.auth.verifyOtp({
     token_hash: linkData.properties.hashed_token,
@@ -45,6 +45,14 @@ setup('authenticate as QA head coach', async ({ page, baseURL }) => {
   await page.goto(baseURL);
   await page.waitForSelector('text=Home', { timeout: 15000 });
 
-  fs.mkdirSync(path.dirname(authFile), { recursive: true });
-  await page.context().storageState({ path: authFile });
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  await page.context().storageState({ path: file });
+}
+
+setup('authenticate as QA head coach', async ({ page, baseURL }) => {
+  await signInAs(page, baseURL, 'ropqa-head@example.com', authFile);
+});
+
+setup('authenticate as QA Free coach', async ({ page, baseURL }) => {
+  await signInAs(page, baseURL, 'ropqa-free@example.com', freeAuthFile);
 });

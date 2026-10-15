@@ -2329,6 +2329,14 @@ export async function fetchFounderMetricsDetail(weeks) {
   if (error) { console.error('fetchFounderMetricsDetail:', error); return null }
   return data
 }
+// Packaging analytics panel (Founder Metrics): limit hits by feature,
+// click-through by catalog ID, and the share of Free coaches who hit a cap
+// within 30 days of signup. Admin-only server-side.
+export async function fetchFounderPackagingMetrics(weeks) {
+  const { data, error } = await supabase.rpc('get_founder_packaging_metrics', { p_weeks: weeks })
+  if (error) { console.error('fetchFounderPackagingMetrics:', error); return null }
+  return data
+}
 // admin_users management -- the extensibility path for granting the
 // founder-admin right to more users later, no schema change needed.
 export async function listAdmins() {

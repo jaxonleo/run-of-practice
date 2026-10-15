@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, ComposedChart, LineChart, BarChart, Bar, Line, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
-import { fetchFounderMetricsSummary, fetchFounderMetricsDetail } from "../supabase.js";
+import { fetchFounderMetricsSummary, fetchFounderMetricsDetail, fetchFounderPackagingMetrics } from "../supabase.js";
 
 const RANGES = [4, 12, 26];
 const REDUCE_MOTION = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -118,10 +118,56 @@ function RetentionGrid({ retention, cohortSizes }) {
   );
 }
 
+// Packaging analytics (Free / Pro / Organization handoff): where Free
+// coaches run into caps, which upsell copy gets clicked, and how quickly
+// new Free coaches hit a limit at all. Reads get_founder_packaging_metrics.
+// Empty while every real coach is a Founding Coach, which is expected.
+function PackagingPanel({ data }) {
+  const rowStyle = { display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, padding: "4px 0", borderBottom: "1px solid var(--border)" };
+  const mono = { fontFamily: "DM Mono,monospace", color: "var(--ink-soft)", flexShrink: 0 };
+  if (!data) return <Card><SectionTitle>Plans and upsells</SectionTitle><div style={{ fontSize: 12, color: "var(--text-dim)" }}>Loading...</div></Card>;
+  if (data.error) return <Card><SectionTitle>Plans and upsells</SectionTitle><div style={{ fontSize: 12, color: "var(--text-dim)" }}>Couldn't load packaging metrics.</div></Card>;
+  const hits = data.limit_hits_by_feature || [];
+  const ctr = data.catalog_ctr || [];
+  const share = data.free_cap_share || {};
+  return (<Card>
+    <SectionTitle>Plans and upsells</SectionTitle>
+    <Subtitle>From in-app upsell events. Empty while every coach is a Founding Coach.</Subtitle>
+
+    <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "4px 0 12px" }}>
+      <div style={{ fontFamily: "DM Mono,monospace", fontSize: 24, color: "var(--field)" }}>{share.share != null ? pct(share.share) : "\u2013"}</div>
+      <div style={{ fontSize: 11, color: "var(--text-dim)" }}>
+        of new, active Free coaches hit a cap within 30 days ({share.capped_coaches || 0} of {share.free_coaches || 0})
+      </div>
+    </div>
+
+    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 4 }}>Limit hits by feature</div>
+    {hits.length === 0 && <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 10 }}>No limit hits in this range.</div>}
+    {hits.map(h => (<div key={h.feature_key} style={rowStyle}>
+      <span>{h.feature_key}</span>
+      <span style={mono}>{h.hits} hits · {h.coaches} coach{h.coaches === 1 ? "" : "es"}</span>
+    </div>))}
+
+    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".04em", margin: "12px 0 4px" }}>Click-through by catalog ID</div>
+    {ctr.length === 0 && <div style={{ fontSize: 12, color: "var(--text-dim)" }}>No upsell impressions in this range.</div>}
+    {ctr.map(c => (<div key={c.catalog_id} style={rowStyle}>
+      <span>{c.catalog_id}</span>
+      <span style={mono}>{c.clicks}/{c.impressions} clicked{c.ctr != null ? " (" + pct(c.ctr) + ")" : ""}{c.dismisses ? " · " + c.dismisses + " dismissed" : ""}</span>
+    </div>))}
+  </Card>);
+}
+
 export default function FounderMetricsScreen() {
   const navigate = useNavigate();
   const [weeks, setWeeks] = useState(12);
   const { summary, detail } = useFounderMetrics(weeks);
+  const [packaging, setPackaging] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    setPackaging(null);
+    fetchFounderPackagingMetrics(weeks).then(d => { if (!cancelled) setPackaging(d || { error: true }); });
+    return () => { cancelled = true; };
+  }, [weeks]);
 
   const weekly = summary && summary.weekly || null;
   const lastWk = weekly && weekly.length ? weekly[weekly.length - 1] : null;
@@ -238,6 +284,8 @@ export default function FounderMetricsScreen() {
             <Bar dataKey="signups" fill="var(--field-accent)" radius={[3, 3, 0, 0]} isAnimationActive={ANIM} />
           </BarChart>
         </ChartCard>
+
+        <PackagingPanel data={packaging} />
 
         <Card>
           <SectionTitle>Landing traffic</SectionTitle>

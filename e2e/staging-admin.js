@@ -15,3 +15,7 @@ export function stagingAdminClient() {
 
 export const QA_HEAD_USER_ID = '01a39a2b-6aaf-42b8-86ed-6b5a619af7ff';
 export const QA_WOLVES_TEAM_ID = 'b6fc36ae-dad2-46e7-9226-055800d66151';
+// Staging-only Free-plan QA account and its team (packaging handoff), at
+// every Free cap. Specs must never write anything that changes those caps.
+export const QA_FREE_USER_ID = 'e9a01d54-2ad3-462a-82a6-143ca9efebc1';
+export const QA_FREE_TEAM_ID = 'f7ee0000-0000-4000-8000-000000000001';
