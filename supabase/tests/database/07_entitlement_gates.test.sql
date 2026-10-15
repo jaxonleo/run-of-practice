@@ -77,8 +77,8 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000001', true);
 select throws_like(
   $$select public.set_practice_delegate('f0000000-0000-0000-0000-000000000004', true)$$,
-  '%does not include delegating%',
-  'granting a second delegate on the free plan (no cohort) is refused with a real, specific error'
+  'ENTITLEMENT_LIMIT:delegation.practice_planning',
+  'granting a second delegate on the free plan (no cohort) is refused with the coded entitlement error'
 );
 
 -- Clearing a delegation is always allowed regardless of plan -- removing
@@ -154,8 +154,8 @@ select ok(
 select throws_like(
   $$insert into public.activity_library (owner_user_id, sport, name)
     values ('a0000000-0000-0000-0000-000000000001', 'Basketball', 'One Too Many')$$,
-  '%row-level security%',
-  'the RLS policy itself refuses a real 21st insert with a genuine RLS violation, not just the helper function'
+  'ENTITLEMENT_LIMIT:library.personal_drills',
+  'a real 21st insert is refused with the coded entitlement error (the cap trigger fires before the RLS policy, which still backs it up)'
 );
 reset role;
 select set_config('request.jwt.claim.sub', '', true);
