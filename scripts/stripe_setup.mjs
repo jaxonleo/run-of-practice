@@ -78,8 +78,14 @@ for (const p of PRICES) {
 const priceIds = [];
 for (const p of PRICES) priceIds.push((await stripe('GET', `/prices?lookup_keys[]=${p.lookup_key}&active=true`)).data[0].id);
 const configs = await stripe('GET', '/billing_portal/configurations?active=true&limit=20');
-if (configs.data.find(c => c.metadata && c.metadata.rop_key === 'portal')) {
-  console.log('portal configuration exists');
+const existingPortal = configs.data.find(c => c.metadata && c.metadata.rop_key === 'portal');
+if (existingPortal) {
+  if (existingPortal.features.subscription_update.proration_behavior !== 'always_invoice') {
+    await stripe('POST', `/billing_portal/configurations/${existingPortal.id}`, [['features[subscription_update][proration_behavior]', 'always_invoice']]);
+    console.log('portal configuration exists; proration behavior updated to always_invoice');
+  } else {
+    console.log('portal configuration exists');
+  }
 } else {
   const appUrl = mode === 'live' ? 'https://www.runofpractice.com' : 'https://staging.runofpractice.com';
   const cfg = await stripe('POST', '/billing_portal/configurations', [
@@ -93,7 +99,11 @@ if (configs.data.find(c => c.metadata && c.metadata.rop_key === 'portal')) {
     ['features[subscription_cancel][mode]', 'at_period_end'],
     ['features[subscription_update][enabled]', 'true'],
     ['features[subscription_update][default_allowed_updates][]', 'price'],
-    ['features[subscription_update][proration_behavior]', 'create_prorations'],
+    // always_invoice, not create_prorations: new Stripe accounts use flexible
+    // billing mode, where create_prorations charged a monthly -> annual
+    // switch $99 twice ($186). always_invoice bills the switch immediately
+    // as $99 minus the unused month (verified with /invoices/create_preview).
+    ['features[subscription_update][proration_behavior]', 'always_invoice'],
     ['features[subscription_update][products][0][product]', product.id],
     ...priceIds.map(id => ['features[subscription_update][products][0][prices][]', id]),
     ['default_return_url', appUrl + '/settings/plan'],

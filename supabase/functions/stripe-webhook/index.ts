@@ -37,13 +37,19 @@ async function syncSubscription(sub: any) {
   }
   const item = sub.items && sub.items.data && sub.items.data[0]
   const periodEnd = sub.current_period_end || (item && item.current_period_end)
+  // Stripe's current portal (and flexible billing mode) records "cancel at
+  // the end of the period" as a cancel_at timestamp and leaves
+  // cancel_at_period_end false, so either one means Pro is ending. When
+  // cancel_at is set it is the real last day, so that is the date stored.
+  const cancelling = !ended && (!!sub.cancel_at_period_end || !!sub.cancel_at)
+  const endsAt = sub.cancel_at && !ended ? Math.min(sub.cancel_at, periodEnd || sub.cancel_at) : periodEnd
   const update: Record<string, unknown> = {
     stripe_customer_id: sub.customer,
     stripe_subscription_id: ended ? null : sub.id,
     plan_bundle_key: paid ? 'pro' : 'free',
     billing_status: ended ? 'canceled' : status,
-    cancel_at_period_end: !!sub.cancel_at_period_end && !ended,
-    current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+    cancel_at_period_end: cancelling,
+    current_period_end: endsAt ? new Date(endsAt * 1000).toISOString() : null,
     stripe_price_lookup_key: ended ? null : (item && item.price && item.price.lookup_key) || null,
     updated_at: new Date().toISOString(),
   }
