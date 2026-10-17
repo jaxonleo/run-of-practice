@@ -12,6 +12,7 @@ import ValueMomentSlot from "./ValueMomentSlot.jsx";
 import FuturePracticeGuardModal from "./FuturePracticeGuardModal.jsx";
 import { EntitlementLockedMessage } from "./EntitlementNotice.jsx";
 import { catalogIdForError } from "../upsellCatalog.js";
+import { ProEndedHomeCard } from "./ProEndedNote.jsx";
 
 // §1: "35/60 min" pill. Shows for any practice with a scheduled duration,
 // planned or not -- an unplanned practice reads "0/60 min" so the gap is
@@ -755,6 +756,7 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
         <button className="btn ghost bxs" disabled={respondingInviteId === pendingOrgInvite.id} onClick={() => respondToInvite(false)}>Decline</button>
       </div>
     </div></div>}
+    <ProEndedHomeCard />
     {partnerRenewalsDue > 0 && <div style={{ margin: "0 16px 12px" }}><div className="card" style={{ padding: "14px 16px", borderColor: "var(--caution)" }}>
       <div style={{ fontSize: 14, marginBottom: 8 }}>{partnerRenewalsDue === 1 ? "1 partner's free quarter is ending soon." : partnerRenewalsDue + " partners' free quarters are ending soon."} Approve another quarter or let it end.</div>
       <button className="btn primary bxs" onClick={() => navigate("/admin/partners")}>Review partners</button>

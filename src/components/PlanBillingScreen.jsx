@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { fetchMyBilling, startProCheckout, openBillingPortal } from "../supabase.js";
 import { clearEntitlementsCache, upsellCtasVisible } from "../entitlements.js";
+import { ProEndedPlanNote } from "./ProEndedNote.jsx";
 
 // Settings > Plan & billing (self-serve billing, 2026-10-15). Shows the
 // coach's plan and what they can do about it:
@@ -26,6 +27,8 @@ export default function PlanBillingScreen() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const checkout = params.get("checkout");
+  // /pricing's Get Pro passes the Annual/Monthly choice the coach made there.
+  const preferMonthly = params.get("interval") === "monthly";
   const [billing, setBilling] = useState(null);
   const [busy, setBusy] = useState(null); // "monthly" | "annual" | "portal"
   const [error, setError] = useState("");
@@ -105,6 +108,7 @@ export default function PlanBillingScreen() {
       </>) : (<>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900 }}>Free</div>
         <div style={{ fontSize: 13.5, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.5 }}>One active team, you plus two assistant coaches, 20 saved drills, two templates, and your 10 most recent practices. Live practices are always unlimited.</div>
+        <ProEndedPlanNote billing={billing} />
       </>)}
     </Card>
 
@@ -115,8 +119,10 @@ export default function PlanBillingScreen() {
           Up to three teams, your whole staff, unlimited drills and templates, shared planning, every Goals &amp; Insights tool, Benchmarks, and your complete practice history.
         </div>
         {canBuy ? (<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <button className="btn primary bmd bfull" disabled={!!busy} onClick={() => go("annual")}>{busy === "annual" ? "Opening checkout..." : "$99 per year (save $45)"}</button>
-          <button className="btn outline bmd bfull" disabled={!!busy} onClick={() => go("monthly")}>{busy === "monthly" ? "Opening checkout..." : "$12 per month"}</button>
+          {[preferMonthly ? "monthly" : "annual", preferMonthly ? "annual" : "monthly"].map((kind, i) => (
+            <button key={kind} className={"btn bmd bfull " + (i === 0 ? "primary" : "outline")} disabled={!!busy} onClick={() => go(kind)}>
+              {busy === kind ? "Opening checkout..." : kind === "annual" ? "$99 per year (save $45)" : "$12 per month"}
+            </button>))}
           <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Secure checkout by Stripe. Cancel anytime; Pro stays on until the end of what you paid for.</div>
         </div>) : (
           <div style={{ fontSize: 13, color: "var(--text-dim)" }}>Pro upgrades open soon.</div>

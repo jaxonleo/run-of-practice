@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { savePracticeTree } from "../supabase.js";
-import { canPlanTeamInMode, localDateStr } from "../constants.js";
+import { canPlanTeamInMode, localDateStr, findOverlappingPractice, fmt12 } from "../constants.js";
 import { AddLocationDialog } from "./NewLibraryScreen.jsx";
 
 // Quick single-practice scheduler -- one screen, no day-of-week/date-range
@@ -27,6 +27,7 @@ export default function SchedulePracticeModal({ data, coachId, mode, presetTeamI
   const [showAddLocation, setShowAddLocation] = useState(false);
 
   const team = myTeams.find(t => t.id === teamId) || null;
+  const overlap = findOverlappingPractice(data.practices, { teamId, date, startTime, durationMinutes });
 
   const confirm = async () => {
     if (saving || !teamId || !date) return;
@@ -77,6 +78,7 @@ export default function SchedulePracticeModal({ data, coachId, mode, presetTeamI
           <button type="button" className="btn outline bsm bfull" onClick={() => setShowAddLocation(true)}>+ Add a Location</button>
         )}
       </div>
+      {overlap && <div style={{ fontSize: 13, color: "var(--caution)", marginBottom: 10 }}>{team ? team.name : "This team"} already has a practice at {fmt12(overlap.startTime)} that day. You can still schedule this one.</div>}
       {error && <div style={{ fontSize: 13, color: "var(--danger)", marginBottom: 10 }}>{error}</div>}
       <div className="brow"><button className="btn ghost bsm" onClick={onClose}>Cancel</button><button className="btn primary bsm" style={{ flex: 1 }} onClick={confirm} disabled={saving || !teamId || !date}>{saving ? "Scheduling..." : "Schedule Practice"}</button></div>
     </div>

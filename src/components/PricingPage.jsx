@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { FEATURE_FLAGS, upsellCtasVisible } from "../entitlements.js";
 import { Ic } from "../icons.jsx";
+import { getCurrentSession } from "../supabase.js";
 
 const CONTACT_EMAIL = "contact@runofpractice.com";
 
@@ -214,7 +215,7 @@ const COMPARISON_GROUPS = [
 ];
 
 const FAQ_ITEMS = [
-  { q: "What counts as an active team?", a: "An active team can schedule, build, and run new practices. Archived teams keep their roster, practices, templates, and history but cannot create new practices until they are reactivated." },
+  { q: "What counts as an active team?", a: "An active team can schedule, build, and run new practices. If you have more teams than your plan covers (for example after Pro ends), the others are paused: their roster, practices, templates, and history stay viewable, but they can't schedule or run new practices until you upgrade or make one your active team." },
   { q: "Can I archive a team and reactivate it later?", a: "Yes. Free includes one active personal team, and Pro includes up to three. You can archive and reactivate teams as long as you remain within your plan's active-team limit." },
   { q: "Do assistant coaches need their own subscription?", a: "No. Assistant access is covered by the team owner's plan. Assistants create an account so they can view practices, update future attendance, and take control during a live practice." },
   { q: "Do parent helpers need an account?", a: "No. Parent helpers use a practice-specific link and see only what they need to help with that practice." },
@@ -281,6 +282,11 @@ export default function PricingPage() {
   const [billing, setBilling] = useState("monthly");
   const [openFaq, setOpenFaq] = useState(0);
   const annual = billing === "annual";
+  // A signed-in coach gets "Open app" instead of the visitor sign-up CTAs,
+  // and Get Pro carries the Annual/Monthly choice into Plan & billing.
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => { getCurrentSession().then(s => setSignedIn(!!s)).catch(() => {}); }, []);
+  const proHref = "/settings/plan?interval=" + billing;
 
   return (<div className="pp">
     <style>{PP_CSS}</style>
@@ -289,8 +295,12 @@ export default function PricingPage() {
       <div className="pp-nav">
         <a className="pp-navlink hideonsm" href="/">Home</a>
         <a className="pp-navlink hideonsm" href="/faq">FAQ</a>
-        <a href="/" className="pp-signin">Sign In</a>
-        <a href="/" className="pp-btn primary sm">{FEATURE_FLAGS.EARLY_ACCESS_ACTIVE ? "Start Coaching Free" : "Try It Free"}</a>
+        {signedIn
+          ? <a href="/" className="pp-btn primary sm">Open app</a>
+          : <>
+            <a href="/" className="pp-signin">Sign In</a>
+            <a href="/" className="pp-btn primary sm">{FEATURE_FLAGS.EARLY_ACCESS_ACTIVE ? "Start Coaching Free" : "Try It Free"}</a>
+          </>}
       </div>
     </div>
 
@@ -324,7 +334,7 @@ export default function PricingPage() {
         <div className="pp-pitch">For a coach running one team.</div>
         <div className="pp-price">$0</div>
         <div className="pp-price-sub">Free forever</div>
-        <div className="pp-cta"><a href="/" className="pp-btn outline" style={{ width: "100%" }}>{FEATURE_FLAGS.EARLY_ACCESS_ACTIVE ? "Start coaching free" : "Start free"}</a></div>
+        <div className="pp-cta"><a href="/" className="pp-btn outline" style={{ width: "100%" }}>{signedIn ? "Open app" : FEATURE_FLAGS.EARLY_ACCESS_ACTIVE ? "Start coaching free" : "Start free"}</a></div>
         <div className="pp-note" style={{ marginTop: -10, marginBottom: 16 }}>No credit card required</div>
         <ul className="pp-feat">
           {FREE_FEATURES.map((f, i) => (<li key={i}><span className="mk">&#10003;</span><span>{f}</span></li>))}
@@ -341,7 +351,7 @@ export default function PricingPage() {
               sign in first and land there). Until billing is on, only an
               admin's preview browser gets the live link. */}
           {upsellCtasVisible()
-            ? <a href="/settings/plan" className="pp-btn primary" style={{ width: "100%" }}>Get Pro</a>
+            ? <a href={proHref} className="pp-btn primary" style={{ width: "100%" }}>Get Pro</a>
             : <span className="pp-btn disabled" style={{ width: "100%" }}>Pro upgrades open soon</span>}
         </div>
         {FEATURE_FLAGS.PRO_PREVIEW_ENABLED && <div className="pp-note" style={{ marginTop: -10, marginBottom: 16 }}>14-day preview. No credit card required.</div>}
@@ -416,7 +426,7 @@ export default function PricingPage() {
       <div className="pp-final-h">Start with your next practice</div>
       <div className="pp-final-sub">Build one team for free and see how Run of Practice keeps the plan, the coaches, and the live practice connected.</div>
       <div className="pp-final-ctas">
-        <a href="/" className="pp-btn primary">Start free</a>
+        <a href="/" className="pp-btn primary">{signedIn ? "Open app" : "Start free"}</a>
         <a href={"mailto:" + CONTACT_EMAIL} className="pp-btn outline">Talk with us about Organizations</a>
       </div>
     </div>

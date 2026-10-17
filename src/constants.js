@@ -1731,3 +1731,19 @@ export function scrimmagePlayerRotation(board,playerId){
   if(run&&run.end>run.start)holds.push([run.start,run.end]);
   return {timeline,counts,holds};
 }
+
+// Same-team double-booking check (new-coach E2E follow-up, 2026-10-17).
+// Returns the first other scheduled practice on the same team and date
+// whose time overlaps [startTime, startTime + duration), or null. A
+// practice with no duration counts as 60 minutes. Warning only: two
+// overlapping practices are allowed (e.g. split squads), the coach just
+// gets told before saving.
+export function findOverlappingPractice(practices,{teamId,date,startTime,durationMinutes,excludeId}){
+  if(!teamId||!date||!startTime)return null;
+  const toMin=t=>{const [h,m]=String(t).split(":").map(Number);return h*60+(m||0);};
+  const start=toMin(startTime),end=start+(+durationMinutes||60);
+  return (practices||[]).find(p=>p.teamId===teamId&&p.id!==excludeId&&p.status==="scheduled"&&p.date===date&&p.startTime&&(()=>{
+    const ps=toMin(p.startTime),pe=ps+(+p.scheduledDurationMinutes||60);
+    return start<pe&&ps<end;
+  })())||null;
+}

@@ -49,7 +49,11 @@ async function syncSubscription(sub: any) {
     plan_bundle_key: paid ? 'pro' : 'free',
     billing_status: ended ? 'canceled' : status,
     cancel_at_period_end: cancelling,
-    current_period_end: endsAt && !ended ? new Date(endsAt * 1000).toISOString() : null,
+    // Once a subscription has ended, current_period_end holds when it ended
+    // (Plan & billing says "Pro ended on ..."), never a stale renewal date.
+    current_period_end: ended
+      ? new Date((sub.ended_at || sub.canceled_at || Math.floor(Date.now() / 1000)) * 1000).toISOString()
+      : endsAt ? new Date(endsAt * 1000).toISOString() : null,
     stripe_price_lookup_key: ended ? null : (item && item.price && item.price.lookup_key) || null,
     updated_at: new Date().toISOString(),
   }

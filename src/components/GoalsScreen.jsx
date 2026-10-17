@@ -140,7 +140,7 @@ function GoalsEditor({ teamId, team, data, goals, refreshGoals }) {
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: "var(--radius-lg)", marginBottom: 14, background: total === 100 ? "var(--field-tint)" : total > 100 ? "#fef2f2" : "var(--surface)", border: "1px solid " + (total === 100 ? "var(--field-tint-border)" : total > 100 ? "#fecaca" : "var(--border)") }}>
       <span style={{ fontWeight: 700, fontSize: 14 }}>{total}% allocated</span>
       <span style={{ fontSize: 12, color: total === 100 ? "var(--field-accent)" : total > 100 ? "var(--danger)" : "var(--text-dim)" }}>
-        {total === 100 ? "Ready to save" : total > 100 ? (total - 100) + "% over, reduce before saving" : (100 - total) + "% remaining"}
+        {total === 100 ? (dirty ? "Ready to save" : "Saved") : total > 100 ? (total - 100) + "% over, reduce before saving" : (100 - total) + "% remaining"}
       </span>
     </div>
 

@@ -14,7 +14,7 @@ import PlanBillingScreen from "./components/PlanBillingScreen.jsx";
 import { EntitlementLockedMessage, ProPreview, ProBadge } from "./components/EntitlementNotice.jsx";
 import { catalogIdForError } from "./upsellCatalog.js";
 import { sendEmailOtp, verifyEmailOtp, getCurrentSession, onAuthStateChange, signOut, fetchMyTeams, archivePlayer, archiveStaff, updatePlayer, setPlayerCategoryNote, fetchLibraryData, fetchLocations, fetchPracticesFull, fetchTemplatesFull, savePracticeTree, saveTemplateTree, deactivateOwnAccount, checkDeactivated, reactivateAccount, ensureDefaultSkillTags, fetchOwnProfile, updateOwnProfile, fetchPlannedAbsences, checkIsAdmin, fetchPlayerNotes, fetchMyTeamPlanStatus, archiveNote, inviteTeamStaff, cancelTeamInvite, findMissingEquipment, resolveDrillEquipmentForCoach, findActiveLiveSession, fetchPrivateDrillWarningDismissed, setPrivateDrillWarningDismissed, adoptBenchmarkForTeam, checkCanViewGoals, canCreatePersonalTemplate } from "./supabase.js";
-import { uid, fmt12, sumMins, isHeadCoach, canManageTeamInMode, canPlanTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, hasVisibleComponentTypesPref, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES } from "./constants.js";
+import { uid, fmt12, sumMins, isHeadCoach, canManageTeamInMode, canPlanTeamInMode, localDateStr, stripIdsForCopy, POSITIONS_BY_SPORT, HAND_FIELDS_BY_SPORT, HAND_LABELS, teamsForMode, homeTeamsForMode, PRACTICE_COMPONENT_TYPES, getVisibleComponentTypes, hasVisibleComponentTypesPref, setVisibleComponentTypes, menuNeedsToOpenUpward, stationIsPlanned, useBigBrowser, sportSupportsScrimmage, buildDefaultScrimmageConfig, defaultScrimmageTagIds, SCRIMMAGE_DEFAULT_ROUND_MINUTES, findOverlappingPractice } from "./constants.js";
 import { TwoPane } from "./components/BBShells.jsx";
 import ModalLayer, { PositionPicker, HandednessPicker } from "./components/ModalLayer.jsx";
 import NewLibraryScreen, { EquipmentTab, AddLocationDialog, GroupHeader, TagChip } from "./components/NewLibraryScreen.jsx";
@@ -1346,6 +1346,9 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
   // through as real state (rather than reading editP directly) fixes that
   // and lets the pill react live as the coach edits it.
   const [schedDuration,setSchedDuration]=useState(editP?(editP.scheduledDurationMinutes||""):"");
+  // Warning only (split squads are real): another scheduled practice on
+  // this team overlapping the chosen time.
+  const schedOverlap=findOverlappingPractice(data.practices,{teamId,date:schedDate,startTime:schedTime,durationMinutes:schedDuration||(editP&&editP.scheduledDurationMinutes),excludeId:editPracticeId});
   // Pre-Practice Warmup: always present at the top of Builder now (direct
   // feedback: it shouldn't be an opt-in "component" a coach has to remember
   // to add) -- just a plain string, empty when there's nothing written yet.
@@ -2136,6 +2139,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               <div className="fld"><label className="lbl">Time</label><input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/></div>
             </div>
             <div className="fld mb10"><label className="lbl">Duration (min) <span style={{color:"var(--text-dim)",fontWeight:400}}>(optional)</span></label><input className="inp" type="number" min="1" placeholder="e.g. 60" value={schedDuration} onChange={e=>{const v=e.target.value;setSchedDuration(v===""?"":+v);}}/></div>
+            {schedOverlap&&<div style={{fontSize:13,color:"var(--caution)",marginBottom:10}}>{team?team.name:"This team"} already has a practice at {fmt12(schedOverlap.startTime)} that day. You can still schedule this one.</div>}
             {schedError&&<div style={{fontSize:13,color:"var(--danger)",marginBottom:10}}>{schedError}</div>}
             <div className="brow"><button className="btn ghost bsm" onClick={()=>setShowScheduleModal(false)} disabled={!!savingKind}>Cancel</button><button className={"btn primary bsm"+(savingKind==="schedule"?" btn-working":"")} style={{flex:1}} onClick={()=>doSchedule(schedDate,schedTime)} disabled={!schedDate||!!savingKind} aria-busy={savingKind==="schedule"}>{savingKind==="schedule"?<><span className="btnspin" aria-hidden="true"/>Scheduling…</>:"Schedule Practice"}</button></div>
           </>:<>
@@ -2249,6 +2253,7 @@ function BuilderScreen({data,openModal,launchRun,editPracticeId,setEditPracticeI
               <input className="inp" type="time" value={schedTime} onChange={e=>setSchedTime(e.target.value)}/>
             </div>
           </div>}
+          {editP&&schedOverlap&&<div style={{fontSize:12.5,color:"var(--caution)",marginTop:-4,marginBottom:10}}>{team?team.name:"This team"} already has a practice at {fmt12(schedOverlap.startTime)} that day.</div>}
           <div className={editP?"g2":undefined}>
             <div className="fld"><label className="lbl">Location</label>
               {teamLocations.length>0?(

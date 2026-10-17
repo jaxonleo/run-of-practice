@@ -77,7 +77,7 @@ export default function AdminBillingCard({ userId, label }) {
     <div style={{ fontSize: 13, marginBottom: 8 }}>
       <strong>{info.plan || "free"}</strong>
       {info.billing_status && info.billing_status !== "none" && <span style={{ color: "var(--text-dim)" }}> · {info.billing_status}{info.cancel_at_period_end ? " (cancels at period end)" : ""}</span>}
-      {info.current_period_end && <span style={{ color: "var(--text-dim)" }}> · period ends {fmtDate(info.current_period_end)}</span>}
+      {info.current_period_end && <span style={{ color: "var(--text-dim)" }}> · {info.billing_status === "canceled" ? "ended" : "period ends"} {fmtDate(info.current_period_end)}</span>}
       {stripeInfo && stripeInfo.balance_cents > 0 && <span style={{ color: "var(--field)" }}> · {money(stripeInfo.balance_cents)} credit</span>}
     </div>
 
