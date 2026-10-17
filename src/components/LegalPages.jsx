@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { submitFeedback, submitPublicFeedback } from "../supabase.js";
+import { FEATURE_FLAGS } from "../entitlements.js";
 
 const LAST_UPDATED = "July 10, 2026";
 const CONTACT_EMAIL = "contact@runofpractice.com";
@@ -148,7 +149,9 @@ export function FAQPage() {
         <p style={{ margin: 0 }}>Tell us a bit about your club and we'll be in touch: <button type="button" onClick={() => setShowConsult(true)} style={{ background: "none", border: "none", padding: 0, color: "var(--field)", textDecoration: "underline", cursor: "pointer", font: "inherit" }}>request a consultation</button>.</p>
       </>),
     },
-    { q: "Is Run of Practice free?", a: "Yes, to start. The Free plan covers one team, with unlimited live practices and parent-helper links. Pro adds more teams, your whole staff, unlimited drills and templates, and every Goals & Insights tool for $12 a month or $99 a year. Coaches who give us regular feedback can apply to the partner program for free Pro." },
+    { q: "Is Run of Practice free?", a: FEATURE_FLAGS.EARLY_ACCESS_ACTIVE
+      ? "Yes, Run of Practice is free during early access while we're still testing and improving it."
+      : "Yes, to start. The Free plan covers one team, with unlimited live practices and parent-helper links. Pro adds more teams, your whole staff, unlimited drills and templates, and every Goals & Insights tool for $12 a month or $99 a year. Coaches who give us regular feedback can apply to the partner program for free Pro." },
     { q: "Who is it for?", a: "Head coaches, assistant coaches, and anyone helping run an organized practice, from a single team to a whole club." },
     { q: "Does every helper need an account?", a: "No. Assistant coaches get ongoing access through their own account, while a parent or ad hoc helper can just use a shared link with the information they need for that practice, no account or download required." },
     { q: "Can I use it for different sports?", a: "Yes. Run of Practice is built around things every sport's practices share, like drills, groups, stations, locations, timing, and equipment. The setup adjusts to whatever sport and level you coach." },

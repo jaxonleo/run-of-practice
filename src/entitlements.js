@@ -20,8 +20,13 @@ import { fetchMyEntitlements, fetchTeamEntitlements, logEntitlementEvent } from 
 // as-is from the original scaffolding (values reflect the real current
 // state, not aspirational ones -- see that file's own comment).
 export const FEATURE_FLAGS = {
-  EARLY_ACCESS_ACTIVE: false, // early access ended with self-serve billing (2026-10-15)
-  PRICING_PAGE_PUBLIC: true, // linked from the landing page nav and footer (2026-10-15)
+  // Public-site launch switches (Jax, 2026-10-17: keep the early-access
+  // site until billing launches). At launch, flip both together with
+  // BILLING_ENABLED: EARLY_ACCESS_ACTIVE false swaps the landing page and
+  // FAQs to the Free/Pro/partner copy and shows the Partners links;
+  // PRICING_PAGE_PUBLIC true links /pricing and lets search engines index it.
+  EARLY_ACCESS_ACTIVE: true,
+  PRICING_PAGE_PUBLIC: false,
   BILLING_ENABLED: false,
   PRO_PREVIEW_ENABLED: false, // no 14-day-preview flow built yet
   EARLY_ACCESS_OFFER_ENABLED: false, // eligibility rule not decided yet
