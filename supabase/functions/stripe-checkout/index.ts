@@ -61,6 +61,10 @@ Deno.serve(async (req) => {
       'subscription_data[metadata][user_id]': user.id,
       'metadata[user_id]': user.id,
       allow_promotion_codes: true,
+      // Cards only (Jax, 2026-10-17): Apple Pay and Google Pay still appear,
+      // since they pay by card; Klarna, Cash App Pay, and bank debits don't,
+      // whatever the Dashboard's payment-method settings say.
+      'payment_method_types[0]': 'card',
       success_url: `${appUrl}/settings/plan?checkout=success`,
       cancel_url: `${appUrl}/settings/plan?checkout=cancel`,
     })
