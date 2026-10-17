@@ -4198,7 +4198,7 @@ export default function CommandScreen({data,liveId,setLiveId,coachId,goHome,refr
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#16a34a",marginBottom:4}}>💡 Coaching Focus</div>
           <div style={{fontSize:15,color:"var(--ink)",lineHeight:1.5}}>{cur.coachingPoints}</div>
         </div>}
-        {isController&&untaggedOwnLibraryId(cur.libraryId)&&<button type="button" onClick={()=>openTagPicker(cur.libraryId)} style={{textAlign:"left",background:"var(--caution-tint)",border:"1px solid var(--caution-tint-border)",borderRadius:8,padding:"8px 10px",fontSize:12,color:"var(--caution)",fontWeight:600,cursor:"pointer"}}>No skill tag yet -- tap to add one</button>}
+        {isController&&untaggedOwnLibraryId(cur.libraryId)&&<button type="button" onClick={()=>openTagPicker(cur.libraryId)} style={{textAlign:"left",background:"var(--caution-tint)",border:"1px solid var(--caution-tint-border)",borderRadius:8,padding:"8px 10px",fontSize:12,color:"var(--caution)",fontWeight:600,cursor:"pointer"}}>No skill tag yet. Tap to add one.</button>}
         {categoryIdsForLibraryId(cur.libraryId).length>0&&<button type="button" className="btn ghost bsm" style={{alignSelf:"flex-start"}} onClick={()=>setShowPlayerFocus(true)}>Player Focus</button>}
         {(()=>{const{equipment,playerGear}=splitEquipFor(cur.equipment,data);return<EquipGearRow equipment={equipment} playerGear={playerGear}/>;})()}
         {(!cur.grouping||cur.grouping==="whole")&&<div style={{borderLeft:"3px solid var(--border)",paddingLeft:10,paddingTop:4,paddingBottom:4}}>

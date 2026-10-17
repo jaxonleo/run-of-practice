@@ -8,7 +8,7 @@ import SettingsScreen from "./components/SettingsScreen.jsx";
 import { Ic } from "./icons.jsx";
 import { createSingleFlight } from "./singleFlight.js";
 import { setSentryUser } from "./sentry.js";
-import { setEntitlementAnalyticsUser, clearEntitlementsCache, clearTeamEntitlementsCache, useEntitlements, useTeamEntitlements, underLimit, isFull } from "./entitlements.js";
+import { setEntitlementAnalyticsUser, clearEntitlementsCache, clearTeamEntitlementsCache, useEntitlements, useTeamEntitlements, underLimit, isFull, limitOf } from "./entitlements.js";
 import ActiveTeamChooser from "./components/ActiveTeamChooser.jsx";
 import PlanBillingScreen from "./components/PlanBillingScreen.jsx";
 import { EntitlementLockedMessage, ProPreview, ProBadge } from "./components/EntitlementNotice.jsx";
@@ -875,14 +875,18 @@ function AuthedShell(){
   // personal-team cap with no chosen active team, a blocking chooser comes
   // before Home. undefined = still checking; null = check failed (fail open,
   // the app renders normally and the server still enforces).
+  // Plan & billing stays reachable from the chooser (to upgrade instead of
+  // picking), and the status is re-read on the way out of it so a coach
+  // who just went Pro isn't stopped by a stale Free answer.
   const [teamPlanStatus,setTeamPlanStatus]=useState(undefined);
   const sessionUserId=session?session.user.id:null;
+  const onPlanPage=useLocation().pathname==="/settings/plan";
   useEffect(()=>{
     if(!sessionUserId||!loaded)return;
     let alive=true;
     fetchMyTeamPlanStatus().then(st=>{if(alive)setTeamPlanStatus(st||null);});
     return ()=>{alive=false;};
-  },[sessionUserId,loaded]);
+  },[sessionUserId,loaded,onPlanPage]);
   const [liveId,setLiveId]=useState(null);
   const [editPracticeId,setEditPracticeId]=useState(null);
   const [startTemplateId,setStartTemplateId]=useState(null);
@@ -952,10 +956,11 @@ function AuthedShell(){
   // Show data loading spinner after auth but before data loaded
   if(!loaded)return <LoadingScreen message="Loading your data..."/>;
   if(teamPlanStatus===undefined)return <LoadingScreen message="Loading your data..."/>;
-  if(teamPlanStatus&&teamPlanStatus.limit===1&&teamPlanStatus.owned_active>1&&!teamPlanStatus.chosen_team_id){
+  if(!onPlanPage&&teamPlanStatus&&teamPlanStatus.limit===1&&teamPlanStatus.owned_active>1&&!teamPlanStatus.chosen_team_id){
     const ownedPersonal=(ctx.data.teams||[]).filter(t=>t.ownerUserId===ctx.coachId&&!t.organizationId);
     if(ownedPersonal.length>1)return <ActiveTeamChooser teams={ownedPersonal} practices={ctx.data.practices}
       onChosen={async()=>{clearTeamEntitlementsCache();await ctx.refreshTeams();setTeamPlanStatus(await fetchMyTeamPlanStatus());}}
+      onUpgrade={()=>navigate("/settings/plan")}
       onExit={onSignOut}/>;
   }
 
@@ -3101,6 +3106,9 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,mode}){
     await refreshTeams();
   };
   const clearInvite=async id=>{await cancelTeamInvite(id);await refreshTeams();};
+  const staffCapCount=team?team.coaches.filter(c=>c.userId!==team.ownerUserId).length+(team.invites||[]).filter(i=>i.status==="pending").length:0;
+  const staffCapLimit=limitOf("teams.assistants",rosterTeamEnts);
+  const staffOverCap=!!team&&!team.organizationId&&staffCapLimit!=null&&(team.invites||[]).some(i=>i.status==="pending")&&staffCapCount>staffCapLimit;
   const sorted=team?[...team.players].sort((a,b)=>{
     let av,bv;
     if(sort.by==="jersey"){av=parseInt(a.jersey)||0;bv=parseInt(b.jersey)||0;}
@@ -3123,7 +3131,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,mode}){
       </div>
       {tab==="players"&&(<div>
         <div className="sechdr mb8">
-          <div className="row"><span className="sectitle">{team.players.length} Players</span>
+          <div className="row"><span className="sectitle">{team.players.length} {team.players.length===1?"Player":"Players"}</span>
             <div style={{position:"relative"}}>
               <button className="sort-btn" aria-label="Sort players" onClick={e=>{e.stopPropagation();setOpenMenu(openMenu==="__sort__"?null:"__sort__");}}><Ic.Sort/></button>
               {openMenu==="__sort__"&&(<div className="mini-menu" style={{left:0,minWidth:170}}>
@@ -3166,7 +3174,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,mode}){
               {canManage&&openMenu===menuKey&&<div className="mini-menu" style={openMenuUp?{top:"auto",bottom:"calc(100% - 4px)"}:undefined}><button className="mm-item" onClick={e=>{e.stopPropagation();setOpenMenu(null);setViewPlayer(p);}}>Player Profile</button><button className="mm-item mm-danger" onClick={e=>{e.stopPropagation();setOpenMenu(null);setConfirmRemovePlayer(p);}}>Remove</button></div>}
             </div>);
           };
-          if(!team.players.length)return <div className="empty"><div className="emtx">No players yet{canManage?" -- tap + Add.":"."}</div></div>;
+          if(!team.players.length)return <div className="empty"><div className="emtx">No players yet{canManage?". Tap + Add.":"."}</div></div>;
           if(sort.by!=="position")return sorted.map(p=>playerRow(p));
           // Group by position. Headers follow the sport's own position order;
           // a player with several positions shows under each of them; anyone
@@ -3191,7 +3199,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,mode}){
         })()}
       </div>)}
       {tab==="coaches"&&(<div>
-        <div className="sechdr mb8"><span className="sectitle">{team.coaches.length} Coaches</span>{canManage&&<button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addCoach",{teamId});}}>+ Add</button>}</div>
+        <div className="sechdr mb8"><span className="sectitle">{team.coaches.length} {team.coaches.length===1?"Coach":"Coaches"}</span>{canManage&&<button className="btn outline bsm" onClick={e=>{e.stopPropagation();openModal("addCoach",{teamId});}}>+ Add</button>}</div>
         {/* Head Coach always listed first, regardless of add/accept order
             (direct feedback) -- a stable sort so assistants/helpers below
             it keep whatever relative order the server returned them in. */}
@@ -3227,6 +3235,7 @@ function RostersTab({data,openModal,fixedTeamId,refreshTeams,coachId,mode}){
             added assistant was confusing. */}
         {(team.invites||[]).length>0&&(<div className="sechdr mb8" style={{marginTop:16}}><span className="sectitle" style={{fontSize:13,color:"var(--text-dim)"}}>Pending Invites</span></div>)}
         {inviteLimitNotice&&<div style={{marginBottom:8}}><EntitlementLockedMessage catalogId="T2" role={team.ownerUserId===coachId?"head":"assistant"} teamId={team.id}/></div>}
+        {!inviteLimitNotice&&canManage&&staffOverCap&&<div style={{marginBottom:8}}><EntitlementLockedMessage catalogId="T2o" role="head" teamId={team.id} tokens={{n:staffCapCount}}/></div>}
         {(team.invites||[]).map(inv=>(<div key={inv.id} className="li" style={{position:"relative"}}>
           <div className="lim"><div className="lin">{inv.name}</div><div className="limt">{inv.role} · {inv.status==="pending"?"Invite pending":"Declined"} ({inv.email})</div></div>
           {canManage&&<button className="ell-btn" aria-label={"Options for "+inv.name} onClick={e=>{

@@ -1889,7 +1889,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
       {mineTab==="drills"&&<div className="segtrack" style={{marginTop:10}}>
         {[{k:"mine",label:isOrgMode?"Org Drills":"My Drills"},{k:"explore",label:"Explore"}].map(t=>(<button key={t.k} className={"seg2"+(section===t.k?" on":"")} onClick={()=>goSection(t.k)}>{t.label}</button>))}
       </div>}
-      {mineTab==="drills"&&section==="mine"&&showDrillMeter&&<UsageMeter style={{marginTop:10}} used={myDrillCount} limit={drillLimit} label={catalogCopy("L1","head",{n:myDrillCount})}/>}
+      {mineTab==="drills"&&section==="mine"&&showDrillMeter&&<UsageMeter style={{marginTop:10}} used={myDrillCount} limit={drillLimit} label={catalogCopy(myDrillCount>drillLimit?"L1o":"L1","head",{n:myDrillCount})}/>}
     </div>
     {mineTab==="benchmarks"&&<div style={{padding:"0 16px"}}><BenchmarksTab locked={libBenchmarksLocked} data={data} coachId={coachId} mode={mode} refreshLibrary={refreshLibrary} fromDrill={benchmarkFromDrill} clearFromDrill={()=>setBenchmarkFromDrill(null)}/></div>}
     {mineTab==="locations"&&<div style={{padding:"0 16px"}}><LocationsSection data={data} openModal={openModal} refreshPlanning={refreshPlanning} coachId={coachId} mode={mode}/></div>}
@@ -2125,6 +2125,7 @@ export default function NewLibraryScreen({data,openModal,goToBuilder,goToRun,ref
     </div>}
     {mineTab==="templates"&&<div style={{padding:"0 16px"}}>
       <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><button className="btn primary bsm" onClick={()=>{if(tplAtCap){setTplLimitNotice(true);return;}setNewTplNameDraft("");setNewTplPrompt(true);}}>+ New Template</button></div>
+      {tplLimit!=null&&tplLimit>0&&templates.length>0&&<UsageMeter style={{marginBottom:12}} used={templates.length} limit={tplLimit} label={catalogCopy("L3m","head",{n:templates.length})}/>}
       {tplLimitNotice&&tplAtCap&&<div style={{marginBottom:12}}><EntitlementLockedMessage catalogId="L3"/></div>}
       {newTplPrompt&&<div className="movly" onClick={()=>setNewTplPrompt(false)}><div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="mtitle">Name your template</div>

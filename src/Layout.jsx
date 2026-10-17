@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Outlet, useNavigate, useParams, useLocation } from "react-router-dom";
 import { Ic } from "./icons.jsx";
 import { canManageTeamInMode, useBigBrowser } from "./constants.js";
-import { checkCanViewGoals, setActivePersonalTeam } from "./supabase.js";
+import { checkCanViewGoals, setActivePersonalTeam, fetchMyTeamPlanStatus } from "./supabase.js";
 import { EntitlementLockedMessage } from "./components/EntitlementNotice.jsx";
 import { clearTeamEntitlementsCache } from "./entitlements.js";
 import { parseEntitlementError } from "./upsellCatalog.js";
@@ -88,19 +88,34 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
   // Packaging Phase E (T3): a personal team the owner's plan no longer
   // covers after a downgrade is paused: fully viewable, but planning,
   // scheduling, and starting new live runs are refused server-side. The
-  // owner can make it the active team (once every 30 days); assistants just
-  // see that it is paused, never pricing.
+  // owner can make it the active team (their first pick can be corrected
+  // once, then once every 30 days; the banner names the date rather than
+  // offering a switch that would be refused); assistants just see that it
+  // is paused, never pricing.
   const pausedTeam = !!(team && team.planActive === false);
   const pausedRole = team && team.ownerUserId === coachId ? "head" : "assistant";
   const [switchMsg, setSwitchMsg] = useState("");
   const [switching, setSwitching] = useState(false);
+  const [nextSwitchAt, setNextSwitchAt] = useState(null);
   useEffect(() => { setSwitchMsg(""); }, [teamId]);
+  useEffect(() => {
+    setNextSwitchAt(null);
+    if (!pausedTeam || pausedRole !== "head") return;
+    let alive = true;
+    fetchMyTeamPlanStatus().then(st => {
+      if (alive && st && st.next_switch_at && new Date(st.next_switch_at) > new Date()) setNextSwitchAt(st.next_switch_at);
+    });
+    return () => { alive = false; };
+  }, [teamId, pausedTeam, pausedRole]);
+  const switchOption = nextSwitchAt
+    ? "make it your active team on " + new Date(nextSwitchAt).toLocaleDateString(undefined, { month: "long", day: "numeric" })
+    : "make it your active team instead";
   const switchActiveTeam = async () => {
     if (switching) return;
     setSwitching(true); setSwitchMsg("");
     const { error } = await setActivePersonalTeam(teamId);
     if (error) {
-      setSwitchMsg(parseEntitlementError(error) ? "You can switch your active team once every 30 days." : "Couldn't switch teams. Try again.");
+      setSwitchMsg(parseEntitlementError(error) ? "You can switch your active team once every 30 days, and you've switched recently." : "Couldn't switch teams. Try again.");
       setSwitching(false);
       return;
     }
@@ -204,8 +219,8 @@ export default function Layout({ data, liveId, goToRun, mode, openModal, subView
       </div>}
       <div className="screen">
         {inTeam && pausedTeam && <div style={{ padding: "10px 16px 0" }}>
-          <EntitlementLockedMessage catalogId="T3" role={pausedRole} teamId={teamId} tokens={{ Team: team.name }}
-            onSecondary={pausedRole === "head" ? switchActiveTeam : undefined} />
+          <EntitlementLockedMessage catalogId="T3" role={pausedRole} teamId={teamId} tokens={{ Team: team.name, "switch option": switchOption }}
+            onSecondary={pausedRole === "head" && !nextSwitchAt ? switchActiveTeam : undefined} />
           {switchMsg && <div style={{ fontSize: 12.5, color: "var(--text-dim)", marginTop: 6 }}>{switchMsg}</div>}
         </div>}
         <Outlet/>

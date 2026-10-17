@@ -79,6 +79,7 @@ export default function ValueMomentSlot({ focusTeam, data, coachId, pulse, liveN
     category: streak.categoryName,
     "other team": markers.v6_team,
     "own team": focusTeam.name,
+    n: completed,
   };
   const dismiss = () => {
     logUpsellEvent("dismiss", pick.id, { teamId, featureKey: UPSELL_CATALOG[pick.id].featureKey });

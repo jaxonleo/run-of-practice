@@ -975,7 +975,7 @@ export default function HomeScreen({ data, allTeams, liveId, goToBuilder, goToRu
         team" entry point Getting Started's own first step uses. */}
     {!isOrgMode && !focusTeam && headCoachTeams.length === 0 && <div className="card" style={{ marginBottom: 16, padding: "14px 16px" }}>
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-dim)", marginBottom: 6 }}>Development Pulse</div>
-      <div style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 12, lineHeight: 1.5 }}>Development Pulse tracks how a team's practices compare to its goals over time -- it's for teams you head-coach. Create a team to start seeing it.</div>
+      <div style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 12, lineHeight: 1.5 }}>Development Pulse tracks how a team's practices compare to its goals over time, for teams you head-coach. Create a team to start seeing it.</div>
       <button className="btn outline bmd bfull" onClick={() => navigate("/teams", { state: { openAddTeam: true } })}>Create a Team</button>
     </div>}
   </>);

@@ -108,18 +108,21 @@ function fmtChange(protocol, m) {
 // own detail/history view (Library's Benchmarks tab "View Results" button)
 // rather than landing on the overview list -- same shape as GoalsScreen's
 // own openGoalsView state-based deep link.
-export function TeamBenchmarksView({ teamId, team, coachId, canManage, isBB, initialBenchmarkId }) {
+// locked: the team's plan doesn't include Benchmarks (the caller shows the
+// B1 preview); past results still show, but no "add one" hint.
+export function TeamBenchmarksView({ teamId, team, coachId, canManage, isBB, initialBenchmarkId, locked }) {
   const [openId, setOpenId] = useState(initialBenchmarkId || null);
   if (openId) return <TeamBenchmarkDetail teamId={teamId} team={team} coachId={coachId} benchmarkId={openId} canManage={canManage} onBack={() => setOpenId(null)} isBB={isBB} />;
-  return <TeamBenchmarksOverview teamId={teamId} canManage={canManage} onOpen={setOpenId} />;
+  return <TeamBenchmarksOverview teamId={teamId} canManage={canManage} onOpen={setOpenId} locked={locked} />;
 }
 
-function TeamBenchmarksOverview({ teamId, onOpen }) {
+function TeamBenchmarksOverview({ teamId, onOpen, locked }) {
   const [report, setReport] = useState(null);
   useEffect(() => { setReport(null); fetchTeamBenchmarkReport(teamId).then(r => setReport(r.data || { error: true })); }, [teamId]);
   if (!report) return <div style={{ fontSize: 13, color: "var(--text-dim)" }}>Loading...</div>;
   if (report.error) return <div style={{ fontSize: 13, color: "var(--text-dim)" }}>Benchmark history is not available for this team.</div>;
   const list = report.benchmarks || [];
+  if (!list.length && locked) return null;
   if (!list.length) return <div className="card"><div style={{ fontSize: 13, color: "var(--text-dim)" }}>No benchmarks adopted for this team yet. Add one from Library &rarr; Benchmarks or in the Builder.</div></div>;
 
   return (

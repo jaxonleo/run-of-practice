@@ -942,9 +942,10 @@ function TrendsView({ teamId, team, canManage, isBB, report, trendsLocked, viewe
         <div aria-hidden="true" style={{ height: 90, margin: "12px 0", borderRadius: 8, background: "repeating-linear-gradient(90deg, var(--surface-soft) 0 12px, transparent 12px 24px)", border: "1px dashed var(--border)" }} />
         <ProPreview catalogId="G4" role={viewerRole} teamId={teamId} tokens={{
           "top category": goalCats[0].name,
-          "category 1": goalCats[0].name,
-          "category 2": (goalCats[1] || goalCats[0]).name,
-          n: Math.max(0, goalCats.length - 2),
+          "category list": goalCats.length === 1 ? goalCats[0].name
+            : goalCats.length === 2 ? `${goalCats[0].name} and ${goalCats[1].name}`
+            : goalCats.length === 3 ? `${goalCats[0].name}, ${goalCats[1].name}, and ${goalCats[2].name}`
+            : `${goalCats[0].name}, ${goalCats[1].name}, and ${goalCats.length - 2} more`,
         }} />
       </div>
     </div>);
@@ -1063,7 +1064,7 @@ function NextPracticeGuidance({ team, teamId, data, report, canManage, coachId, 
 
     {below.length === 0 && <div style={{ fontSize: 13, color: "var(--text-dim)" }}>Every category is at or above its goal right now.</div>}
     {shown.map(g => (<CategoryGapRow key={g.skillCategoryId} g={g} practiceDuration={practiceDuration} data={data} coachId={coachId} onExpand={trackExpand} />))}
-    {guidanceLocked && below.length > 1 && <ProPreview catalogId="G2" role={viewerRole} teamId={teamId} tokens={{ n: below.length - 1 }} />}
+    {guidanceLocked && below.length > 1 && <ProPreview catalogId="G2" role={viewerRole} teamId={teamId} tokens={{ "more below": below.length === 2 ? "1 more category is below target" : `${below.length - 1} more categories are below target` }} />}
     {!guidanceLocked && below.length > 3 && !showAll && <button className="btn ghost bxs" onClick={() => setShowAll(true)}>Show all categories</button>}
     {anyUnclosable && below.length > 1 && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>The current gaps cannot all be closed in one practice. Prioritize the areas that matter most for this team right now.</div>}
   </div>);
@@ -1210,7 +1211,7 @@ export default function GoalsScreen({ data, teamId, coachId, setSubViewBack, mod
     </>)}
     {view === "trends" && <TrendsView teamId={teamId} team={team} canManage={canManage} isBB={isBB} report={report} trendsLocked={trendsLocked} viewerRole={viewerRole} coachId={coachId} />}
     {view === "benchmarks" && benchmarksLocked && <div style={{ marginBottom: 12 }}><ProPreview catalogId="B1" role={viewerRole} teamId={teamId} /></div>}
-    {view === "benchmarks" && <TeamBenchmarksView teamId={teamId} team={team} coachId={coachId} canManage={canManage} isBB={isBB} initialBenchmarkId={initialBenchmarkId} />}
+    {view === "benchmarks" && <TeamBenchmarksView teamId={teamId} team={team} coachId={coachId} canManage={canManage} isBB={isBB} initialBenchmarkId={initialBenchmarkId} locked={benchmarksLocked} />}
     {view === "history" && (isBB ? (
       <TwoPane
         left={<>

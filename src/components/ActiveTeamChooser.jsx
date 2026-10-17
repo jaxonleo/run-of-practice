@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { catalogCopy } from "../upsellCatalog.js";
 import { setActivePersonalTeam } from "../supabase.js";
-import { logUpsellEvent } from "../entitlements.js";
+import { logUpsellEvent, upsellCtasVisible } from "../entitlements.js";
 import { defaultActiveTeamId } from "../teamPlan.js";
 
 // Packaging Phase E (catalog T4): the blocking active-team chooser shown
@@ -10,8 +10,10 @@ import { defaultActiveTeamId } from "../teamPlan.js";
 // deactivated-account ReactivatePrompt. Nothing is deleted: the other
 // teams stay fully viewable, just paused for planning, scheduling, and
 // starting new live runs. Default selection: the team with the next
-// scheduled practice, then the oldest.
-export default function ActiveTeamChooser({ teams, practices, onChosen, onExit }) {
+// scheduled practice, then the oldest. The first pick can be corrected once
+// without waiting (set_active_personal_team), and once billing is on the
+// chooser also offers Pro, which keeps every team active.
+export default function ActiveTeamChooser({ teams, practices, onChosen, onExit, onUpgrade }) {
   const [selected, setSelected] = useState(() => defaultActiveTeamId(teams, practices));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -41,6 +43,8 @@ export default function ActiveTeamChooser({ teams, practices, onChosen, onExit }
     </div>
     {error && <div style={{ fontSize: 13, color: "var(--danger)", marginBottom: 10 }}>{error}</div>}
     <button className="btn primary bmd bfull" style={{ maxWidth: 360, marginBottom: 10 }} onClick={choose} disabled={busy || !selected}>{busy ? "Saving..." : "Choose Team"}</button>
+    {onUpgrade && upsellCtasVisible() && <button className="btn outline bmd bfull" style={{ maxWidth: 360, marginBottom: 10, color: "#fff", background: "transparent", borderColor: "rgba(255,255,255,.5)" }}
+      onClick={() => { logUpsellEvent("cta_click", "T4", { featureKey: "teams.personal_count" }); onUpgrade(); }} disabled={busy}>Keep every team with Pro</button>}
     <button className="btn ghost bmd bfull" style={{ maxWidth: 360, color: "#fff", background: "transparent", borderColor: "rgba(255,255,255,.25)" }} onClick={onExit} disabled={busy}>Sign Out</button>
   </div>);
 }

@@ -4,7 +4,7 @@
 -- (a...0002, owns Test Team B, no staff) is the Free subject throughout;
 -- coach A (a...0001) directs Test Org. Everything rolls back.
 begin;
-select plan(40);
+select plan(41);
 
 -- Coach B on Free with no cohort.
 delete from public.entitlement_cohort_assignments where user_id = 'a0000000-0000-0000-0000-000000000002';
@@ -202,7 +202,8 @@ select set_config('request.jwt.claim.sub', '', true);
 update public.teams set archived_at = null where id = 'b0000000-0000-0000-0000-0000000000b2';
 select set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000002', true);
 set local role authenticated;
-select lives_ok($$select public.set_active_personal_team('b0000000-0000-0000-0000-0000000000b2')$$, 'the coach picks Second Team as active');
+select lives_ok($$select public.set_active_personal_team('b0000000-0000-0000-0000-000000000002')$$, 'the coach first picks the original team as active');
+select lives_ok($$select public.set_active_personal_team('b0000000-0000-0000-0000-0000000000b2')$$, 'the first pick is free to correct: the coach switches to Second Team');
 select throws_like(
   $$select public.set_active_personal_team('b0000000-0000-0000-0000-000000000002')$$,
   'ENTITLEMENT_LIMIT:teams.personal_count', 'switching again inside 30 days is refused'

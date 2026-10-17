@@ -72,7 +72,7 @@ function useVisualViewportHeight(){
 // may only carry scope='global' tags (never a personal/org one that would
 // be invisible to other viewers), and new tags added here go global too.
 // initialOpen = jump straight to the category-grouped picker sheet on mount
-// (the live-practice "No skill tag yet -- tap to add one" reminder in
+// (the live-practice "No skill tag yet. Tap to add one." reminder in
 // CommandScreen uses this so the coach doesn't have to tap a second time).
 export function SkillTagPicker({data,coachId,sport,selectedIds,onChange,refreshLibrary,catalogId,initialOpen}){
   const [open,setOpen]=useState(!!initialOpen);
@@ -270,6 +270,18 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
   const {entitlements:coachTeamEnts}=useTeamEntitlements(coachTeam&&!coachTeam.organizationId?coachTeam.id:null);
   const staffCount=coachTeam?coachTeam.coaches.filter(c=>c.userId!==coachTeam.ownerUserId).length+(coachTeam.invites||[]).filter(i=>i.status==="pending").length:0;
   const staffAtCap=!!coachTeam&&!underLimit("teams.assistants",staffCount,coachTeamEnts);
+  // New-coach E2E (2026-10-17): the drill cap is checked when the form
+  // opens, like the team and staff caps, rather than after the coach has
+  // written the whole drill. At any cap the form itself is not shown: just
+  // the notice and a Close button, so nothing looks fillable.
+  const [drillAtCap,setDrillAtCap]=useState(false);
+  useEffect(()=>{
+    if(modal.type!=="addActivity"||isPublicLibraryAdd)return;
+    let alive=true;
+    canCreatePersonalDrill().then(ok=>{if(alive&&ok===false)setDrillAtCap(true);});
+    return ()=>{alive=false;};
+  },[modal.type,isPublicLibraryAdd]);
+  const capBlocked=teamAtCap||staffAtCap||drillAtCap;
   const roleOn=team=>team&&team.ownerUserId===coachId?"head":"assistant";
   const entitlementNotice=(error,team,tokens)=>{
     const id=catalogIdForError(error);
@@ -413,6 +425,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
         {sublocationLocation&&<div style={{fontSize:13,color:"var(--text-dim)",marginTop:-8,marginBottom:12}}>for {sublocationLocation.name}</div>}
         {!addedCoachInfo&&teamAtCap&&<div style={{marginBottom:12}}><EntitlementLockedMessage catalogId="T1" role="head" onSecondary={closeModal}/></div>}
         {!addedCoachInfo&&staffAtCap&&<div style={{marginBottom:12}}><EntitlementLockedMessage catalogId="T2" role={roleOn(coachTeam)} teamId={coachTeam.id}/></div>}
+        {drillAtCap&&<div style={{marginBottom:12}}><EntitlementLockedMessage catalogId="L2"/></div>}
         {addedCoachInfo&&<div className="fld"><div style={{fontSize:14,lineHeight:1.5}}>{addedCoachInfo.name} will get an email at {addedCoachInfo.email} to accept or decline. You can see the status of this invite on your Coaches screen.</div></div>}
         {sublocationLocation&&(()=>{
           const others=(sublocationLocation.sublocations||[]).filter(s=>!sublocation||s.id!==sublocation.id);
@@ -422,7 +435,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
               :<div style={{display:"flex",flexWrap:"wrap",gap:6}}>{others.map(s=>(<span key={s.id} className="bdg bs">{s.name}</span>))}</div>}
           </div>);
         })()}
-        {!addedCoachInfo&&modal.type==="addTeam"&&(<div><div className="fld"><label className="lbl">Team Name</label><input className="inp" autoFocus placeholder="e.g. Peoria Eagles 10U" onChange={e=>set("name",e.target.value)}/></div>
+        {!addedCoachInfo&&!capBlocked&&modal.type==="addTeam"&&(<div><div className="fld"><label className="lbl">Team Name</label><input className="inp" autoFocus placeholder="e.g. Peoria Eagles 10U" onChange={e=>set("name",e.target.value)}/></div>
           <div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||""} onChange={e=>{set("sport",e.target.value);lastSportRef.current=e.target.value;}}>{(modal.payload&&modal.payload.orgSports&&modal.payload.orgSports.length?modal.payload.orgSports:SPORTS).map(s=><option key={s}>{s}</option>)}</select></div>
           <div className="fld">
             <label className="lbl">Team Color</label>
@@ -440,14 +453,14 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
             <div className="fld"><label className="lbl">Notes</label><textarea className="ta" value={f.notes||""} onChange={e=>set("notes",e.target.value)}/></div>
           </div>
         )}
-        {!addedCoachInfo&&modal.type==="addCoach"&&staffSuggestions.length>0&&(
+        {!addedCoachInfo&&!capBlocked&&modal.type==="addCoach"&&staffSuggestions.length>0&&(
           <div className="fld"><label className="lbl">From your other teams</label>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
               {staffSuggestions.map(s=>(<button key={s.email} type="button" className="btn bxs ghost" onClick={()=>{set("name",s.name);set("inviteEmail",s.email);}}>{s.name}</button>))}
             </div>
           </div>
         )}
-        {!addedCoachInfo&&(modal.type==="addCoach"||modal.type==="editCoach"||modal.type==="editInvite")&&(<div>
+        {!addedCoachInfo&&!capBlocked&&(modal.type==="addCoach"||modal.type==="editCoach"||modal.type==="editInvite")&&(<div>
             <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
             <div className="fld"><label className="lbl">Role</label>
               <div className="brow">
@@ -512,7 +525,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
             </div>}
           </div>
         )}
-        {(modal.type==="addActivity"||modal.type==="editActivity")&&(<div>
+        {!capBlocked&&(modal.type==="addActivity"||modal.type==="editActivity")&&(<div>
             <div className="fld"><label className="lbl">Name</label><input className="inp" autoFocus={!activity} value={f.name||""} onChange={e=>set("name",e.target.value)}/></div>
             <div className="g2">
               <div className="fld"><label className="lbl">Sport</label><select className="sel" value={f.sport||"General"} onChange={e=>{set("sport",e.target.value);lastSportRef.current=e.target.value;}}>{orderedSports.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
@@ -640,7 +653,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
         {saveError&&(typeof saveError==="string"
           ?<div style={{fontSize:13,color:"var(--danger)",marginTop:4}}>{saveError}</div>
           :<div style={{marginTop:4}}>{saveError}</div>)}
-        <div className="mfooter">{addedCoachInfo?<button className="btn primary bmd" style={{flex:1}} onClick={closeModal}>Got it</button>:(<React.Fragment><button className="btn ghost bmd" onClick={closeModal} disabled={saving}>Cancel</button><button className="btn primary bmd" onClick={save} disabled={saving||teamAtCap||staffAtCap}>{saving?"Saving...":"Save"}</button></React.Fragment>)}</div>
+        <div className="mfooter">{addedCoachInfo?<button className="btn primary bmd" style={{flex:1}} onClick={closeModal}>Got it</button>:capBlocked?<button className="btn ghost bmd" style={{flex:1}} onClick={closeModal}>Close</button>:(<React.Fragment><button className="btn ghost bmd" onClick={closeModal} disabled={saving}>Cancel</button><button className="btn primary bmd" onClick={save} disabled={saving}>{saving?"Saving...":"Save"}</button></React.Fragment>)}</div>
       </div>
     </div>
   );

@@ -104,7 +104,7 @@ export default function PlanBillingScreen() {
         </div>
       </>) : (<>
         <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900 }}>Free</div>
-        <div style={{ fontSize: 13.5, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.5 }}>One active team, two coaches, 20 saved drills, two templates, and your 10 most recent practices. Live practices are always unlimited.</div>
+        <div style={{ fontSize: 13.5, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.5 }}>One active team, you plus two assistant coaches, 20 saved drills, two templates, and your 10 most recent practices. Live practices are always unlimited.</div>
       </>)}
     </Card>
 
