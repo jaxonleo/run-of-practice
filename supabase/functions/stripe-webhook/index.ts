@@ -49,7 +49,7 @@ async function syncSubscription(sub: any) {
     plan_bundle_key: paid ? 'pro' : 'free',
     billing_status: ended ? 'canceled' : status,
     cancel_at_period_end: cancelling,
-    current_period_end: endsAt ? new Date(endsAt * 1000).toISOString() : null,
+    current_period_end: endsAt && !ended ? new Date(endsAt * 1000).toISOString() : null,
     stripe_price_lookup_key: ended ? null : (item && item.price && item.price.lookup_key) || null,
     updated_at: new Date().toISOString(),
   }
