@@ -668,6 +668,12 @@ Every session's work gets one dated, numbered entry below, **newest first**. Whe
 
 Sessions are grouped by theme rather than strictly re-sorted when a later session revisits an earlier decision — check the inline dates in each entry if exact ordering matters. Numbering is sequential per work session (a same-day follow-up is "Nth session continued," not a new number).
 
+### 2026-10-29: staging shows upgrades; launch Terms and Privacy drafted (staging only)
+
+Jax tried to upgrade on staging and got "Pro upgrades open soon": staging runs production's code, where `BILLING_ENABLED` is off, so only a browser with the admin preview toggle saw the CTAs. `upsellCtasVisible()` now also returns true whenever the build's Supabase URL is exactly the staging project (`isTestEnvironmentUrl`, unit-tested), which covers staging, Vercel previews, and local dev but never production (production also answers on a vercel.app hostname, so the check is deliberately not hostname-based).
+
+Jax asked for Terms and Privacy drafts. `LegalPages.jsx` has launch versions (`LaunchTermsPage`, `LaunchPrivacyPage`) that go live when `EARLY_ACCESS_ACTIVE` turns off; until then `launchLegalVisible()` shows them only on staging/local under a "Draft for review" banner, dated by `LAUNCH_LEGAL_DATE` (set it to the real date at launch). They add Run of Practice LLC as operator, the plans, auto-renewal, the 30-day price-change notice, plan switching, failed payments, cancellation, refunds/credits/free time, the partner program, an 18+ rule for buying, Arizona governing law, and (Privacy) billing data, partner applications, Stripe, Sentry (already in use but missing from the current policy), and retention of billing records. **Needs Jax's and ideally a lawyer's review before launch**; flagged choices are listed in the session's reply.
+
 ### 2026-10-17 (shipped): billing groundwork to production, billing off, public site unchanged
 
 Jax asked to clear the open items. Decisions (AskUserQuestion): production founding cutoff set **at launch**, not before; Checkout **cards only, in code**; staging cutoff set **now**; ship **now with billing off**; and, after I flagged that this batch also changed the public site, **keep the early-access public site until launch**.
