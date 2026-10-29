@@ -311,7 +311,7 @@ function LaunchPrivacyPage() {
       <ul style={{ paddingLeft: 20, margin: "8px 0 0", display: "flex", flexDirection: "column", gap: 4 }}>
         <li><strong>Supabase</strong> (database, authentication, hosting infrastructure)</li>
         <li><strong>Stripe</strong> (payment processing for Pro subscriptions; Stripe also sends receipts)</li>
-        <li><strong>Resend</strong> (sending sign-in and notification emails)</li>
+        <li><strong>Google Workspace</strong> (sending sign-in and notification emails)</li>
         <li><strong>Vercel</strong> (application hosting)</li>
         <li><strong>Sentry</strong> (error monitoring)</li>
       </ul>
@@ -355,7 +355,7 @@ export function PrivacyPage() {
       We use third-party services to run the app:
       <ul style={{ paddingLeft: 20, margin: "8px 0 0", display: "flex", flexDirection: "column", gap: 4 }}>
         <li><strong>Supabase</strong> (database, authentication, hosting infrastructure)</li>
-        <li><strong>Resend</strong> (sending sign-in and notification emails)</li>
+        <li><strong>Google Workspace</strong> (sending sign-in and notification emails)</li>
         <li><strong>Vercel</strong> (application hosting)</li>
       </ul>
       <div style={{ marginTop: 8 }}>These providers process data on our behalf to operate the service; they don't independently use it for their own purposes. We do not otherwise sell or share your information with third parties.</div>
