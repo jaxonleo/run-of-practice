@@ -12,7 +12,7 @@
 // analytics logging below; copy lives in upsellCatalog.js.
 
 import { useEffect, useState, useCallback } from "react";
-import { fetchMyEntitlements, fetchTeamEntitlements, logEntitlementEvent } from "./supabase.js";
+import { fetchMyEntitlements, fetchTeamEntitlements, logEntitlementEvent, SUPABASE_URL } from "./supabase.js";
 
 // Global product/marketing copy-display state -- what the pricing page
 // says, not per-subject entitlement data. Unrelated to the resolution
@@ -183,8 +183,26 @@ export function upsellPreviewEnabled() {
 export function setUpsellPreviewEnabled(on) {
   try { if (on) localStorage.setItem(PREVIEW_KEY, "1"); else localStorage.removeItem(PREVIEW_KEY); } catch { /* storage blocked */ }
 }
+// Staging (and Vercel previews and local dev, which all point at the
+// staging Supabase project and Stripe test mode) always shows upgrade CTAs,
+// so the real purchase flow can be tried there before launch (Jax,
+// 2026-10-29). Keyed off the Supabase project the build talks to, not the
+// hostname: production also answers on a vercel.app address. Production
+// still waits for BILLING_ENABLED.
+const STAGING_PROJECT_REF = "vgryzeokdxgthpjezqns";
+export function isTestEnvironmentUrl(supabaseUrl) {
+  try { return new URL(supabaseUrl).hostname === STAGING_PROJECT_REF + ".supabase.co"; } catch { return false; }
+}
+function onTestEnvironment() {
+  return isTestEnvironmentUrl(SUPABASE_URL);
+}
+// Launch-version legal pages: live once early access ends, and shown on
+// staging/local before that (marked as a draft) so they can be reviewed.
+export function launchLegalVisible() {
+  return !FEATURE_FLAGS.EARLY_ACCESS_ACTIVE || onTestEnvironment();
+}
 export function upsellCtasVisible() {
-  return FEATURE_FLAGS.BILLING_ENABLED || upsellPreviewEnabled();
+  return FEATURE_FLAGS.BILLING_ENABLED || upsellPreviewEnabled() || onTestEnvironment();
 }
 
 // ── Analytics (entitlement_events) ──────────────────────────────────────────

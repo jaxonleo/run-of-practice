@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { FEATURE_FLAGS, can } from "./entitlements.js";
+import { FEATURE_FLAGS, can, isTestEnvironmentUrl } from "./entitlements.js";
 
 describe("entitlement launch guard", () => {
   // Packaging handoff (2026-10-14) launch guard. Billing must not turn on
@@ -24,5 +24,14 @@ describe("can()", () => {
     expect(can("goals.trends", map).allowed).toBe(true);
     expect(can("benchmarks.access", map).allowed).toBe(false);
     expect(can("library.drill_insights", map)).toMatchObject({ allowed: false, source: "unresolved" });
+  });
+});
+
+describe("isTestEnvironmentUrl", () => {
+  it("is true only for the staging Supabase project", () => {
+    expect(isTestEnvironmentUrl("https://vgryzeokdxgthpjezqns.supabase.co")).toBe(true);
+    expect(isTestEnvironmentUrl("https://bepoojcbizxhqadrytjq.supabase.co")).toBe(false);
+    expect(isTestEnvironmentUrl("https://vgryzeokdxgthpjezqns.evil.com.bepoojcbizxhqadrytjq.supabase.co")).toBe(false);
+    expect(isTestEnvironmentUrl(undefined)).toBe(false);
   });
 });

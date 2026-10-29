@@ -1,9 +1,15 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { submitFeedback, submitPublicFeedback } from "../supabase.js";
-import { FEATURE_FLAGS } from "../entitlements.js";
+import { FEATURE_FLAGS, launchLegalVisible } from "../entitlements.js";
 
 const LAST_UPDATED = "July 10, 2026";
+// Launch versions of Terms and Privacy (paid plans, Stripe, partner
+// program), drafted 2026-10-29 for Jax and a lawyer to review. They go live
+// when EARLY_ACCESS_ACTIVE turns off at launch; until then they show only
+// on staging/local, under a draft banner (see launchLegalVisible). Set
+// LAUNCH_LEGAL_DATE to the launch date when they take effect.
+const LAUNCH_LEGAL_DATE = "Draft, October 29, 2026";
 const CONTACT_EMAIL = "contact@runofpractice.com";
 
 // ── ConsultationRequestForm ───────────────────────────────────────────────────
@@ -83,7 +89,7 @@ export { ConsultationRequestForm };
 // plain history pop there would land on Settings' top-level list, not back
 // inside Account specifically. location.state.openSection carries that
 // intent across the navigation for the one caller that needs it.
-function LegalLayout({ title, children }) {
+function LegalLayout({ title, children, updated = LAST_UPDATED, draft = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const goBack = () => {
@@ -96,7 +102,8 @@ function LegalLayout({ title, children }) {
       <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 22, fontWeight: 900, color: "#fff" }}>{title}</div>
     </div>
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 20px 60px" }}>
-      <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 20 }}>Last updated: {LAST_UPDATED}</div>
+      {draft && <div style={{ fontSize: 13, background: "var(--caution-tint)", border: "1px solid var(--caution-tint-border)", color: "var(--caution)", borderRadius: 8, padding: "10px 12px", marginBottom: 14, lineHeight: 1.5 }}>Draft for review. This version takes effect when paid plans launch; the current version still applies until then.</div>}
+      <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 20 }}>Last updated: {updated}</div>
       <div style={{ fontSize: 14.5, lineHeight: 1.7, color: "var(--ink-soft)" }}>
         {children}
       </div>
@@ -171,7 +178,75 @@ export function FAQPage() {
   </LegalLayout>);
 }
 
+
+// Launch version (see LAUNCH_LEGAL_DATE above). Plain-language, not legal
+// advice: to be reviewed before it takes effect.
+function LaunchTermsPage() {
+  const ul = { paddingLeft: 20, margin: "8px 0 0", display: "flex", flexDirection: "column", gap: 6 };
+  return (<LegalLayout title="Terms of Use" updated={LAUNCH_LEGAL_DATE} draft={FEATURE_FLAGS.EARLY_ACCESS_ACTIVE}>
+    <S n={1} title="Acceptance">
+      Run of Practice is operated by Run of Practice LLC ("Run of Practice," "we," "us"). By creating an account or using Run of Practice, you agree to these terms. If you don't agree, don't use the app.
+    </S>
+    <S n={2} title="What this is">
+      Run of Practice is a tool for sports coaches to plan and run practices, and to share limited practice information with assistant coaches and helpers. We keep improving it, so features and behavior may change over time.
+    </S>
+    <S n={3} title="Accounts">
+      You must provide an accurate email address to create an account, and you must be at least 18 (or the age of majority where you live) to buy a paid plan. You're responsible for activity that happens under your account. Coaches are responsible for the accuracy of information they enter about their teams, including player and staff information.
+    </S>
+    <S n={4} title="Plans">
+      <ul style={ul}>
+        <li><strong>Free</strong> is free and has limits, shown on the pricing page and in the app (for example, one active team, you plus up to two assistant coaches, 20 saved drills, two templates, and your 10 most recent practices). Live practices are unlimited on every plan.</li>
+        <li><strong>Pro</strong> costs $12 per month or $99 per year in US dollars, and lifts those limits as described on the pricing page.</li>
+        <li><strong>Founding Coaches</strong>, the coaches who joined during early access, have Pro features at no charge.</li>
+        <li><strong>Organization</strong> plans are arranged directly with us and may have their own written agreement, which governs where it differs from these terms.</li>
+      </ul>
+      <div style={{ marginTop: 8 }}>We may change what each plan includes. If a change takes away something a paid plan includes, we'll tell you in advance, and you can cancel before it applies to you.</div>
+    </S>
+    <S n={5} title="Billing and renewal">
+      Payments are processed by Stripe. When you subscribe to Pro, you authorize us (through Stripe) to charge your payment method at the start of each billing period. <strong>Pro renews automatically</strong>, monthly or yearly depending on your choice, until you cancel. Prices don't include taxes unless stated, and you're responsible for any taxes that apply.
+      <div style={{ marginTop: 8 }}>If we change the price of Pro, we'll email you at least 30 days before it applies to your next renewal, and you can cancel before then.</div>
+      <div style={{ marginTop: 8 }}>If you switch between monthly and yearly billing, the change takes effect right away: you're charged the difference for the new plan, with credit for the unused part of your current period.</div>
+      <div style={{ marginTop: 8 }}>If a payment fails, we'll try again and let you know. If it still can't be collected, your account moves to Free.</div>
+    </S>
+    <S n={6} title="Cancelling">
+      You can cancel any time in Settings, then Plan &amp; billing, then Manage subscription. Pro stays on until the end of the period you've already paid for, then your account moves to Free. Cancelling or moving to Free never deletes your information: teams, practices, drills, templates, and history stay saved. Free's limits decide what is active and visible (for example, extra teams are paused and older practices are hidden until you upgrade again).
+    </S>
+    <S n={7} title="Refunds, credits, and free time">
+      Payments aren't refunded for the unused part of a billing period, except where the law requires it. When something on our side gets in the way of your use of the app, we may make it right with a refund, account credit, or free Pro time, at our discretion. Account credit is applied to future Pro charges automatically. Credit and free Pro time have no cash value and can't be transferred.
+      <div style={{ marginTop: 8 }}>If you think you were charged in error, email {CONTACT_EMAIL} before disputing the charge with your bank, and we'll work it out with you.</div>
+    </S>
+    <S n={8} title="Partner program">
+      Coaches can apply to be Run of Practice partners. If we accept you, you get Pro free for one quarter (three months) at a time. Each further quarter is our decision, based on whether you've kept sharing useful feedback. Either of us can end the partnership at any time; your current free quarter still runs out. Partner Pro has no cash value, and partners don't need a payment method. Feedback you send us, as a partner or otherwise, may be used to improve Run of Practice without any obligation to you.
+    </S>
+    <S n={9} title="Acceptable use">
+      Use the app only for its intended purpose: planning and running sports practices. Don't use it to store or share information you don't have the right to share, don't attempt to access other coaches' or teams' data, and don't use the anonymous helper/preview links for anything other than sharing practice information with people actually helping at that practice.
+    </S>
+    <S n={10} title="Your content, your data">
+      Information you enter (rosters, practice plans, notes, and similar) belongs to you. We store it to provide the service. See the Privacy Policy for what's collected and how it's handled.
+    </S>
+    <S n={11} title="Disclaimer">
+      The app is provided "as is," without warranties of any kind, express or implied, to the extent the law allows. We work to keep it available and accurate, but we don't guarantee it will be uninterrupted, error-free, or suitable for any particular purpose. Don't rely on it as your only record of critical information.
+    </S>
+    <S n={12} title="Limitation of liability">
+      To the maximum extent permitted by law, Run of Practice and its owners are not liable for any indirect, incidental, special, or consequential damages arising from use of the app. Our total liability for any claim is limited to the amount you paid us in the 12 months before the claim arose.
+    </S>
+    <S n={13} title="Ending your use">
+      You may stop using the app and deactivate your account at any time through account settings; cancel any Pro subscription first so it doesn't renew. We may suspend or end access for violation of these terms. If we end your access without a violation on your part, we'll refund the unused part of any prepaid Pro period.
+    </S>
+    <S n={14} title="Governing law">
+      These terms are governed by the laws of the State of Arizona, without regard to its conflict-of-law rules.
+    </S>
+    <S n={15} title="Changes">
+      We may update these terms as the product evolves. Material changes will be posted here with an updated date, and changes that affect paid plans will also be emailed to subscribers before they take effect. Continuing to use the app after a change means you accept the updated terms.
+    </S>
+    <S n={16} title="Contact">
+      Questions about these terms or your billing: {CONTACT_EMAIL}.
+    </S>
+  </LegalLayout>);
+}
+
 export function TermsPage() {
+  if (launchLegalVisible()) return <LaunchTermsPage />;
   return (<LegalLayout title="Terms of Use">
     <S n={1} title="Acceptance">
       By creating an account or using Run of Practice ("the app," "we," "us"), you agree to these terms. If you don't agree, don't use the app.
@@ -206,7 +281,60 @@ export function TermsPage() {
   </LegalLayout>);
 }
 
+
+function LaunchPrivacyPage() {
+  const ul = { paddingLeft: 20, margin: 0, display: "flex", flexDirection: "column", gap: 6 };
+  return (<LegalLayout title="Privacy Policy" updated={LAUNCH_LEGAL_DATE} draft={FEATURE_FLAGS.EARLY_ACCESS_ACTIVE}>
+    <S title="Who we are">
+      Run of Practice is operated by Run of Practice LLC. This policy explains what we collect, why, and who we share it with.
+    </S>
+    <S title="What we collect">
+      <ul style={ul}>
+        <li><strong>Account information:</strong> your email address, and a display name you provide.</li>
+        <li><strong>Team and roster information you enter:</strong> team names, player first/last names, jersey numbers, positions, coaching staff, and similar, entered by coaches to plan and run practices.</li>
+        <li><strong>Practice content:</strong> drills, plans, schedules, attendance records, and notes you create.</li>
+        <li><strong>Billing information:</strong> if you subscribe to Pro, your payment details go directly to Stripe, our payment processor. We never see or store your full card number. We keep your plan, subscription status, renewal date, the Stripe IDs that link your account to your subscription, and records of any refunds or credits we issue.</li>
+        <li><strong>Partner program applications:</strong> the name, email, sport, team level, and message you send when you apply.</li>
+        <li><strong>Usage information:</strong> basic activity events (e.g. that a practice was created or a session was run, or that you viewed an upgrade prompt) used to understand how the app is used, and any feedback you submit to us.</li>
+        <li><strong>Error reports:</strong> when something breaks, technical details about the error (such as the page and browser) so we can fix it.</li>
+      </ul>
+    </S>
+    <S title="About players' information">
+      Player information (name, jersey number, position, focus areas) is entered by coaches, not collected directly from players. Where teams include minors, we deliberately minimize what's shared with anonymous helpers. Helper links show first name, last initial, and jersey number only; full names and other details are visible only to signed-in coaching staff on the team.
+      <div style={{ marginTop: 8 }}>If you are a parent or guardian with questions about your child's information in the app, contact the coach who manages your child's team directly, or reach us at {CONTACT_EMAIL}.</div>
+    </S>
+    <S title="How we use information">
+      To provide the app's features: practice planning, live session execution, roster and attendance tracking, and sharing limited practice details with helpers via the links coaches generate. To bill Pro subscriptions, send receipts and billing notices, and handle refunds and credits. To review partner applications. We also use aggregate usage information to understand and improve the product. We do not sell your information or use it for advertising.
+    </S>
+    <S title="Who we share it with">
+      We use third-party services to run the app:
+      <ul style={{ paddingLeft: 20, margin: "8px 0 0", display: "flex", flexDirection: "column", gap: 4 }}>
+        <li><strong>Supabase</strong> (database, authentication, hosting infrastructure)</li>
+        <li><strong>Stripe</strong> (payment processing for Pro subscriptions; Stripe also sends receipts)</li>
+        <li><strong>Resend</strong> (sending sign-in and notification emails)</li>
+        <li><strong>Vercel</strong> (application hosting)</li>
+        <li><strong>Sentry</strong> (error monitoring)</li>
+      </ul>
+      <div style={{ marginTop: 8 }}>These providers process data on our behalf to operate the service. Stripe also handles payment information under its own privacy policy, as payment processors are required to. We do not otherwise sell or share your information, except when the law requires it.</div>
+    </S>
+    <S title="Data retention and deletion">
+      Most information in the app is archived rather than permanently deleted when you remove it (e.g. removing a team or player marks it inactive rather than erasing it immediately), so that accidental removal can be recovered from. Moving from Pro to Free never deletes anything.
+      <div style={{ marginTop: 8 }}>Full account and data deletion is not yet self-service. If you want your account and associated data permanently deleted, contact us at {CONTACT_EMAIL} and we will handle it. Billing records (what was charged, refunded, or credited) are kept as long as tax and accounting rules require, even after an account is deleted.</div>
+    </S>
+    <S title="Cookies and tracking">
+      We use only what's necessary to keep you signed in and to run checkout. We do not use advertising trackers or sell data to advertisers. Stripe's checkout and billing pages use their own cookies to process payments and prevent fraud.
+    </S>
+    <S title="Changes to this policy">
+      We may update this policy as the product evolves. Material changes will be reflected here with an updated date.
+    </S>
+    <S title="Contact">
+      Questions about this policy or your data: {CONTACT_EMAIL}.
+    </S>
+  </LegalLayout>);
+}
+
 export function PrivacyPage() {
+  if (launchLegalVisible()) return <LaunchPrivacyPage />;
   return (<LegalLayout title="Privacy Policy">
     <S title="What we collect">
       <ul style={{ paddingLeft: 20, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
