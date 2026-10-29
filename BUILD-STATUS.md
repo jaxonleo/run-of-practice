@@ -668,6 +668,12 @@ Every session's work gets one dated, numbered entry below, **newest first**. Whe
 
 Sessions are grouped by theme rather than strictly re-sorted when a later session revisits an earlier decision — check the inline dates in each entry if exact ordering matters. Numbering is sequential per work session (a same-day follow-up is "Nth session continued," not a new number).
 
+### 2026-10-29 (continued): Jax's manual test checkout passed; Link turned off
+
+Jax completed a real Stripe Checkout on staging with card 4242: session `complete`/`paid`, `checkout.session.completed` delivered (no pending webhooks), and his staging account moved to Pro monthly, renewing 2026-11-29. Launch checklist item 1 is done.
+
+His checkout page still offered "Save with Link" and a Link "Bank ($5 back)" option even though the session's `payment_method_types` was `['card']`: Link rides along with cards when it's on in the account's default payment method configuration. Jax chose to turn Link off. Done in test mode via the API, and `scripts/stripe_setup.mjs` now turns Link off in the default configuration on every run, so `STRIPE_MODE=live` setup does it too. Verified: a fresh test checkout shows only Apple Pay and Card.
+
 ### 2026-10-29: staging shows upgrades; launch Terms and Privacy drafted (staging only)
 
 Jax tried to upgrade on staging and got "Pro upgrades open soon": staging runs production's code, where `BILLING_ENABLED` is off, so only a browser with the admin preview toggle saw the CTAs. `upsellCtasVisible()` now also returns true whenever the build's Supabase URL is exactly the staging project (`isTestEnvironmentUrl`, unit-tested), which covers staging, Vercel previews, and local dev but never production (production also answers on a vercel.app hostname, so the check is deliberately not hostname-based).

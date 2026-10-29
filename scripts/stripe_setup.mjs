@@ -112,6 +112,21 @@ if (existingPortal) {
   console.log('created portal configuration', cfg.id);
 }
 
+// 3b. Link off (Jax, 2026-10-29). Checkout pins payment_method_types to
+// card, but Link still rode along with cards when enabled on the account
+// ("save with Link" plus Link's own pay-by-bank offer). Turning it off in
+// the account's default payment method configuration leaves card, Apple
+// Pay, and Google Pay. Runs on every invocation, so live mode gets it too.
+const pmcs = await stripe('GET', '/payment_method_configurations?limit=20');
+for (const c of pmcs.data.filter(c => c.is_default && c.active)) {
+  if (c.link && c.link.display_preference && c.link.display_preference.preference === 'off') {
+    console.log('Link already off in', c.id);
+  } else {
+    await stripe('POST', `/payment_method_configurations/${c.id}`, [['link[display_preference][preference]', 'off']]);
+    console.log('turned Link off in', c.id);
+  }
+}
+
 // 4. Webhook endpoint (only when --webhook-url is given).
 const urlArg = process.argv.indexOf('--webhook-url');
 if (urlArg > -1) {
