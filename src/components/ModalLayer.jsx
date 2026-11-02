@@ -650,7 +650,7 @@ export default function ModalLayer({modal,data,closeModal,refreshTeams,refreshLi
             <SkillTagPicker data={data} coachId={coachId} sport={f.sport||"General"} selectedIds={f.skillTagIds||[]} onChange={ids=>set("skillTagIds",ids)} refreshLibrary={refreshLibrary} catalogId={catalogId}/>
           </div>
         )}
-        {saveError&&(typeof saveError==="string"
+        {saveError&&!capBlocked&&(typeof saveError==="string"
           ?<div style={{fontSize:13,color:"var(--danger)",marginTop:4}}>{saveError}</div>
           :<div style={{marginTop:4}}>{saveError}</div>)}
         <div className="mfooter">{addedCoachInfo?<button className="btn primary bmd" style={{flex:1}} onClick={closeModal}>Got it</button>:capBlocked?<button className="btn ghost bmd" style={{flex:1}} onClick={closeModal}>Close</button>:(<React.Fragment><button className="btn ghost bmd" onClick={closeModal} disabled={saving}>Cancel</button><button className="btn primary bmd" onClick={save} disabled={saving}>{saving?"Saving...":"Save"}</button></React.Fragment>)}</div>
