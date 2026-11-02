@@ -112,7 +112,11 @@ const LP_CSS = `
 .lp-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;}
 .lp-brand img{width:32px;height:32px;border-radius:8px;flex-shrink:0;}
 .lp-brand span{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:-.01em;color:var(--ink);}
-.lp-nav{display:flex;align-items:center;gap:22px;}
+.lp-nav{display:flex;align-items:center;gap:14px;}
+@media (min-width:860px){.lp-nav{gap:22px;}}
+/* Phones: the brand name gives way before Pricing does (Pricing is the one
+   menu link kept visible at every width, 2026-11-01). */
+@media (max-width:400px){.lp-brand span{display:none;}}
 .lp-navlink{font-size:13px;font-weight:600;color:var(--ink-soft);text-decoration:none;white-space:nowrap;}
 .lp-navlink.hideonsm{display:none;}
 .lp-signin{font-size:13px;font-weight:600;color:var(--ink-soft);text-decoration:underline;white-space:nowrap;background:none;border:none;cursor:pointer;}
@@ -229,7 +233,7 @@ function Header({ onGetStarted }) {
       <a className="lp-navlink hideonsm" href="#how-it-works">How It Works</a>
       <a className="lp-navlink hideonsm" href="#features">Features</a>
       {!LAUNCHED && <a className="lp-navlink hideonsm" href="#early-access">Early Access</a>}
-      {FEATURE_FLAGS.PRICING_PAGE_PUBLIC && <a className="lp-navlink hideonsm" href="/pricing">Pricing</a>}
+      {FEATURE_FLAGS.PRICING_PAGE_PUBLIC && <a className="lp-navlink" href="/pricing">Pricing</a>}
       {LAUNCHED && <a className="lp-navlink hideonsm" href="/partners">Partners</a>}
       <button className="lp-signin" onClick={onGetStarted}>Sign In</button>
       <button className="btn primary bsm" onClick={onGetStarted}>Try It Free</button>
@@ -401,7 +405,7 @@ function StationsVisual() {
       <DurStepperMock label="Time at Station" value="10m" />
       <DurStepperMock label="Transition" value="2m" />
     </div>
-    <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
       <button className="btn outline bsm" style={{ flex: 1 }}>Generate Random</button>
       <button className="btn ghost bsm" style={{ flex: 1 }}>Group By: Handedness &#9662;</button>
     </div>
