@@ -8,8 +8,11 @@ describe("entitlement launch guard", () => {
   // server enforces this with a CHECK on entitlement_settings
   // (pgTAP 09_packaging_phase_a); this pin makes flipping the client flag a
   // deliberate edit to this test, made alongside setting the cutoff.
-  it("keeps BILLING_ENABLED off until the founding cutoff is set", () => {
-    expect(FEATURE_FLAGS.BILLING_ENABLED).toBe(false);
+  // Flipped at launch (2026-11-01), after production's cutoff was set.
+  it("has billing on and the early-access site off since launch", () => {
+    expect(FEATURE_FLAGS.BILLING_ENABLED).toBe(true);
+    expect(FEATURE_FLAGS.EARLY_ACCESS_ACTIVE).toBe(false);
+    expect(FEATURE_FLAGS.PRICING_PAGE_PUBLIC).toBe(true);
   });
 });
 

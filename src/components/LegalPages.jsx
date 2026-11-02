@@ -9,7 +9,7 @@ const LAST_UPDATED = "July 10, 2026";
 // when EARLY_ACCESS_ACTIVE turns off at launch; until then they show only
 // on staging/local, under a draft banner (see launchLegalVisible). Set
 // LAUNCH_LEGAL_DATE to the launch date when they take effect.
-const LAUNCH_LEGAL_DATE = "Draft, October 29, 2026";
+const LAUNCH_LEGAL_DATE = "November 1, 2026";
 const CONTACT_EMAIL = "contact@runofpractice.com";
 
 // ── ConsultationRequestForm ───────────────────────────────────────────────────
