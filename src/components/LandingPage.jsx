@@ -441,6 +441,83 @@ function StationsVisual() {
   </div>);
 }
 
+// Station delegation (Pro shared planning). Left: the head coach's Station
+// Block in the Builder (ActivityConfigs.jsx StationConfig) with each
+// collapsed station's drill and its "✓ Planned · Coach" / "Needs Planning ·
+// Coach" line, and one station open on its "Plan This Station" field.
+// Right: the assistant's phone -- the Home notice ("You've been asked to
+// plan ...", HomeScreen.jsx) above their own station's form
+// (MyStationBuilder.jsx), which is all they can edit.
+const DELEGATED_STATIONS = [
+  { n: 1, drill: "Ground Ball Fundamentals" },
+  { n: 2, drill: "Front Toss", delegate: "Coach Jen", planned: true },
+];
+
+function DelegateStationRow({ n, drill, delegate, planned }) {
+  return (<div style={{ background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "12px 12px 10px", marginBottom: 10 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--field)" strokeWidth="2.5" aria-hidden="true" style={{ transform: "rotate(-90deg)", flexShrink: 0 }}><path d="M6 9l6 6 6-6" /></svg>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 900, color: "var(--field)", letterSpacing: ".05em" }}>STATION {n}</span>
+        <span style={{ display: "block", fontSize: 12, color: "var(--ink-soft)" }}>{drill}</span>
+        {delegate && <span style={{ display: "block", fontSize: 11, fontWeight: 700, color: planned ? "var(--field)" : "var(--caution)" }}>{planned ? "✓ Planned" : "Needs Planning"} · {delegate}</span>}
+      </span>
+    </div>
+  </div>);
+}
+
+function DelegationVisual() {
+  return (<div className="lp-duo-fixed">
+    <div className="lp-phone lp-card-primary">
+      <div className="ablk" style={{ marginBottom: 0 }}>
+        <div className="abhdr" style={{ cursor: "default" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ font: "700 14px 'Barlow Condensed',sans-serif" }}>Station Block</div>
+            <div className="limt">Ground Ball Fundamentals / Front Toss / Station 3 - 13m x3 + 2m trans = 43m</div>
+          </div>
+          <span className="bdg bp">43m</span>
+        </div>
+        <div className="abbody">
+          {DELEGATED_STATIONS.map(st => <DelegateStationRow key={st.n} {...st} />)}
+          <div style={{ background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "12px 12px 10px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--field)" strokeWidth="2.5" aria-hidden="true" style={{ transform: "rotate(180deg)" }}><path d="M6 9l6 6 6-6" /></svg>
+              <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 900, color: "var(--field)", letterSpacing: ".05em", flex: 1 }}>STATION 3</span>
+              <span style={{ color: "var(--text-dim)", fontSize: 12 }}>Remove</span>
+            </div>
+            <div className="fld"><label className="lbl">Name</label><input className="inp" placeholder="Write your own, or choose from library below" value="" readOnly /></div>
+            <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">Plan This Station</label>
+              <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Delegated to Coach Dana</span>
+                <span className="status caution">Needs Planning</span>
+                <span className="btn ghost bxs">Remove</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div className="lp-phoneframe-wrap"><PhoneFrame><div className="lp-phone">
+      <div className="card" style={{ padding: "14px 16px", marginBottom: 12 }}>
+        <div style={{ fontSize: 14, marginBottom: 10 }}>You've been asked to plan <strong>Station 3</strong> for <strong>Thursday Practice</strong> (12U Red).</div>
+        <div style={{ display: "flex", gap: 8 }}><span className="btn primary bxs" style={{ flex: 1 }}>Build My Station</span><span className="btn ghost bxs" style={{ flex: 1 }}>Dismiss</span></div>
+      </div>
+      <div className="card" style={{ padding: "14px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>Station 3</div>
+          <div style={{ fontSize: 11, color: "var(--field)", flexShrink: 0 }}>● editing now</div>
+        </div>
+        <div className="fld"><label className="lbl">Drill</label><input className="inp" value="Fly Ball Reads" readOnly /></div>
+        <div className="fld"><label className="lbl">Coaching Points</label><div className="inp" style={{ height: "auto", minHeight: 40, lineHeight: 1.4, padding: "8px 12px", fontSize: 13 }}>Drop step first, then run. Call it loud and early.</div></div>
+        <div className="fld"><label className="lbl">Grouping</label>
+          <div style={{ display: "flex", gap: 6 }}>{["Whole Station", "Partners", "Groups"].map(g => <span key={g} className={"seg" + (g === "Partners" ? " on" : "")} style={{ textAlign: "center", fontSize: 12 }}>{g}</span>)}</div>
+        </div>
+        <span className="btn primary bmd bfull">Save Station</span>
+      </div>
+    </div></PhoneFrame></div>
+  </div>);
+}
+
 // Modeled directly on PreviewView (CommandScreen.jsx) -- the actual
 // screen behind "Share Live Link": dark, standalone, opened by whoever's
 // setting up a station before the coach ever gets there. Same literal
@@ -896,18 +973,24 @@ function Section({ id, eyebrow, title, body, visual, reverse, dark, tight, wideV
 
 const FAQS = [
   ...(LAUNCHED ? [
-    { q: "Is Run of Practice free?", a: "Yes, to start. The Free plan covers one team, with unlimited live practices and parent-helper links. Pro adds more teams, your whole staff, unlimited drills and templates, and every Goals & Insights tool for $12 a month or $99 a year. No credit card is needed to start." },
+    { q: "Is Run of Practice free?", a: "Yes. Run of Practice is always free for one team. The Free plan lets you build, schedule and run unlimited practices live, with up to two assistant coaches, unlimited parent-helper links, 20 saved drills and two templates. No credit card needed. Pro ($12 a month or $99 a year) adds up to three teams, unlimited assistant coaches, shared planning, unlimited drills and templates, Benchmarks, and every Goals & Insights tool." },
     { q: "What is the partner program?", a: "Coaches who use Run of Practice in real practices and share regular, useful feedback can apply to be partners. Partners get Pro free for each quarter they keep helping us improve it." },
   ] : [
     { q: "Is Run of Practice free?", a: "Run of Practice is free during early access while the product is being tested and improved." },
   ]),
   { q: "Who is it for?", a: "Run of Practice is designed for head coaches, assistant coaches and anyone helping run an organized practice." },
-  { q: "Does every helper need an account?", a: "No. Assistant coaches can access practices through their accounts, while temporary or ad hoc helpers can receive a link with the information they need." },
-  { q: "Can I use it for different sports?", a: "Yes. Run of Practice is designed around common practice needs such as drills, groups, stations, locations, timing, equipment and transitions. The exact setup can be adjusted for different sports and levels." },
-  { q: "Can I copy an old practice?", a: "Yes. Previous practices can be copied, adjusted and run again. Coaches can also save reusable templates." },
+  { q: "Do I need to download an app?", a: "No. Run of Practice runs in your phone's or computer's browser. On a phone, you can add it to your home screen so it opens like an app. A native iOS app with Apple Watch support is on the roadmap." },
+  { q: "Does every helper need an account?", a: "No. Assistant coaches sign in with their own account, and they're covered by the head coach's plan. They don't need a subscription. Parent helpers and other one-time helpers just open the practice link: no account, no download." },
+  ...(LAUNCHED ? [
+    { q: "Can my assistant coaches help plan?", a: "Yes, on Pro. Delegate a single station to an assistant and they plan just that station. Or share practice planning so they can build whole practices with you. On Free, assistants can view practices and run them live." },
+  ] : []),
+  { q: "Can I use it for different sports?", a: "Yes. Run of Practice is designed around common practice needs such as drills, groups, stations, locations, timing, equipment and transitions. The exact setup can be adjusted for different sports and levels. If your sport isn't listed, email " + CONTACT_EMAIL + " and we'll add it." },
+  { q: "Can I copy an old practice?", a: LAUNCHED
+    ? "Yes. Open any past practice in Practice History and tap Run Now to run it again, or Save as Template to reuse it. Free includes two saved templates; Pro has no limit."
+    : "Yes. Open any past practice in Practice History and tap Run Now to run it again, or Save as Template to reuse it." },
   { q: "What happens if attendance changes?", a: "Player groupings can be updated based on the players who are actually present. Coaches can use random groupings or make manual changes." },
   { q: "Can I adjust the schedule while practice is happening?", a: "Yes. Coaches can add or reduce time, end an activity early, or skip an activity entirely. These changes are reflected in realtime on all connected devices." },
-  { q: "Will I hear the timer if my phone is in my pocket?", a: "Turn on audio and Run of Practice will call out the two-minute warning and blow a whistle when time's up, so you don't need to have the screen in front of you. If a drill runs long, the timer counts into negative time instead of stopping, so you can keep coaching and move on when you're ready." },
+  { q: "Will I hear the timer if my phone is in my pocket?", a: "Turn on audio and Run of Practice calls out the two-minute warning and plays your time's-up sound (whistle, buzzer, ding or beep), so you don't need to have the screen in front of you. If a drill runs long, the timer counts into negative time instead of stopping, so you can keep coaching and move on when you're ready." },
 ];
 
 function FAQ() {
@@ -974,27 +1057,32 @@ export default function LandingPage({ onGetStarted }) {
       "Set station lengths, transition time and rotation order. Players can be grouped at random, by the coach, or by position and handedness. If a player is out sick, adjust the groupings on the fly.",
     ]} />
 
-    <Section eyebrow="Pre-Practice Setup" title="Coaches know where to go and what to bring before the first whistle." reverse visual={<PreSetupVisual />} body={[
+    <Section eyebrow="Shared Planning · Pro" title="Hand a station to the coach who will run it." reverse wideVisual visual={<DelegationVisual />} body={[
+      "Delegate any station to an assistant coach. They get a note on their Home screen and plan only their station: the drill, coaching points, grouping and equipment.",
+      "You see every station marked Planned or Needs Planning without opening it. Need more help? Share practice planning and an assistant can build whole practices with you.",
+    ]} />
+
+    <Section eyebrow="Pre-Practice Setup" title="Coaches know where to go and what to bring before the first whistle." visual={<PreSetupVisual />} body={[
       "Assistants and helpers can see the equipment needed at each station, who's coaching where, and a countdown to start. Stations are already set up by the time players arrive.",
     ]} />
 
-    <Section eyebrow="Drill Library" title="Save a drill once. Use it all season." visual={<LibraryVisual />} body={[
+    <Section eyebrow="Drill Library" title="Save a drill once. Use it all season." reverse visual={<LibraryVisual />} body={[
       "Each drill keeps its setup, coaching points, skills, default duration and equipment. Add it to any practice in one tap. You never rebuild a drill you've already taught.",
     ]} />
 
-    <Section eyebrow="Schedule" title="Know which practices still need planning." reverse visual={<ScheduleVisual />} body={[
+    <Section eyebrow="Schedule" title="Know which practices still need planning." visual={<ScheduleVisual />} body={[
       "Add one-time or recurring practices to your schedule. Each one shows its status so Thursday's practice doesn't sneak up on you Wednesday night.",
     ]} />
 
-    <Section eyebrow="Templates and Previous Practices" title="Start with what already works." visual={<TemplatesVisual />} body={[
+    <Section eyebrow="Templates and Previous Practices" title="Start with what already works." reverse visual={<TemplatesVisual />} body={[
       "Save your standard practice as a template, or copy last week's and change two drills. No need to recreate the wheel every week.",
     ]} />
 
-    <Section eyebrow="Practice History" title="Keep the plan and what actually happened together." reverse visual={<HistoryVisual />} body={[
+    <Section eyebrow="Practice History" title="Keep the plan and what actually happened together." visual={<HistoryVisual />} body={[
       "After practice, see attendance, actual drill times, what changed on the fly, and notes captured during practice. Every session is stored in Goals & Insights. You can see how practice time spent aligns to the goals you set.",
     ]} />
 
-    <Section eyebrow="Benchmarks · Pro" title="Measure progress the same way every time." visual={<BenchmarkVisual />} body={[
+    <Section eyebrow="Benchmarks · Pro" title="Measure progress the same way every time." reverse visual={<BenchmarkVisual />} body={[
       "Set up a repeatable test once: a home-to-first sprint, bat speed, free throws out of ten. Run it as a station during practice, or record it any time. Assistants, or a parent helper with a recording link, can enter results as players finish.",
       "Each test shows every player's result, who meets your target, and how the same players changed since the last time you measured.",
     ]} />
