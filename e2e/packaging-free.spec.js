@@ -37,13 +37,12 @@ test('T2: a third coach shows the staff limit', async ({ page }) => {
 test('L2: a 21st drill is refused with the full-library notice', async ({ page }) => {
   await page.goto('/library');
   await expect(page.getByText('20 of 20 saved drills')).toBeVisible({ timeout: 15000 });
+  // The cap is checked as the form opens: notice and Close, no form to fill.
   await page.getByRole('button', { name: '+ Add Drill' }).click();
-  await page.locator('.modal input.inp').first().fill('E2E One Too Many');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Your library is full.')).toBeVisible({ timeout: 15000 });
-  const { count } = await stagingAdminClient().from('activity_library')
-    .select('id', { count: 'exact', head: true }).eq('owner_user_id', QA_FREE_USER_ID).eq('name', 'E2E One Too Many');
-  expect(count).toBe(0);
+  await expect(page.getByRole('button', { name: 'Close', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
+  await expect(page.locator('.modal input.inp')).toHaveCount(0);
 });
 
 test('L3: a third template shows the template limit', async ({ page }) => {
