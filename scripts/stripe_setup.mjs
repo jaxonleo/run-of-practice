@@ -17,7 +17,9 @@ const env = fs.readFileSync(path.join(process.cwd(), '.env'), 'utf8');
 const m = env.match(new RegExp(`^${envName}=(.*)$`, 'm'));
 if (!m) { console.error(`${envName} not found in .env`); process.exit(1); }
 const key = m[1].trim();
-if (!key.startsWith(mode === 'live' ? 'sk_live_' : 'sk_test_')) {
+// Secret (sk_) or restricted (rk_) keys both work; live mode uses a
+// restricted "full access except sensitive operations" key.
+if (![`sk_${mode}_`, `rk_${mode}_`].some(prefix => key.startsWith(prefix))) {
   console.error(`${envName} does not look like a ${mode} secret key. Aborting.`);
   process.exit(1);
 }
