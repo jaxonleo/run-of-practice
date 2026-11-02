@@ -146,13 +146,16 @@ const LP_CSS = `
 .lp-duo-fixed .lp-card-primary{flex:0 0 var(--mock-card-primary);width:var(--mock-card-primary);max-width:100%;}
 .lp-duo-fixed .lp-phoneframe-wrap{flex:0 0 300px;width:300px;max-width:100%;margin-left:-32px;position:relative;z-index:2;}
 @media (max-width:899px){
-  .lp-duo-fixed{flex-direction:column;}
+  .lp-duo-fixed{flex-direction:column;align-items:center;}
   .lp-duo-fixed .lp-card-primary{width:100%;}
-  .lp-duo-fixed .lp-phoneframe-wrap{width:100%;margin-left:0;margin-top:14px;}
+  .lp-duo-fixed .lp-phoneframe-wrap{flex-basis:auto;margin-left:0;margin-top:14px;}
 }
-.lp-phoneframe{position:relative;width:100%;background:linear-gradient(160deg,#2b2f2b,#141714);border-radius:44px;padding:12px;box-shadow:0 24px 50px rgba(0,0,0,.28);}
-.lp-phoneframe-island{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:90px;height:22px;background:#000;border-radius:14px;z-index:2;}
-.lp-phoneframe-screen{position:relative;background:#fff;border-radius:34px;overflow:hidden;padding-top:34px;}
+/* The phone is a current iPhone (393x852pt screen) at every page width: the
+   screen lays out at 393px like the real app, then scales to fit the frame (276 / 393 = .7023). */
+.lp-phoneframe{position:relative;width:300px;margin:0 auto;background:linear-gradient(160deg,#2b2f2b,#141714);border-radius:51px;padding:12px;box-shadow:0 24px 50px rgba(0,0,0,.28);}
+.lp-phoneframe-screen{position:relative;width:100%;aspect-ratio:393/852;background:#fff;border-radius:39px;overflow:hidden;}
+.lp-phoneframe-display{position:absolute;top:0;left:0;width:393px;height:852px;padding-top:59px;transform:scale(.7023);transform-origin:top left;}
+.lp-phoneframe-island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:126px;height:37px;background:#000;border-radius:19px;z-index:2;}
 .lp-phoneframe .lp-phone{box-shadow:none;border:none;border-radius:0;max-width:none;margin:0;padding:16px 16px 24px;}
 .lp-flash-green{animation:lp-flash-green .6s ease;}
 @keyframes lp-flash-green{0%{border-color:var(--field);}100%{border-color:var(--border);}}
@@ -508,9 +511,13 @@ function DelegationVisual() {
           <div style={{ fontSize: 11, color: "var(--field)", flexShrink: 0 }}>● editing now</div>
         </div>
         <div className="fld"><label className="lbl">Drill</label><input className="inp" value="Fly Ball Reads" readOnly /></div>
+        <div className="fld"><label className="lbl">Description</label><div className="inp" style={{ height: "auto", minHeight: 40, lineHeight: 1.4, padding: "8px 12px", fontSize: 13 }}>Coach hits or throws fly balls. Players read the ball off the bat and track it down.</div></div>
         <div className="fld"><label className="lbl">Coaching Points</label><div className="inp" style={{ height: "auto", minHeight: 40, lineHeight: 1.4, padding: "8px 12px", fontSize: 13 }}>Drop step first, then run. Call it loud and early.</div></div>
         <div className="fld"><label className="lbl">Grouping</label>
           <div style={{ display: "flex", gap: 6 }}>{["Whole Station", "Partners", "Groups"].map(g => <span key={g} className={"seg" + (g === "Partners" ? " on" : "")} style={{ textAlign: "center", fontSize: 12 }}>{g}</span>)}</div>
+        </div>
+        <div className="fld"><label className="lbl">Equipment</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{[["Cones", true], ["Bucket of Balls", true], ["L-Screen", false], ["Batting Tee", false]].map(([n, on]) => <span key={n} style={{ padding: "4px 10px", borderRadius: 20, border: "1.5px solid var(--border)", background: on ? "var(--field)" : "var(--surface)", color: on ? "#fff" : "var(--ink)", fontSize: 13 }}>{n}</span>)}</div>
         </div>
         <span className="btn primary bmd bfull">Save Station</span>
       </div>
@@ -918,8 +925,12 @@ function WatchFrame({ children }) {
 
 function PhoneFrame({ children }) {
   return (<div className="lp-phoneframe">
-    <div className="lp-phoneframe-island" aria-hidden="true"></div>
-    <div className="lp-phoneframe-screen">{children}</div>
+    <div className="lp-phoneframe-screen">
+      <div className="lp-phoneframe-display">
+        <div className="lp-phoneframe-island" aria-hidden="true"></div>
+        {children}
+      </div>
+    </div>
   </div>);
 }
 
