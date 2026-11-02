@@ -246,27 +246,41 @@ function Header({ onGetStarted }) {
 // stylized illustrations, per the addendum's "use the actual product" rule.
 // These aren't screenshots -- swap in real ones whenever they're ready --
 // but they render with the exact same design tokens as the live app.
+// Matches ScheduleScreen.jsx's agenda rows: a team-color dot (hollow until
+// the practice has a plan), the team name, then time, "Needs plan", the
+// planned/scheduled minutes pill (green with a check when on track, red when
+// under 90%) and how many players are out.
 function ScheduleVisual() {
   const rows = [
-    { day: "Today", t: "12U Red Practice", time: "4:00 PM", icon: "✓", color: "var(--field)", status: "90/90 min" },
-    { day: "Today", t: "10U Blue Practice", time: "5:30 PM", icon: null, color: "var(--text-dim)", status: "Needs plan" },
-    { day: "Tomorrow", t: "12U Red Practice", time: "4:00 PM", icon: "◐", color: "var(--caution)", status: "40/90 min" },
+    { day: "Today", team: "12U Red", color: "#c0392b", planned: true, time: "4:00 PM", total: 90, target: 90, out: 2 },
+    { day: "Today", team: "10U Blue", color: "#2563eb", planned: false, time: "5:30 PM", total: 0, target: 60 },
+    { day: "Tomorrow", team: "12U Red", color: "#c0392b", planned: true, time: "4:00 PM", total: 40, target: 90 },
   ];
   let lastDay = null;
   return (<div className="lp-phone">
-    {rows.map((r, i) => (<React.Fragment key={i}>
-      {r.day !== lastDay && (lastDay = r.day, <div className="clbl" style={{ marginTop: i ? 10 : 0 }}>{r.day}</div>)}
-      <div className="li" style={{ cursor: "default" }}>
-        <div className="lim"><div className="lin">{r.t}</div><div className="limt">{r.time} · {r.icon ? <span style={{ color: r.color, fontWeight: 600 }}>{r.icon} {r.status}</span> : r.status}</div></div>
-        <span style={{ color: "var(--text-dim)", fontSize: 18 }}>&#8250;</span>
-      </div>
-    </React.Fragment>))}
+    {rows.map((r, i) => {
+      const onTrack = r.total >= r.target * 0.9 && r.total <= r.target;
+      return (<React.Fragment key={i}>
+        {r.day !== lastDay && (lastDay = r.day, <div className="clbl" style={{ marginBottom: 6, marginTop: i ? 10 : 0 }}>{r.day}</div>)}
+        <div className="li" style={{ marginBottom: 6, cursor: "default" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", boxSizing: "border-box", background: r.planned ? r.color : "transparent", border: "1.5px solid " + r.color, flexShrink: 0 }} />
+            <div className="lim" style={{ minWidth: 0 }}>
+              <div className="lin">{r.team}</div>
+              <div className="limt">{r.time}{!r.planned && " · Needs plan"} · <span style={{ color: onTrack ? "var(--field)" : "var(--danger)", fontWeight: 600, whiteSpace: "nowrap" }}>{onTrack ? "✓ " : ""}{r.total}/{r.target} min</span>{r.out > 0 && <> · <span style={{ whiteSpace: "nowrap" }}>{r.out} out</span></>}</div>
+            </div>
+          </div>
+          <span style={{ color: "var(--text-dim)", fontSize: 18 }}>&#8250;</span>
+        </div>
+      </React.Fragment>);
+    })}
   </div>);
 }
 
 // Two drills shown in full for the expanded sport (count + both rows
 // visible, matching NewLibraryScreen.jsx's actual sport-group layout: a
-// rounded header connecting into a bordered block of divided rows), then a
+// .sport-hdr card, then one .li card per drill with its drag handle, tag
+// chips and options menu), then a
 // second sport collapsed below it with a higher count -- exactly the state
 // described for this section, not a single generic drill.
 function LibraryVisual() {
@@ -274,107 +288,88 @@ function LibraryVisual() {
     { name: "Defensive Shell Drill", description: "Four defenders in a shell around the key, one ball reversed side to side.", equipment: "Cones", skills: ["Defense", "Footwork"] },
     { name: "3-on-3 Scrimmage", description: "Half-court, make it take it. Emphasize early offense.", skills: ["Game Speed"] },
   ];
+  const chev = (collapsed) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--ink)", transform: collapsed ? "rotate(-90deg)" : "none" }} aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>;
+  const grip = <span aria-hidden="true" style={{ display: "grid", gridTemplateColumns: "repeat(2,3px)", gap: 3, padding: "4px 10px 0 2px", flexShrink: 0 }}>{[0, 1, 2, 3, 4, 5].map(i => <span key={i} style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--text-dim)" }} />)}</span>;
   return (<div className="lp-phone">
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--surface)", borderRadius: "var(--radius-lg) var(--radius-lg) 0 0" }}>
-      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>Basketball</span>
-      <span style={{ fontSize: 12, color: "var(--text-dim)" }}>{basketballDrills.length} drills &#9662;</span>
-    </div>
-    <div style={{ border: "1px solid var(--border)", borderTop: "none", borderRadius: "0 0 var(--radius-lg) var(--radius-lg)", overflow: "hidden" }}>
-      {basketballDrills.map((d, i) => (<div key={d.name} style={{ padding: "10px 12px", borderBottom: i < basketballDrills.length - 1 ? "1px solid var(--border)" : "none" }}>
+    <div className="sport-hdr" style={{ cursor: "default" }}><span className="sport-name">Basketball</span><span className="sport-meta">{basketballDrills.length} drills{chev(false)}</span></div>
+    {basketballDrills.map(d => (<div key={d.name} className="li" style={{ alignItems: "flex-start", cursor: "default" }}>
+      {grip}
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{d.name}</div>
-        <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 2, lineHeight: 1.4 }}>{d.description}</div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 2, lineHeight: 1.4 }}>{d.description}</div>
         {d.equipment && <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2 }}>Needs: {d.equipment}</div>}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
-          {d.skills.map(s => <span key={s} className="bdg bs" style={{ fontSize: 10, whiteSpace: "nowrap" }}>{s}</span>)}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+          {d.skills.map(s => <span key={s} className="tagchip">{s}</span>)}
         </div>
-      </div>))}
-    </div>
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", marginTop: 10 }}>
-      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>Baseball</span>
-      <span style={{ fontSize: 12, color: "var(--text-dim)" }}>14 drills &#9656;</span>
-    </div>
+      </div>
+      <span className="ell-btn" aria-hidden="true"><span /><span /><span /></span>
+    </div>))}
+    <div className="sport-hdr" style={{ cursor: "default", marginTop: 10 }}><span className="sport-name">Baseball</span><span className="sport-meta">14 drills{chev(true)}</span></div>
   </div>);
 }
 
-// Matches the real Builder's activity rows (App.jsx: .ablk/.abhdr/.abbody)
-// exactly, including one row expanded into its real ActConfig fields
-// (ActivityConfigs.jsx) -- Duration uses the app's actual DurStepper
-// control (-/value/+), not a native range input; that stepper is the real
-// "set a variable like time" interaction this app has, so it's what's
-// shown expanded here rather than an invented slider.
+// Matches the real Builder (App.jsx BuilderScreen): the solid green "The Run
+// of Practice" panel with its stopwatch mark and planned/scheduled pill (red
+// once the plan is under 90% of the scheduled length -- shown 10 minutes
+// short of the scheduled length so that state is visible), the dashed
+// Pre-Practice Warmup row, then .ablk rows with drag handle, "grouping ·
+// area · coach" subline, chevron, minutes badge and remove button. One row
+// is expanded into its real ActConfig fields (ActivityConfigs.jsx): Name,
+// the -/value/+ DurStepper and Player Grouping.
 function BuilderVisual() {
   const rows = [
-    { n: "Dynamic Warmup", d: "10" },
-    { n: "Throwing Progression", d: "10", expanded: true },
-    { n: "Station Block", d: "45" },
-    { n: "Situational Scrimmage", d: "20" },
+    { n: "Dynamic Warmup", d: "10", sub: "Whole Team · Infield · Coach Mike" },
+    { n: "Throwing Progression", d: "10", sub: "Partners · Outfield · Coach Mike", expanded: true },
+    { n: "Station Block", d: "43", sub: "Ground Ball Fundamentals / Front Toss / Fly Ball Reads - 13m x3 + 2m trans = 43m", block: true },
+    { n: "Situational Scrimmage", d: "20", sub: "Whole Team · Infield · Coach Jen" },
   ];
-  // Matches the real Builder header exactly (App.jsx): a "planned/objective
-  // min" pill that goes red once the plan sits under 90% of the practice's
-  // scheduled length -- shown here 10 minutes short of a 95-minute practice
-  // so the under-planned state is visible, not just the happy path.
   const totalMins = rows.reduce((s, r) => s + Number(r.d), 0);
   const objectiveMins = totalMins + 10;
+  const grip = <span aria-hidden="true" style={{ display: "grid", gridTemplateColumns: "repeat(2,3px)", gap: 3, padding: "0 4px", flexShrink: 0 }}>{[0, 1, 2, 3, 4, 5].map(i => <span key={i} style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--text-dim)" }} />)}</span>;
+  const chev = (up) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true" style={{ transform: up ? "rotate(180deg)" : "none" }}><path d="M6 9l6 6 6-6" /></svg>;
   return (<div className="lp-phone">
-    <div className="sechdr mb8"><span className="sectitle">4 Activities</span><span className={"pill" + (totalMins < objectiveMins * 0.9 ? " over" : "")}>{totalMins}/{objectiveMins} min</span></div>
-    {rows.map((r) => (<div key={r.n} className="ablk" style={{ marginBottom: 6 }}>
-      <div className="abhdr" style={{ cursor: "default" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginRight: 6, flexShrink: 0, color: "var(--surface-pressed)", fontSize: 12, lineHeight: 1 }}><span>&#8593;</span><span>&#8595;</span></div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ font: "700 14px 'Barlow Condensed',sans-serif" }}>{r.n}</div>
-          <div className="limt">{r.d}min</div>
-        </div>
-        <span className="bdg bp">{r.d}m</span>
-        <button className="btn danger bxs">x</button>
+    <div className="brow" style={{ justifyContent: "flex-end", marginBottom: 10 }}><button className="btn strong bsm" style={{ flex: "none" }}>Save</button><button className="btn primary bsm" style={{ flex: "none" }}>Run Now</button></div>
+    <div style={{ background: "var(--field-strong)", borderRadius: "var(--radius-lg)", padding: "0 0 1px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 10px 8px" }}>
+        <svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true" style={{ flexShrink: 0 }}><rect x="42" y="0" width="16" height="10" rx="5" fill="#fff" opacity=".85" /><rect x="68" y="6" width="16" height="9" rx="4.5" fill="#fff" opacity=".85" transform="rotate(35 76 10)" /><circle cx="50" cy="50" r="40" fill="none" stroke="#fff" strokeOpacity=".35" strokeWidth="6" /><line x1="50" y1="50" x2="50" y2="20" stroke="#fff" strokeWidth="7" strokeLinecap="round" /><circle cx="50" cy="50" r="6" fill="#fff" /></svg>
+        <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 20, fontWeight: 900, color: "#fff", flex: 1, lineHeight: 1.1 }}>The Run of Practice</span>
+        <span className={"pill" + (totalMins < objectiveMins * 0.9 ? " over" : "")} style={{ flexShrink: 0 }}>{totalMins}/{objectiveMins} min</span>
       </div>
-      {r.expanded && <div className="abbody">
-        <div className="fld"><label className="lbl">Name</label><input className="inp" value={r.n} readOnly /></div>
-        <div className="fld"><label className="lbl">Duration (min)</label>
-          <div style={{ display: "flex", alignItems: "center", border: "1.5px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden", background: "#fff", width: 120 }}>
-            <span style={{ width: 40, height: 40, background: "var(--surface-soft)", color: "var(--ink-soft)", fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>-</span>
-            <span style={{ flex: 1, textAlign: "center", fontFamily: "'DM Mono',monospace", fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>{r.d}m</span>
-            <span style={{ width: 40, height: 40, background: "var(--surface-soft)", color: "var(--ink-soft)", fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</span>
+      <div style={{ margin: "0 10px 9px", background: "var(--field-tint)", border: "2px dashed var(--field-accent)", borderRadius: "var(--radius-lg)", padding: "11px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 900, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--field)", flex: 1 }}>Pre-Practice Warmup</span>
+        <span style={{ color: "var(--ink)", display: "flex" }}>{chev(false)}</span>
+      </div>
+      {rows.map((r) => (<div key={r.n} className="ablk" style={{ margin: "0 10px 9px" }}>
+        <div className="abhdr" style={{ cursor: "default" }}>
+          {grip}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ font: "700 14px 'Barlow Condensed',sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.n}</div>
+            <div className="limt" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.sub}</div>
+          </div>
+          <div className="row">
+            <span style={{ color: "var(--text-dim)", display: "flex" }}>{chev(r.expanded)}</span>
+            <span className="bdg bp">{r.d}m</span>
+            <button className="btn danger bxs">x</button>
           </div>
         </div>
-        <div className="fld"><label className="lbl">Player Grouping</label>
-          <div style={{ display: "flex", gap: 6 }}>
-            <span style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: "var(--radius-lg)", border: "1.5px solid var(--border)", background: "var(--field)", color: "#fff", fontSize: 13, fontWeight: 700 }}>Whole Team</span>
-            <span style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: "var(--radius-lg)", border: "1.5px solid var(--border)", background: "var(--surface)", color: "var(--ink)", fontSize: 13, fontWeight: 700 }}>Partners</span>
-            <span style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: "var(--radius-lg)", border: "1.5px solid var(--border)", background: "var(--surface)", color: "var(--ink)", fontSize: 13, fontWeight: 700 }}>Groups</span>
+        {r.expanded && <div className="abbody">
+          <div className="fld"><label className="lbl">Name</label><input className="inp" value={r.n} readOnly /></div>
+          <div className="fld"><label className="lbl">Duration (min)</label>
+            <div style={{ display: "flex", alignItems: "center", border: "1.5px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden", background: "#fff" }}>
+              <span style={{ width: 48, height: 40, background: "var(--surface-soft)", color: "var(--ink-soft)", fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>-</span>
+              <span style={{ flex: 1, textAlign: "center", fontFamily: "'DM Mono',monospace", fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>{r.d}m</span>
+              <span style={{ width: 48, height: 40, background: "var(--surface-soft)", color: "var(--ink-soft)", fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</span>
+            </div>
           </div>
-        </div>
-        <button className="btn ghost bsm bfull mt8">Done</button>
-      </div>}
-    </div>))}
-    <div className="brow mt8"><button className="btn outline bsm" style={{ flex: 1 }}>Save</button><button className="btn primary bsm" style={{ flex: 1 }}>Run Now</button></div>
+          <div className="fld" style={{ marginBottom: 0 }}><label className="lbl">Player Grouping</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              {["Whole Team", "Partners", "Groups"].map(g => <span key={g} style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRadius: "var(--radius-lg)", border: "1.5px solid var(--border)", background: g === "Partners" ? "var(--field)" : "var(--surface)", color: g === "Partners" ? "#fff" : "var(--ink)", fontSize: 13, fontWeight: 700 }}>{g}</span>)}
+            </div>
+          </div>
+        </div>}
+      </div>))}
+    </div>
   </div>);
-}
-
-// `note` mirrors the real app's station chips (CommandScreen.jsx): a
-// player's individual focus note rendered right under their name, not
-// hidden behind a tap -- whoever picked up this station already knows
-// what the coach wants them to say.
-function StationChip({ name, tone, note }) {
-  const map = { here: { b: "var(--field)", bg: "var(--field)", c: "#fff" }, other: { b: "#d97706", bg: "#fef3c7", c: "#92400e" }, none: { b: "var(--border)", bg: "var(--surface)", c: "var(--ink)" } }[tone];
-  return (<span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 1, maxWidth: note ? 150 : undefined }}>
-    <span style={{ padding: "5px 9px", borderRadius: 8, border: "1.5px solid " + map.b, background: map.bg, color: map.c, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{name}</span>
-    {note && <span style={{ fontSize: 10, color: "var(--field-accent)", lineHeight: 1.3, whiteSpace: "normal" }}>{note}</span>}
-  </span>);
-}
-
-// Matches the real PlayerChipLive (CommandScreen.jsx) -- the pill shown for
-// "Players at this station" once you've focused on one station specifically
-// (a different, lighter-green pill than the block-intro/overview chip
-// above, and the only place a per-player focus note actually appears).
-function PlayerPill({ name, note }) {
-  return (<span style={{ padding: "6px 12px", borderRadius: 20, border: "1.5px solid var(--field-tint-border)", background: "var(--field-tint)", fontSize: 14, fontWeight: 600, color: "var(--ink)", display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 2, maxWidth: note ? 200 : undefined }}>
-    <span>{name}</span>
-    {note && <span style={{ fontSize: 11, fontWeight: 500, color: "var(--field-accent)", lineHeight: 1.3, textAlign: "left" }}>{note}</span>}
-  </span>);
-}
-
-function LocationLine({ text, style }) {
-  return <div style={{ fontSize: 12, color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 4, ...style }}><span aria-hidden="true">📍</span>{text}</div>;
 }
 
 // Mirrors ModalLayer.jsx's DurStepper look (-/value/+ in a bordered box) --
@@ -391,29 +386,56 @@ function DurStepperMock({ label, value }) {
   </div>);
 }
 
+// Matches the real Station Block settings (ActivityConfigs.jsx
+// StationConfig): Player Movement toggle with its hint, Time at Station /
+// Transition steppers, the grouping buttons, then each station's Players
+// field. Every roster player shows on every station: green "✓ here", amber
+// "→ St N" when assigned elsewhere, struck through and "Out" when marked
+// absent -- that last state is the "who actually showed up" story.
+const STATION_ROSTER = [
+  { n: "Ryker", j: 2, st: 0 }, { n: "Owen", j: 7, st: 0 }, { n: "Mason", j: 12, st: 0 },
+  { n: "Ava", j: 4, st: 1 }, { n: "Jordan", j: 9, st: 1 }, { n: "Riley", j: 15, out: true },
+];
+
+function RosterChip({ p, si }) {
+  const here = !p.out && p.st === si;
+  const elsewhere = !p.out && !here;
+  return (<span style={{ padding: "7px 12px", borderRadius: 8, border: "1.5px solid", borderColor: p.out ? "var(--border)" : here ? "var(--field)" : "#d97706", background: p.out ? "var(--surface-soft)" : here ? "var(--field)" : "#fef3c7", color: p.out ? "var(--text-dim)" : here ? "#fff" : "#92400e", fontSize: 13, display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 1 }}>
+    <span style={{ fontWeight: 700, textDecoration: p.out ? "line-through" : "none" }}><span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, marginRight: 3 }}>#{p.j}</span>{p.n}</span>
+    {p.out && <span style={{ fontSize: 10, fontWeight: 700, color: "var(--danger)" }}>Out</span>}
+    {elsewhere && <span style={{ fontSize: 10, opacity: .85 }}>&rarr; St {p.st + 1}</span>}
+    {here && <span style={{ fontSize: 10, opacity: .8 }}>✓ here</span>}
+  </span>);
+}
+
 function StationsVisual() {
   const stations = [
-    { label: "Station 1", area: "Infield", chips: [{ n: "Ryker", t: "here" }, { n: "Owen", t: "here" }, { n: "Mason", t: "here" }] },
-    { label: "Station 2", area: "Batting Cage 1", groupLabel: "Lefties", chips: [{ n: "Ava", t: "here" }, { n: "Jordan", t: "here" }] },
+    { label: "Station 1", drill: "Ground Ball Fundamentals" },
+    { label: "Station 2", drill: "Front Toss", groupLabel: "Lefties" },
   ];
   return (<div className="lp-phone">
-    <div style={{ display: "flex", borderRadius: "var(--radius-lg)", overflow: "hidden", border: "1.5px solid var(--border)", marginBottom: 10 }}>
-      <div style={{ flex: 1, padding: "6px 0", textAlign: "center", background: "var(--field)", color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, fontWeight: 700 }}>ROTATE</div>
-      <div style={{ flex: 1, padding: "6px 0", textAlign: "center", background: "var(--surface)", color: "var(--ink)", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, fontWeight: 700 }}>STATIC</div>
+    <div className="fld"><label className="lbl">Player Movement</label>
+      <div style={{ display: "flex", borderRadius: "var(--radius-lg)", overflow: "hidden", border: "1.5px solid var(--border)" }}>
+        <div style={{ flex: 1, padding: "8px 0", textAlign: "center", background: "var(--field)", color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: ".03em" }}>ROTATE</div>
+        <div style={{ flex: 1, padding: "8px 0", textAlign: "center", background: "var(--surface)", color: "var(--ink)", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: ".03em" }}>STATIC</div>
+      </div>
+      <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>Players rotate through all stations on a timer</div>
     </div>
     <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-      <DurStepperMock label="Time at Station" value="10m" />
-      <DurStepperMock label="Transition" value="2m" />
+      <DurStepperMock label="Time at Station (min)" value="13m" />
+      <DurStepperMock label="Transition (min)" value="2m" />
     </div>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-      <button className="btn outline bsm" style={{ flex: 1 }}>Generate Random</button>
-      <button className="btn ghost bsm" style={{ flex: 1 }}>Group By: Handedness &#9662;</button>
+      <button className="btn outline bsm" style={{ flex: "1 1 100%" }}>Generate Random Groups</button>
+      <button className="btn ghost bsm" style={{ flex: 1 }}>Clear Groups</button>
+      <button className="btn ghost bsm" style={{ flex: 1 }}>Group By...Bats</button>
     </div>
-    {stations.map((s) => (<div key={s.label} style={{ background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "10px 10px 8px", marginBottom: 8 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 900, color: "var(--field)", letterSpacing: ".05em", marginBottom: 6 }}>{s.label.toUpperCase()} · {s.area.toUpperCase()}</div>
+    {stations.map((s, si) => (<div key={s.label} style={{ background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "10px 10px 8px", marginBottom: 8 }}>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 900, color: "var(--field)", letterSpacing: ".05em" }}>{s.label.toUpperCase()}</div>
+      <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 6 }}>{s.drill}</div>
       {s.groupLabel && <div style={{ marginBottom: 6 }}><span className="bdg bp">Group: {s.groupLabel}</span></div>}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {s.chips.map(c => <StationChip key={c.n} name={c.n} tone={c.t} note={c.note}/>)}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {STATION_ROSTER.map(p => <RosterChip key={p.n} p={p} si={si} />)}
       </div>
     </div>))}
   </div>);
@@ -424,42 +446,69 @@ function StationsVisual() {
 // setting up a station before the coach ever gets there. Same literal
 // colors as that component (not the CSS-var palette the rest of the site
 // mocks use) since this dark-on-#0d1512 look IS the real screen, not a
-// reskin of it.
+// reskin of it. Top to bottom: Practice Setup / location, team, date and
+// time, who's watching, the Starts In countdown, Pre-Practice Warmup,
+// Equipment Needed grouped by area, then the timed Run of Practice list
+// with the station block's stations (area · coach, equipment pills).
 const PRE_SETUP_STATIONS = [
   { name: "Ground Ball Fundamentals", area: "Infield", coach: "Coach Mike", equip: ["Bucket of Balls"] },
   { name: "Front Toss", area: "Batting Cage 1", coach: "Coach Jen", equip: ["L-Screen"] },
   { name: "Fly Ball Reads", area: "Outfield", coach: "Coach Dana", equip: ["Cones"] },
 ];
+const PRE_SETUP_EQUIP = [{ area: "Infield", items: ["Bucket of Balls"] }, { area: "Batting Cage 1", items: ["L-Screen"] }, { area: "Outfield", items: ["Cones"] }];
 const CLOCK_PRESETUP_START = 28 * 60 + 41; // 28:41, Pre-Practice Setup only
+const PS_LABEL = { fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase" };
+const PS_ROW = { padding: "14px 0", borderBottom: "1px solid rgba(255,255,255,.1)" };
 function PreSetupVisual() {
   const { display, over } = useCountdown(CLOCK_PRESETUP_START);
-  return (<div className="lp-phone" style={{ background: "#0d1512", borderColor: "#0d1512" }}>
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-      <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#52b788", display: "inline-block", flexShrink: 0 }} />
-      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#52b788" }}>Practice Setup</span>
-      <span style={{ fontSize: 11, color: "#666" }}>· Eastside Park</span>
+  return (<div className="lp-phone" style={{ background: "#0d1512", borderColor: "#0d1512", color: "#fff" }}>
+    <div style={{ ...PS_ROW, paddingTop: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#52b788", display: "inline-block", flexShrink: 0 }} />
+        <span style={{ ...PS_LABEL, color: "#52b788" }}>Practice Setup</span>
+        <span style={{ fontSize: 11, color: "#555", marginLeft: 4 }}>· Eastside Park</span>
+      </div>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 28, fontWeight: 900, lineHeight: 1, marginBottom: 4 }}>12U Red</div>
+      <div style={{ fontSize: 13, color: "#aaa" }}>Tuesday, October 28 at 4:00 PM</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#8fa89b", marginTop: 10 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: "#52b788", display: "inline-block" }} />Coach Mike, Coach Jen · 1 person watching</div>
     </div>
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 24, fontWeight: 900, color: "#fff", marginBottom: 14 }}>12U Red</div>
-    <div style={{ textAlign: "center", padding: "8px 0 16px", borderBottom: "1px solid rgba(255,255,255,.1)", marginBottom: 16 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: over ? "#f59e0b" : "#52b788", marginBottom: 6 }}>{over ? "Practice Should Have Started" : "Starts In"}</div>
-      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 32, fontWeight: 700, color: over ? "#f59e0b" : "#fff" }}>{display}</div>
-      <div style={{ fontSize: 11, color: "#666", marginTop: 4 }}>{over ? "Waiting for the coach to start" : "Use this time to set up stations"}</div>
+    <div style={{ ...PS_ROW, textAlign: "center", padding: "18px 0" }}>
+      <div style={{ ...PS_LABEL, color: over ? "#f59e0b" : "#52b788", marginBottom: 8 }}>{over ? "Practice should have started" : "Starts in"}</div>
+      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 44, fontWeight: 700, color: over ? "#f59e0b" : "#fff", lineHeight: 1, marginBottom: 4 }}>{display}</div>
+      <div style={{ fontSize: 12, color: "#555" }}>{over ? "Waiting for coach to start the live run" : "Use this time to get everything set up before you start."}</div>
     </div>
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#ca8a04", marginBottom: 8 }}>Equipment Needed</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {["L-Screen", "Bucket of Balls", "Cones"].map(n => (<span key={n} style={{ background: "rgba(202,138,4,.15)", border: "1px solid rgba(202,138,4,.4)", borderRadius: 20, padding: "3px 10px", fontSize: 11, color: "#fde047", fontWeight: 600 }}>{n}</span>))}
+    <div style={PS_ROW}>
+      <div style={{ ...PS_LABEL, color: "#52b788", marginBottom: 8 }}>Pre-Practice Warmup</div>
+      <div style={{ fontSize: 14, lineHeight: 1.5 }}>Grab a glove and start playing catch.</div>
+    </div>
+    <div style={PS_ROW}>
+      <div style={{ ...PS_LABEL, color: "#ca8a04", marginBottom: 10 }}>Equipment Needed</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 14px" }}>
+        {PRE_SETUP_EQUIP.map(g => (<div key={g.area}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#52b788", marginBottom: 6 }}>{g.area}</div>
+          {g.items.map(n => <span key={n} style={{ borderRadius: 20, padding: "2px 9px", fontSize: 11, fontWeight: 700, background: "#fbbf24", border: "1px solid #d97706", color: "#422006" }}>{n}</span>)}
+        </div>))}
       </div>
     </div>
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#666", marginBottom: 8 }}>Run Order</div>
-    {PRE_SETUP_STATIONS.map((st, i) => (<div key={st.name} style={{ padding: "10px 12px", marginBottom: 6, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 10 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, color: "#52b788", letterSpacing: ".05em", marginBottom: 2 }}>Station {i + 1}</div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 2 }}>{st.name}</div>
-      <div style={{ fontSize: 11, color: "#999" }}><span style={{ color: "#52b788", fontWeight: 600 }}>{st.area}</span> · {st.coach}</div>
-      {st.equip.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
-        {st.equip.map(n => (<span key={n} style={{ background: "rgba(202,138,4,.12)", border: "1px solid rgba(202,138,4,.3)", borderRadius: 20, padding: "2px 8px", fontSize: 10, color: "#fde047" }}>{n}</span>))}
-      </div>}
-    </div>))}
+    <div style={{ paddingTop: 14 }}>
+      <div style={{ ...PS_LABEL, color: "#555", marginBottom: 12 }}>Run of Practice · 85min</div>
+      <div style={{ marginBottom: 8, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 12, padding: "12px 14px", display: "flex", justifyContent: "space-between" }}>
+        <div><div style={{ fontSize: 15, fontWeight: 700 }}>Dynamic Warmup</div><div style={{ fontSize: 12, color: "#888", marginTop: 2 }}><span style={{ color: "#52b788", fontWeight: 600 }}>Infield</span><span style={{ color: "#444" }}> · </span>Coach Mike</div></div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}><span style={{ fontFamily: "'DM Mono',monospace", fontSize: 13, color: "#555" }}>10m</span><span style={{ fontSize: 10, color: "#555", fontFamily: "'DM Mono',monospace" }}>4:00 PM–4:10 PM</span></div>
+      </div>
+      <div style={{ background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 12, overflow: "hidden" }}>
+        <div style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div><div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "#52b788" }}>Station Block</div><div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>3 stations · 13m each · rotates</div></div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}><span style={{ fontFamily: "'DM Mono',monospace", fontSize: 13, color: "#555" }}>43m</span><span style={{ fontSize: 10, color: "#555", fontFamily: "'DM Mono',monospace" }}>4:20 PM–5:03 PM</span></div>
+        </div>
+        {PRE_SETUP_STATIONS.map((st, i) => (<div key={st.name} style={{ padding: "10px 14px", borderBottom: i < PRE_SETUP_STATIONS.length - 1 ? "1px solid rgba(255,255,255,.06)" : "none" }}>
+          <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, color: "#52b788", letterSpacing: ".05em", marginBottom: 2 }}>Station {i + 1}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{st.name}</div>
+          <div style={{ fontSize: 12, color: "#888", marginBottom: 6 }}><span style={{ color: "#52b788", fontWeight: 600 }}>{st.area}</span><span style={{ color: "#444" }}> · </span>{st.coach}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>{st.equip.map(n => <span key={n} style={{ background: "rgba(202,138,4,.12)", border: "1px solid rgba(202,138,4,.3)", borderRadius: 20, padding: "2px 8px", fontSize: 11, color: "#fde047" }}>{n}</span>)}</div>
+        </div>))}
+      </div>
+    </div>
   </div>);
 }
 
@@ -470,12 +519,12 @@ function TemplatesVisual() {
         <div>
           <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 900, lineHeight: 1 }}>Tuesday Practice Template</div>
           <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2 }}>4 activities - 90min</div>
-          <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2 }}>Created Jun 3</div>
+          <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2 }}>Created Sep 9, 2026 - Updated Oct 21, 2026</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
-            <span className="bdg bs" style={{ fontSize: 10 }}>Fielding</span><span className="bdg bs" style={{ fontSize: 10 }}>Hitting</span><span className="bdg bs" style={{ fontSize: 10 }}>Footwork</span>
+            <span className="tagchip">Fielding</span><span className="tagchip">Hitting</span><span className="tagchip">Footwork</span>
           </div>
         </div>
-        <span style={{ display: "flex", flexDirection: "column", gap: 3.5, padding: "6px 8px" }}><span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--text-dim)" }}/><span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--text-dim)" }}/><span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--text-dim)" }}/></span>
+        <span className="ell-btn" aria-hidden="true"><span /><span /><span /></span>
       </div>
       <div className="brow">
         <button className="btn outline bmd" style={{ flex: 1 }}>View / Edit</button>
@@ -485,198 +534,295 @@ function TemplatesVisual() {
   </div>);
 }
 
-function LiveVisual({
-  drill = "Defensive Shell Drill",
-  roundLabel = null,
-  location = "Court 1 · Eastside Rec Center",
-  startSeconds = CLOCK_LIVE_DEFAULT_START,
-  description = "Four defenders in a shell around the key, one ball reversed side to side. Close out low and hard on the catch, stay in a stance.",
-  focus = "Sprint to close out, then chop your feet down. Contest without fouling.",
-  coach = "Coach Mike",
-  upNextName = "3-on-3 Scrimmage",
-  upNextMins = "20m",
-}) {
-  const { display, over, minutesBehind } = useCountdown(startSeconds);
-  return (<div className="lp-phone">
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-      <div className="row"><span className="live" /><span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--field)", marginLeft: 5 }}>Live</span></div>
-      {over
-        ? <span style={{ background: "var(--caution-tint)", color: "var(--caution)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{minutesBehind}m behind</span>
-        : <span style={{ background: "var(--field-tint)", color: "var(--field)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>On time</span>}
+// ── Live practice mocks. LiveShell copies the coach's live screen in
+// CommandScreen.jsx from top to bottom: the action row (attendance pill,
+// Overview, audio toggle, options menu), the Live dot + pace chip + "ends"
+// time + who's here, the uppercase phase title and its subline, the
+// .cc-timer with its pause button, +1m/-1m, the progress bar, the </Next
+// controls, then the screen's own body and the Up Next queue.
+const LIVE_LABEL = { fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase" };
+
+function PaceChip({ ahead }) {
+  const behind = ahead < 0;
+  return (<span style={{ background: behind ? "var(--caution-tint)" : "var(--field-tint)", color: behind ? "var(--caution)" : "var(--field)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>
+    {ahead === 0 ? "On time" : behind ? Math.abs(ahead) + "m behind" : ahead + "m ahead"}
+  </span>);
+}
+
+function LiveShell({ phase, sub, display, over, ahead, ends, present, children, upNext, controls, className, readOnlyBy }) {
+  return (<div className={"lp-phone" + (className ? " " + className : "")} style={{ padding: 0, overflow: "hidden" }}>
+    {readOnlyBy && <div style={{ background: "var(--caution-tint)", borderBottom: "1px solid var(--caution-tint-border)", padding: "8px 14px" }}><span style={{ fontSize: 12, color: "var(--caution)", fontWeight: 600 }}>Read-only · {readOnlyBy} has control</span></div>}
+    <div className="cc-header">
+      <div className="cc-header-top" style={{ justifyContent: "flex-end" }}>
+        <div className="row" style={{ gap: 6, flexShrink: 0 }}>
+          <span style={{ background: "var(--field-tint)", border: "1.5px solid var(--field-tint-border)", borderRadius: 20, padding: "4px 10px", display: "flex", alignItems: "center", gap: 5 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="var(--field)" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z" /></svg>
+            <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 13, fontWeight: 700, color: "var(--field)" }}>{present}</span>
+          </span>
+          <span className="btn ghost bxs" style={{ display: "flex", alignItems: "center", gap: 4 }}>Overview<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></span>
+          <span style={{ background: "var(--surface-soft)", border: "1.5px solid var(--border)", borderRadius: "var(--radius-md)", padding: "4px 8px", fontSize: 13, fontWeight: 700, color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 4 }}><span style={{ fontSize: 13, lineHeight: 1 }}>🔇</span>Off</span>
+          <span className="ell-btn" aria-hidden="true"><span /><span /><span /></span>
+        </div>
+      </div>
+      <div className="row" style={{ gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span className="live" /><span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--field)" }}>Live</span></span>
+        <PaceChip ahead={ahead} />
+        <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "'DM Mono',monospace", alignSelf: "center" }}>ends {ends}</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--text-dim)" }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: "#52b788", display: "inline-block" }} />Coach Mike, Coach Jen</span>
+      </div>
+      <div className="cc-act-name" style={{ fontSize: 30 }}>{phase}</div>
+      {sub}
     </div>
-    {roundLabel && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-dim)", marginBottom: 2 }}>{roundLabel}</div>}
-    <div className="cc-act-name">{drill}</div>
-    {location && <LocationLine text={location} style={{ marginTop: 2, marginBottom: 4 }} />}
-    <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
-      <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--text-dim)" }}>remaining</span>
+    <div className="cc-timer-row">
+      <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 56, fontVariantNumeric: "tabular-nums" }}>{display}</div>
+      {!readOnlyBy && <span style={{ width: 46, height: 46, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "var(--surface-pressed)", color: "var(--ink-soft)" }} aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg></span>}
+      <div style={{ flex: 1 }} />
     </div>
-    {description && <div style={{ borderLeft: "3px solid var(--ink)", paddingLeft: 10, marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--ink)", marginBottom: 4 }}>Description</div>
-      <div style={{ fontSize: 13, color: "var(--ink)", lineHeight: 1.5 }}>{description}</div>
-    </div>}
-    <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
-      <div style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.5 }}>{focus}</div>
+    {readOnlyBy ? <div className="cc-prog"><div className="cc-prog-bar" style={{ width: "40%" }} /></div> : controls || <>
+      <div style={{ padding: "2px 14px 4px", display: "flex", gap: 8 }}><button className="btn ghost bsm" style={{ flex: 1 }}>+1m</button><button className="btn ghost bsm" style={{ flex: 1 }}>-1m</button></div>
+      <div className="cc-prog"><div className="cc-prog-bar" style={{ width: "40%" }} /></div>
+      <div className="cc-controls"><button className="btn ghost bmd" style={{ minWidth: 52 }}>&lt;</button><button className="btn primary blg" style={{ flex: 1 }}>Next &gt;</button></div>
+    </>}
+    <div style={{ padding: "4px 14px 14px" }}>
+      {children}
+      {upNext && <>
+        <div className="cc-queue-hdr"><span className="cc-queue-hdr-label">Up Next</span><span className="cc-queue-hdr-line" /></div>
+        <div className="cc-queue">{upNext.map(u => <div key={u.n} className="cc-queue-item"><span style={{ fontSize: 13, color: "var(--text-dim)" }}>{u.n}</span><span className="bdg bs">{u.m}</span></div>)}</div>
+      </>}
     </div>
-    {coach && <div style={{ borderLeft: "3px solid var(--border)", paddingLeft: 10, marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-dim)", marginBottom: 3 }}>Coach</div>
-      <div style={{ fontSize: 14, color: "var(--ink)" }}>{coach}</div>
-    </div>}
-    <div className="cc-queue"><div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-dim)" }}>Up Next</div><div className="cc-queue-item"><span style={{ fontSize: 13, color: "var(--ink-soft)" }}>{upNextName}</span><span className="bdg bs">{upNextMins}</span></div></div>
   </div>);
 }
 
-// Matches the real "Get everyone to their station" block-intro screen
-// (CommandScreen.jsx) exactly: Station N / area / coach on one header row,
-// drill name, optional equipment pill, then plain player chips -- no focus
-// notes here. Notes only show up once you're focused on a single station
-// (StationDetailVisual below), not on this overview.
-function StationOverviewRow({ label, drill, area, coach, equipment, chips }) {
-  return (<div style={{ background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "10px 12px", marginBottom: 8 }}>
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-      <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--field)" }}>{label}</span>
-      <span style={{ fontSize: 11, color: "var(--field-accent)", fontWeight: 600 }}>{area}</span>
-      <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{coach}</span>
-    </div>
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 900, color: "var(--ink)", marginBottom: 6 }}>{drill}</div>
-    {equipment && <div style={{ marginBottom: 6 }}><span style={{ border: "1.5px solid #fde047", borderRadius: 20, padding: "2px 8px", fontSize: 11, color: "#854d0e", fontWeight: 600, background: "#fff" }}>Equipment: {equipment}</span></div>}
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>{chips}</div>
+function CoachLine({ coach, area }) {
+  return (<div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-dim)", marginTop: 2, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
+    <span className="bdg bp">Coach: {coach}</span>{area && <><span>·</span><span>{area}</span></>}
+  </div>);
+}
+function BlockLine({ text }) {
+  return <div style={{ ...LIVE_LABEL, color: "var(--text-dim)" }}>{text}</div>;
+}
+function LiveSection({ label, color, border, children, big }) {
+  return (<div style={{ borderLeft: "3px solid " + border, paddingLeft: 10, paddingTop: 4, paddingBottom: 4, marginBottom: 8 }}>
+    <div style={{ ...LIVE_LABEL, color, marginBottom: 4 }}>{label}</div>
+    <div style={{ fontSize: big ? 15 : 14, color: "var(--ink)", lineHeight: 1.5 }}>{children}</div>
   </div>);
 }
 
+function LiveVisual() {
+  const { display, over, minutesBehind } = useCountdown(CLOCK_LIVE_DEFAULT_START);
+  return (<LiveShell phase="DEFENSIVE SHELL DRILL" sub={<CoachLine coach="Coach Mike" area="Court 1" />} display={display} over={over} ahead={over ? -minutesBehind : 0} ends="5:30 PM" present="12/12"
+    upNext={[{ n: "3-on-3 Scrimmage", m: "20m" }, { n: "Free Throw Ladder", m: "10m" }]}>
+    <LiveSection label="Description" color="var(--ink)" border="var(--ink)">Four defenders in a shell around the key, one ball reversed side to side. Close out low and hard on the catch, stay in a stance.</LiveSection>
+    <LiveSection label="💡 Coaching Focus" color="#16a34a" border="#16a34a" big>Sprint to close out, then chop your feet down. Contest without fouling.</LiveSection>
+    <LiveSection label="👥 Players" color="var(--text-dim)" border="var(--border)">Whole Team Together</LiveSection>
+  </LiveShell>);
+}
+
+// The real "Get everyone to their station" block intro: a dark #0d1512 card
+// of station cards (Station N, area, coach link, drill, group, equipment,
+// jersey-numbered player chips) with Reshuffle at the bottom.
+const OVERVIEW_STATIONS = [
+  { drill: "Ground Ball Fundamentals", area: "Infield", coach: "Coach Mike", equip: "Bucket of Balls", players: [["2", "Ryker"], ["7", "Owen"], ["12", "Mason"]] },
+  { drill: "Front Toss", area: "Batting Cage 1", coach: "Coach Jen", equip: "L-Screen", group: "Lefties", players: [["4", "Ava"], ["9", "Jordan"]] },
+  { drill: "Fly Ball Reads", area: "Outfield", coach: "Coach Dana", equip: "Cones", players: [["15", "Max"], ["21", "Riley"], ["5", "Sam"]] },
+];
+function EquipPillMock({ name }) {
+  return <span style={{ borderRadius: 20, padding: "2px 9px", fontSize: 11, fontWeight: 700, background: "#fbbf24", border: "1px solid #d97706", color: "#422006" }}>{name}</span>;
+}
+function BlockIntroCard() {
+  return (<div style={{ background: "#0d1512", borderRadius: "var(--radius-lg)", padding: "14px 12px" }}>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "#8fa89b", marginBottom: 4 }}>Get everyone to their station</div>
+    <div style={{ fontSize: 11, color: "#8fa89b", marginBottom: 8 }}>Tap a player to move them.</div>
+    {OVERVIEW_STATIONS.map((st, i) => (<div key={st.drill} style={{ background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)", borderRadius: "var(--radius-lg)", padding: "12px 14px", marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#52b788" }}>Station {i + 1}</div>
+        <div style={{ fontSize: 11, color: "#52b788", fontWeight: 600 }}>{st.area}</div>
+        <div style={{ fontSize: 11, color: "#52b788", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 2 }}>{st.coach}</div>
+      </div>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 20, fontWeight: 900, color: "#fff", marginBottom: 6 }}>{st.drill}</div>
+      {st.group && <div style={{ marginBottom: 6 }}><span className="bdg bp">Group: {st.group}</span></div>}
+      <div style={{ marginBottom: 6 }}><div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "#8fa89b", marginBottom: 3 }}>Equipment</div><EquipPillMock name={st.equip} /></div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+        {st.players.map(([j, n]) => <span key={n} style={{ padding: "6px 10px", borderRadius: 20, background: "rgba(255,255,255,.1)", border: "1.5px solid rgba(255,255,255,.25)", fontSize: 12, fontWeight: 600, color: "#fff" }}><span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: "#52b788", marginRight: 4 }}>#{j}</span>{n}</span>)}
+      </div>
+    </div>))}
+    <button className="btn outline bmd bfull mt10" style={{ borderColor: "rgba(255,255,255,.3)", color: "#fff", background: "transparent" }}>Reshuffle</button>
+  </div>);
+}
+
+// Focused on one station during a rotation: the real station detail
+// (Station N, drill name, coach · area, Coaching Focus, Equipment, then
+// "Players at this station" as PlayerChipLive pills with handedness and
+// each player's focus note for this drill's skill area). This drill has no
+// Description, which the real screen simply leaves out.
+function LiveChip({ j, name, hand, note }) {
+  return (<span style={{ padding: "6px 12px", borderRadius: 20, border: "1.5px solid var(--field-tint-border)", background: "var(--field-tint)", fontSize: 14, fontWeight: 600, color: "var(--ink)", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, maxWidth: 200 }}>
+    <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: "var(--field)" }}>#{j}</span>{name}</span>
+    <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{hand}</span>
+    {note && <span style={{ fontSize: 11, fontWeight: 500, color: "var(--field-accent)", lineHeight: 1.3, textAlign: "left" }}>{note}</span>}
+  </span>);
+}
 function StationDetailVisual() {
-  const { display, over } = useCountdown(CLOCK_STATION_BLOCK_START);
-  return (<div className="lp-phone">
+  const { display, over, minutesBehind } = useCountdown(CLOCK_STATION_BLOCK_START);
+  return (<LiveShell readOnlyBy="Coach Mike" phase="ROTATION 2 of 3" sub={<BlockLine text="Station Block · 3 Stations · 43min total" />} display={display} over={over} ahead={over ? -minutesBehind : 2} ends="5:30 PM" present="11/12">
+    <button className="btn ghost bxs" style={{ marginBottom: 10 }}>&#8249; All Stations</button>
     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--field)", marginBottom: 2 }}>Station 2</div>
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Front Toss</div>
-    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--field-accent)", marginBottom: 8 }}>Coach Jen · Batting Cage 1</div>
-    <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 10px" }}>
-      <div className={"cc-timer" + (over ? " over" : "")} style={{ fontSize: 46, fontVariantNumeric: "tabular-nums" }}>{display}</div><span style={{ fontSize: 12, color: "var(--text-dim)" }}>remaining</span>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 32, fontWeight: 900, color: "var(--ink)", lineHeight: 1, marginBottom: 6 }}>Front Toss</div>
+    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--field-accent)", marginBottom: 10 }}>Coach Jen · Batting Cage 1</div>
+    <LiveSection label="💡 Coaching Focus" color="#16a34a" border="#16a34a" big>Level swing, contact out front. Let the outside pitch travel.</LiveSection>
+    <div style={{ marginBottom: 10 }}><div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--text-dim)", marginBottom: 3 }}>Equipment</div><div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}><EquipPillMock name="L-Screen" /><EquipPillMock name="Bucket of Balls" /></div></div>
+    <div style={{ ...LIVE_LABEL, color: "var(--text-dim)", marginBottom: 8 }}>Players at this station</div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      <LiveChip j="4" name="Ava" hand="Bats Left · Throws Right" note="Keep the front foot closed, drive through the ball." />
+      <LiveChip j="9" name="Jordan" hand="Bats Left · Throws Left" note="Two hands through contact, don't cast the barrel." />
     </div>
-    <div style={{ borderLeft: "3px solid var(--ink)", paddingLeft: 10, marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--ink)", marginBottom: 4 }}>Description</div>
-      <div style={{ fontSize: 13, color: "var(--ink)", lineHeight: 1.5 }}>Toss from behind the L-screen, firm underhand to the front half of the plate. Each hitter takes 8 swings, then rotates. Partner shags into the bucket.</div>
-    </div>
-    <div style={{ borderLeft: "3px solid #16a34a", paddingLeft: 10, marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>💡 Coaching Focus</div>
-      <div style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.5 }}>Level swing, contact out front. Let the outside pitch travel.</div>
-    </div>
-    <div style={{ marginBottom: 10 }}>
-      <span style={{ border: "1.5px solid #fde047", borderRadius: 20, padding: "3px 10px", fontSize: 12, color: "#854d0e", fontWeight: 600, background: "#fff" }}>Equipment: L-Screen, Bucket of Balls</span>
-    </div>
-    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-dim)", marginBottom: 8 }}>Players at this station</div>
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-      <PlayerPill name="Ava" note="Keep the front foot closed, drive through the ball." />
-      <PlayerPill name="Jordan" note="Two hands through contact, don't cast the barrel." />
-    </div>
-  </div>);
+  </LiveShell>);
 }
 
-// One list, one detail view -- a coach's per-player note (set once on
-// their profile) shows up right on the chip wherever that player lands,
-// so an assistant or parent helper running any given station already
-// knows what the coach wants them to hear. Folds what used to be a
-// separate "Player Profiles" screenshot into the one story it was
-// actually telling.
+// The head coach's block intro (just its "Get everyone to their station"
+// card) beside an assistant's phone, read-only while the head coach has
+// control, focused on the station they lead mid-rotation. A coach's
+// per-player focus note (set once on the player's profile, per skill area)
+// shows up on that player's chip wherever they land, so whoever runs the
+// station already knows what the coach wants them to hear.
 function HelperVisual() {
   return (<div className="lp-duo-fixed">
-    <div className="lp-phone lp-card-primary">
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--text-dim)", marginBottom: 12 }}>Get everyone to their station</div>
-      <StationOverviewRow label="Station 1" drill="Ground Ball Fundamentals" area="Infield" coach="Coach Mike" equipment="Bucket of Balls" chips={<><StationChip name="Ryker" tone="here" /><StationChip name="Owen" tone="here" /><StationChip name="Mason" tone="here" /></>} />
-      <StationOverviewRow label="Station 2" drill="Front Toss" area="Batting Cage 1" coach="Coach Jen" equipment="L-Screen, Bucket of Balls" chips={<><StationChip name="Ava" tone="here" /><StationChip name="Jordan" tone="here" /></>} />
-      <StationOverviewRow label="Station 3" drill="Fly Ball Reads" area="Outfield" coach="Coach Dana" equipment="Cones" chips={<><StationChip name="Max" tone="here" /><StationChip name="Riley" tone="here" /><StationChip name="Sam" tone="here" /></>} />
-    </div>
+    <div className="lp-phone lp-card-primary" style={{ padding: 10 }}><BlockIntroCard /></div>
     <div className="lp-phoneframe-wrap"><PhoneFrame><StationDetailVisual /></PhoneFrame></div>
   </div>);
 }
 
 function AdjustVisual() {
   const t = useStepTimer(13 * 60, 4);
-  return (<div className={"lp-phone" + (t.flash ? " lp-flash-green" : "")}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-      <span style={{ color: "var(--ink)", fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 700 }}>Small-Sided Scrimmage</span>
-      {t.over
-        ? <span style={{ background: "var(--caution-tint)", color: "var(--caution)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{Math.abs(t.aheadMinutes)}m behind</span>
-        : <span style={{ background: "var(--field-tint)", color: "var(--field)", padding: "3px 10px", borderRadius: 20, fontFamily: "'DM Mono',monospace", fontSize: 11, fontWeight: 700 }}>{t.aheadMinutes}m ahead</span>}
-    </div>
-    <LocationLine text="Field 2 · Riverside Complex" style={{ marginBottom: 8 }} />
-    <div className="cc-timer" style={{ fontSize: 34, fontVariantNumeric: "tabular-nums", marginBottom: 8 }}>{t.display}</div>
-    <div className="brow" style={{ marginBottom: 8 }}>
-      <button className="btn ghost bsm" style={{ flex: 1, minHeight: 44 }} aria-label="Add one minute to activity timer" onClick={() => t.bump(1)}>+1m</button>
-      <button className="btn ghost bsm" style={{ flex: 1, minHeight: 44 }} aria-label="Subtract one minute from activity timer" onClick={() => t.bump(-1)}>-1m</button>
-    </div>
-    <div className="cc-controls" style={{ padding: 0 }}>
-      <button className="btn ghost bmd" style={{ minWidth: 52, minHeight: 44 }} aria-label="Previous round" onClick={t.prev}>&lt;</button>
-      <button className="btn primary blg" style={{ flex: 1, minHeight: 44 }} aria-label="Next round" onClick={t.next}>Next &gt;</button>
-    </div>
-  </div>);
+  return (<LiveShell className={t.flash ? "lp-flash-green" : ""} phase="SMALL-SIDED SCRIMMAGE" sub={<CoachLine coach="Coach Dana" area="Field 2" />} display={t.display} over={false} ahead={t.aheadMinutes} ends="6:15 PM" present="14/14"
+      upNext={[{ n: "Team Talk", m: "5m" }]}
+      controls={<>
+        <div style={{ padding: "2px 14px 4px", display: "flex", gap: 8 }}>
+          <button className="btn ghost bsm" style={{ flex: 1, minHeight: 44 }} aria-label="Add one minute to activity timer" onClick={() => t.bump(1)}>+1m</button>
+          <button className="btn ghost bsm" style={{ flex: 1, minHeight: 44 }} aria-label="Subtract one minute from activity timer" onClick={() => t.bump(-1)}>-1m</button>
+        </div>
+        <div className="cc-prog"><div className="cc-prog-bar" style={{ width: "55%" }} /></div>
+        <div className="cc-controls">
+          <button className="btn ghost bmd" style={{ minWidth: 52, minHeight: 44 }} aria-label="Previous activity" onClick={t.prev}>&lt;</button>
+          <button className="btn primary blg" style={{ flex: 1, minHeight: 44 }} aria-label="Next activity" onClick={t.next}>Next &gt;</button>
+        </div>
+      </>} />);
 }
 
-// Matches the real Rotate Now cards (CommandScreen.jsx) exactly: names,
-// an optional group-label pill, then "from"/"→" station lines. Equipment
-// isn't repeated here in the real screen -- that's shown earlier, on the
-// block-intro screen the group already passed through before this alert.
+// The real transition screen: a dark card with "Rotate Now", one summary
+// line of the area sequence, then a card per group with names, group
+// label, a green TO line and a muted FROM line.
 const ROTATION_MOVES = [
-  { names: "Ryker, Owen, Mason", from: "Station 1: Infield · Coach Mike · Ground Ball Fundamentals", to: "Station 2: Batting Cage 1 · Coach Jen · Front Toss" },
-  { names: "Ava, Jordan", groupLabel: "Lefties", from: "Station 2: Batting Cage 1 · Coach Jen · Front Toss", to: "Station 3: Outfield · Coach Dana · Fly Ball Reads" },
-  { names: "Max, Riley, Sam", from: "Station 3: Outfield · Coach Dana · Fly Ball Reads", to: "Station 1: Infield · Coach Mike · Ground Ball Fundamentals" },
+  { names: "Ryker, Owen, Mason", to: "Station 2: Batting Cage 1 · Coach Jen · Front Toss", from: "Station 1: Infield · Coach Mike · Ground Ball Fundamentals" },
+  { names: "Ava, Jordan", groupLabel: "Lefties", to: "Station 3: Outfield · Coach Dana · Fly Ball Reads", from: "Station 2: Batting Cage 1 · Coach Jen · Front Toss" },
+  { names: "Max, Riley, Sam", to: "Station 1: Infield · Coach Mike · Ground Ball Fundamentals", from: "Station 3: Outfield · Coach Dana · Fly Ball Reads" },
 ];
 
 function TransitionVisual() {
-  return (<div className="lp-phone">
-    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 900, color: "var(--danger)", letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 10 }}>Rotate Now</div>
-    {ROTATION_MOVES.map((r, i) => (<div key={r.names} className="cc-trans-card" style={{ marginBottom: i < ROTATION_MOVES.length - 1 ? 8 : 0 }}>
-      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 20, fontWeight: 900, color: "var(--ink)", lineHeight: 1.2, marginBottom: 6 }}>{r.names}</div>
-      {r.groupLabel && <div style={{ marginBottom: 4 }}><span className="bdg bp">Group: {r.groupLabel}</span></div>}
-      <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 3 }}>from {r.from}</div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>&#8594; {r.to}</div>
-    </div>))}
-  </div>);
+  return (<LiveShell phase="TRANSITION" sub={<BlockLine text="Station Block · 3 Stations · 43min total" />} display="01:42" over={false} ahead={2} ends="5:30 PM" present="11/12">
+    <div style={{ background: "#0d1512", borderRadius: "var(--radius-lg)", padding: "14px 12px" }}>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 900, color: "#f87171", letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 10 }}>Rotate Now</div>
+      <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", lineHeight: 1.4, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid rgba(255,255,255,.1)" }}>Infield to Batting Cage 1, Batting Cage 1 to Outfield, Outfield to Infield</div>
+      {ROTATION_MOVES.map(r => (<div key={r.names} style={{ background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)", borderRadius: "var(--radius-lg)", padding: 14, marginBottom: 8 }}>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 20, fontWeight: 900, color: "#fff", lineHeight: 1.2, marginBottom: 6 }}>{r.names}</div>
+        {r.groupLabel && <div style={{ marginBottom: 4 }}><span className="bdg bp">Group: {r.groupLabel}</span></div>}
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#52b788", marginBottom: 3 }}>TO: <span style={{ fontWeight: 400 }}>{r.to}</span></div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#8fa89b" }}>FROM: <span style={{ fontWeight: 400 }}>{r.from}</span></div>
+      </div>))}
+    </div>
+  </LiveShell>);
 }
 
-// Mirrors the real per-drill planned-vs-actual rows (GoalsScreen.jsx's
-// history detail) and the real Notes card (grouped by drill, author +
-// tagged-player chips) instead of a single generic "Station Block" line and
-// a made-up wall-time figure -- the actual app never shows one lump number
-// for the whole practice, it shows it per drill.
+// Mirrors GoalsScreen.jsx's history detail top to bottom: date, wall time
+// and attendance, Run Now / Save as Template, then the "Planned vs. Actual"
+// cards (planned badge plus the logged start-end and minutes), then the
+// Notes card (grouped by drill, author + tagged-player chips). Trimmed to
+// three drills; the attendance timeline and skill minutes are left out.
 const HISTORY_DRILLS = [
-  { n: "Dynamic Warmup", planned: 10, actual: 9 },
-  { n: "Ground Ball Fundamentals", planned: 15, actual: 19 },
-  { n: "Front Toss", planned: 15, actual: 12 },
-  { n: "Situational Scrimmage", planned: 20, actual: 24 },
+  { n: "Dynamic Warmup", planned: 10, from: "4:00 PM", to: "4:09 PM", actual: 9 },
+  { n: "Ground Ball Fundamentals", planned: 15, from: "4:09 PM", to: "4:28 PM", actual: 19 },
+  { n: "Situational Scrimmage", planned: 20, from: "4:52 PM", to: "5:16 PM", actual: 24 },
 ];
 
-function HistoryDrillRow({ n, planned, actual }) {
-  const over = actual > planned;
-  return (<div className="ablk" style={{ marginBottom: 6 }}>
-    <div className="abhdr" style={{ cursor: "default" }}>
-      <div style={{ flex: 1, font: "700 14px 'Barlow Condensed',sans-serif" }}>{n}</div>
-      <span className="bdg bp" style={{ marginRight: 6 }}>{planned}m planned</span>
-      <span className="bdg bs" style={{ color: over ? "var(--caution)" : "var(--field)" }}>{actual}m actual</span>
+function HistoryDrillRow({ n, planned, from, to, actual }) {
+  return (<div className="card mb8">
+    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+      <span style={{ fontSize: 14, fontWeight: 600 }}>{n}</span>
+      <span className="bdg bp">{planned}m planned</span>
+    </div>
+    <div style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+      Actual: {from} - {to}<span style={{ fontFamily: "'DM Mono',monospace" }}>&middot; {actual}m</span>
     </div>
   </div>);
 }
 
 function HistoryVisual() {
   return (<div className="lp-phone">
-    <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 8 }}>Sat, Jun 7 · 11 attended</div>
+    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Tuesday, Oct 28</div>
+    <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 12 }}>78min wall time · 11 attended</div>
+    <button className="btn primary bmd bfull" style={{ marginBottom: 8 }}>Run Now</button>
+    <button className="btn ghost bmd bfull" style={{ marginBottom: 14 }}>Save as Template</button>
+    <div className="clbl mb8">Planned vs. Actual</div>
     {HISTORY_DRILLS.map(d => <HistoryDrillRow key={d.n} {...d} />)}
-    <div className="card mt8" style={{ marginBottom: 10 }}>
-      <div className="clbl">Notes</div>
+    <div className="card" style={{ marginTop: 10 }}>
+      <div className="clbl mb8">Notes</div>
       <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--field-accent)", marginBottom: 4 }}>Ground Ball Fundamentals</div>
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 2 }}>Coach Mike · 5:42 PM</div>
+        <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 2 }}>Coach Mike · Assistant Coach · 4:24 PM</div>
         <div style={{ fontSize: 13 }}>Glove work looked great today, ready for faster reads next week.</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}><span className="bdg bs" style={{ fontSize: 10 }}>Ryker</span></div>
       </div>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--field-accent)", marginBottom: 4 }}>Front Toss</div>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--field-accent)", marginBottom: 4 }}>Situational Scrimmage</div>
       <div>
-        <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 2 }}>Ava's Mom (Helper) · 5:58 PM</div>
-        <div style={{ fontSize: 13 }}>Cage 1 group could use more reps on the outside pitch.</div>
+        <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 2 }}>Ava's Mom · Helper · 5:10 PM</div>
+        <div style={{ fontSize: 13 }}>Runners at second were slow to read balls in the dirt.</div>
       </div>
     </div>
-    <button className="btn primary bxl bfull mb8">Run Again</button>
-    <button className="btn ghost bmd bfull">Save as Template</button>
+  </div>);
+}
+
+// Matches the real Goals & Insights > Benchmarks detail (BenchmarkReport.jsx
+// TeamBenchmarkDetail): Latest, Comparison, Target and Players · latest cards,
+// in that order, with the same labels and status text. Trimmed to five
+// players and no assessment history so it fits beside the copy.
+const BENCHMARK_PLAYERS = [
+  { n: "Ava R #4", r: "4.31 seconds", meets: true },
+  { n: "Jordan T #9", r: "4.58 seconds", meets: true },
+  { n: "Mason K #12", r: "5.14 seconds", meets: false },
+  { n: "Owen P #7", r: "4.72 seconds", meets: true },
+  { n: "Ryker L #2", r: "Waiting" },
+];
+
+function BenchmarkVisual() {
+  return (<div className="lp-phone">
+    <div style={{ fontFamily: "Barlow Condensed,sans-serif", fontSize: 20, fontWeight: 900, margin: "0 0 2px" }}>Home-to-first sprint</div>
+    <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 10 }}>Individual · time · 1 version</div>
+    <div className="card" style={{ marginBottom: 10 }}>
+      <div className="clbl mb8">Latest · 2026-10-28 4:41 PM · 12U Red Practice</div>
+      <div style={{ fontSize: 15, fontWeight: 800 }}>Avg 4.69 seconds</div>
+      <div style={{ fontSize: 12, color: "var(--text-dim)" }}>4 measured · 1 waiting · 0 partial · 0 skipped · 0 unable</div>
+    </div>
+    <div className="card" style={{ marginBottom: 10 }}>
+      <div className="clbl mb8">Comparison</div>
+      <div style={{ fontSize: 15, fontWeight: 800 }}>+0.21 faster (4.3%)</div>
+      <div style={{ fontSize: 12, color: "var(--text-dim)" }}>matched 4 players · 2026-09-30 → 2026-10-28</div>
+      <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>3 improved · 0 unchanged · 1 lower</div>
+    </div>
+    <div className="card" style={{ marginBottom: 10 }}>
+      <div className="clbl mb8">Target</div>
+      <div style={{ fontSize: 13 }}>≤ 5 seconds · objective 75% of measured</div>
+      <div style={{ fontSize: 13, marginTop: 4 }}>3 of 4 measured meet target (75%)</div>
+    </div>
+    <div className="card">
+      <div className="clbl mb8">Players · latest</div>
+      <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+        <tbody>{BENCHMARK_PLAYERS.map(p => <tr key={p.n}>
+          <td style={{ borderBottom: "1px solid var(--border)" }}>{p.n}</td>
+          <td style={{ borderBottom: "1px solid var(--border)", textAlign: "right" }}>{p.r}</td>
+          <td style={{ borderBottom: "1px solid var(--border)", textAlign: "right", width: 40 }}>{p.meets === undefined ? "" : p.meets ? "✓" : "—"}</td>
+        </tr>)}</tbody>
+      </table>
+    </div>
   </div>);
 }
 
@@ -802,11 +948,11 @@ export default function LandingPage({ onGetStarted }) {
     ]} />
 
     <Section eyebrow="Assistant and Helper Views" title="The coaching message stays consistent, no matter who leads the drill." reverse wideVisual visual={<HelperVisual />} body={[
-      "Assistant coaches are granted ongoing access to the team's practices through their own account. Parent helpers can join from a shared link, no account or download required. Everyone sees the same drill, timer and coaching focus. Head coaches can add individual player focus points tied to a skill. When that skill is tagged in a drill, their focus point is visible to the coach leading that station. The player receives consistent messaging, regardless of the messenger.",
+      "Assistant coaches are granted ongoing access to the team's practices through their own account. Parent helpers can join from a shared link, no account or download required. Everyone sees the same drill, timer and coaching focus. Head coaches can give each player a focus point for a skill area, like hitting or fielding. When a drill works that area, the player's focus point is visible to the coach leading that station. The player receives consistent messaging, regardless of the messenger.",
     ]} />
 
     <Section eyebrow="Transition Support" title="Rotate stations like a well oiled machine." reverse visual={<TransitionVisual />} body={[
-      "During transition time, every coach sees where to send their players, who is coming next, and if the new group requires changes to the station's configuration. More clarity, less confusion.",
+      "During transition time, every coach sees where to send their players and which group is coming to their station next. More clarity, less confusion.",
     ]} />
 
     <Section eyebrow="Live Adjustments & Timers" title="Practice never goes to plan. That's fine." visual={<AdjustVisual />} body={[
@@ -848,6 +994,11 @@ export default function LandingPage({ onGetStarted }) {
       "After practice, see attendance, actual drill times, what changed on the fly, and notes captured during practice. Every session is stored in Goals & Insights. You can see how practice time spent aligns to the goals you set.",
     ]} />
 
+    <Section eyebrow="Benchmarks · Pro" title="Measure progress the same way every time." visual={<BenchmarkVisual />} body={[
+      "Set up a repeatable test once: a home-to-first sprint, bat speed, free throws out of ten. Run it as a station during practice, or record it any time. Assistants, or a parent helper with a recording link, can enter results as players finish.",
+      "Each test shows every player's result, who meets your target, and how the same players changed since the last time you measured.",
+    ]} />
+
     <div className="lp-section tight">
       <div className="lp-wrap">
         <div className="lp-title" style={{ textAlign: "center" }}>A clearer plan leads to a smoother practice.</div>
@@ -864,10 +1015,10 @@ export default function LandingPage({ onGetStarted }) {
       <div className="lp-wrap" style={{ maxWidth: 760, textAlign: "center" }}>
         <div className="lp-eyebrow-row" style={{ justifyContent: "center" }}>
           <span className="lp-eyebrow">On Your Wrist</span>
-          <span className="lp-pill-roadmap">Coming to iOS</span>
+          <span className="lp-pill-roadmap">On the Roadmap</span>
         </div>
         <div className="lp-title">Coach the drill, not the clock.</div>
-        <div className="lp-body">The next step: a native iOS app with Apple Watch support. Current drill, time remaining and coaching focus on your wrist, taptic alerts when it's time to rotate. Your phone stays in your pocket. Your eyes stay on your players.</div>
+        <div className="lp-body">On our roadmap: Run of Practice on your wrist. Current drill, time remaining and coaching focus at a glance, with a tap on the wrist when it's time to rotate. Your phone stays in your pocket. Your eyes stay on your players.</div>
         <div className="lp-watch-stage">
           <div className="lp-watch-col">
             <WatchFrame><WatchLiveScreen /></WatchFrame>
