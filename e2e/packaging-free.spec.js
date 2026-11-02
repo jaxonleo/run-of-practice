@@ -20,15 +20,18 @@ test('T1: a second team shows the Free team limit and blocks Save', async ({ pag
   await page.goto('/teams');
   await page.getByRole('button', { name: '+ Team' }).click();
   await expect(page.getByText('Coaching more than one team? Free covers one team.')).toBeVisible({ timeout: 15000 });
-  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  // At the cap the form is replaced by the notice and a Close button.
+  await expect(page.getByRole('button', { name: 'Close', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
 });
 
 test('T2: a third coach shows the staff limit', async ({ page }) => {
   await page.goto(`/team/${QA_FREE_TEAM_ID}/roster`);
   await page.getByRole('button', { name: /Coaches/ }).click();
   await page.getByRole('button', { name: '+ Add' }).click();
-  await expect(page.getByText('Your staff is growing. Free teams include 2 coaches.')).toBeVisible({ timeout: 15000 });
-  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  await expect(page.getByText('Your staff is growing. Free teams include you and up to two assistant coaches.')).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole('button', { name: 'Close', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
 });
 
 test('L2: a 21st drill is refused with the full-library notice', async ({ page }) => {
