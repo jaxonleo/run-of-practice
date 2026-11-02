@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 
@@ -32,7 +32,7 @@ jobs:
         run: npm test
 
   db-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 
@@ -43,7 +43,7 @@ jobs:
 
       - run: npm ci
 
-      # Docker is preinstalled on ubuntu-latest, so this replays the whole
+      # Docker is preinstalled on the Ubuntu runner, so this replays the whole
       # migrations/ folder from empty into a real disposable Postgres --
       # exactly the shadow-database check documented in BUILD-STATUS.md's
       # migration-reconciliation Known Gap, run fresh on every push/PR.
@@ -54,7 +54,7 @@ jobs:
         run: npm run test:db
 
   e2e-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Needs three repo secrets (Settings -> Secrets and variables -> Actions):
     # STAGING_PROJECT_REF, STAGING_SERVICE_ROLE_KEY, STAGING_ANON_KEY -- the
     # same three names/values already in .env locally (never commit that
