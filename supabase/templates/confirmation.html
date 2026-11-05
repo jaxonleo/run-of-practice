@@ -9,6 +9,14 @@
   app's own UI promises ("enter this code"). Existing users on later
   sign-ins already went through the branded magic_link template -- this
   closes the one gap, the very first email a new coach ever gets.
+
+  iPhone app (2026-11-05): when the request came from the app it carries
+  the app's sign-in link as its redirect, and the email leads with a
+  one-tap "Sign in to Run of Practice" button (a Universal Link the app
+  opens and verifies itself), with the same code below as the fallback.
+  Every other request (website, PWA) gets the code-only email as before.
+  A redirect that isn't on the project's allow list comes through as
+  site_url, so it falls back to the code-only email too.
 -->
 <!doctype html>
 <html>
@@ -23,9 +31,9 @@
           </tr></table>
         </td></tr>
         <tr><td style="padding:32px 28px 8px;">
-          <h1 style="margin:0 0 14px;font-size:21px;font-weight:800;color:#111714;line-height:1.35;">Welcome to Run of Practice</h1>
+          <h1 style="margin:0 0 14px;font-size:21px;font-weight:800;color:#111714;line-height:1.35;">{{ if or (eq .RedirectTo "https://staging.runofpractice.com/app/signin") (eq .RedirectTo "https://www.runofpractice.com/app/signin") }}Sign in to Run of Practice{{ else }}Welcome to Run of Practice{{ end }}</h1>
           <div style="font-size:15px;line-height:1.65;color:#2c3830;">
-            <p style="margin:0 0 20px;">Enter this code to confirm your email and finish signing in. It expires in 5 minutes.</p>
+            {{ if or (eq .RedirectTo "https://staging.runofpractice.com/app/signin") (eq .RedirectTo "https://www.runofpractice.com/app/signin") }}<p style="margin:0 0 20px;">Tap the button on your iPhone to sign in to the app.</p><div style="text-align:center;margin:0 0 22px;"><a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email" style="display:inline-block;background:#2d6a4f;color:#ffffff;text-decoration:none;font-size:16px;font-weight:700;letter-spacing:.02em;padding:14px 26px;border-radius:10px;">Sign in to Run of Practice</a></div><p style="margin:0 0 12px;font-size:14px;color:#5a6b62;">Or enter this code in the app:</p>{{ else }}<p style="margin:0 0 20px;">Enter this code to confirm your email and finish signing in. It expires in 5 minutes.</p>{{ end }}
           </div>
         </td></tr>
         <tr><td style="padding:0 28px 8px;">

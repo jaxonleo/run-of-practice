@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["AD6CGB466Z.com.runofpractice.app"],
+        "components": [
+          { "/": "/app/signin", "comment": "Sign-in link from an email the iPhone app requested" }
+        ]
+      }
+    ]
+  }
+}

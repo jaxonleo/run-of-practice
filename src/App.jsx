@@ -34,6 +34,7 @@ import LandingPage from "./components/LandingPage.jsx";
 import { TermsPage, PrivacyPage, FAQPage } from "./components/LegalPages.jsx";
 import PricingPage from "./components/PricingPage.jsx";
 import PartnersPage from "./components/PartnersPage.jsx";
+import AppSignInLinkPage from "./components/AppSignInLinkPage.jsx";
 // Lazy: recharts + its d3-* subpackages are the single largest dependency
 // in this app (~9MB unminified) and this is the only screen that uses
 // them, gated to founder-admins only -- everyone else was downloading that
@@ -795,6 +796,8 @@ export default function App(){
           regardless of auth/loading state. */}
       <Route path="/pricing" element={<PricingPage/>}/>
       <Route path="/partners" element={<PartnersPage/>}/>
+      {/* iPhone app sign-in link landing page (see AppSignInLinkPage). */}
+      <Route path="/app/signin" element={<AppSignInLinkPage/>}/>
       <Route path="/*" element={<AuthedShell/>}>
         <Route path="admin/metrics" element={<FounderAdminRoute/>}/>
         <Route path="admin/entitlements" element={<EntitlementAdminRoute/>}/>
